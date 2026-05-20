@@ -59,7 +59,7 @@ FinRobot/
    - **VolatilitySqueeze**: BB/KC squeeze breakout with volume confirmation
 4. **Regime Detection**: Hurst Exponent + ADX classifies market as ranging/mild_trend/trending, filters strategies accordingly
 5. **Multi-Signal Execution**: Opens up to `max_open_positions - current_positions` trades per iteration (1 per coin), max 2 correlated (same-direction) positions
-  6. **Position Management**: Regime-adaptive SL/TP (ranging: 0.4%/0.6%, mild_trend: 0.6%/1.1%, trending: 0.7%/1.4%), trailing stop (ranging: 0.3%, mild: 0.4%, trending: 0.5%), no breakeven stop, max duration regime-adaptive (ranging: 20min, mild: 30min, trending: 40min), early profit exit (>0.1% after 15min)
+  6. **Position Management**: Regime-adaptive SL/TP (ranging: 0.3%/0.6%, mild_trend: 0.4%/0.9%, trending: 0.5%/1.2%), trailing stop (ranging: 0.2%, mild: 0.3%, trending: 0.4%), breakeven stop at +0.5% (moves SL to entry+fees), TIMEOUT DISABLED (trades exit only via SL/TP/trail), early profit exit DISABLED (let winners run to TP)
 7. **Self-Improvement**: Tracks per-strategy performance, adjusts parameters every hour
 8. **Strategy Lab**: Auto-disables persistently losing strategies (WR<20%, avg_pnl<-0.5%), re-enables after 2hr cooldown
 9. **Opencode Feedback**: Actually invokes opencode via subprocess when return < -1% or WR < 50% or DD > 3%
@@ -67,14 +67,15 @@ FinRobot/
 
 ### Key Parameters
 - **Initial Balance**: 100 USDT (paper trading)
-- **Max Open Positions**: 5
+- **Max Open Positions**: 3
 - **Max Leverage**: 5x
-- **Risk Per Trade**: 2% of balance
-- **Min Confidence**: 0.58 (58%)
-- **BTC SL/TP/Trail**: trending 0.7%/1.4%/0.5% | mild_trend 0.6%/1.1%/0.4% | ranging 0.4%/0.6%/0.3%
-- **Max Duration**: ranging 1200s | mild_trend 1800s | trending 2400s | **Breakeven**: DISABLED | **Trail Activation**: 0.35%
-- **Daily Loss Limit**: -2% | **Max Correlated Positions**: 2 | **Early Profit Exit**: >0.1% after 15min
-- **Strategy Coin Blacklist**: Fibonacci→SOL, MACD→{SOL,ETH}, VWAP→{BTC,ETH,SOL} (fully disabled)
+- **Risk Per Trade**: 1% of balance
+- **Min Confidence**: 0.70 (70%)
+- **BTC SL/TP/Trail**: trending 0.5%/1.2%/0.4% | mild_trend 0.4%/0.9%/0.3% | ranging 0.3%/0.6%/0.2%
+- **Max Duration**: TIMEOUT DISABLED | **Breakeven**: ENABLED at +0.5% | **Trail Activation**: 0.4%
+- **Daily Loss Limit**: -2% | **Max Correlated Positions**: 2 | **Early Profit Exit**: DISABLED
+- **Trade Cooldown**: 15s | **Partial TP**: DISABLED | **High Conf Boost**: 1.3x at >=80%
+- **Strategy Coin Blacklist**: Fibonacci→SOL, MACD→{SOL,ETH}, VWAP→{BTC,ETH,SOL} (fully disabled), Range_Scalper→{BTC,ETH}, Funding_Contrarian→{SOL}
 - **Regime Risk**: ranging 50% | mild_trend 75% | trending 100%
 
 ## How to Monitor
@@ -105,7 +106,7 @@ Balance: 100.00 | Equity: 100.00 | Open: 0/5 | Trades: 0 | Signals: 0
 ## Daemon Management
 
 ```bash
-# Start moonshot daemon
+# Start moonshot daemon (paper trading - default)
 systemctl --user start moonshot-daemon.service
 
 # Stop
@@ -117,6 +118,53 @@ systemctl --user restart moonshot-daemon.service
 # Enable on boot
 systemctl --user enable moonshot-daemon.service
 ```
+
+## Live Trading
+
+The daemon supports live trading on Hyperliquid with real funds. By default it runs in **paper mode**.
+
+### Setup
+
+1. **Copy and edit `.env`**:
+   ```bash
+   cp .env.sample .env
+   nano .env
+   ```
+
+2. **Add your wallet credentials** to `.env`:
+   ```
+   TRADING_MODE=live
+   HYPERLIQUID_PRIVATE_KEY=0x_your_private_key
+   HYPERLIQUID_WALLET_ADDRESS=0x_your_wallet_address
+   HYPERLIQUID_NETWORK=mainnet
+   LIVE_MAX_POSITION_USD=50
+   ```
+
+3. **Fund your wallet** with USDC on Arbitrum + some ETH for gas
+
+4. **Enable live mode** - either via `.env` (`TRADING_MODE=live`) or CLI flag (`--live`):
+   ```bash
+   # Via CLI flag (overrides .env)
+   python3 scripts/run_daemon.py --interval 15 --balance 100 --live
+
+   # Or update systemd service to add --live flag
+   systemctl --user edit moonshot-daemon.service
+   # Add: ExecStart=.../run_daemon.py --interval 15 --balance 100 --live
+   ```
+
+5. **Restart**:
+   ```bash
+   systemctl --user restart moonshot-daemon.service
+   ```
+
+### Safety
+
+- **Start with paper mode** for at least a few days to verify performance
+- **Use a dedicated trading wallet** - never your main wallet
+- **Set `LIVE_MAX_POSITION_USD`** to limit exposure per position
+- **Daily loss limit** (-2%) still applies in live mode
+- The live executor uses the Hyperliquid Python SDK for on-chain order placement
+- If `.env` is missing `HYPERLIQUID_PRIVATE_KEY` or `HYPERLIQUID_WALLET_ADDRESS`, it falls back to paper mode automatically
 
 ## File Modification Guidelines
 
@@ -180,9 +228,15 @@ BTC leads ETH/SOL by 1-3 minutes on 1m charts. The system treated all coins inde
 ### 17. No Daily Loss Limit or Correlation Check
 One bad hour could wipe out a week of gains, and all 3 positions could be long simultaneously (3x long crypto). V7 adds -2% daily loss limit and max 2 same-direction position correlation check.
 
+### 18. Wide SL/TP and Long Hold Times Cause TIMEOUT Dominated Exits (CRITICAL)
+V10 had regime SL/TP of ranging 0.4%/0.6%, mild 0.6%/1.1%, trending 0.7%/1.4% with max durations of 20-40min. This caused most trades to exit via TIMEOUT at random PnL instead of hitting TP. The TP was too close relative to normal 1m candle noise but the SL was too wide, creating asymmetric losses. V11 tightens SL (ranging 0.3%, mild 0.4%, trending 0.5%) to cut losses faster, widens TP (ranging 0.9%, mild 1.4%, trending 1.8%) to let winners run, halves max hold times (10-20min), enables breakeven stops at +0.5%, and raises min_confidence to 0.65 to reduce low-quality trades.
+
+### 19. TIMEOUT and Early Profit Exit Are the #1 and #2 EV Killers (CRITICAL)
+V12 data: 173 trades, 105 (61%) exited via TIMEOUT with avg PnL -0.028. Early profit exit captured 57 wins but avg only +0.051. The fundamental problem: TIMEOUT exits at random PnL destroy expected value because they're noise, not alpha. Early profit exit at +0.15% cuts winners before they can reach TP at +0.6-1.2%. The win/loss ratio was 0.72 (avg win +0.034 vs avg loss -0.048). Quant principle: you need either WR>60% with R:R>0.8, or R:R>1.5 with WR>40%. V13 disables both TIMEOUT and early profit exit. Trades now exit only via SL (cut losers), TP (let winners run), or trailing stop (lock in profits). This eliminates two sources of negative EV.
+
 ---
 
-**Last Updated**: 2026-05-17
-**Major Changes**: V9 - Regime-adaptive SL/TP (ranging: 0.4%/0.6%, mild_trend: 0.6%/1.1%, trending: 0.7%/1.4%), regime-adaptive timeout (ranging: 1200s, mild_trend: 1800s, trending: 2400s), early profit exit (>0.1% after 15min), fully blacklisted VWAP (0% WR), reduced risk in ranging markets (50% risk), removed VWAP from regime strategy filter
-**Daemon 2 Status**: Running via systemd (V9)
+**Last Updated**: 2026-05-19
+**Major Changes**: V13 - Disabled TIMEOUT exit entirely (was causing 61% of trades to exit at random PnL, destroying EV), disabled early profit exit (was cutting winners at +0.15% before TP could be hit), raised min_confidence 0.65→0.70, raised breakeven activation +0.3%→+0.5%, raised trail activation 0.3%→0.4%, disabled partial TP, reduced max positions 5→3, increased trade cooldown 5s→15s, reduced high-conf boost 1.5x→1.3x at >=80%. Core quant principle: let winners run to TP, cut losers at SL, eliminate noise exits.
+**Daemon 2 Status**: Running via nohup (V13)
 **Daemon 1 Status**: Preserved but not actively used (all strategies unprofitable)

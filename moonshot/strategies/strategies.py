@@ -1371,17 +1371,37 @@ class CrossAssetLeadLag:
 class FundingRateContrarian:
     """
     Extreme funding rates predict price reversals.
-    When funding > 0.1%, longs pay shorts -> market overleveraged long -> short signal.
-    When funding < -0.05%, shorts pay longs -> market overleveraged short -> long signal.
+    Uses z-score of recent funding rates instead of fixed thresholds.
+    When z-score > 2.0, the funding rate is statistically extreme.
     """
 
     def __init__(self, high_funding_threshold: float = 0.001,
-                 low_funding_threshold: float = -0.0005, max_leverage: float = 5.0):
+                 low_funding_threshold: float = -0.0005, max_leverage: float = 5.0,
+                 zscore_threshold: float = 2.0):
         self.name = "Funding_Contrarian"
         self.high_funding_threshold = high_funding_threshold
         self.low_funding_threshold = low_funding_threshold
         self.max_leverage = max_leverage
+        self.zscore_threshold = zscore_threshold
+        self.funding_history: Dict[str, List[float]] = {}
         self.last_signal_time = {}
+
+    def _compute_zscore(self, coin: str, rate: float) -> float:
+        if coin not in self.funding_history:
+            self.funding_history[coin] = []
+        self.funding_history[coin].append(rate)
+        if len(self.funding_history[coin]) > 100:
+            self.funding_history[coin] = self.funding_history[coin][-100:]
+        history = self.funding_history[coin]
+        if len(history) < 5:
+            return 0.0
+        import numpy as np
+        arr = np.array(history)
+        mean = arr.mean()
+        std = arr.std()
+        if std < 1e-10:
+            return 0.0
+        return float((rate - mean) / std)
 
     def generate_signal(self, symbol: str, ohlcv: pd.DataFrame = None,
                         current_price: float = 0, account_balance: float = 0,
@@ -1396,34 +1416,35 @@ class FundingRateContrarian:
         if current_price <= 0:
             return None
 
-        vol_mult = 1.5 if coin == "SOL" else 1.0
+        zscore = self._compute_zscore(coin, funding_rate)
+
         signal = None
 
-        if funding_rate > self.high_funding_threshold:
-            confidence = 0.58 + min(0.3, (funding_rate - self.high_funding_threshold) * 500)
-            sl = current_price * (1 + 0.005 * vol_mult)
-            tp = current_price * (1 - 0.009 * vol_mult)
+        if zscore > self.zscore_threshold or funding_rate > self.high_funding_threshold:
+            confidence = 0.58 + min(0.3, abs(zscore) * 0.05)
+            sl = current_price * 1.007
+            tp = current_price * 0.986
             size = (account_balance * 0.08) / current_price
             signal = TradingSignal(
                 symbol=symbol, signal_type=SignalType.SELL,
                 confidence=min(0.85, confidence), suggested_leverage=self.max_leverage,
                 suggested_size=size, entry_price=current_price,
                 stop_loss=sl, take_profit=tp,
-                rationale=f"Funding SHORT: Rate={funding_rate*100:.3f}% (overleveraged longs)"
+                rationale=f"Funding SHORT: Rate={funding_rate*100:.4f}% z={zscore:.1f} (overleveraged longs)"
             )
             self.last_signal_time[coin] = now
 
-        elif funding_rate < self.low_funding_threshold:
-            confidence = 0.58 + min(0.3, (self.low_funding_threshold - funding_rate) * 500)
-            sl = current_price * (1 - 0.005 * vol_mult)
-            tp = current_price * (1 + 0.009 * vol_mult)
+        elif zscore < -self.zscore_threshold or funding_rate < self.low_funding_threshold:
+            confidence = 0.58 + min(0.3, abs(zscore) * 0.05)
+            sl = current_price * 0.993
+            tp = current_price * 1.014
             size = (account_balance * 0.08) / current_price
             signal = TradingSignal(
                 symbol=symbol, signal_type=SignalType.BUY,
                 confidence=min(0.85, confidence), suggested_leverage=self.max_leverage,
                 suggested_size=size, entry_price=current_price,
                 stop_loss=sl, take_profit=tp,
-                rationale=f"Funding LONG: Rate={funding_rate*100:.3f}% (overleveraged shorts)"
+                rationale=f"Funding LONG: Rate={funding_rate*100:.4f}% z={zscore:.1f} (overleveraged shorts)"
             )
             self.last_signal_time[coin] = now
 
@@ -1434,7 +1455,8 @@ class VolatilitySqueeze:
     """
     Keltner Channel + Bollinger Band squeeze detection.
     When BBs contract inside KC, low-vol regime detected.
-    Trade the breakout with volume confirmation.
+    Trade the breakout when price breaks above/below BB.
+    Volume spike requirement removed (tick-derived volume is unreliable).
     """
 
     def __init__(self, bb_period: int = 20, bb_std: float = 2.0,
@@ -1463,7 +1485,6 @@ class VolatilitySqueeze:
         closes = ohlcv['close']
         highs = ohlcv['high']
         lows = ohlcv['low']
-        volumes = ohlcv.get('volume', pd.Series([1] * len(ohlcv)))
 
         upper_bb, middle_bb, lower_bb = self.indicators.bollinger_bands(closes, self.bb_period, self.bb_std)
         atr = self.indicators.atr(highs, lows, closes, self.atr_period)
@@ -1486,40 +1507,447 @@ class VolatilitySqueeze:
         if not is_squeezed:
             return None
 
-        avg_vol = volumes.rolling(20).mean().iloc[-1] if len(volumes) >= 20 else 1
-        cur_vol = volumes.iloc[-1]
-        vol_spike = cur_vol > avg_vol * 1.5 if avg_vol > 0 else True
-
-        if not vol_spike:
-            return None
-
         prev_close = closes.iloc[-2]
-        vol_mult = 1.5 if coin == "SOL" else 1.0
         signal = None
 
         if current_price > upper_bb.iloc[-1] and prev_close <= upper_bb.iloc[-2]:
-            sl = middle_bb.iloc[-1] * (1 - 0.003 * vol_mult)
+            sl = middle_bb.iloc[-1] * 0.993
             tp = current_price + (current_price - middle_bb.iloc[-1]) * 1.5
             size = (account_balance * 0.10) / current_price
             signal = TradingSignal(
                 symbol=symbol, signal_type=SignalType.BUY,
-                confidence=0.65, suggested_leverage=self.max_leverage,
+                confidence=0.60, suggested_leverage=self.max_leverage,
                 suggested_size=size, entry_price=current_price,
                 stop_loss=sl, take_profit=tp,
-                rationale=f"Squeeze Break LONG: BB/KC squeeze, volume spike, breakout"
+                rationale=f"Squeeze Break LONG: BB/KC squeeze, breakout above BB"
             )
             self.last_signal_time[coin] = now
 
         elif current_price < lower_bb.iloc[-1] and prev_close >= lower_bb.iloc[-2]:
-            sl = middle_bb.iloc[-1] * (1 + 0.003 * vol_mult)
+            sl = middle_bb.iloc[-1] * 1.007
             tp = current_price - (middle_bb.iloc[-1] - current_price) * 1.5
             size = (account_balance * 0.10) / current_price
             signal = TradingSignal(
                 symbol=symbol, signal_type=SignalType.SELL,
-                confidence=0.65, suggested_leverage=self.max_leverage,
+                confidence=0.60, suggested_leverage=self.max_leverage,
                 suggested_size=size, entry_price=current_price,
                 stop_loss=sl, take_profit=tp,
-                rationale=f"Squeeze Break SHORT: BB/KC squeeze, volume spike, breakdown"
+                rationale=f"Squeeze Break SHORT: BB/KC squeeze, breakdown below BB"
+            )
+            self.last_signal_time[coin] = now
+
+        return signal
+
+
+class EMARibbonPullback:
+    """
+    EMA Ribbon Pullback Strategy
+    When EMA 8/13/21 are properly stacked (trend confirmed),
+    trade pullbacks to the EMA 21 zone.
+    Trending regime strategy that complements Quick_Momentum.
+    """
+
+    def __init__(self, ema_fast: int = 8, ema_mid: int = 13, ema_slow: int = 21,
+                 rsi_period: int = 14, max_leverage: float = 5.0):
+        self.name = "EMA_Ribbon"
+        self.ema_fast = ema_fast
+        self.ema_mid = ema_mid
+        self.ema_slow = ema_slow
+        self.rsi_period = rsi_period
+        self.max_leverage = max_leverage
+        self.indicators = TechnicalIndicators()
+        self.last_signal_time = {}
+
+    def generate_signal(self, symbol: str, ohlcv: pd.DataFrame,
+                        current_price: float, account_balance: float) -> Optional[TradingSignal]:
+        import time as _time
+        now = _time.time()
+        coin = symbol.replace("-PERP", "")
+        if coin in self.last_signal_time and now - self.last_signal_time[coin] < 60:
+            return None
+
+        min_len = max(self.ema_slow, self.rsi_period) + 5
+        if len(ohlcv) < min_len:
+            return None
+
+        closes = ohlcv['close']
+        ema8 = self.indicators.ema(closes, self.ema_fast)
+        ema13 = self.indicators.ema(closes, self.ema_mid)
+        ema21 = self.indicators.ema(closes, self.ema_slow)
+        rsi = self.indicators.rsi(closes, self.rsi_period)
+
+        e8 = ema8.iloc[-1]
+        e13 = ema13.iloc[-1]
+        e21 = ema21.iloc[-1]
+        cur_rsi = rsi.iloc[-1] if not pd.isna(rsi.iloc[-1]) else 50
+
+        bullish_stack = e8 > e13 > e21
+        bearish_stack = e8 < e13 < e21
+
+        signal = None
+
+        if bullish_stack:
+            dist_to_21 = (current_price - e21) / e21
+            if 0 <= dist_to_21 <= 0.003 and cur_rsi < 60:
+                confidence = 0.58 + min(0.20, (e8 - e21) / e21 * 100)
+                sl = e21 * 0.993
+                tp = current_price * 1.014
+                size = (account_balance * 0.10) / current_price
+                signal = TradingSignal(
+                    symbol=symbol, signal_type=SignalType.BUY,
+                    confidence=min(0.85, confidence), suggested_leverage=self.max_leverage,
+                    suggested_size=size, entry_price=current_price,
+                    stop_loss=sl, take_profit=tp,
+                    rationale=f"Ribbon Pullback LONG: EMA8/13/21 stacked, pullback to EMA21 zone, RSI={cur_rsi:.0f}"
+                )
+                self.last_signal_time[coin] = now
+
+        elif bearish_stack:
+            dist_to_21 = (e21 - current_price) / e21
+            if 0 <= dist_to_21 <= 0.003 and cur_rsi > 40:
+                confidence = 0.58 + min(0.20, (e21 - e8) / e21 * 100)
+                sl = e21 * 1.007
+                tp = current_price * 0.986
+                size = (account_balance * 0.10) / current_price
+                signal = TradingSignal(
+                    symbol=symbol, signal_type=SignalType.SELL,
+                    confidence=min(0.85, confidence), suggested_leverage=self.max_leverage,
+                    suggested_size=size, entry_price=current_price,
+                    stop_loss=sl, take_profit=tp,
+                    rationale=f"Ribbon Pullback SHORT: EMA8/13/21 stacked bearish, pullback to EMA21, RSI={cur_rsi:.0f}"
+                )
+                self.last_signal_time[coin] = now
+
+        return signal
+
+
+class VWAPReversion:
+    """
+    VWAP Mean Reversion Strategy
+    When price deviates significantly from VWAP, trade back toward it.
+    Ranging regime strategy - catches overextensions from fair value.
+    """
+
+    def __init__(self, vwap_period: int = 20, deviation_threshold: float = 0.003,
+                 rsi_period: int = 14, max_leverage: float = 5.0):
+        self.name = "VWAP_Revert"
+        self.vwap_period = vwap_period
+        self.deviation_threshold = deviation_threshold
+        self.rsi_period = rsi_period
+        self.max_leverage = max_leverage
+        self.indicators = TechnicalIndicators()
+        self.last_signal_time = {}
+
+    def generate_signal(self, symbol: str, ohlcv: pd.DataFrame,
+                        current_price: float, account_balance: float) -> Optional[TradingSignal]:
+        import time as _time
+        now = _time.time()
+        coin = symbol.replace("-PERP", "")
+        if coin in self.last_signal_time and now - self.last_signal_time[coin] < 60:
+            return None
+
+        if len(ohlcv) < self.vwap_period + 5:
+            return None
+
+        closes = ohlcv['close']
+        volumes = ohlcv.get('volume', pd.Series([1.0] * len(ohlcv)))
+
+        typical_price = (closes * volumes).rolling(self.vwap_period).sum()
+        cum_volume = volumes.rolling(self.vwap_period).sum()
+        vwap = typical_price / cum_volume.replace(0, 1)
+
+        if pd.isna(vwap.iloc[-1]):
+            return None
+
+        cur_vwap = float(vwap.iloc[-1])
+        if cur_vwap <= 0:
+            return None
+
+        deviation = (current_price - cur_vwap) / cur_vwap
+        rsi = self.indicators.rsi(closes, self.rsi_period)
+        cur_rsi = rsi.iloc[-1] if not pd.isna(rsi.iloc[-1]) else 50
+
+        signal = None
+
+        if deviation > self.deviation_threshold and cur_rsi > 60:
+            confidence = 0.58 + min(0.25, deviation * 50)
+            sl = current_price * 1.007
+            tp = cur_vwap
+            size = (account_balance * 0.08) / current_price
+            signal = TradingSignal(
+                symbol=symbol, signal_type=SignalType.SELL,
+                confidence=min(0.85, confidence), suggested_leverage=self.max_leverage,
+                suggested_size=size, entry_price=current_price,
+                stop_loss=sl, take_profit=tp,
+                rationale=f"VWAP Revert SHORT: price +{deviation*100:.2f}% above VWAP ({cur_vwap:.2f}), RSI={cur_rsi:.0f}"
+            )
+            self.last_signal_time[coin] = now
+
+        elif deviation < -self.deviation_threshold and cur_rsi < 40:
+            confidence = 0.58 + min(0.25, abs(deviation) * 50)
+            sl = current_price * 0.993
+            tp = cur_vwap
+            size = (account_balance * 0.08) / current_price
+            signal = TradingSignal(
+                symbol=symbol, signal_type=SignalType.BUY,
+                confidence=min(0.85, confidence), suggested_leverage=self.max_leverage,
+                suggested_size=size, entry_price=current_price,
+                stop_loss=sl, take_profit=tp,
+                rationale=f"VWAP Revert LONG: price {deviation*100:.2f}% below VWAP ({cur_vwap:.2f}), RSI={cur_rsi:.0f}"
+            )
+            self.last_signal_time[coin] = now
+
+        return signal
+
+
+class QQEStrategy:
+    """
+    QQE (Quantitative Qualitative Estimation) Strategy
+    
+    Computes a smoothed RSI, then measures the volatility of that smoothed RSI
+    (similar to ATR applied to RSI). Dynamic threshold bands are created from
+    this volatility. Crossovers of the QQE line through these bands produce
+    cleaner signals than raw RSI because the volatility-adaptive bands filter
+    noise and adjust to market conditions automatically.
+    
+    Signal logic:
+    - BUY: QQE line crosses above the lower threshold band (oversold reversal)
+    - SELL: QQE line crosses below the upper threshold band (overbought reversal)
+    - Confirmation: EMA trend filter + optional RSI divergence
+    """
+
+    def __init__(
+        self,
+        rsi_period: int = 14,
+        rsi_smoothing: int = 5,
+        threshold_mult: float = 1.618,
+        ema_fast: int = 8,
+        ema_slow: int = 21,
+        max_leverage: float = 5.0,
+    ):
+        self.name = "QQE"
+        self.rsi_period = rsi_period
+        self.rsi_smoothing = rsi_smoothing
+        self.threshold_mult = threshold_mult
+        self.ema_fast = ema_fast
+        self.ema_slow = ema_slow
+        self.max_leverage = max_leverage
+        self.indicators = TechnicalIndicators()
+        self.last_signal_time = {}
+
+    def _compute_qqe(self, closes: pd.Series) -> Tuple[pd.Series, pd.Series]:
+        delta = closes.diff()
+        gain = delta.where(delta > 0, 0.0)
+        loss = (-delta).where(delta < 0, 0.0)
+
+        alpha = 1.0 / self.rsi_period
+        avg_gain = gain.ewm(alpha=alpha, adjust=False).mean()
+        avg_loss = loss.ewm(alpha=alpha, adjust=False).mean()
+
+        rs = avg_gain / avg_loss.replace(0, 1e-10)
+        rsi = 100.0 - (100.0 / (1.0 + rs))
+
+        smooth_alpha = 1.0 / self.rsi_smoothing
+        smoothed_rsi = rsi.ewm(alpha=smooth_alpha, adjust=False).mean()
+
+        rsi_change = smoothed_rsi.diff().abs()
+        smoothed_delta = rsi_change.ewm(alpha=smooth_alpha, adjust=False).mean()
+
+        trailing = pd.Series(np.nan, index=closes.index)
+        trail_val = smoothed_rsi.iloc[0] if not pd.isna(smoothed_rsi.iloc[0]) else 50.0
+
+        for i in range(len(smoothed_rsi)):
+            cur_rsi = smoothed_rsi.iloc[i]
+            cur_delta = smoothed_delta.iloc[i]
+            if pd.isna(cur_rsi) or pd.isna(cur_delta):
+                trailing.iloc[i] = trail_val
+                continue
+
+            step = max(cur_delta * self.threshold_mult, 5.0)
+
+            if cur_rsi > trail_val:
+                new_trail = cur_rsi - step
+                if new_trail > trail_val:
+                    trail_val = new_trail
+            else:
+                new_trail = cur_rsi + step
+                if new_trail < trail_val:
+                    trail_val = new_trail
+
+            trailing.iloc[i] = trail_val
+
+        return smoothed_rsi, trailing
+
+    def generate_signal(self, symbol: str, ohlcv: pd.DataFrame,
+                        current_price: float, account_balance: float) -> Optional[TradingSignal]:
+        import time as _time
+        now = _time.time()
+        coin = symbol.replace("-PERP", "")
+        if coin in self.last_signal_time and now - self.last_signal_time[coin] < 30:
+            return None
+
+        min_len = max(self.rsi_period, self.ema_slow) + 10
+        if len(ohlcv) < min_len:
+            return None
+
+        closes = ohlcv['close']
+
+        qqe_line, trailing = self._compute_qqe(closes)
+
+        if pd.isna(qqe_line.iloc[-1]) or pd.isna(trailing.iloc[-1]):
+            return None
+        if len(qqe_line) < 3 or pd.isna(qqe_line.iloc[-2]) or pd.isna(trailing.iloc[-2]):
+            return None
+
+        cur_qqe = qqe_line.iloc[-1]
+        prev_qqe = qqe_line.iloc[-2]
+        cur_trail = trailing.iloc[-1]
+        prev_trail = trailing.iloc[-2]
+
+        ema_f = self.indicators.ema(closes, self.ema_fast)
+        ema_s = self.indicators.ema(closes, self.ema_slow)
+        fast_val = ema_f.iloc[-1]
+        slow_val = ema_s.iloc[-1]
+
+        rsi_raw = self.indicators.rsi(closes, self.rsi_period)
+        cur_rsi = rsi_raw.iloc[-1] if not pd.isna(rsi_raw.iloc[-1]) else 50
+
+        bullish_cross = prev_qqe <= prev_trail and cur_qqe > cur_trail
+        bearish_cross = prev_qqe >= prev_trail and cur_qqe < cur_trail
+
+        qqe_above_trail = cur_qqe > cur_trail
+        qqe_oversold = cur_qqe < 35 and cur_qqe > prev_qqe and qqe_above_trail
+        qqe_overbought = cur_qqe > 65 and cur_qqe < prev_qqe and not qqe_above_trail
+
+        signal = None
+
+        if bullish_cross or qqe_oversold:
+            confidence = 0.55
+            if fast_val > slow_val:
+                confidence += 0.10
+            if cur_qqe < 30:
+                confidence += 0.10
+            if cur_rsi < 40:
+                confidence += 0.05
+            if bullish_cross:
+                confidence += 0.05
+            confidence = min(0.90, confidence)
+
+            sl = current_price * 0.993
+            tp = current_price * 1.014
+            size = (account_balance * 0.10) / current_price
+            sig_type = "cross" if bullish_cross else "zone"
+            signal = TradingSignal(
+                symbol=symbol, signal_type=SignalType.BUY,
+                confidence=confidence, suggested_leverage=self.max_leverage,
+                suggested_size=size, entry_price=current_price,
+                stop_loss=sl, take_profit=tp,
+                rationale=f"QQE LONG ({sig_type}): QQE={cur_qqe:.1f} trail={cur_trail:.1f}, RSI={cur_rsi:.0f}"
+            )
+            self.last_signal_time[coin] = now
+
+        elif bearish_cross or qqe_overbought:
+            confidence = 0.55
+            if fast_val < slow_val:
+                confidence += 0.10
+            if cur_qqe > 70:
+                confidence += 0.10
+            if cur_rsi > 60:
+                confidence += 0.05
+            if bearish_cross:
+                confidence += 0.05
+            confidence = min(0.90, confidence)
+
+            sl = current_price * 1.007
+            tp = current_price * 0.986
+            size = (account_balance * 0.10) / current_price
+            sig_type = "cross" if bearish_cross else "zone"
+            signal = TradingSignal(
+                symbol=symbol, signal_type=SignalType.SELL,
+                confidence=confidence, suggested_leverage=self.max_leverage,
+                suggested_size=size, entry_price=current_price,
+                stop_loss=sl, take_profit=tp,
+                rationale=f"QQE SHORT ({sig_type}): QQE={cur_qqe:.1f} trail={cur_trail:.1f}, RSI={cur_rsi:.0f}"
+            )
+            self.last_signal_time[coin] = now
+
+        return signal
+
+
+class MomentumExhaustion:
+    """
+    Momentum Exhaustion Strategy
+    When RSI is extended AND recent candle ranges are shrinking,
+    the move is running out of steam - trade the reversal.
+    Catches overextended moves that are decelerating.
+    """
+
+    def __init__(self, rsi_period: int = 14, rsi_ob: float = 75, rsi_os: float = 25,
+                 lookback: int = 3, max_leverage: float = 5.0):
+        self.name = "Mom_Exhaust"
+        self.rsi_period = rsi_period
+        self.rsi_ob = rsi_ob
+        self.rsi_os = rsi_os
+        self.lookback = lookback
+        self.max_leverage = max_leverage
+        self.indicators = TechnicalIndicators()
+        self.last_signal_time = {}
+
+    def generate_signal(self, symbol: str, ohlcv: pd.DataFrame,
+                        current_price: float, account_balance: float) -> Optional[TradingSignal]:
+        import time as _time
+        now = _time.time()
+        coin = symbol.replace("-PERP", "")
+        if coin in self.last_signal_time and now - self.last_signal_time[coin] < 60:
+            return None
+
+        if len(ohlcv) < max(self.rsi_period, self.lookback) + 10:
+            return None
+
+        closes = ohlcv['close']
+        highs = ohlcv['high']
+        lows = ohlcv['low']
+
+        rsi = self.indicators.rsi(closes, self.rsi_period)
+        cur_rsi = rsi.iloc[-1] if not pd.isna(rsi.iloc[-1]) else 50
+
+        ranges = highs - lows
+        recent_ranges = ranges.iloc[-self.lookback:]
+        avg_range = recent_ranges.mean()
+        prev_avg = ranges.iloc[-(self.lookback * 2):-self.lookback].mean() if len(ranges) >= self.lookback * 2 else avg_range
+
+        shrinking = avg_range < prev_avg * 0.85 if prev_avg > 0 else False
+
+        if not shrinking:
+            return None
+
+        signal = None
+
+        if cur_rsi > self.rsi_ob:
+            confidence = 0.58 + min(0.25, (cur_rsi - self.rsi_ob) / 100)
+            sl = current_price * 1.007
+            tp = current_price * 0.986
+            size = (account_balance * 0.08) / current_price
+            signal = TradingSignal(
+                symbol=symbol, signal_type=SignalType.SELL,
+                confidence=min(0.85, confidence), suggested_leverage=self.max_leverage,
+                suggested_size=size, entry_price=current_price,
+                stop_loss=sl, take_profit=tp,
+                rationale=f"Exhaustion SHORT: RSI={cur_rsi:.0f}, candle ranges shrinking, momentum fading"
+            )
+            self.last_signal_time[coin] = now
+
+        elif cur_rsi < self.rsi_os:
+            confidence = 0.58 + min(0.25, (self.rsi_os - cur_rsi) / 100)
+            sl = current_price * 0.993
+            tp = current_price * 1.014
+            size = (account_balance * 0.08) / current_price
+            signal = TradingSignal(
+                symbol=symbol, signal_type=SignalType.BUY,
+                confidence=min(0.85, confidence), suggested_leverage=self.max_leverage,
+                suggested_size=size, entry_price=current_price,
+                stop_loss=sl, take_profit=tp,
+                rationale=f"Exhaustion LONG: RSI={cur_rsi:.0f}, candle ranges shrinking, selling exhausted"
             )
             self.last_signal_time[coin] = now
 
@@ -1539,6 +1967,10 @@ __all__ = [
     'CrossAssetLeadLag',
     'FundingRateContrarian',
     'VolatilitySqueeze',
+    'EMARibbonPullback',
+    'VWAPReversion',
+    'MomentumExhaustion',
+    'QQEStrategy',
     'TradingSignal',
     'SignalType',
     'TechnicalIndicators'

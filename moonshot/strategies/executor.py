@@ -109,7 +109,10 @@ class HyperliquidPaperTrading:
         max_leverage: float = 50.0,
         maker_fee: float = 0.0002,  # 0.02%
         taker_fee: float = 0.0005,  # 0.05%
-        data_source: str = "mock"  # mock, hyperliquid, or combined
+        data_source: str = "mock",  # mock, hyperliquid, or combined
+        spread_bps: float = 1.5,
+        slippage_bps: float = 0.5,
+        gas_fee_usd: float = 0.02,
     ):
         self.initial_balance = initial_balance
         self.balance = initial_balance
@@ -119,6 +122,9 @@ class HyperliquidPaperTrading:
         self.maker_fee = maker_fee
         self.taker_fee = taker_fee
         self.data_source = data_source
+        self.spread_bps = spread_bps
+        self.slippage_bps = slippage_bps
+        self.gas_fee_usd = gas_fee_usd
         
         # Trading state
         self.positions: Dict[str, Position] = {}
@@ -152,6 +158,7 @@ class HyperliquidPaperTrading:
         logger.info(f"   Symbols: {', '.join(self.symbols)}")
         logger.info(f"   Default Leverage: {self.default_leverage}x")
         logger.info(f"   Max Leverage: {self.max_leverage}x")
+        logger.info(f"   Realistic Costs: spread={self.spread_bps}bps | slippage={self.slippage_bps}bps | gas=${self.gas_fee_usd}")
     
     def _initialize_mock_prices(self):
         """Initialize mock prices for testing"""
@@ -263,13 +270,30 @@ class HyperliquidPaperTrading:
     def _execute_order(self, order: Order, fill_price: float):
         """Execute an order and update positions"""
         
+        # Apply spread: buy at ask (higher), sell at bid (lower)
+        half_spread = fill_price * (self.spread_bps / 10000) / 2
+        if order.side == OrderSide.BUY:
+            fill_price = fill_price + half_spread
+        else:
+            fill_price = fill_price - half_spread
+        
+        # Apply slippage: proportional to order size
+        order_value = order.size * fill_price
+        slippage_pct = self.slippage_bps / 10000
+        slippage_amount = fill_price * slippage_pct
+        if order.side == OrderSide.BUY:
+            fill_price = fill_price + slippage_amount
+        else:
+            fill_price = fill_price - slippage_amount
+        
         # Calculate fees
         fee_rate = self.taker_fee if order.order_type == OrderType.MARKET else self.maker_fee
         order_value = order.size * fill_price
         fee = order_value * fee_rate
         
-        # Deduct fee from balance
+        # Deduct fee + gas from balance
         self.balance -= fee
+        self.balance -= self.gas_fee_usd
         
         # Update order
         order.status = "filled"

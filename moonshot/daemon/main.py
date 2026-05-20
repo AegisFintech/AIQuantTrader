@@ -5,6 +5,7 @@ Integrates real-time WebSocket prices with strategy engine and paper trading
 """
 
 import sys
+import os
 import time
 import json
 import logging
@@ -14,6 +15,9 @@ from typing import Dict, List, Optional, Any, Tuple
 from datetime import datetime, timedelta
 from pathlib import Path
 from collections import deque
+
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -27,6 +31,8 @@ from moonshot.strategies.strategies import (
     SmartMoneyConcepts, FibonacciRetracement,
     VWAPStrategy, MACDStrategy,
     CrossAssetLeadLag, FundingRateContrarian, VolatilitySqueeze,
+    EMARibbonPullback, VWAPReversion, MomentumExhaustion,
+    QQEStrategy,
     TradingSignal, SignalType, TechnicalIndicators
 )
 from moonshot.strategies.executor import (
@@ -457,12 +463,45 @@ class MoonshotDaemon:
 
         self.candle_builder = CandleBuilder(timeframe_seconds=60)
 
-        self.trading_engine = HyperliquidPaperTrading(
-            initial_balance=initial_balance,
-            symbols=self.symbols,
-            default_leverage=5.0,
-            max_leverage=5.0,
-        )
+        trading_mode = os.getenv("TRADING_MODE", "paper").lower()
+        if not paper_trading:
+            trading_mode = "live"
+        self.paper_trading = trading_mode == "paper"
+
+        if self.paper_trading:
+            self.trading_engine = HyperliquidPaperTrading(
+                initial_balance=initial_balance,
+                symbols=self.symbols,
+                default_leverage=5.0,
+                max_leverage=5.0,
+            )
+        else:
+            from moonshot.strategies.live_executor import HyperliquidLiveTrading
+            pk = os.getenv("HYPERLIQUID_PRIVATE_KEY", "")
+            wa = os.getenv("HYPERLIQUID_WALLET_ADDRESS", "")
+            network = os.getenv("HYPERLIQUID_NETWORK", "mainnet")
+            max_pos = float(os.getenv("LIVE_MAX_POSITION_USD", "50"))
+            if not pk or not wa:
+                logger.error("LIVE mode requires HYPERLIQUID_PRIVATE_KEY and HYPERLIQUID_WALLET_ADDRESS in .env")
+                logger.error("Falling back to paper trading")
+                self.paper_trading = True
+                self.trading_engine = HyperliquidPaperTrading(
+                    initial_balance=initial_balance,
+                    symbols=self.symbols,
+                    default_leverage=5.0,
+                    max_leverage=5.0,
+                )
+            else:
+                self.trading_engine = HyperliquidLiveTrading(
+                    private_key=pk,
+                    wallet_address=wa,
+                    network=network,
+                    initial_balance=initial_balance,
+                    symbols=self.symbols,
+                    default_leverage=5.0,
+                    max_leverage=5.0,
+                    max_position_usd=max_pos,
+                )
 
         self.strategies = [
             QuickMomentum(
@@ -470,7 +509,7 @@ class MoonshotDaemon:
                 rsi_ob=65, rsi_os=35, max_leverage=5.0,
             ),
             RsiDivergence(
-                rsi_period=14, rsi_ob=70, rsi_os=30, max_leverage=5.0,
+                rsi_period=14, rsi_ob=65, rsi_os=35, max_leverage=5.0,
             ),
             FibonacciRetracement(
                 swing_lookback=10, confluence_threshold=0.005, max_leverage=5.0,
@@ -489,9 +528,23 @@ class MoonshotDaemon:
             ),
             FundingRateContrarian(
                 high_funding_threshold=0.0005, low_funding_threshold=-0.0003, max_leverage=5.0,
+                zscore_threshold=2.0,
             ),
             VolatilitySqueeze(
                 bb_period=20, bb_std=2.0, kc_atr_mult=1.5, atr_period=10, max_leverage=5.0,
+            ),
+            EMARibbonPullback(
+                ema_fast=8, ema_mid=13, ema_slow=21, rsi_period=14, max_leverage=5.0,
+            ),
+            VWAPReversion(
+                vwap_period=20, deviation_threshold=0.003, rsi_period=14, max_leverage=5.0,
+            ),
+            MomentumExhaustion(
+                rsi_period=14, rsi_ob=75, rsi_os=25, lookback=3, max_leverage=5.0,
+            ),
+            QQEStrategy(
+                rsi_period=14, rsi_smoothing=5, threshold_mult=1.618,
+                ema_fast=8, ema_slow=21, max_leverage=5.0,
             ),
         ]
 
@@ -510,8 +563,8 @@ class MoonshotDaemon:
         self._last_funding_fetch = 0.0
         self._funding_fetch_interval = 300
 
-        self.max_open_positions = 5
-        self.max_risk_per_trade_pct = 0.02
+        self.max_open_positions = 3
+        self.max_risk_per_trade_pct = 0.01
         self.stop_loss_pct = 0.007
         self.take_profit_pct = 0.014
         self.trailing_stop_pct = 0.004
@@ -519,9 +572,9 @@ class MoonshotDaemon:
         self.max_position_duration = 2400
         self.stale_position_threshold = 999999
         self.stale_pnl_threshold = 0.001
-        self.min_confidence = 0.58
+        self.min_confidence = 0.65
         self.max_leverage = 5.0
-        self.trade_cooldown = 5
+        self.trade_cooldown = 15
         self._last_trade_time = 0.0
         self.use_atr_sl_tp = False
         self.atr_sl_mult = 7.0
@@ -530,23 +583,23 @@ class MoonshotDaemon:
         self.atr_period = 30
         self.coin_vol_mult = {"BTC": 1.0, "ETH": 1.1, "SOL": 1.5}
         self.regime_sl_tp = {
-            "ranging": {"sl": 0.004, "tp": 0.006, "trail": 0.003},
-            "mild_trend": {"sl": 0.006, "tp": 0.011, "trail": 0.004},
-            "trending": {"sl": 0.007, "tp": 0.014, "trail": 0.005},
-            "unknown": {"sl": 0.007, "tp": 0.014, "trail": 0.005},
+            "ranging": {"sl": 0.003, "tp": 0.006, "trail": 0.002},
+            "mild_trend": {"sl": 0.004, "tp": 0.009, "trail": 0.003},
+            "trending": {"sl": 0.005, "tp": 0.012, "trail": 0.004},
+            "unknown": {"sl": 0.004, "tp": 0.009, "trail": 0.003},
         }
         self.regime_timeout = {
-            "ranging": 1200,
-            "mild_trend": 1800,
-            "trending": 2400,
-            "unknown": 2400,
+            "ranging": 3600,
+            "mild_trend": 3600,
+            "trending": 3600,
+            "unknown": 3600,
         }
         self.per_asset_sl_tp = {
-            "BTC": {"sl": 0.007, "tp": 0.014, "trail": 0.005},
-            "ETH": {"sl": 0.007, "tp": 0.014, "trail": 0.005},
-            "SOL": {"sl": 0.007, "tp": 0.012, "trail": 0.005},
+            "BTC": {"sl": 0.005, "tp": 0.012, "trail": 0.004},
+            "ETH": {"sl": 0.005, "tp": 0.010, "trail": 0.004},
+            "SOL": {"sl": 0.005, "tp": 0.008, "trail": 0.004},
         }
-        self.partial_tp_enabled = True
+        self.partial_tp_enabled = False
         self.partial_tp_pct = 0.50
         self.partial_tp_rr = 1.0
         self._partial_closed = {}
@@ -557,16 +610,21 @@ class MoonshotDaemon:
         self.stale_drift_min_age = 2700
         self.stale_drift_max_pnl_pct = 0.05
 
-        self.breakeven_stop_enabled = False
-        self.breakeven_activation_pct = 0.003
+        self.breakeven_stop_enabled = True
+        self.breakeven_activation_pct = 0.005
         self._breakeven_hit: Dict[str, bool] = {}
-        self.trail_activation_pct = 0.0035
-        self.max_sl_pct = 0.020
-        self.max_tp_pct = 0.035
+        self.trail_activation_pct = 0.004
+        self.max_sl_pct = 0.012
+        self.max_tp_pct = 0.025
 
-        self.early_profit_exit = True
-        self.early_profit_min_pct = 0.001
-        self.early_profit_min_age = 900
+        self.early_profit_exit = False
+        self.early_profit_min_pct = 0.0015
+        self.early_profit_min_age = 300
+
+        self.high_confidence_threshold = 0.80
+        self.high_confidence_risk_mult = 1.3
+
+        self.partial_tp_rr = 1.5
 
         self.regime_risk_mult = {
             "ranging": 0.5,
@@ -579,11 +637,13 @@ class MoonshotDaemon:
             "Fibonacci_Retracement": {"SOL"},
             "MACD_Divergence": {"SOL", "ETH"},
             "VWAP_Mean": {"BTC", "ETH", "SOL"},
+            "Range_Scalper": {"BTC", "ETH"},
+            "Funding_Contrarian": {"SOL"},
         }
         self.regime_strategy_filter = {
-            "ranging": {"Quick_Momentum", "Cross_Lead_Lag", "Vol_Squeeze", "RSI_Reversion", "Range_Scalper"},
-            "mild_trend": {"Quick_Momentum", "Cross_Lead_Lag", "Vol_Squeeze", "Fibonacci_Retracement", "MACD_Divergence", "RSI_Reversion"},
-            "trending": {"Quick_Momentum", "Cross_Lead_Lag", "Funding_Contrarian", "MACD_Divergence"},
+            "ranging": {"Quick_Momentum", "Cross_Lead_Lag", "Vol_Squeeze", "RSI_Reversion", "Range_Scalper", "VWAP_Revert", "Mom_Exhaust", "QQE"},
+            "mild_trend": {"Quick_Momentum", "Cross_Lead_Lag", "Vol_Squeeze", "Fibonacci_Retracement", "MACD_Divergence", "RSI_Reversion", "EMA_Ribbon", "VWAP_Revert", "QQE"},
+            "trending": {"Quick_Momentum", "Cross_Lead_Lag", "Funding_Contrarian", "MACD_Divergence", "EMA_Ribbon", "Mom_Exhaust", "QQE"},
         }
 
         self.current_prices: Dict[str, float] = {}
@@ -600,20 +660,22 @@ class MoonshotDaemon:
         self._daily_loss_limit: float = 0.02
 
         logger.info("=" * 70)
-        logger.info("MOONSHOT DAEMON INITIALIZED - V9")
+        logger.info("MOONSHOT DAEMON INITIALIZED - V13")
         logger.info("=" * 70)
         logger.info(f"  Initial Balance: {initial_balance} USDT")
         logger.info(f"  Symbols: {', '.join(self.symbols)}")
         logger.info(f"  Check Interval: {check_interval}s")
-        logger.info(f"  Paper Trading: {paper_trading}")
+        logger.info(f"  Paper Trading: {self.paper_trading}")
+        if not self.paper_trading:
+            logger.warning("  ⚠️  LIVE TRADING MODE - REAL FUNDS AT RISK ⚠️")
         logger.info(f"  Max Leverage: {self.max_leverage}x | Risk/Trade: {self.max_risk_per_trade_pct*100:.1f}%")
         logger.info(f"  ATR SL/TP: {'ON' if self.use_atr_sl_tp else 'OFF'} | SL: {self.stop_loss_pct*100:.2f}%-{self.max_sl_pct*100:.2f}% | TP: {self.take_profit_pct*100:.2f}%-{self.max_tp_pct*100:.2f}% | Trail: {self.trailing_stop_pct*100:.2f}%")
         logger.info(f"  Coin Vol Mult: {self.coin_vol_mult}")
         logger.info(f"  MinConf: {self.min_confidence} | Cooldown: {self.trade_cooldown}s | MaxPos: {self.max_open_positions}")
-        logger.info(f"  Timeout: {self.max_position_duration}s | Strategies: {len(self.strategies)}")
+        logger.info(f"  Timeout: 3600s | Strategies: {len(self.strategies)}")
         logger.info(f"  Regime SL/TP: ranging={self.regime_sl_tp['ranging']} | mild_trend={self.regime_sl_tp['mild_trend']} | trending={self.regime_sl_tp['trending']}")
         logger.info(f"  Regime Timeout: ranging={self.regime_timeout['ranging']}s | mild_trend={self.regime_timeout['mild_trend']}s | trending={self.regime_timeout['trending']}s")
-        logger.info(f"  EarlyProfitExit: {'ON' if self.early_profit_exit else 'OFF'} (>{self.early_profit_min_pct*100:.1f}% after {self.early_profit_min_age}s)")
+        logger.info(f"  EarlyProfitExit: {'ON' if self.early_profit_exit else 'OFF'} (>{self.early_profit_min_pct*100:.2f}% after {self.early_profit_min_age}s)")
         logger.info(f"  RegimeRiskMult: {self.regime_risk_mult}")
         logger.info(f"  PartialTP: {'ON' if self.partial_tp_enabled else 'OFF'} ({self.partial_tp_pct*100:.0f}% at {self.partial_tp_rr}R) | ConfluenceBoost: +{self.confluence_boost}")
         logger.info(f"  MultiTF: 1m + 5m candles | RangingMarket detection: ON")
@@ -874,6 +936,22 @@ class MoonshotDaemon:
         if pos_trail is None:
             pos_trail = pos.entry_price * trail_pct
             self.position_trail[coin] = pos_trail
+
+        if self.breakeven_stop_enabled and coin not in self._breakeven_hit:
+            if pos.side == OrderSide.BUY and current_price >= pos.entry_price * (1 + self.breakeven_activation_pct):
+                be_price = pos.entry_price * 1.0005
+                if be_price > pos_sl:
+                    pos_sl = be_price
+                    self.position_sl[coin] = pos_sl
+                    self._breakeven_hit[coin] = True
+                    logger.info(f"  BREAKEVEN STOP activated for {coin} LONG: SL moved to {pos_sl:.2f}")
+            elif pos.side == OrderSide.SELL and current_price <= pos.entry_price * (1 - self.breakeven_activation_pct):
+                be_price = pos.entry_price * 0.9995
+                if be_price < pos_sl:
+                    pos_sl = be_price
+                    self.position_sl[coin] = pos_sl
+                    self._breakeven_hit[coin] = True
+                    logger.info(f"  BREAKEVEN STOP activated for {coin} SHORT: SL moved to {pos_sl:.2f}")
 
         if pos.side == OrderSide.BUY:
             pnl_pct = (current_price - pos.entry_price) / pos.entry_price
@@ -1358,6 +1436,9 @@ class MoonshotDaemon:
         size = self._compute_position_size(signal.symbol, current_price, stop_price, strategy_name=strategy_name)
         if risk_mult != 1.0:
             size *= risk_mult
+        if signal.confidence >= self.high_confidence_threshold:
+            size *= self.high_confidence_risk_mult
+            logger.info(f"  High-confidence boost: {signal.confidence:.0%} >= {self.high_confidence_threshold:.0%}, size x{self.high_confidence_risk_mult}")
         if size <= 0:
             logger.info(f"  Signal for {coin} skipped: size too small")
             return
@@ -1647,12 +1728,14 @@ def main():
     parser.add_argument('--balance', type=float, default=100.0, help='Initial balance')
     parser.add_argument('--interval', type=float, default=60.0, help='Check interval in seconds')
     parser.add_argument('--symbols', nargs='+', default=['BTC-PERP', 'ETH-PERP', 'SOL-PERP'])
+    parser.add_argument('--live', action='store_true', help='Enable live trading (requires .env config)')
     args = parser.parse_args()
 
     daemon = MoonshotDaemon(
         initial_balance=args.balance,
         symbols=args.symbols,
-        check_interval=args.interval
+        check_interval=args.interval,
+        paper_trading=not args.live,
     )
 
     def signal_handler(signum, frame):
