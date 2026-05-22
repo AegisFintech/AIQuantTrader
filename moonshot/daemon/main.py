@@ -579,6 +579,9 @@ class MoonshotDaemon:
         self.iteration_count = 0
         self.total_signals = 0
         self.total_trades = 0
+        self._overrides_path = Path("state/moonshot/runtime_overrides.json")
+        self._overrides_mtime = 0.0
+        self._applied_overrides: Dict[str, Any] = {}
 
         self._strategy_tracker = None
         self._self_improver = None
@@ -1298,6 +1301,65 @@ class MoonshotDaemon:
         if size * entry_price > max_notional:
             size = max_notional / entry_price
         return size
+
+    OVERRIDE_ATTR_MAP: Dict[str, str] = {
+        "min_confidence":            "min_confidence",
+        "max_open_positions":        "max_open_positions",
+        "trade_cooldown_seconds":    "trade_cooldown",
+        "chandelier_atr_mult":       "chandelier_atr_mult",
+        "partial_tp_rr":             "partial_tp_rr",
+        "partial_tp_pct":            "partial_tp_pct",
+        "adaptive_exits_enabled":    "adaptive_exits_enabled",
+        "partial_tp_enabled":        "partial_tp_enabled",
+        "breakeven_after_partial":   "breakeven_after_partial",
+        "atr_sl_mult":               "atr_sl_mult",
+        "atr_tp_mult":               "atr_tp_mult",
+        "atr_trail_mult":            "atr_trail_mult",
+        "use_atr_sl_tp":             "use_atr_sl_tp",
+        "regime_gate_enabled":       "regime_gate_enabled",
+        "regime_gate_min_trades":    "regime_gate_min_trades",
+        "regime_gate_min_expected_r":"regime_gate_min_expected_r",
+        "regime_gate_min_wr":        "regime_gate_min_wr",
+        "regime_gate_grace_trades":  "regime_gate_grace_trades",
+    }
+
+    def _apply_runtime_overrides(self) -> None:
+        try:
+            if not self._overrides_path.exists():
+                return
+            mtime = self._overrides_path.stat().st_mtime
+            if mtime <= self._overrides_mtime:
+                return
+            payload = json.loads(self._overrides_path.read_text() or "{}")
+            values = payload.get("values", {})
+            if not isinstance(values, dict):
+                return
+            applied: Dict[str, Any] = {}
+            for key, val in values.items():
+                attr = self.OVERRIDE_ATTR_MAP.get(key)
+                if attr is None or not hasattr(self, attr):
+                    continue
+                current = getattr(self, attr)
+                try:
+                    if isinstance(current, bool):
+                        new_val = bool(val)
+                    elif isinstance(current, int) and not isinstance(current, bool):
+                        new_val = int(val)
+                    elif isinstance(current, float):
+                        new_val = float(val)
+                    else:
+                        new_val = val
+                except (TypeError, ValueError):
+                    continue
+                if new_val != current:
+                    setattr(self, attr, new_val)
+                    applied[key] = new_val
+            self._overrides_mtime = mtime
+            self._applied_overrides = applied
+            if applied:
+                logger.info(f"Applied runtime overrides: {applied}")
+        except Exception as e:
+            logger.warning(f"Failed to apply runtime overrides: {e}")
 
     def check_opportunities(self):
         self._apply_runtime_overrides()
