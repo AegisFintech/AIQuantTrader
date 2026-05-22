@@ -23,8 +23,12 @@ load_dotenv(ROOT / ".env")
 from moonshot.improve.analyzer import build_report
 from moonshot.improve.backtest import evaluate as backtest_evaluate
 from moonshot.improve.llm import LLMClient
+from moonshot.improve.memory import ProposalMemory, MemoryEntry, fingerprint
 from moonshot.improve.promoter import append_journal, load_current, promote
 from moonshot.improve.proposer import propose
+from moonshot.improve.prompt_evolver import (
+    active_prompt_text, evolve_prompt, load_active_pointer,
+)
 from typing import Optional, Dict, Any
 
 LOG_DIR = ROOT / "logs"
@@ -50,9 +54,13 @@ def cycle(
     window_hours: float = 24.0,
     min_trades: int = 8,
     dry_run: bool = False,
+    memory: Optional[ProposalMemory] = None,
+    cycle_id: Optional[int] = None,
 ) -> Dict[str, Any]:
     proposals_dir.mkdir(parents=True, exist_ok=True)
-    logger.info("--- improver cycle start ---")
+    if memory is None:
+        memory = ProposalMemory(state_dir / "improver_memory.json")
+    logger.info("--- improver cycle %s start ---", cycle_id if cycle_id is not None else "?")
     report = build_report(state_dir, window_hours=window_hours)
     overall_n = (report.overall or {}).get("n", 0)
     logger.info(
@@ -73,11 +81,46 @@ def cycle(
 
     current_overrides = load_current(overrides_path)
     client = LLMClient(model=model or None)
-    logger.info("Asking %s for proposals…", client.model)
-    proposal = propose(report, current_overrides, client=client)
+    ptr = load_active_pointer(state_dir)
+    sys_prompt = active_prompt_text(state_dir)
+    recent_hist = [e.short_dict() for e in memory.recent()]
+    logger.info(
+        "Asking %s for proposals | prompt=%s recent_attempts=%d",
+        client.model, ptr.get("active"), len(recent_hist),
+    )
+    proposal = propose(
+        report, current_overrides, client=client,
+        recent_history=recent_hist,
+        active_prompt_text=sys_prompt,
+    )
     logger.info("Proposal: %d overrides, diagnosis=%s",
                 len(proposal.overrides),
                 (proposal.diagnosis or {}).get("summary", "")[:200])
+
+    # Fingerprint the proposed change-set as a flat key->value dict
+    changes_flat = {o["key"]: o["value"] for o in proposal.overrides}
+    fp = fingerprint(changes_flat)
+    duplicate = memory.is_recently_rejected(fp)
+    if duplicate and not dry_run:
+        logger.info(
+            "Proposal fingerprint %s was already rejected at %s (%s). Skipping.",
+            fp, duplicate.ts, duplicate.reason,
+        )
+        memory.add(MemoryEntry(
+            ts=time.time(), fingerprint=fp, changes=changes_flat,
+            rationale=(proposal.diagnosis or {}).get("summary", ""),
+            decision="skipped_duplicate",
+            reason=f"matches_recent_rejected:{duplicate.fingerprint}",
+            delta_expectancy=None,
+            prompt_version=ptr.get("active"),
+            model=client.model,
+            cycle_id=cycle_id,
+        ))
+        append_journal(journal_path, {
+            "ts": time.time(), "applied": False, "reason": "skipped_duplicate",
+            "fingerprint": fp, "matches": duplicate.fingerprint,
+        })
+        return {"applied": False, "reason": "skipped_duplicate", "fingerprint": fp}
 
     # Backtest
     bt = backtest_evaluate(
@@ -88,7 +131,7 @@ def cycle(
     )
     logger.info("Backtest: %s", json.dumps(bt))
 
-    # Save proposal artifact regardless of promotion outcome
+    # Save proposal artifact
     ts_tag = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     artifact = proposals_dir / f"proposal_{ts_tag}.json"
     artifact.write_text(json.dumps({
@@ -96,6 +139,8 @@ def cycle(
         "proposal": proposal.to_dict(),
         "backtest": bt,
         "current_overrides": current_overrides,
+        "fingerprint": fp,
+        "prompt_version": ptr.get("active"),
     }, indent=2, default=str))
     logger.info("Wrote proposal artifact %s", artifact)
 
@@ -107,6 +152,20 @@ def cycle(
         dry_run=dry_run,
     )
     logger.info("Decision: %s (%s)", decision.get("applied"), decision.get("reason"))
+
+    memory.add(MemoryEntry(
+        ts=time.time(),
+        fingerprint=fp,
+        changes=changes_flat,
+        rationale=(proposal.diagnosis or {}).get("summary", ""),
+        decision="promoted" if decision.get("applied") else "rejected",
+        reason=str(decision.get("reason", ""))[:200],
+        delta_expectancy=bt.get("delta_expectancy"),
+        prompt_version=ptr.get("active"),
+        model=client.model,
+        cycle_id=cycle_id,
+    ))
+
     return decision
 
 
@@ -123,6 +182,11 @@ def main() -> None:
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--model", default=os.getenv("IMPROVER_MODEL", "gpt-5.5"))
+    parser.add_argument(
+        "--prompt-evolve-every", type=int,
+        default=int(os.getenv("IMPROVER_PROMPT_EVOLVE_EVERY", "12")),
+        help="Run prompt evolution every N cycles (0 = never)",
+    )
     args = parser.parse_args()
 
     state_dir = Path(args.state_dir)
@@ -130,8 +194,12 @@ def main() -> None:
     journal_path = Path(args.journal)
     proposals_dir = Path(args.proposals)
 
-    logger.info("Improver starting | model=%s window=%.1fh interval=%.1fmin",
-                args.model, args.window_hours, args.interval_minutes)
+    memory = ProposalMemory(state_dir / "improver_memory.json")
+    logger.info(
+        "Improver starting | model=%s window=%.1fh interval=%.1fmin memory=%s prompt_evolve_every=%d",
+        args.model, args.window_hours, args.interval_minutes,
+        memory.stats(), args.prompt_evolve_every,
+    )
 
     n = 0
     while True:
@@ -143,6 +211,8 @@ def main() -> None:
                 window_hours=args.window_hours,
                 min_trades=args.min_trades,
                 dry_run=args.dry_run,
+                memory=memory,
+                cycle_id=n,
             )
         except Exception as e:
             logger.exception("Cycle failed: %s", e)
@@ -150,6 +220,20 @@ def main() -> None:
                 "ts": time.time(),
                 "error": str(e),
             })
+
+        if args.prompt_evolve_every and n % args.prompt_evolve_every == 0:
+            try:
+                logger.info("Triggering prompt evolution (cycle %d)", n)
+                ev = evolve_prompt(state_dir, memory, LLMClient(model=args.model))
+                logger.info("Prompt evolution result: %s", json.dumps(ev, default=str))
+                append_journal(journal_path, {
+                    "ts": time.time(),
+                    "event": "prompt_evolution",
+                    "result": ev,
+                })
+            except Exception as e:
+                logger.exception("Prompt evolution failed: %s", e)
+
         if args.once or args.cycles and n >= args.cycles:
             break
         sleep_s = max(60.0, args.interval_minutes * 60.0)

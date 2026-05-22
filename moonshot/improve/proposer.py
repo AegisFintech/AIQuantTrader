@@ -100,26 +100,43 @@ def propose(
     client: Optional[LLMClient] = None,
     *,
     extra_context: Optional[str] = None,
+    recent_history: Optional[List[Dict[str, Any]]] = None,
+    active_prompt_text: Optional[str] = None,
 ) -> Proposal:
     """Ask the LLM for a fresh set of overrides given a perf report."""
     client = client or LLMClient()
-    system_prompt = load_prompt("system_v1.md")
+    system_prompt = active_prompt_text or load_prompt("system_v1.md")
 
     user_payload: Dict[str, Any] = {
         "performance_report": report.to_dict(),
         "current_runtime_overrides": current_overrides,
+        "recent_attempts": recent_history or [],
     }
     if extra_context:
         user_payload["operator_notes"] = extra_context
+
+    avoid_fps = [
+        h.get("fingerprint")
+        for h in (recent_history or [])
+        if h.get("decision") not in ("promoted",) and h.get("fingerprint")
+    ]
+    avoid_clause = ""
+    if avoid_fps:
+        avoid_clause = (
+            "\n\nIMPORTANT: do NOT re-propose any change-set whose fingerprint "
+            "appears in `recent_attempts` with decision != 'promoted'. Those "
+            "fingerprints are: " + ", ".join(avoid_fps[:30]) + "."
+        )
 
     messages = [
         {"role": "system", "content": system_prompt},
         {
             "role": "user",
             "content": (
-                "Here is the latest performance snapshot. Reply with the "
-                "JSON object described in the system prompt. Do NOT include "
-                "any prose outside the JSON.\n\n```json\n"
+                "Here is the latest performance snapshot AND the most recent "
+                "things we have already tried. Reply with the JSON object "
+                "described in the system prompt. Do NOT include any prose "
+                "outside the JSON." + avoid_clause + "\n\n```json\n"
                 + json.dumps(user_payload, indent=2, default=str)
                 + "\n```"
             ),
