@@ -243,3 +243,14 @@ V14 fixed live Hyperliquid SDK initialization (use `eth_account.Account.from_key
 **Major Changes**: V14 - Fixed live Hyperliquid executor, bootstrapped historical candles, cleaned position/state accounting, made risk knobs env-driven with safer live defaults, fixed test/runtime import issues. V13 trading principle remains: let winners run to TP/trail, cut losers at SL, avoid random timeout exits unless explicitly configured.
 **Daemon 2 Status**: V14 code smoke-tested locally in paper mode; AWS instance still needs SSH/log verification and restart.
 **Daemon 1 Status**: Preserved but not actively used (all strategies unprofitable)
+
+
+## Current Agent Instructions - 2026-05-22
+
+- Use PM2, not systemd, for this server. Main processes: `moonshot-daemon`, `moonshot-improver`, `autonomous-review`, `moonshot-dashboard`, `mt5-terminal`.
+- The improvement cadence is every 6 hours. Both `moonshot-improver` and `autonomous-review` must skip changes when the last window has fewer than 20 closed trades.
+- Treat strategy selection like a senior quant PM: keep profitable edges, stop/blacklist bad strategy+coin/regime slices, and record/reuse memory so failed ideas are not repeated.
+- Runtime overrides now support `strategy_coin_blacklist`, `disabled_strategies`, and `risk_scale_by_strategy` in addition to core risk/exits.
+- Opencode is configured with `openai/gpt-5.5`; the autonomous code loop should use local Opencode and local repo edits, not external Zo route editing.
+- MT5 demo is installed headlessly via Wine/Xvfb under `/home/openclaw/mt5` and `/home/openclaw/.wine-mt5`; credentials live in `.env`. Do not print secrets. `broker/mt5/FinRobotBridgeEA.mq5` is the thin execution bridge.
+- MT5 EA attachment/trading bridge must be validated on demo before routing real orders through it. Until then, Hyperliquid paper mode remains primary.

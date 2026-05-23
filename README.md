@@ -6,6 +6,49 @@
 
 FinRobot is a self-improving autonomous algorithmic trading system with a closed feedback loop using Opencode. The primary trading system (Moonshot Daemon) trades BTC, ETH, and SOL perpetual futures on Hyperliquid via real-time WebSocket, using regime-adaptive strategies with automatic optimization.
 
+
+## Current Operating Mode - 2026-05-22
+
+FinRobot is now set up as an aggressive-growth paper-trading system with a simple PM2 process layout:
+
+| Process | Purpose |
+|---|---|
+| `moonshot-daemon` | Main Python trading brain for crypto paper trading, currently reset to 500,000 USDT paper balance. |
+| `moonshot-improver` | GPT-5.5 parameter improver. Runs every 6 hours and skips cycles with fewer than 20 closed trades. |
+| `autonomous-review` | Opencode/GPT-5.5 coding review loop. Every 6 hours it reviews performance + memory, can patch local code/docs, then runs checks. It also skips if fewer than 20 closed trades. |
+| `moonshot-dashboard` | Streamlit dashboard at `https://aiagent01.aegiswallet.app/dashboard/`. |
+| `mt5-terminal` | Headless Wine + Xvfb MetaTrader 5 terminal logged into ICMarketsSC-Demo. |
+
+### Strategy memory policy
+
+Every review cycle checks which strategies, coins, and regimes are working. Good strategies continue or receive higher risk scale. Bad strategies are stopped via `disabled_strategies`, blocked for specific coins via `strategy_coin_blacklist`, or reduced through `risk_scale_by_strategy`. The prompt and memory history explicitly tell GPT-5.5 not to repeat rejected ideas.
+
+### MT5 / broker execution direction
+
+The preferred architecture is **Python brain + MT5 execution bridge**:
+
+```text
+FinRobot Python strategy brain
+→ strategy memory / GPT-5.5 review / Opencode patches
+→ MT5 bridge files
+→ FinRobotBridgeEA.mq5 inside MT5
+→ IC Markets MT5 demo execution with broker spread, commission, latency, and slippage
+```
+
+MT5 is installed under `/home/openclaw/mt5` using Wine prefix `/home/openclaw/.wine-mt5`. The bridge EA source lives at `broker/mt5/FinRobotBridgeEA.mq5`. MT5 login is stored in `.env`; do not commit or print secrets.
+
+Important: MT5 is currently connected as a demo terminal, but the EA still needs to be attached/enabled on a chart before Python can route orders through it. Until that is validated, live order routing remains disabled and Hyperliquid paper trading remains the active trading engine.
+
+### Management commands
+
+```bash
+pm2 list
+pm2 restart moonshot-daemon moonshot-improver autonomous-review moonshot-dashboard mt5-terminal
+python3 scripts/moonshot_health_check.py
+python3 scripts/mt5_status.py
+tail -f logs/daemon.log logs/improver.log logs/autonomous_review.log logs/mt5_terminal.log
+```
+
 ## Architecture
 
 ```
@@ -85,7 +128,7 @@ FinRobot/
 
 ```bash
 # Start via systemd (recommended for 24/7)
-systemctl --user start moonshot-daemon.service
+pm2 start ecosystem.config.js
 
 # Or run directly
 python3 scripts/run_daemon.py --interval 15 --balance 100
@@ -98,7 +141,7 @@ python3 scripts/run_daemon.py --interval 15 --balance 100
 tail -f logs/daemon.log
 
 # Check daemon status
-systemctl --user status moonshot-daemon.service
+pm2 list
 
 # Run health check
 python3 scripts/moonshot_health_check.py
@@ -108,10 +151,10 @@ python3 scripts/moonshot_health_check.py
 
 ```bash
 # Restart
-systemctl --user restart moonshot-daemon.service
+pm2 restart moonshot-daemon
 
 # Stop
-systemctl --user stop moonshot-daemon.service
+pm2 stop moonshot-daemon
 
 # Enable on boot
 systemctl --user enable moonshot-daemon.service
@@ -136,7 +179,7 @@ systemctl --user enable moonshot-daemon.service
 3. Add to `regime_strategy_filter` for appropriate regimes
 4. Add any coin blacklists to `strategy_coin_blacklist`
 5. Set `self.name` attribute (used for tracking)
-6. Restart daemon: `systemctl --user restart moonshot-daemon.service`
+6. Restart daemon: `pm2 restart moonshot-daemon`
 
 ### Version Control
 

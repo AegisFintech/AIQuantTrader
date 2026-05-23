@@ -36,7 +36,7 @@ from moonshot.strategies.strategies import (
     TradingSignal, SignalType, TechnicalIndicators
 )
 from moonshot.strategies.executor import (
-    HyperliquidPaperTrading, OrderSide, OrderType
+    HyperliquidPaperTrading, OrderSide, OrderType, Position
 )
 import pandas as pd
 import numpy as np
@@ -50,7 +50,8 @@ logging.basicConfig(
     handlers=[
         logging.FileHandler(log_dir / "daemon.log"),
         logging.StreamHandler()
-    ]
+    ],
+    force=True,
 )
 logger = logging.getLogger(__name__)
 
@@ -750,6 +751,8 @@ class MoonshotDaemon:
             save_interval=30.0
         )
         self.state_manager.start_auto_save()
+        self._restore_trading_positions_from_state()
+        self._sync_state_snapshot()
 
         self.ws_client = HyperliquidWebSocketClient()
 
@@ -782,6 +785,53 @@ class MoonshotDaemon:
             self._self_improver = None
 
         logger.info("All components initialized")
+
+    def _restore_trading_positions_from_state(self) -> None:
+        """Restore paper-trading positions into the execution engine after a restart."""
+        if not self.paper_trading or not self.state_manager:
+            return
+        try:
+            for symbol, saved in self.state_manager.get_all_positions().items():
+                if symbol in self.trading_engine.positions:
+                    continue
+                side = OrderSide.BUY if saved.side == "long" else OrderSide.SELL
+                self.trading_engine.positions[symbol] = Position(
+                    symbol=symbol,
+                    side=side,
+                    size=float(saved.size),
+                    entry_price=float(saved.entry_price),
+                    leverage=float(saved.leverage),
+                    unrealized_pnl=float(saved.unrealized_pnl),
+                    timestamp=float(saved.open_time),
+                )
+                coin = symbol.replace("-PERP", "")
+                self.position_entry_time[coin] = float(saved.open_time)
+                self.position_highest[coin] = max(float(saved.entry_price), float(saved.current_price))
+                self.position_lowest[coin] = min(float(saved.entry_price), float(saved.current_price))
+                if saved.stop_loss:
+                    self.position_sl[coin] = float(saved.stop_loss)
+                    self.position_sl_at_entry[coin] = float(saved.stop_loss)
+                if saved.take_profit:
+                    self.position_tp[coin] = float(saved.take_profit)
+            if self.trading_engine.positions:
+                logger.info("Restored %d paper positions from state", len(self.trading_engine.positions))
+        except Exception as e:
+            logger.warning("Failed to restore paper positions from state: %s", e)
+
+    def _sync_state_snapshot(self) -> None:
+        """Keep dashboard-facing state.json aligned with the live execution engine."""
+        if not self.state_manager:
+            return
+        try:
+            positions = self.trading_engine.positions
+            margin_used = sum((p.size * p.entry_price) / max(p.leverage, 1e-9) for p in positions.values())
+            equity = self.trading_engine.get_balance()
+            self.state_manager.balance = float(getattr(self.trading_engine, "balance", equity))
+            self.state_manager.equity = float(equity)
+            self.state_manager.margin_used = float(margin_used)
+            self.state_manager.free_margin = float(equity - margin_used)
+        except Exception as e:
+            logger.debug("State snapshot sync skipped: %s", e)
 
     def _bootstrap_historical_candles(self):
         logger.info("Bootstrapping historical candles from Hyperliquid...")
@@ -852,10 +902,10 @@ class MoonshotDaemon:
         self.candle_builder.update(coin, update.mid)
         self.candle_builder_5m.update(coin, update.mid)
 
-        self.trading_engine.update_price(
-            f"{coin}-PERP" if f"{coin}-PERP" in self.trading_engine.symbols else coin,
-            update.mid
-        )
+        symbol = f"{coin}-PERP" if f"{coin}-PERP" in self.trading_engine.symbols else coin
+        self.trading_engine.update_price(symbol, update.mid)
+        if self.state_manager:
+            self.state_manager.update_position_price(symbol, update.mid)
 
         if coin in [s.replace("-PERP", "") for s in self.symbols]:
             self._check_stops_and_profits(coin, update.mid)
@@ -1831,6 +1881,8 @@ class MoonshotDaemon:
                     self.check_opportunities()
                 except Exception as e:
                     logger.error(f"Error in opportunity check: {e}", exc_info=True)
+
+                self._sync_state_snapshot()
 
                 if self.iteration_count % 10 == 0:
                     self._print_summary()

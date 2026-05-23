@@ -61,7 +61,7 @@ def promote(
     proposal: Dict[str, Any],
     backtest: Dict[str, Any],
     *,
-    min_delta_expectancy: float = -0.005,
+    min_delta_expectancy: float = 0.0,
     dry_run: bool = False,
 ) -> Dict[str, Any]:
     """Apply proposed overrides if the backtest is acceptable."""

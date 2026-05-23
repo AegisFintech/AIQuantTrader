@@ -25,20 +25,38 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-LOG_FILE = "/home/openclaw/FinRobot/logs/daemon.log"
+LOG_FILE = os.getenv("MOONSHOT_LOG_FILE", "/home/openclaw/FinRobot/logs/daemon.log")
+PM2_APP = os.getenv("MOONSHOT_PM2_APP", "moonshot-daemon")
 STATE_FILE = "/home/openclaw/FinRobot/state/moonshot/state.json"
 POSITIONS_FILE = "/home/openclaw/FinRobot/state/moonshot/positions.json"
-MAX_LOG_STALENESS = 120
+MAX_LOG_STALENESS = 180
+MAX_POSITION_UPDATE_STALENESS = 180
 
 
 def check_process_running():
     try:
         result = subprocess.run(
-            ["pgrep", "-f", "moonshot.daemon.main"],
-            capture_output=True, text=True, timeout=5
+            ["runuser", "-l", "openclaw", "-c", "pm2 jlist"],
+            capture_output=True, text=True, timeout=8,
         )
-        pids = result.stdout.strip().split('\n') if result.stdout.strip() else []
-        return len(pids) > 0, pids
+        if result.returncode == 0 and result.stdout.strip():
+            apps = json.loads(result.stdout)
+            for app in apps:
+                if app.get("name") == PM2_APP:
+                    env = app.get("pm2_env", {})
+                    status = env.get("status")
+                    pid = app.get("pid") or env.get("pm_pid")
+                    return status == "online", [str(pid), status]
+    except Exception as e:
+        logger.debug(f"PM2 process check failed: {e}")
+
+    try:
+        result = subprocess.run(
+            ["pgrep", "-af", "scripts/run_daemon.py|moonshot.daemon.main"],
+            capture_output=True, text=True, timeout=5,
+        )
+        lines = [line for line in result.stdout.strip().split('\n') if line.strip()]
+        return len(lines) > 0, lines
     except Exception as e:
         logger.error(f"Error checking process: {e}")
         return False, []
@@ -80,10 +98,10 @@ def check_positions_health():
         now = time.time()
         stale_positions = []
         for symbol, pos in positions.items():
-            open_time = pos.get('open_time', now)
-            age = now - open_time
-            if age > 3600:
-                stale_positions.append(f"{symbol}({age:.0f}s)")
+            last_update = pos.get('last_update', pos.get('open_time', now))
+            age = now - last_update
+            if age > MAX_POSITION_UPDATE_STALENESS:
+                stale_positions.append(f"{symbol}(last_update {age:.0f}s ago)")
         if stale_positions:
             return False, f"Stale positions: {', '.join(stale_positions)}"
         return True, f"{len(positions)} positions OK"
@@ -94,33 +112,31 @@ def check_positions_health():
 def restart_daemon():
     logger.warning("Attempting daemon restart...")
     try:
-        subprocess.run(["pkill", "-f", "moonshot.daemon.main"], timeout=10)
-        time.sleep(3)
-    except Exception:
-        pass
+        result = subprocess.run(
+            ["runuser", "-l", "openclaw", "-c", f"cd /home/openclaw/FinRobot && pm2 restart {PM2_APP} --update-env"],
+            timeout=30, capture_output=True, text=True,
+        )
+        if result.returncode == 0:
+            logger.info("Restarted via PM2")
+            return True
+        logger.warning("PM2 restart failed: %s", (result.stderr or result.stdout)[-500:])
+    except Exception as e:
+        logger.warning("PM2 restart failed: %s", e)
 
     try:
-        subprocess.run(
-            ["systemctl", "--user", "restart", "moonshot-daemon.service"],
-            timeout=15, capture_output=True
+        subprocess.Popen(
+            ["nohup", "/home/openclaw/FinRobot/.venv/bin/python", "/home/openclaw/FinRobot/scripts/run_daemon.py",
+             "--interval", "60", "--balance", "100"],
+            stdout=open('/home/openclaw/FinRobot/logs/daemon.log', 'a'),
+            stderr=subprocess.STDOUT,
+            cwd="/home/openclaw/FinRobot",
+            start_new_session=True,
         )
-        logger.info("Restarted via systemd")
-    except Exception:
-        logger.warning("Systemd restart failed, trying direct launch...")
-        try:
-            subprocess.Popen(
-                ["nohup", "python3", "/home/openclaw/FinRobot/scripts/run_daemon.py",
-                 "--interval", "15", "--balance", "100"],
-                stdout=open('/home/openclaw/FinRobot/logs/daemon.log', 'a'),
-                stderr=subprocess.STDOUT,
-                cwd="/home/openclaw/FinRobot",
-                start_new_session=True,
-            )
-            logger.info("Restarted via nohup")
-        except Exception as e:
-            logger.error(f"Failed to restart daemon: {e}")
-            return False
-    return True
+        logger.info("Restarted via nohup fallback")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to restart daemon: {e}")
+        return False
 
 
 def run_health_check():
