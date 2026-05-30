@@ -62,7 +62,10 @@ def run(cmd: list[str], timeout: int = 1200) -> subprocess.CompletedProcess:
 
 def mt5_report_text() -> str:
     cp = run([sys.executable, 'scripts/mt5_trade_report.py'], timeout=120)
-    return (cp.stdout + '\n' + cp.stderr)[-20000:]
+    text = cp.stdout + '\n' + cp.stderr
+    # Keep the head: the 'Closed deal summary:' marker sits near the start;
+    # a trailing [-20000:] slice dropped it, so closed_deals always parsed as 0.
+    return text if len(text) <= 200000 else text[:200000]
 
 
 def opencode_review(memory: list[dict], mt5_report: str, dry_run: bool) -> dict:
@@ -122,6 +125,21 @@ def cycle(args: argparse.Namespace) -> dict:
             model='autonomous-review',
         ))
         return {'applied': False, 'skipped': True, 'reason': rec['reason']}
+
+    if os.getenv('AUTOREVIEW_ENABLE_LLM', '').strip().lower() not in ('1', 'true', 'yes', 'on'):
+        log(f"llm_editing_disabled=1 closed_deals={n} (analysis-only; set AUTOREVIEW_ENABLE_LLM=true to allow edits)")
+        rec = {'ts': time.time(), 'event': 'autonomous_review_analysis_only', 'closed_deals': n, 'llm_editing': 'disabled', 'mt5_report': mt5_report[-8000:]}
+        append_journal(STATE / 'improver_journal.jsonl', rec)
+        memory.add(MemoryEntry(
+            ts=time.time(),
+            fingerprint=fingerprint({'event': 'mt5_review_analysis_only', 'closed_deals': closed}),
+            changes={'event': 'mt5_review_analysis_only', 'closed_deals': closed},
+            rationale='LLM editing disabled by AUTOREVIEW_ENABLE_LLM; recorded analysis only',
+            decision='rejected',
+            reason='llm_editing_disabled',
+            model='autonomous-review',
+        ))
+        return {'applied': False, 'analysis_only': True, 'closed_deals': n}
 
     result = opencode_review([e.short_dict() for e in memory.recent(30)], mt5_report, args.dry_run)
     append_journal(STATE / 'improver_journal.jsonl', {'ts': time.time(), 'event': 'autonomous_opencode_review', 'result': result})

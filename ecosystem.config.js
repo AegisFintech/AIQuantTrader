@@ -41,5 +41,17 @@ module.exports = {
       error_file: "/home/openclaw/FinRobot/logs/pm2_dashboard.err.log",
       time: true,
     },
+    {
+      name: "log-aggregator",
+      cwd: "/home/openclaw/FinRobot",
+      script: "scripts/log_aggregator.sh",
+      interpreter: "bash",
+      autorestart: true,
+      restart_delay: 5000,
+      max_restarts: 50,
+      out_file: "/home/openclaw/FinRobot/logs/pm2_aggregator.out.log",
+      error_file: "/home/openclaw/FinRobot/logs/pm2_aggregator.err.log",
+      time: true,
+    },
   ],
 };

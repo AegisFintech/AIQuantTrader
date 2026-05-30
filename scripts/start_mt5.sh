@@ -4,6 +4,7 @@ if [ -f /home/openclaw/FinRobot/.env ]; then set -a; source /home/openclaw/FinRo
 ROOT="/home/openclaw/FinRobot"
 export WINEPREFIX="/home/openclaw/.wine-mt5"
 export WINEARCH=win64
+export WINEDEBUG=${WINEDEBUG:--all}
 TERMINAL="/home/openclaw/mt5/terminal/current/terminal64.exe"
 LOG="$ROOT/logs/mt5_terminal.log"
 if [ ! -f "$TERMINAL" ]; then

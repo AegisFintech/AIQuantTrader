@@ -22,7 +22,7 @@ Use only these active processes:
 
 ```bash
 pm2 start ecosystem.config.js
-pm2 restart mt5-terminal autonomous-review moonshot-dashboard --update-env
+pm2 restart mt5-terminal autonomous-review moonshot-dashboard log-aggregator --update-env
 pm2 list
 ```
 
@@ -81,3 +81,17 @@ pm2 list
 - Loss diagnosis from the current MT5 sample: BTCUSD is roughly breakeven/slightly positive, while XAUUSD is the dominant drawdown source. Do not re-enable XAUUSD auto trading unless a future review adds a gold-specific edge and verifies it on fresh closed deals.
 - `FinRobotBridgeEA.mq5` should keep `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=false`, and `MaxAutoPositionsPerSymbol=1` unless the owner explicitly asks for more aggressive risk.
 - Smart-money gate intent: trade BTC momentum only when aligned with a 3+ ICT/SMC confluence score across premium/discount arrays, order blocks, fair-value gaps, liquidity sweeps, and structure shifts. High-confluence score 5+ entries can size up via the risk model while respecting `MaxLotPerTrade` and daily loss controls. `smc_reject score=` means the old momentum signal was intentionally blocked.
+
+## Logging
+
+- `mt5-terminal` runs Wine with `WINEDEBUG=-all` (set in `scripts/start_mt5.sh`) to suppress Wine GUI debug spam (toolbar/datetime/etc.). Real MT5 trade/connection state surfaces in `finrobot_status.json` and MT5's own Experts journal, not Wine stderr.
+- `log-aggregator` (PM2) runs `scripts/log_aggregator.sh`, tailing the active runtime logs into a single `logs/combined.log` with `timestamp [source] line` formatting for traceability. It excludes pm2 `*.out` mirrors of app logs to avoid duplication and self-rotates `combined.log` past ~50MB.
+- Retired-process and stale install logs were moved under `backups/log_cleanup_*/retired_logs/`. Keep `logs/` limited to the four active processes.
+
+## Strategy & autonomy changes (2026-05-30)
+
+- `MaxSpreadPointsBTCUSD` tightened `250000.0 -> 5000.0` (the old value was an effective no-op; current BTC spread ~1200 pts). XAUUSD cap unchanged (80).
+- BTC `MACD_trend` disabled inside the `DisableWeakStrategySignals` BTC block (`macdLong/macdShort=false`) — it had negative expectancy (~-$7.34/trade over 2 deals). `Momentum_trend` and `QuickMomentum` retained.
+- After EA source edits: copy `broker/mt5/FinRobotBridgeEA.mq5` to the ACTIVE install `.../ICMarketsSCOfficialMT5/MQL5/Experts/FinRobot/`, compile with `WINEPREFIX=/home/openclaw/.wine-mt5 xvfb-run -a wine MetaEditor64.exe /compile:"MQL5\Experts\FinRobot\FinRobotBridgeEA.mq5" /log:compile.log`, then `pm2 restart mt5-terminal`. EA inputs are NOT pinned in the chart (only file/magic/poll inputs are), so compiled defaults take effect on restart.
+- `scripts/autonomous_review_loop.py`: fixed a truncation bug — the trade report was sliced to the last 20000 chars, dropping the `Closed deal summary:` marker (~char 1800), so `closed_deals` always parsed as 0 and the reviewer never ran. Now keeps the head.
+- LLM editing is HARD-GATED OFF by default via `AUTOREVIEW_ENABLE_LLM` (unset/false = analysis-only: the loop logs the real closed-deal count and journals analysis but never invokes opencode). Set `AUTOREVIEW_ENABLE_LLM=true` to re-enable autonomous code edits.

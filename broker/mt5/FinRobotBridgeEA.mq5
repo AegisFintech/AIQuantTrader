@@ -37,7 +37,7 @@ input int AtrPeriod = 14;
 input double StopAtrMultiplier = 1.2;
 input double TakeProfitAtrMultiplier = 1.8;
 input double MaxSpreadPointsXAUUSD = 80.0;
-input double MaxSpreadPointsBTCUSD = 250000.0;
+input double MaxSpreadPointsBTCUSD = 5000.0;
 input bool EnableSmartMoneyGates = true;
 input bool EnableXauAutoTrading = false;
 input int SmcLookbackBars = 48;
@@ -719,6 +719,8 @@ void ManageAutoSymbol(string symbol, int idx) {
       if(IsBtcSymbol(symbol)) {
          rsiReversionLong = false;
          rsiReversionShort = false;
+         macdLong = false;
+         macdShort = false;
       }
       if(IsXauSymbol(symbol)) {
          bullishCross = false;
