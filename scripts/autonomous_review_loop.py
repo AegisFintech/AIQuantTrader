@@ -25,7 +25,6 @@ try:
 except Exception:
     pass
 STATE = ROOT / 'state' / 'moonshot'
-LOG = ROOT / 'logs' / 'autonomous_review.log'
 MODEL = os.getenv('OPENCODE_REVIEW_MODEL', 'openai/gpt-5.5')
 
 sys.path.insert(0, str(ROOT))
@@ -34,11 +33,8 @@ from moonshot.improve.promoter import append_journal
 
 
 def log(msg: str) -> None:
-    LOG.parent.mkdir(exist_ok=True)
     line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {msg}"
     print(line, flush=True)
-    with LOG.open('a') as f:
-        f.write(line + '\n')
 
 
 def opencode_bin() -> str:

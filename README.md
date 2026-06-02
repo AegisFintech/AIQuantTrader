@@ -25,7 +25,8 @@ FinRobotBridgeEA.mq5 inside MT5
 
 Important files:
 
-- `broker/mt5/FinRobotBridgeEA.mq5` — active EA source for XAUUSD/BTCUSD.
+- `broker/mt5/FinRobotBridgeEA.mq5` — active EA source for XAUUSD/BTCUSD (v1.27).
+- `broker/mt5/RiskManagement.mqh`, `SmartMoney.mqh`, `BridgeIO.mqh` — modular EA components.
 - `scripts/start_mt5.sh` — starts the MT5 terminal under Wine.
 - `scripts/mt5_status.py` — heartbeat/status check.
 - `scripts/mt5_trade_report.py` — open positions and closed-deal performance report.
@@ -41,7 +42,7 @@ pm2 list
 pm2 restart mt5-terminal autonomous-review moonshot-dashboard --update-env
 python3 scripts/mt5_status.py
 python3 scripts/mt5_trade_report.py
-tail -f logs/autonomous_review.log logs/pm2_mt5.out.log logs/pm2_mt5.err.log
+tail -f logs/combined.log
 ```
 
 ## MT5 common files
@@ -69,19 +70,22 @@ The autonomous review loop runs every 6 hours. On restart it waits one full inte
 
 The MT5 EA uses daily risk-based lot sizing. At the start of each broker day it records an equity snapshot, sizes new trades from `DailyRiskPerTradePct` and the actual SL distance, halves risk after the day's closed PnL turns negative, caps lots with `MaxLotPerTrade`, and stops opening new trades if `DailyLossLimitPct` is hit. The status JSON includes a `money_management` block so `scripts/mt5_trade_report.py` can verify the current daily snapshot, risk setting, and closed PnL.
 
-The May 2026 audit also disabled weak live signals: BTC RSI reversion is blocked after poor closed-trade expectancy, while XAUUSD keeps only the better-performing momentum setup. The EA also makes one throttled close attempt per broker day for old managed-symbol probe positions that have the FinRobot magic number but no SL/TP, so failures cannot spam acknowledgements.
+The May 2026 audit disabled weak live signals after poor closed-trade expectancy. A later maximum-frequency BTC experiment overtraded RSI reversion and low-confluence MACD signals, producing large BTC drawdown. The EA is now in recovery posture: daily risk lot sizing remains enabled, BTC RSI reversion/ATR impulse are disabled, positions are capped at two per symbol, risk is reduced, the daily loss gate is tighter, and new BTC entries require higher-timeframe trend alignment plus directional PDA/SMC confirmation. The EA also makes one throttled close attempt per broker day for old managed-symbol probe positions that have the FinRobot magic number but no SL/TP, so failures cannot spam acknowledgements.
 
 ## Current loss diagnosis
 
-The live MT5 report shows the 2026-05-25 drawdown is mostly XAUUSD. BTCUSD is near-flat to slightly positive over the closed sample, but XAUUSD closed with strongly negative expectancy and several same-day stop clusters. The old entry model was chasing EMA/momentum continuation without asking whether price was in discount/premium or reacting from a useful liquidity imbalance; it also allowed up to three positions per symbol, which amplified correlated losses.
+The live MT5 report shows XAUUSD remains historically negative, while the 2026-06-01 maximum-frequency profile made BTCUSD the immediate drawdown source. `BTCUSD_RSI_reversion` had very poor expectancy and is disabled. The current posture prioritizes preserving the demo account and collecting a cleaner closed-trade sample before increasing frequency again.
 
 ## Smart-money filters
 
-`FinRobotBridgeEA.mq5` now defaults to `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=false`, and `MaxAutoPositionsPerSymbol=1`. BTC entries must pass a lightweight SMC gate before order placement:
+`FinRobotBridgeEA.mq5` now defaults to `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=true`, `MaxAutoPositionsPerSymbol=2`, and symbol-specific cooldowns. Entries must pass recovery gates before order placement:
 
-- Longs need discount pricing plus a 3+ point confluence score from bullish FVG, reclaimed bullish order block, liquidity sweep, structure shift, and deep discount.
-- Shorts need premium pricing plus a 3+ point confluence score from bearish FVG, rejected bearish order block, liquidity sweep, structure shift, and deep premium.
+- BTC longs require H1 uptrend alignment, acceptable discount/PDA, and sufficient bullish SMC confluence; BTC shorts require H1 downtrend alignment, acceptable premium/PDA, and sufficient bearish SMC confluence.
+- BTC RSI reversion, BTC ATR impulse, and weak BTC momentum trend entries are disabled by default after the live drawdown sample.
+- XAU entries remain enabled but require stricter premium/discount alignment and higher SMC confluence because historical XAU expectancy is negative.
 - High-confluence entries (score 5+) can size up through the risk model via `HighConfluenceLotMultiplier`, still capped by `MaxLotPerTrade` and daily loss controls.
 - Status messages expose `pda=`, `smc=`, and `smc_reject score=` so the dashboard/performance logs show why trades were accepted or rejected.
+- **Session Gating (v1.27)**: New entries are restricted to London and New York volatility windows to avoid low-volume Asian session "chop."
+- **Dynamic Break-Even (v1.27)**: Stops are automatically moved to break-even plus a small buffer once a 1:1 Risk/Reward ratio is achieved, protecting profits on volatile reversals.
 
-XAUUSD is paused by default until a fresh closed-deal sample justifies re-enabling it or replacing it with stricter gold-specific SMC logic.
+Runtime logs are consolidated into one operator-facing file: `logs/combined.log`. PM2 stdout/stderr for the active services writes there directly; obsolete sidecar process logs are not part of normal operation.

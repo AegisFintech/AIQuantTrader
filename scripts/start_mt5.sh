@@ -6,11 +6,10 @@ export WINEPREFIX="/home/openclaw/.wine-mt5"
 export WINEARCH=win64
 export WINEDEBUG=${WINEDEBUG:--all}
 TERMINAL="/home/openclaw/mt5/terminal/current/terminal64.exe"
-LOG="$ROOT/logs/mt5_terminal.log"
 if [ ! -f "$TERMINAL" ]; then
   echo "MT5 terminal not found; run scripts/setup_mt5_headless.sh first" >&2
   exit 1
 fi
 mkdir -p "$ROOT/logs"
 cd "/home/openclaw/mt5/terminal/current"
-exec xvfb-run -a wine "$TERMINAL" /portable /config:Config\\finrobot-login.ini >> "$LOG" 2>&1
+exec xvfb-run -a wine "$TERMINAL" /portable /config:Config\\finrobot-login.ini

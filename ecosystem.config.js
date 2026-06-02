@@ -1,6 +1,8 @@
 // PM2 ecosystem for FinRobot.
 // Active trading is MT5 demo via FinRobotBridgeEA on XAUUSD and BTCUSD.
-// Hyperliquid paper trading is intentionally disabled/retired.
+// All PM2 service output is intentionally consolidated into logs/combined.log.
+
+const COMBINED_LOG = "/home/openclaw/FinRobot/logs/combined.log";
 
 module.exports = {
   apps: [
@@ -12,8 +14,9 @@ module.exports = {
       autorestart: true,
       restart_delay: 10000,
       max_restarts: 20,
-      out_file: "/home/openclaw/FinRobot/logs/pm2_mt5.out.log",
-      error_file: "/home/openclaw/FinRobot/logs/pm2_mt5.err.log",
+      out_file: COMBINED_LOG,
+      error_file: COMBINED_LOG,
+      merge_logs: true,
       time: true,
     },
     {
@@ -24,8 +27,9 @@ module.exports = {
       autorestart: true,
       restart_delay: 30000,
       max_restarts: 20,
-      out_file: "/home/openclaw/FinRobot/logs/pm2_autonomous_review.out.log",
-      error_file: "/home/openclaw/FinRobot/logs/pm2_autonomous_review.err.log",
+      out_file: COMBINED_LOG,
+      error_file: COMBINED_LOG,
+      merge_logs: true,
       time: true,
     },
     {
@@ -37,20 +41,13 @@ module.exports = {
       autorestart: true,
       restart_delay: 5000,
       max_restarts: 50,
-      out_file: "/home/openclaw/FinRobot/logs/pm2_dashboard.out.log",
-      error_file: "/home/openclaw/FinRobot/logs/pm2_dashboard.err.log",
-      time: true,
-    },
-    {
-      name: "log-aggregator",
-      cwd: "/home/openclaw/FinRobot",
-      script: "scripts/log_aggregator.sh",
-      interpreter: "bash",
-      autorestart: true,
-      restart_delay: 5000,
-      max_restarts: 50,
-      out_file: "/home/openclaw/FinRobot/logs/pm2_aggregator.out.log",
-      error_file: "/home/openclaw/FinRobot/logs/pm2_aggregator.err.log",
+      out_file: COMBINED_LOG,
+      error_file: COMBINED_LOG,
+      merge_logs: true,
+      env: {
+        DASHBOARD_AUTO_REFRESH: "true",
+        DASHBOARD_REFRESH_SECONDS: "10",
+      },
       time: true,
     },
   ],
