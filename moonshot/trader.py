@@ -18,6 +18,7 @@ from moonshot.strategies.executor import (
 from moonshot.strategies.strategies import (
     AggressiveADXScalper, AggressiveCryptoScalper,
     BreakoutHunter, MeanReversionBandit,
+    AvellanedaStoikovStrategy,
     TradingSignal, SignalType
 )
 
@@ -130,6 +131,11 @@ class HyperliquidMoonshotTrader:
                 rsi_oversold=25,
                 adx_filter_max=20.0,
                 max_leverage=15.0
+            ),
+            'avellaneda_stoikov': AvellanedaStoikovStrategy(
+                gamma=0.1,
+                kappa=1.5,
+                max_leverage=10.0
             )
         }
         

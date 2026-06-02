@@ -1954,6 +1954,123 @@ class MomentumExhaustion:
         return signal
 
 
+class AvellanedaStoikovStrategy:
+    """
+    Avellaneda-Stoikov Market Making Strategy
+    Adapted for signal-based execution.
+    Generates signals when price hits the calculated optimal quotes.
+    """
+    
+    def __init__(
+        self,
+        gamma: float = 0.1,
+        kappa: float = 1.5,
+        horizon_bars: int = 1440,
+        volatility_period: int = 20,
+        max_leverage: float = 5.0,
+        max_inventory_pct: float = 0.1  # Max 10% of balance in one side
+    ):
+        self.name = "Avellaneda_Stoikov"
+        self.gamma = gamma
+        self.kappa = kappa
+        self.horizon_bars = horizon_bars
+        self.volatility_period = volatility_period
+        self.max_leverage = max_leverage
+        self.max_inventory_pct = max_inventory_pct
+        
+        self.indicators = TechnicalIndicators()
+        self.inventory = 0.0  # Current inventory in units
+        self.last_update_time = 0
+        
+    def generate_signal(
+        self,
+        symbol: str,
+        ohlcv: pd.DataFrame,
+        current_price: float,
+        account_balance: float
+    ) -> Optional[TradingSignal]:
+        """Generate signals based on AS optimal quotes"""
+        
+        if len(ohlcv) < self.volatility_period + 5:
+            return None
+        
+        # Calculate volatility (absolute)
+        closes = ohlcv['close']
+        price_changes = closes.diff()
+        sigma = price_changes.tail(self.volatility_period).std()
+        
+        if pd.isna(sigma) or sigma == 0:
+            sigma = current_price * 0.0001
+            
+        # Time remaining (approximate as 0.5 for perpetuals/rolling horizon)
+        t_rem = 0.5
+        
+        # Current inventory in terms of "units" relative to account size
+        # We need to track actual inventory to be accurate, but here we can estimate
+        # based on position if the engine provides it. 
+        # For now, let's assume inventory is managed externally or via a simplified model.
+        q = self.inventory
+        
+        # 1. Calculate optimal mid-price (r)
+        r = current_price - (q * self.gamma * (sigma ** 2) * t_rem)
+        
+        # 2. Calculate optimal spread (delta)
+        term1 = self.gamma * (sigma ** 2) * t_rem
+        term2 = (2 / self.gamma) * np.log(1 + self.gamma / self.kappa)
+        delta = term1 + term2
+        
+        p_bid = r - (delta / 2)
+        p_ask = r + (delta / 2)
+        
+        signal = None
+        
+        # If price is at or below bid, buy
+        if current_price <= p_bid:
+            # Check if we can add to inventory
+            if q < (account_balance * self.max_inventory_pct / current_price):
+                confidence = 0.7
+                stop_loss = current_price * 0.99
+                take_profit = r + (delta / 2) # Target the other side
+                
+                size = (account_balance * 0.05) / current_price
+                
+                signal = TradingSignal(
+                    symbol=symbol,
+                    signal_type=SignalType.BUY,
+                    confidence=confidence,
+                    suggested_leverage=self.max_leverage,
+                    suggested_size=size,
+                    entry_price=current_price,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
+                    rationale=f"AS Market Making: Price {current_price:.2f} <= Bid {p_bid:.2f}"
+                )
+        
+        # If price is at or above ask, sell
+        elif current_price >= p_ask:
+            # Check if we can add to short inventory
+            if q > -(account_balance * self.max_inventory_pct / current_price):
+                confidence = 0.7
+                stop_loss = current_price * 1.01
+                take_profit = r - (delta / 2)
+                
+                size = (account_balance * 0.05) / current_price
+                
+                signal = TradingSignal(
+                    symbol=symbol,
+                    signal_type=SignalType.SELL,
+                    confidence=confidence,
+                    suggested_leverage=self.max_leverage,
+                    suggested_size=size,
+                    entry_price=current_price,
+                    stop_loss=stop_loss,
+                    take_profit=take_profit,
+                    rationale=f"AS Market Making: Price {current_price:.2f} >= Ask {p_ask:.2f}"
+                )
+                
+        return signal
+
+
 # Export all strategies
 __all__ = [
     'AggressiveADXScalper',
@@ -1971,6 +2088,7 @@ __all__ = [
     'VWAPReversion',
     'MomentumExhaustion',
     'QQEStrategy',
+    'AvellanedaStoikovStrategy',
     'TradingSignal',
     'SignalType',
     'TechnicalIndicators'
