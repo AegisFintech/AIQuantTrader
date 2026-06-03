@@ -61,8 +61,10 @@ input double MinTrendSlopeAtrMultiplier = 0.04;
 input bool EnableBtcRsiReversion = false;
 input bool EnableBtcAtrImpulse = false;
 input bool EnableBtcMomentumTrend = false;
-input bool EnableBtcMacdTrend = true;
+input bool EnableBtcMacdTrend = false;
 input bool EnableBtcQuickMomentum = true;
+input bool EnableXauRsiReversion = false;
+input bool EnableXauAtrImpulse = true;
 input bool EnableSessionGating = true;
 input int LondonStartHour = 7;
 input int LondonEndHour = 11;
@@ -601,6 +603,9 @@ void ManageAutoSymbol(string symbol, int idx) {
       if(!EnableBtcMomentumTrend) { momentum3 = 0.0; }
       if(htfTrend <= 0) { bullishCross = false; quickMomentumLong = false; macdLong = false; }
       if(htfTrend >= 0) { bearishCross = false; quickMomentumShort = false; macdShort = false; }
+   } else if(isXau) {
+      if(!EnableXauRsiReversion) { rsiReversionLong = false; rsiReversionShort = false; }
+      if(!EnableXauAtrImpulse) { atrImpulseLong = false; atrImpulseShort = false; }
    }
    if(DisableWeakStrategySignals) {
       if(isBtc) { rsiReversionLong = false; rsiReversionShort = false; atrImpulseLong = false; atrImpulseShort = false; }

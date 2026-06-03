@@ -4,7 +4,7 @@ from __future__ import annotations
 import csv
 import json
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import mean
 
@@ -13,6 +13,14 @@ COMMON_CANDIDATES = [
     Path('/home/openclaw/.wine-mt5/drive_c/users/openclaw/AppData/Roaming/MetaQuotes/Terminal/Common/Files'),
     Path('/home/openclaw/.wine-mt5/drive_c/users/root/AppData/Roaming/MetaQuotes/Terminal/Common/Files'),
 ]
+
+RETIRED_AUTO_STRATEGIES = {
+    ('BTCUSD', 'RSI_reversion'),
+    ('BTCUSD', 'ATR_impulse'),
+    ('BTCUSD', 'Momentum_trend'),
+    ('BTCUSD', 'MACD_trend'),
+    ('XAUUSD', 'RSI_reversion'),
+}
 
 
 def common_dir() -> Path | None:
@@ -84,6 +92,28 @@ def summarize_deals(rows: list[dict]) -> dict:
     }
 
 
+def retired_strategy_fills(lines: list[str], recent: int = 80) -> dict:
+    counts: Counter[tuple[str, str]] = Counter()
+    recent_hits: list[str] = []
+    for row in csv.reader(lines[-recent:]):
+        if len(row) < 8 or row[2] != 'AUTO_FILLED':
+            continue
+        symbol = row[4]
+        detail = row[3]
+        if ' strategy ' not in detail or ' smc=' not in detail:
+            continue
+        strategy = detail.split(' strategy ', 1)[1].split(' smc=', 1)[0].split()[-1]
+        key = (symbol, strategy)
+        if key in RETIRED_AUTO_STRATEGIES:
+            counts[key] += 1
+            recent_hits.append(','.join(row))
+    return {
+        'window_rows': recent,
+        'counts': {f'{symbol}:{strategy}': n for (symbol, strategy), n in sorted(counts.items())},
+        'recent': recent_hits[-10:],
+    }
+
+
 def main() -> None:
     d = common_dir()
     print(f'MT5 common dir: {d or "not found"}')
@@ -114,8 +144,12 @@ def main() -> None:
     deals = read_csv(deals_path)
     print('Closed deal summary:', json.dumps(summarize_deals(deals), indent=2))
     if acks_path.exists():
+        ack_lines = acks_path.read_text(errors='replace').splitlines()
+        warnings = retired_strategy_fills(ack_lines)
+        if warnings['counts']:
+            print('Retired strategy fill warnings:', json.dumps(warnings, indent=2))
         print('Recent acknowledgements:')
-        for line in acks_path.read_text(errors='replace').splitlines()[-20:]:
+        for line in ack_lines[-20:]:
             print(' ', line)
 
 
