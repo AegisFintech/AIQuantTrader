@@ -54,12 +54,6 @@ from finrobot.strategies.research_strategies import (
     backtest_momentum_mean_reversion
 )
 
-from finrobot.strategies.avellaneda_stoikov import (
-    AvellanedaStoikovConfig,
-    backtest_avellaneda_stoikov
-)
-
-
 # ============================================================================
 # PARAMETER SPACES FOR OPTIMIZATION
 # ============================================================================
@@ -111,13 +105,6 @@ PARAMETER_SPACES = {
         "stop_loss_atr_multiplier": [1.0, 1.5, 2.0],
         "take_profit_atr_multiplier": [1.5, 2.0, 2.5]
     },
-    "avellaneda_stoikov": {
-        "gamma": [0.01, 0.1, 0.5],
-        "kappa": [1.0, 1.5, 2.0],
-        "horizon_bars": [240, 1440, 10080],
-        "volatility_period": [10, 20, 50],
-        "max_inventory": [5, 10, 20]
-    }
 }
 
 
@@ -158,10 +145,6 @@ def run_strategy_backtest(strategy_name: str, df: pd.DataFrame, params: Dict[str
             config = MomentumMeanReversionConfig(**params)
             return backtest_momentum_mean_reversion(df, config)
         
-        elif strategy_name == "avellaneda_stoikov":
-            config = AvellanedaStoikovConfig(**params)
-            return backtest_avellaneda_stoikov(df, config)
-        
         else:
             return {
                 "error": f"Unknown strategy: {strategy_name}",
@@ -193,7 +176,6 @@ __all__ = [
     'FixedGridConfig',
     'MeanReversionConfig',
     'MomentumMeanReversionConfig',
-    'AvellanedaStoikovConfig',
     # Functions
     'run_strategy_backtest',
     'PARAMETER_SPACES',
@@ -202,6 +184,5 @@ __all__ = [
     'backtest_london_ny_breakout',
     'backtest_fixed_grid',
     'backtest_mean_reversion',
-    'backtest_momentum_mean_reversion',
-    'backtest_avellaneda_stoikov'
+    'backtest_momentum_mean_reversion'
 ]

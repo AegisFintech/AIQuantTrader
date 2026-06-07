@@ -24,17 +24,51 @@ try:
     load_dotenv(ROOT / '.env')
 except Exception:
     pass
-STATE = ROOT / 'state' / 'moonshot'
+STATE = ROOT / 'state' / 'mt5'
 MODEL = os.getenv('OPENCODE_REVIEW_MODEL', 'openai/gpt-5.5')
-
-sys.path.insert(0, str(ROOT))
-from moonshot.improve.memory import ProposalMemory, MemoryEntry, fingerprint
-from moonshot.improve.promoter import append_journal
 
 
 def log(msg: str) -> None:
     line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} | {msg}"
     print(line, flush=True)
+
+
+def fingerprint(payload: dict) -> str:
+    import hashlib
+
+    body = json.dumps(payload, sort_keys=True, separators=(',', ':'))
+    return hashlib.sha256(body.encode('utf-8')).hexdigest()[:16]
+
+
+def append_journal(path: Path, record: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open('a', encoding='utf-8') as fh:
+        fh.write(json.dumps(record, sort_keys=True) + '\n')
+
+
+class ReviewMemory:
+    def __init__(self, path: Path, limit: int = 500) -> None:
+        self.path = path
+        self.limit = limit
+        self.entries = self._load()
+
+    def _load(self) -> list[dict]:
+        if not self.path.exists():
+            return []
+        try:
+            data = json.loads(self.path.read_text(encoding='utf-8'))
+            return data if isinstance(data, list) else []
+        except Exception:
+            return []
+
+    def add(self, entry: dict) -> None:
+        self.entries.append(entry)
+        self.entries = self.entries[-self.limit:]
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps(self.entries, indent=2, sort_keys=True), encoding='utf-8')
+
+    def recent(self, n: int) -> list[dict]:
+        return self.entries[-n:]
 
 
 def opencode_bin() -> str:
@@ -101,64 +135,67 @@ def cycle(args: argparse.Namespace) -> dict:
     try:
         marker = 'Closed deal summary:'
         if marker in mt5_report:
-            summary = json.loads(mt5_report.split(marker, 1)[1].split('\nRecent acknowledgements:', 1)[0].strip())
+            summary_text = mt5_report.split(marker, 1)[1]
+            for next_marker in ('\nRetired strategy fill warnings:', '\nRecent acknowledgements:'):
+                summary_text = summary_text.split(next_marker, 1)[0]
+            summary = json.loads(summary_text.strip())
             closed = int(summary.get('closed_deals') or 0)
     except Exception:
         closed = 0
     n = closed
-    memory = ProposalMemory(STATE / 'improver_memory.json')
+    memory = ReviewMemory(STATE / 'improver_memory.json')
     log(f"window={args.window_hours}h mt5_closed_deals={closed} min={args.min_trades}")
     if n < args.min_trades:
         rec = {'ts': time.time(), 'event': 'autonomous_review_skipped', 'reason': f'insufficient_trades {n}<{args.min_trades}', 'mt5_report': mt5_report[-8000:]}
         append_journal(STATE / 'improver_journal.jsonl', rec)
-        memory.add(MemoryEntry(
-            ts=time.time(),
-            fingerprint=fingerprint({'event': 'mt5_review_skipped', 'closed_deals': closed}),
-            changes={'event': 'mt5_review_skipped', 'closed_deals': closed},
-            rationale=rec['reason'],
-            decision='rejected',
-            reason=rec['reason'],
-            model='autonomous-review',
-        ))
+        memory.add({
+            'ts': time.time(),
+            'fingerprint': fingerprint({'event': 'mt5_review_skipped', 'closed_deals': closed}),
+            'changes': {'event': 'mt5_review_skipped', 'closed_deals': closed},
+            'rationale': rec['reason'],
+            'decision': 'rejected',
+            'reason': rec['reason'],
+            'model': 'autonomous-review',
+        })
         return {'applied': False, 'skipped': True, 'reason': rec['reason']}
 
     if os.getenv('AUTOREVIEW_ENABLE_LLM', '').strip().lower() not in ('1', 'true', 'yes', 'on'):
         log(f"llm_editing_disabled=1 closed_deals={n} (analysis-only; set AUTOREVIEW_ENABLE_LLM=true to allow edits)")
         rec = {'ts': time.time(), 'event': 'autonomous_review_analysis_only', 'closed_deals': n, 'llm_editing': 'disabled', 'mt5_report': mt5_report[-8000:]}
         append_journal(STATE / 'improver_journal.jsonl', rec)
-        memory.add(MemoryEntry(
-            ts=time.time(),
-            fingerprint=fingerprint({'event': 'mt5_review_analysis_only', 'closed_deals': closed}),
-            changes={'event': 'mt5_review_analysis_only', 'closed_deals': closed},
-            rationale='LLM editing disabled by AUTOREVIEW_ENABLE_LLM; recorded analysis only',
-            decision='rejected',
-            reason='llm_editing_disabled',
-            model='autonomous-review',
-        ))
+        memory.add({
+            'ts': time.time(),
+            'fingerprint': fingerprint({'event': 'mt5_review_analysis_only', 'closed_deals': closed}),
+            'changes': {'event': 'mt5_review_analysis_only', 'closed_deals': closed},
+            'rationale': 'LLM editing disabled by AUTOREVIEW_ENABLE_LLM; recorded analysis only',
+            'decision': 'rejected',
+            'reason': 'llm_editing_disabled',
+            'model': 'autonomous-review',
+        })
         return {'applied': False, 'analysis_only': True, 'closed_deals': n}
 
-    result = opencode_review([e.short_dict() for e in memory.recent(30)], mt5_report, args.dry_run)
+    result = opencode_review(memory.recent(30), mt5_report, args.dry_run)
     append_journal(STATE / 'improver_journal.jsonl', {'ts': time.time(), 'event': 'autonomous_opencode_review', 'result': result})
-    memory.add(MemoryEntry(
-        ts=time.time(),
-        fingerprint=fingerprint({'event': 'mt5_opencode_review', 'returncode': result['returncode']}),
-        changes={'event': 'mt5_opencode_review', 'returncode': result['returncode']},
-        rationale=(result.get('stdout') or result.get('stderr') or '')[:500],
-        decision='promoted' if result['returncode'] == 0 else 'error',
-        reason='opencode_returncode=' + str(result['returncode']),
-        model=MODEL,
-    ))
+    memory.add({
+        'ts': time.time(),
+        'fingerprint': fingerprint({'event': 'mt5_opencode_review', 'returncode': result['returncode']}),
+        'changes': {'event': 'mt5_opencode_review', 'returncode': result['returncode']},
+        'rationale': (result.get('stdout') or result.get('stderr') or '')[:500],
+        'decision': 'promoted' if result['returncode'] == 0 else 'error',
+        'reason': 'opencode_returncode=' + str(result['returncode']),
+        'model': MODEL,
+    })
     log(f"opencode_returncode={result['returncode']}")
     if result['returncode'] == 0 and not args.dry_run:
         checks = [
-            run([sys.executable, '-m', 'compileall', '-q', 'moonshot', 'finrobot', 'scripts'], timeout=300),
+            run([sys.executable, '-m', 'compileall', '-q', 'finrobot', 'scripts'], timeout=300),
             run([sys.executable, 'scripts/mt5_trade_report.py'], timeout=120),
         ]
         ok = all(c.returncode == 0 for c in checks)
         log(f"post_checks_ok={ok}")
         if ok:
             pm2_bin = shutil.which('pm2') or '/home/openclaw/.npm-global/lib/node_modules/pm2/bin/pm2'
-            run([pm2_bin, 'restart', 'mt5-terminal', 'moonshot-dashboard', '--update-env'], timeout=300)
+            run([pm2_bin, 'restart', 'mt5-terminal', 'autonomous-review', '--update-env'], timeout=300)
         return {'applied': ok, 'opencode': result}
     return {'applied': False, 'opencode': result}
 

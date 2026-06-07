@@ -11,7 +11,6 @@ FinRobot is an autonomous MT5 demo-trading system for exactly two instruments:
 |---|---|
 | `mt5-terminal` | Headless Wine/Xvfb MetaTrader 5 terminal logged into ICMarketsSC-Demo. |
 | `autonomous-review` | Every 6 hours, reviews MT5 XAUUSD/BTCUSD results and asks Opencode to patch the repo when enough evidence exists. |
-| `moonshot-dashboard` | Streamlit read-only dashboard and log viewer. |
 
 ## Trading path
 
@@ -19,7 +18,7 @@ FinRobot is an autonomous MT5 demo-trading system for exactly two instruments:
 FinRobotBridgeEA.mq5 inside MT5
 → broker demo fills/spread/commission/slippage
 → Common Files heartbeat, positions, deals, and acks
-→ Python reports/dashboard/autonomous-review
+→ Python reports/autonomous-review
 → Opencode improvements when enough closed trades exist
 ```
 
@@ -39,7 +38,7 @@ Important files:
 ```bash
 cd /home/openclaw/FinRobot
 pm2 list
-pm2 restart mt5-terminal autonomous-review moonshot-dashboard --update-env
+pm2 restart mt5-terminal autonomous-review --update-env
 python3 scripts/mt5_status.py
 python3 scripts/mt5_trade_report.py
 tail -f logs/combined.log
@@ -57,7 +56,7 @@ The EA writes these files under the MT5 Common Files directory:
 
 ## Improvement policy
 
-The autonomous review loop runs every 6 hours. On restart it waits one full interval before the first review unless `AUTOREVIEW_RUN_ON_START=true`. It checks closed MT5 deals first, appends decisions to `state/moonshot/improver_journal.jsonl`, updates `state/moonshot/improver_memory.json`, shows recent memory to Opencode, and lets Opencode patch code/docs directly only when enough trade evidence exists. The default minimum is 12 closed deals.
+The autonomous review loop runs every 6 hours. On restart it waits one full interval before the first review unless `AUTOREVIEW_RUN_ON_START=true`. It checks closed MT5 deals first, appends decisions to `state/mt5/improver_journal.jsonl`, updates `state/mt5/improver_memory.json`, shows recent memory to Opencode, and lets Opencode patch code/docs directly only when enough trade evidence exists. The default minimum is 12 closed deals.
 
 ## Guardrails
 
@@ -84,7 +83,7 @@ The live MT5 report shows XAUUSD remains historically negative, while the 2026-0
 - BTC RSI reversion, BTC ATR impulse, and weak BTC momentum trend entries are disabled by default after the live drawdown sample.
 - XAU entries remain enabled but require stricter premium/discount alignment and higher SMC confluence because historical XAU expectancy is negative.
 - High-confluence entries (score 5+) can size up through the risk model via `HighConfluenceLotMultiplier`, still capped by `MaxLotPerTrade` and daily loss controls.
-- Status messages expose `pda=`, `smc=`, and `smc_reject score=` so the dashboard/performance logs show why trades were accepted or rejected.
+- Status messages expose `pda=`, `smc=`, and `smc_reject score=` so the MT5 reports and performance logs show why trades were accepted or rejected.
 - **Session Gating (v1.27)**: New entries are restricted to London and New York volatility windows to avoid low-volume Asian session "chop."
 - **Dynamic Break-Even (v1.27)**: Stops are automatically moved to break-even plus a small buffer once a 1:1 Risk/Reward ratio is achieved, protecting profits on volatile reversals.
 

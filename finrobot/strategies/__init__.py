@@ -12,7 +12,6 @@ Contains all trading strategy implementations:
 from finrobot.strategies.grid import GridConfig, backtest_xauusd_grid
 from finrobot.strategies.backtesting import BacktestConfig, backtest_trend_martingale
 from finrobot.hft import HFTConfig, backtest_hft
-from finrobot.strategies.avellaneda_stoikov import AvellanedaStoikovConfig, backtest_avellaneda_stoikov
 
 __all__ = [
     # Grid
@@ -24,7 +23,4 @@ __all__ = [
     # HFT
     "HFTConfig",
     "backtest_hft",
-    # Avellaneda-Stoikov
-    "AvellanedaStoikovConfig",
-    "backtest_avellaneda_stoikov",
 ]

@@ -32,23 +32,5 @@ module.exports = {
       merge_logs: true,
       time: true,
     },
-    {
-      name: "moonshot-dashboard",
-      cwd: "/home/openclaw/FinRobot",
-      script: "/home/openclaw/FinRobot/.venv/bin/streamlit",
-      args: "run dashboard/app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true --browser.gatherUsageStats false --server.enableCORS false --server.enableXsrfProtection false",
-      interpreter: "none",
-      autorestart: true,
-      restart_delay: 5000,
-      max_restarts: 50,
-      out_file: COMBINED_LOG,
-      error_file: COMBINED_LOG,
-      merge_logs: true,
-      env: {
-        DASHBOARD_AUTO_REFRESH: "true",
-        DASHBOARD_REFRESH_SECONDS: "10",
-      },
-      time: true,
-    },
   ],
 };

@@ -14,7 +14,6 @@ FinRobot is now an MT5-first autonomous demo-trading repo. Trade and optimize on
 - Runtime process list: `ecosystem.config.js`
 - MT5 status/report tools: `scripts/mt5_status.py`, `scripts/mt5_trade_report.py`
 - 6-hour Opencode loop: `scripts/autonomous_review_loop.py`
-- Dashboard: `dashboard/app.py`
 - Indicators: `finrobot/indicators.py` (consolidated)
 - HFT Logic: `finrobot/hft.py` (consolidated)
 - State/logs are runtime artifacts and are intentionally gitignored.
@@ -25,7 +24,7 @@ Use only these active processes:
 
 ```bash
 pm2 start ecosystem.config.js
-pm2 restart mt5-terminal autonomous-review moonshot-dashboard --update-env
+pm2 restart mt5-terminal autonomous-review --update-env
 pm2 list
 ```
 
@@ -50,7 +49,7 @@ Use `python3 scripts/mt5_trade_report.py` before making strategy changes. It sum
 3. Skips if fewer than `AUTOREVIEW_MIN_TRADES` closed deals are available.
 4. Calls Opencode with the current mandate.
 4. Runs `compileall` and `scripts/mt5_trade_report.py` after successful Opencode changes.
-5. Restarts `mt5-terminal` and `moonshot-dashboard` when checks pass.
+5. Restarts `mt5-terminal` and `autonomous-review` when checks pass.
 
 Default minimum is 12 closed deals and default cadence is every 6 hours. Keep this evidence gate unless the owner asks for more aggressive changes.
 
@@ -58,7 +57,7 @@ Default minimum is 12 closed deals and default cadence is every 6 hours. Keep th
 
 - Make direct changes; repo is in git.
 - Before editing, inspect `git status --short` and relevant logs/reports.
-- After editing, run at least `python3 -m compileall -q moonshot finrobot scripts` and `python3 scripts/mt5_trade_report.py`.
+- After editing, run at least `python3 -m compileall -q finrobot scripts` and `python3 scripts/mt5_trade_report.py`.
 - If EA source changes, copy it to the installed MT5 Experts path and compile with MetaEditor when available.
 - Update `README.md` and this file when operating behavior changes.
 - Do not print secrets from `.env`.
