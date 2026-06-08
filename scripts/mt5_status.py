@@ -1,35 +1,41 @@
 #!/usr/bin/env python3
 from __future__ import annotations
-import json, os, time
+
+import json
+import subprocess
+import time
 from pathlib import Path
 
-COMMON_CANDIDATES = [
-    Path('/home/openclaw/.wine-mt5/drive_c/users/openclaw/AppData/Roaming/MetaQuotes/Terminal/Common/Files'),
-    Path('/home/openclaw/.wine-mt5/drive_c/users/root/AppData/Roaming/MetaQuotes/Terminal/Common/Files'),
-]
+from runtime_paths import WINEPREFIX, common_file_dirs
+
 
 def latest_status_path() -> Path | None:
-    for d in COMMON_CANDIDATES:
-        p = d / 'finrobot_status.json'
-        if p.exists(): return p
-    for p in Path('/home/openclaw/.wine-mt5').glob('**/finrobot_status.json'):
-        return p
+    for directory in common_file_dirs():
+        path = directory / "finrobot_status.json"
+        if path.exists():
+            return path
+    for path in WINEPREFIX.glob("**/finrobot_status.json"):
+        return path
     return None
 
-p = latest_status_path()
-print('MT5 status file:', p or 'not found')
-if p:
+
+path = latest_status_path()
+print("MT5 status file:", path or "not found")
+if path:
     try:
-        data = json.loads(p.read_text(errors='replace'))
-        age = time.time() - p.stat().st_mtime
+        data = json.loads(path.read_text(errors="replace"))
+        age = time.time() - path.stat().st_mtime
         print(json.dumps(data, indent=2))
-        print(f'age_seconds={age:.1f}')
-        common = p.parent
-        for name in ('finrobot_positions.csv', 'finrobot_deals.csv', 'finrobot_acks.csv'):
-            fp = common / name
-            if fp.exists():
-                print(f'{name}: {fp} ({fp.stat().st_size} bytes, age={time.time() - fp.stat().st_mtime:.1f}s)')
-    except Exception as e:
-        print('read_error:', e)
-print('terminal_processes:')
-os.system("pgrep -af 'terminal64.exe|start_mt5|xvfb|wineserver' || true")
+        print(f"age_seconds={age:.1f}")
+        common = path.parent
+        for name in ("finrobot_positions.csv", "finrobot_deals.csv", "finrobot_acks.csv"):
+            file_path = common / name
+            if file_path.exists():
+                file_age = time.time() - file_path.stat().st_mtime
+                print(f"{name}: {file_path} ({file_path.stat().st_size} bytes, age={file_age:.1f}s)")
+    except Exception as exc:
+        print("read_error:", exc)
+
+print("terminal_processes:")
+cp = subprocess.run(["pgrep", "-af", "terminal64.exe|start_mt5|xvfb|wineserver"], text=True, capture_output=True)
+print(cp.stdout.strip() or "none")

@@ -1,14 +1,4 @@
 python-dotenv
-requests
 pandas
 numpy
-matplotlib
-plotly
-scikit-learn
-tensorflow
-pyharmonics
-openai
-yfinance
-MetaTrader5
-ctrader-open-api
 pytest

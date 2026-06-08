@@ -12,10 +12,12 @@ FinRobot is now an MT5-first autonomous demo-trading repo. Trade and optimize on
 - Active EA: `broker/mt5/FinRobotBridgeEA.mq5` (v1.27)
 - EA Modules: `broker/mt5/RiskManagement.mqh`, `SmartMoney.mqh`, `BridgeIO.mqh`
 - Runtime process list: `ecosystem.config.js`
+- Installer: `install.sh`
 - MT5 status/report tools: `scripts/mt5_status.py`, `scripts/mt5_trade_report.py`
 - 6-hour Opencode loop: `scripts/autonomous_review_loop.py`
 - Indicators: `finrobot/indicators.py` (consolidated)
 - HFT Logic: `finrobot/hft.py` (consolidated)
+- Runtime MT5/Wine files live under `.runtime/` and are intentionally gitignored.
 - State/logs are runtime artifacts and are intentionally gitignored.
 
 ## PM2 processes
@@ -23,6 +25,7 @@ FinRobot is now an MT5-first autonomous demo-trading repo. Trade and optimize on
 Use only these active processes:
 
 ```bash
+./install.sh
 pm2 start ecosystem.config.js
 pm2 restart mt5-terminal autonomous-review --update-env
 pm2 list
@@ -58,7 +61,7 @@ Default minimum is 12 closed deals and default cadence is every 6 hours. Keep th
 - Make direct changes; repo is in git.
 - Before editing, inspect `git status --short` and relevant logs/reports.
 - After editing, run at least `python3 -m compileall -q finrobot scripts` and `python3 scripts/mt5_trade_report.py`.
-- If EA source changes, copy it to the installed MT5 Experts path and compile with MetaEditor when available.
+- If EA source changes, run `scripts/sync_mt5_ea.sh` and compile with MetaEditor when available.
 - Update `README.md` and this file when operating behavior changes.
 - Do not print secrets from `.env`.
 
@@ -96,6 +99,6 @@ pm2 list
 - BTC `MACD_trend` disabled inside the `DisableWeakStrategySignals` BTC block (`macdLong/macdShort=false`) — it had negative expectancy (~-$7.34/trade over 2 deals). `Momentum_trend` and `QuickMomentum` retained.
 - Owner-requested maximum-frequency demo defaults (2026-06-01) failed in live BTC trading and are retired: do not restore `DisableWeakStrategySignals=false`, `MaxAutoPositionsPerSymbol=5`, `MinSecondsBetweenTrades=60`, `MaxLotPerTrade=1.00`, `DailyRiskPerTradePct=0.0050`, or `MinSmcConfluenceScore=1` without fresh evidence.
 - Recovery defaults (2026-06-02): `DisableWeakStrategySignals=true`, `EnableBtcRsiReversion=false`, `EnableBtcAtrImpulse=false`, `EnableBtcMomentumTrend=false`, `MaxAutoPositionsPerSymbol=2`, `MaxLotPerTrade=0.25`, `DailyRiskPerTradePct=0.0010`, `DailyLossLimitPct=0.01`, BTC requires H1 trend alignment and directional PDA confirmation.
-- After EA source edits: copy `broker/mt5/FinRobotBridgeEA.mq5` to the ACTIVE install `.../ICMarketsSCOfficialMT5/MQL5/Experts/FinRobot/`, compile with `WINEPREFIX=/home/openclaw/.wine-mt5 xvfb-run -a wine MetaEditor64.exe /compile:"MQL5\Experts\FinRobot\FinRobotBridgeEA.mq5" /log:compile.log`, then `pm2 restart mt5-terminal`. EA inputs are NOT pinned in the chart (only file/magic/poll inputs are), so compiled defaults take effect on restart.
+- After EA source edits: run `scripts/sync_mt5_ea.sh`, then `pm2 restart mt5-terminal --update-env`. The installer keeps MT5 and Wine under `.runtime/`; do not restore host-specific runtime hardcoding.
 - `scripts/autonomous_review_loop.py`: fixed a truncation bug — the trade report was sliced to the last 20000 chars, dropping the `Closed deal summary:` marker (~char 1800), so `closed_deals` always parsed as 0 and the reviewer never ran. Now keeps the head.
 - LLM editing is HARD-GATED OFF by default via `AUTOREVIEW_ENABLE_LLM` (unset/false = analysis-only: the loop logs the real closed-deal count and journals analysis but never invokes opencode). Set `AUTOREVIEW_ENABLE_LLM=true` to re-enable autonomous code edits.

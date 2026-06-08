@@ -1,9 +1,12 @@
 .venv/
+.runtime/
 __pycache__/
 *.pyc
 .env
 .pytest_cache/
 .DS_Store
+node_modules/
+npm-debug.log*
 *.log
 logs/
 state/
@@ -12,3 +15,7 @@ backups/
 *.jsonl
 *.pid
 daemon_state.json
+compile.log
+*.ex5
+*.tmp
+.pm2/

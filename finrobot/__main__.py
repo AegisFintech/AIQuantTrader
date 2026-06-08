@@ -1,3 +1,9 @@
-from .cli import main
+from __future__ import annotations
 
-main()
+
+def main() -> None:
+    print("FinRobot is managed through MT5/PM2. Run ./install.sh, then pm2 list.")
+
+
+if __name__ == "__main__":
+    main()

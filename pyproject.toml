@@ -5,22 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "finrobot"
 version = "0.1.0"
-description = "Modular algorithmic trading toolkit"
+description = "MT5-first autonomous demo trading system for XAUUSD and BTCUSD"
 requires-python = ">=3.10"
 dependencies = [
   "python-dotenv",
-  "requests",
   "pandas",
-  "numpy",
-  "matplotlib",
-  "plotly",
-  "scikit-learn",
-  "tensorflow",
-  "pyharmonics",
-  "openai",
-  "yfinance",
-  "MetaTrader5"
+  "numpy"
 ]
-
-[project.scripts]
-finrobot = "finrobot.cli:main"

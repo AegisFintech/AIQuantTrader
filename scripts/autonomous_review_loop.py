@@ -194,7 +194,7 @@ def cycle(args: argparse.Namespace) -> dict:
         ok = all(c.returncode == 0 for c in checks)
         log(f"post_checks_ok={ok}")
         if ok:
-            pm2_bin = shutil.which('pm2') or '/home/openclaw/.npm-global/lib/node_modules/pm2/bin/pm2'
+            pm2_bin = shutil.which('pm2') or 'pm2'
             run([pm2_bin, 'restart', 'mt5-terminal', 'autonomous-review', '--update-env'], timeout=300)
         return {'applied': ok, 'opencode': result}
     return {'applied': False, 'opencode': result}

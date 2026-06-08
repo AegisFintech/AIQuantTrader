@@ -8,11 +8,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from statistics import mean
 
-ROOT = Path('/home/openclaw/FinRobot')
-COMMON_CANDIDATES = [
-    Path('/home/openclaw/.wine-mt5/drive_c/users/openclaw/AppData/Roaming/MetaQuotes/Terminal/Common/Files'),
-    Path('/home/openclaw/.wine-mt5/drive_c/users/root/AppData/Roaming/MetaQuotes/Terminal/Common/Files'),
-]
+from runtime_paths import common_dir
 
 RETIRED_AUTO_STRATEGIES = {
     ('BTCUSD', 'RSI_reversion'),
@@ -21,15 +17,6 @@ RETIRED_AUTO_STRATEGIES = {
     ('BTCUSD', 'MACD_trend'),
     ('XAUUSD', 'RSI_reversion'),
 }
-
-
-def common_dir() -> Path | None:
-    for d in COMMON_CANDIDATES:
-        if (d / 'finrobot_status.json').exists() or (d / 'finrobot_deals.csv').exists():
-            return d
-    for p in Path('/home/openclaw/.wine-mt5').glob('**/finrobot_status.json'):
-        return p.parent
-    return None
 
 
 def read_json(path: Path) -> dict:
