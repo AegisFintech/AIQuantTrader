@@ -9,19 +9,31 @@ The active runtime is simple: MetaTrader 5 runs under Wine/Xvfb, the FinRobot EA
 
 ## Install
 
-Use Debian or Ubuntu.
+Use Debian or Ubuntu on **x86_64** for the standard MT5/Wine path.
 
 ```bash
 cp .env.sample .env
 ./install.sh
 ```
 
-`install.sh` installs required OS packages, creates `.venv`, installs Python dependencies, installs global PM2 if missing, downloads MT5, creates a repo-local Wine prefix, syncs the EA, and starts PM2.
+`install.sh` installs required OS packages, creates `.venv`, installs Python dependencies, installs global PM2 if missing, downloads MT5, creates a repo-local Wine prefix, syncs the EA, configures MT5 to start the FinRobot EA, and starts PM2.
+
+On **arm64** (e.g. Apple M-series, Raspberry Pi, AWS Graviton), MT5 requires x86_64 emulation. The preferred experimental local path is Hangover Wine for Debian/Ubuntu ARM64. With `FINROBOT_ALLOW_EMULATED_MT5=true`, the scripts auto-use Hangover's `wine` when installed. The fallback path is Box64 plus a new-WoW64 x86_64 Wine build extracted under `.runtime/wine-x86_64/wine-11.10-amd64-wow64`, then:
+
+```env
+FINROBOT_ALLOW_EMULATED_MT5=true
+FINROBOT_WINE_CMD=/absolute/path/to/FinRobot/scripts/wine_box64.sh
+```
+
+When `FINROBOT_SKIP_MT5_INSTALL=true`, the installer skips MT5/Wine and installs only Python and PM2 tooling. The non-MT5 scripts work, but `mt5-terminal` will remain stopped. Use `FINROBOT_SKIP_MT5_INSTALL=true` on x86_64 to skip MT5 for CI or development-only setups.
+
+The installer handles NodeSource-installed `nodejs` gracefully — if Debian's `nodejs`/`npm` conflict with an existing NodeSource node, it falls back to `sudo npm install -g npm`.
 
 Runtime files are stored in this repo under `.runtime/` and are gitignored:
 
 ```text
 .runtime/wineprefix/        Wine prefix
+.runtime/wine-x86_64/       Optional new-WoW64 x86_64 Wine build for arm64 + Box64
 .runtime/mt5/               MT5 terminal install/link
 .runtime/downloads/         MT5 installer cache
 ```
@@ -33,7 +45,14 @@ MT5_LOGIN=
 MT5_PASSWORD=
 MT5_SERVER=ICMarketsSC-Demo
 MT5_MODE=demo
+MT5_AUTOTRADING_ENABLED=true
+FINROBOT_ATTACH_SYMBOL=BTCUSD
+FINROBOT_ATTACH_PERIOD=M1
 ```
+
+If these MT5 account fields are empty, MT5 starts but opens the account setup wizard and the bridge EA will not emit `finrobot_status.json` until a trading account is configured.
+
+For a fresh generic MT5 install, the IC Markets server list may need to be seeded once through MT5: `File` -> `Open an Account`, search for `Raw Trading Ltd`, select `ICMarketsSC-Demo`, and connect the existing account. The discovered broker server data is stored under `.runtime/` and survives normal PM2 restarts.
 
 ## Run
 
@@ -70,10 +89,13 @@ The EA writes MT5 Common Files:
 - `finrobot_acks.csv`
 - `finrobot_commands.csv`
 
+`scripts/start_mt5.sh` rewrites `Config\finrobot-login.ini` from `.env` before each PM2-managed terminal start. `scripts/mt5_configure_profile.py` then updates the Default chart profile and startup config file so MT5 runs `MQL5\Experts\FinRobot\FinRobotBridgeEA.ex5` on the `FINROBOT_ATTACH_SYMBOL` chart at launch. By default it keeps one chart in the profile and does not ask MT5 to open an extra startup chart; set `FINROBOT_SINGLE_CHART_PROFILE=false` or `FINROBOT_STARTUP_OPEN_CHART=true` only when you intentionally want that behavior.
+
 After EA edits, sync and compile when MetaEditor is available:
 
 ```bash
 scripts/sync_mt5_ea.sh
+python3 scripts/mt5_configure_profile.py
 pm2 restart mt5-terminal --update-env
 ```
 

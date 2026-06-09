@@ -2,6 +2,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -f "$ROOT/.env" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "$ROOT/.env"
+  set +a
+fi
 RUNTIME_DIR="${FINROBOT_RUNTIME_DIR:-$ROOT/.runtime}"
 WINEPREFIX_DIR="${FINROBOT_WINEPREFIX:-$RUNTIME_DIR/wineprefix}"
 MT5_DIR="${FINROBOT_MT5_DIR:-$RUNTIME_DIR/mt5}"
@@ -39,7 +45,17 @@ fi
 export WINEPREFIX="$WINEPREFIX_DIR"
 export WINEARCH=win64
 export WINEDEBUG="${WINEDEBUG:--all}"
+WINE_CMD="${FINROBOT_WINE_CMD:-wine}"
+ARCH="$(uname -m)"
+if [ "${FINROBOT_ALLOW_EMULATED_MT5:-false}" = "true" ] && [ "$ARCH" != "x86_64" ] && [ "$ARCH" != "amd64" ] && [ -z "${FINROBOT_WINE_CMD:-}" ]; then
+  if command -v wine >/dev/null 2>&1 && wine --version 2>/dev/null | grep -qi 'hangover'; then
+    WINE_CMD="wine"
+  else
+    WINE_CMD="$ROOT/scripts/wine_box64.sh"
+  fi
+fi
+read -r -a WINE_CMD_ARR <<< "$WINE_CMD"
 
 cd "$TERMINAL_DIR"
-xvfb-run -a wine "$METAEDITOR" /compile:"MQL5\\Experts\\FinRobot\\FinRobotBridgeEA.mq5" /log:compile.log || true
+xvfb-run -a "${WINE_CMD_ARR[@]}" "$METAEDITOR" /compile:"MQL5\\Experts\\FinRobot\\FinRobotBridgeEA.mq5" /log:compile.log || true
 echo "EA files synced. Compile log: $TERMINAL_DIR/compile.log"

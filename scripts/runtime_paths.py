@@ -5,9 +5,19 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-RUNTIME_DIR = Path(os.getenv("FINROBOT_RUNTIME_DIR", ROOT / ".runtime")).expanduser()
-WINEPREFIX = Path(os.getenv("FINROBOT_WINEPREFIX", RUNTIME_DIR / "wineprefix")).expanduser()
-MT5_DIR = Path(os.getenv("FINROBOT_MT5_DIR", RUNTIME_DIR / "mt5")).expanduser()
+
+
+def env_path(name: str, default: Path) -> Path:
+    value = os.getenv(name)
+    path = Path(value).expanduser() if value else default
+    if not path.is_absolute():
+        path = ROOT / path
+    return path
+
+
+RUNTIME_DIR = env_path("FINROBOT_RUNTIME_DIR", ROOT / ".runtime")
+WINEPREFIX = env_path("FINROBOT_WINEPREFIX", RUNTIME_DIR / "wineprefix")
+MT5_DIR = env_path("FINROBOT_MT5_DIR", RUNTIME_DIR / "mt5")
 MT5_TERMINAL_DIR = MT5_DIR / "terminal" / "current"
 MT5_TERMINAL = MT5_TERMINAL_DIR / "terminal64.exe"
 

@@ -14,11 +14,17 @@ FinRobot is now an MT5-first autonomous demo-trading repo. Trade and optimize on
 - Runtime process list: `ecosystem.config.js`
 - Installer: `install.sh`
 - MT5 status/report tools: `scripts/mt5_status.py`, `scripts/mt5_trade_report.py`
+- MT5 startup/profile helper: `scripts/mt5_configure_profile.py`
 - 6-hour Opencode loop: `scripts/autonomous_review_loop.py`
 - Indicators: `finrobot/indicators.py` (consolidated)
 - HFT Logic: `finrobot/hft.py` (consolidated)
 - Runtime MT5/Wine files live under `.runtime/` and are intentionally gitignored.
 - State/logs are runtime artifacts and are intentionally gitignored.
+- On arm64, MT5 is experimental and must run through x86_64 emulation. Prefer Hangover Wine when installed; otherwise use `scripts/wine_box64.sh` with Box64 and a repo-local new-WoW64 x86_64 Wine build under `.runtime/wine-x86_64/wine-11.10-amd64-wow64`.
+- MT5 startup config should keep `[StartUp] Expert=FinRobot\FinRobotBridgeEA` and `[Experts] Enabled=1`. The Default profile should keep a single `BTCUSD` chart by default, so the PM2-managed terminal loads the bridge EA headlessly without opening duplicate startup charts.
+- If `MT5_LOGIN`, `MT5_PASSWORD`, or `MT5_SERVER` are empty, MT5 can start and load the EA file but will show the account wizard and the bridge will not produce Common Files until credentials are configured.
+- `scripts/start_mt5.sh` rewrites `Config\finrobot-login.ini` from `.env` before every MT5 launch; do not print the generated file because it contains the MT5 password.
+- On a clean generic MT5 install, seed the IC Markets server database once through MT5's account wizard by searching `Raw Trading Ltd` and selecting `ICMarketsSC-Demo`; the resulting `.runtime` server data survives normal PM2 restarts.
 
 ## PM2 processes
 
@@ -90,6 +96,7 @@ pm2 list
 ## Logging
 
 - `mt5-terminal` runs Wine with `WINEDEBUG=-all` (set in `scripts/start_mt5.sh`) to suppress Wine GUI debug spam (toolbar/datetime/etc.). Real MT5 trade/connection state surfaces in `finrobot_status.json` and MT5's own Experts journal, not Wine stderr.
+- On arm64, set `FINROBOT_ALLOW_EMULATED_MT5=true`; if `FINROBOT_WINE_CMD` is unset, install/start/sync scripts use Hangover's `wine` when present, otherwise `scripts/wine_box64.sh`.
 - Active PM2 services write stdout/stderr directly to the single operator log: `logs/combined.log`. Do not add new sidecar app logs for active services unless the owner asks.
 - Retired-process and stale install logs should stay out of `logs/`. Keep `logs/` focused on `combined.log` and active trading diagnostics only.
 
@@ -100,5 +107,6 @@ pm2 list
 - Owner-requested maximum-frequency demo defaults (2026-06-01) failed in live BTC trading and are retired: do not restore `DisableWeakStrategySignals=false`, `MaxAutoPositionsPerSymbol=5`, `MinSecondsBetweenTrades=60`, `MaxLotPerTrade=1.00`, `DailyRiskPerTradePct=0.0050`, or `MinSmcConfluenceScore=1` without fresh evidence.
 - Recovery defaults (2026-06-02): `DisableWeakStrategySignals=true`, `EnableBtcRsiReversion=false`, `EnableBtcAtrImpulse=false`, `EnableBtcMomentumTrend=false`, `MaxAutoPositionsPerSymbol=2`, `MaxLotPerTrade=0.25`, `DailyRiskPerTradePct=0.0010`, `DailyLossLimitPct=0.01`, BTC requires H1 trend alignment and directional PDA confirmation.
 - After EA source edits: run `scripts/sync_mt5_ea.sh`, then `pm2 restart mt5-terminal --update-env`. The installer keeps MT5 and Wine under `.runtime/`; do not restore host-specific runtime hardcoding.
+- `scripts/start_mt5.sh` refreshes `scripts/mt5_configure_profile.py` before launching MT5 unless `FINROBOT_CONFIGURE_PROFILE_ON_START=false`.
 - `scripts/autonomous_review_loop.py`: fixed a truncation bug — the trade report was sliced to the last 20000 chars, dropping the `Closed deal summary:` marker (~char 1800), so `closed_deals` always parsed as 0 and the reviewer never ran. Now keeps the head.
 - LLM editing is HARD-GATED OFF by default via `AUTOREVIEW_ENABLE_LLM` (unset/false = analysis-only: the loop logs the real closed-deal count and journals analysis but never invokes opencode). Set `AUTOREVIEW_ENABLE_LLM=true` to re-enable autonomous code edits.

@@ -3,6 +3,8 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+!.env.sample
 .pytest_cache/
 .DS_Store
 node_modules/
