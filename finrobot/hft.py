@@ -12,8 +12,8 @@ logger = logging.getLogger("hft_strategy")
 @dataclass
 class HFTConfig:
     """HFT configuration with more permissive defaults for XAUUSD."""
-    # Tick detection - lowered thresholds for XAUUSD volatility
-    tick_threshold: float = 0.01  # Was 0.05, now 0.01 for XAUUSD
+    # Move detection thresholds are fractional returns, e.g. 0.001 = 0.1%.
+    tick_threshold: float = 0.01
     min_price_move_pct: float = 0.001  # 0.1% minimum move
     
     # Volume filtering - more permissive
@@ -228,7 +228,7 @@ def _backtest_hft_core(df_input: pd.DataFrame, cfg: HFTConfig) -> dict:
     
     # Log configuration
     _log_info(f"Configuration:", cfg)
-    _log_info(f"  Tick threshold: {cfg.tick_threshold}", cfg)
+    _log_info(f"  Move threshold pct: {cfg.tick_threshold}", cfg)
     _log_info(f"  Min price move: {cfg.min_price_move_pct}", cfg)
     _log_info(f"  Volume filter: {cfg.volume_filter}", cfg)
     _log_info(f"  Volume threshold: {cfg.volume_threshold}", cfg)
@@ -283,13 +283,14 @@ def _backtest_hft_core(df_input: pd.DataFrame, cfg: HFTConfig) -> dict:
             if position == 1:  # Long
                 stop_price = entry_price * (1 - cfg.stop_loss_ticks * 0.0001)
                 if current_price <= stop_price:
-                    pnl = (current_price - entry_price) / entry_price
-                    pnl_list.append(pnl)
-                    trades.append({"type": "long", "pnl": pnl, "exit": "stop_loss"})
-                    equity_curve.append(equity_curve[-1] * (1 + pnl - cfg.fee_bps/10000))
+                    gross_pnl = (current_price - entry_price) / entry_price
+                    net_pnl = gross_pnl - cfg.fee_bps / 10000
+                    pnl_list.append(net_pnl)
+                    trades.append({"type": "long", "pnl": net_pnl, "gross_pnl": gross_pnl, "exit": "stop_loss"})
+                    equity_curve.append(equity_curve[-1] * (1 + net_pnl))
                     position = 0
                     
-                    if pnl < 0:
+                    if net_pnl < 0:
                         current_consecutive_losses += 1
                         max_consecutive_losses = max(max_consecutive_losses, current_consecutive_losses)
                     else:
@@ -299,23 +300,29 @@ def _backtest_hft_core(df_input: pd.DataFrame, cfg: HFTConfig) -> dict:
                 # Check take profit
                 target_price = entry_price * (1 + cfg.profit_target_ticks * 0.0001)
                 if current_price >= target_price:
-                    pnl = (target_price - entry_price) / entry_price
-                    pnl_list.append(pnl)
-                    trades.append({"type": "long", "pnl": pnl, "exit": "take_profit"})
-                    equity_curve.append(equity_curve[-1] * (1 + pnl - cfg.fee_bps/10000))
+                    gross_pnl = (target_price - entry_price) / entry_price
+                    net_pnl = gross_pnl - cfg.fee_bps / 10000
+                    pnl_list.append(net_pnl)
+                    trades.append({"type": "long", "pnl": net_pnl, "gross_pnl": gross_pnl, "exit": "take_profit"})
+                    equity_curve.append(equity_curve[-1] * (1 + net_pnl))
                     position = 0
-                    current_consecutive_losses = 0
+                    if net_pnl < 0:
+                        current_consecutive_losses += 1
+                        max_consecutive_losses = max(max_consecutive_losses, current_consecutive_losses)
+                    else:
+                        current_consecutive_losses = 0
                     continue
                 
                 # Check max hold time
                 if i - entry_bar >= cfg.max_hold_bars:
-                    pnl = (current_price - entry_price) / entry_price
-                    pnl_list.append(pnl)
-                    trades.append({"type": "long", "pnl": pnl, "exit": "time_exit"})
-                    equity_curve.append(equity_curve[-1] * (1 + pnl - cfg.fee_bps/10000))
+                    gross_pnl = (current_price - entry_price) / entry_price
+                    net_pnl = gross_pnl - cfg.fee_bps / 10000
+                    pnl_list.append(net_pnl)
+                    trades.append({"type": "long", "pnl": net_pnl, "gross_pnl": gross_pnl, "exit": "time_exit"})
+                    equity_curve.append(equity_curve[-1] * (1 + net_pnl))
                     position = 0
                     
-                    if pnl < 0:
+                    if net_pnl < 0:
                         current_consecutive_losses += 1
                         max_consecutive_losses = max(max_consecutive_losses, current_consecutive_losses)
                     else:
@@ -325,13 +332,14 @@ def _backtest_hft_core(df_input: pd.DataFrame, cfg: HFTConfig) -> dict:
             else:  # Short position
                 stop_price = entry_price * (1 + cfg.stop_loss_ticks * 0.0001)
                 if current_price >= stop_price:
-                    pnl = (entry_price - current_price) / entry_price
-                    pnl_list.append(pnl)
-                    trades.append({"type": "short", "pnl": pnl, "exit": "stop_loss"})
-                    equity_curve.append(equity_curve[-1] * (1 + pnl - cfg.fee_bps/10000))
+                    gross_pnl = (entry_price - current_price) / entry_price
+                    net_pnl = gross_pnl - cfg.fee_bps / 10000
+                    pnl_list.append(net_pnl)
+                    trades.append({"type": "short", "pnl": net_pnl, "gross_pnl": gross_pnl, "exit": "stop_loss"})
+                    equity_curve.append(equity_curve[-1] * (1 + net_pnl))
                     position = 0
                     
-                    if pnl < 0:
+                    if net_pnl < 0:
                         current_consecutive_losses += 1
                         max_consecutive_losses = max(max_consecutive_losses, current_consecutive_losses)
                     else:
@@ -340,22 +348,28 @@ def _backtest_hft_core(df_input: pd.DataFrame, cfg: HFTConfig) -> dict:
                 
                 target_price = entry_price * (1 - cfg.profit_target_ticks * 0.0001)
                 if current_price <= target_price:
-                    pnl = (entry_price - target_price) / entry_price
-                    pnl_list.append(pnl)
-                    trades.append({"type": "short", "pnl": pnl, "exit": "take_profit"})
-                    equity_curve.append(equity_curve[-1] * (1 + pnl - cfg.fee_bps/10000))
+                    gross_pnl = (entry_price - target_price) / entry_price
+                    net_pnl = gross_pnl - cfg.fee_bps / 10000
+                    pnl_list.append(net_pnl)
+                    trades.append({"type": "short", "pnl": net_pnl, "gross_pnl": gross_pnl, "exit": "take_profit"})
+                    equity_curve.append(equity_curve[-1] * (1 + net_pnl))
                     position = 0
-                    current_consecutive_losses = 0
+                    if net_pnl < 0:
+                        current_consecutive_losses += 1
+                        max_consecutive_losses = max(max_consecutive_losses, current_consecutive_losses)
+                    else:
+                        current_consecutive_losses = 0
                     continue
                 
                 if i - entry_bar >= cfg.max_hold_bars:
-                    pnl = (entry_price - current_price) / entry_price
-                    pnl_list.append(pnl)
-                    trades.append({"type": "short", "pnl": pnl, "exit": "time_exit"})
-                    equity_curve.append(equity_curve[-1] * (1 + pnl - cfg.fee_bps/10000))
+                    gross_pnl = (entry_price - current_price) / entry_price
+                    net_pnl = gross_pnl - cfg.fee_bps / 10000
+                    pnl_list.append(net_pnl)
+                    trades.append({"type": "short", "pnl": net_pnl, "gross_pnl": gross_pnl, "exit": "time_exit"})
+                    equity_curve.append(equity_curve[-1] * (1 + net_pnl))
                     position = 0
                     
-                    if pnl < 0:
+                    if net_pnl < 0:
                         current_consecutive_losses += 1
                         max_consecutive_losses = max(max_consecutive_losses, current_consecutive_losses)
                     else:
@@ -390,7 +404,7 @@ def _backtest_hft_core(df_input: pd.DataFrame, cfg: HFTConfig) -> dict:
     
     # Calculate metrics
     pnl_series = pd.Series(pnl_list)
-    equity_series = (1 + pnl_series).cumprod()
+    equity_series = pd.Series(equity_curve)
     
     total_return = float(equity_series.iloc[-1] - 1)
     max_drawdown = float((equity_series / equity_series.cummax() - 1).min())

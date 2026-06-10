@@ -593,7 +593,8 @@ void ManageAutoSymbol(string symbol, int idx) {
    bool atrImpulseShort = current < rates[1].low && (previous - current) > atr[0] * 0.12 && rsi[0] > 20;
    if(isBtc) {
       if(!EnableBtcQuickMomentum) {
-         bullishCross = false; bullishCross = false; // dummy to keep logic
+         bullishCross = false;
+         bearishCross = false;
          quickMomentumLong = false;
          quickMomentumShort = false;
       }
