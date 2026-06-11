@@ -38,13 +38,20 @@ cd /root/FinRobot
 - [ ] `python3 scripts/healthcheck.py` — all checks `OK` after the restart. Exit code 0.
 - [ ] `python3 scripts/mt5_trade_report.py` — re-run and diff against the pre-deploy snapshot. No new orders, no new rejected positions, no change in the symbol's last_signal unless expected.
 
-## 6. If you broke it
+## 6. Cleanup (optional but recommended)
+
+- [ ] `git tag -a v1.30 -m "Phase 1 hardening + risk semantics"` — tag the released commit.
+- [ ] `python3 scripts/archive_common_files.py` — manual snapshot under `state/mt5/archive/<date>/<ts>/` for the deploy moment.
+
+## 7. Cron wiring (one-time, after first deploy)
+
+- [ ] `sudo scripts/install_cron.sh` to drop `config/finrobot.cron` into `/etc/cron.d/finrobot`
+- [ ] `cat /etc/cron.d/finrobot` to confirm the install
+- [ ] Wait ~3 minutes, then `tail -20 logs/cron.log` to see fresh entries from the 1-minute jobs
+- [ ] Wait ~24 hours, then `ls -la state/mt5/archive/` to confirm daily archives are landing
+
+## 8. If you broke it
 
 - [ ] `pm2 logs mt5-terminal --lines 200` — inspect the live journal for the failure mode.
 - [ ] `pm2 restart mt5-terminal --update-env` — restart to roll back to whatever `.ex5` is on disk.
 - [ ] If the issue is in the source: `git revert HEAD`, then re-run this checklist from step 1.
-
-## 7. Cleanup (optional but recommended)
-
-- [ ] `git tag -a v1.30 -m "Phase 1 hardening + risk semantics"` — tag the released commit.
-- [ ] `python3 scripts/archive_common_files.py` — manual snapshot under `state/mt5/archive/<date>/<ts>/` for the deploy moment.
