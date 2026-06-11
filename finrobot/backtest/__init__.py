@@ -22,6 +22,10 @@ from finrobot.backtest.parity import ParityReport, compare_decisions
 from finrobot.backtest.position import Position, PositionSizer, PositionState
 from finrobot.backtest.strategies.base import Signal, Strategy
 from finrobot.backtest.strategies.buy_and_hold import BuyAndHold
+from finrobot.backtest.strategies.xau_quick_momentum import (
+    XauQuickMomentumParams,
+    XauQuickMomentumStrategy,
+)
 
 __all__ = [
     "Backtester",
@@ -37,6 +41,8 @@ __all__ = [
     "PositionState",
     "Signal",
     "Strategy",
+    "XauQuickMomentumParams",
+    "XauQuickMomentumStrategy",
     "compare_decisions",
     "compute_metrics",
     "expectancy",
