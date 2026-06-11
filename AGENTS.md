@@ -9,7 +9,7 @@ FinRobot is now an MT5-first autonomous demo-trading repo. Trade and optimize on
 
 ## Source of truth
 
-- Active EA: `broker/mt5/FinRobotBridgeEA.mq5` (v1.27)
+- Active EA: `broker/mt5/FinRobotBridgeEA.mq5` (v1.29)
 - EA Modules: `broker/mt5/RiskManagement.mqh`, `SmartMoney.mqh`, `BridgeIO.mqh`
 - Runtime process list: `ecosystem.config.js`
 - Installer: `install.sh`
@@ -90,8 +90,10 @@ pm2 list
 ## Current strategy posture
 
 - Loss diagnosis from the current MT5 sample: the 2026-06-01 maximum-frequency profile overtraded BTCUSD. `BTCUSD_RSI_reversion` was the dominant loss source and must stay disabled; XAUUSD remains historically negative and must keep stricter gates.
-- `FinRobotBridgeEA.mq5` should keep `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=true`, `UseDailyRiskLotSizing=true`, `DisableWeakStrategySignals=true`, `EnableBtcRsiReversion=false`, `EnableBtcAtrImpulse=false`, and `MaxAutoPositionsPerSymbol=2` unless the owner changes risk again.
+- `FinRobotBridgeEA.mq5` should keep `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=true`, `UseDailyRiskLotSizing=true`, `DisableWeakStrategySignals=true`, `EnableBtcRsiReversion=false`, `EnableBtcAtrImpulse=false`, `EnableBtcContinuousTrading=true`, `EnableXauWeekdayMarketHours=true`, `EnableBtcCostFilters=true`, and `MaxAutoPositionsPerSymbol=2` unless the owner changes risk again.
 - Smart-money gate intent: trade BTC only with higher-timeframe trend alignment plus directional PDA/SMC confirmation, and trade XAU only from stricter premium/discount SMC setups. High-confluence score 5+ entries can size up via the risk model while respecting symbol lot caps and daily loss controls. `smc_reject`, `btc_direction_reject`, and `xau_pda_reject` mean the signal was intentionally blocked.
+- Session intent: BTC may scan continuously outside London/NY, but only with fixed spread plus ATR/target-distance cost filters. XAU may scan Monday-Friday whenever the broker symbol is inside its configured trade session; it should not be limited to London/NY windows.
+- `finrobot_status.json` includes per-symbol `session_gated`, `weekday_market_hours`, `session_open`, and daily `signal_telemetry` counters. Use these counters to distinguish no-signal periods from intentional market-closed, spread/cost, SMC, direction, PDA, cooldown, or session rejections before changing strategy.
 
 ## Logging
 
@@ -106,6 +108,8 @@ pm2 list
 - BTC `MACD_trend` disabled inside the `DisableWeakStrategySignals` BTC block (`macdLong/macdShort=false`) — it had negative expectancy (~-$7.34/trade over 2 deals). `Momentum_trend` and `QuickMomentum` retained.
 - Owner-requested maximum-frequency demo defaults (2026-06-01) failed in live BTC trading and are retired: do not restore `DisableWeakStrategySignals=false`, `MaxAutoPositionsPerSymbol=5`, `MinSecondsBetweenTrades=60`, `MaxLotPerTrade=1.00`, `DailyRiskPerTradePct=0.0050`, or `MinSmcConfluenceScore=1` without fresh evidence.
 - Recovery defaults (2026-06-02): `DisableWeakStrategySignals=true`, `EnableBtcRsiReversion=false`, `EnableBtcAtrImpulse=false`, `EnableBtcMomentumTrend=false`, `MaxAutoPositionsPerSymbol=2`, `MaxLotPerTrade=0.25`, `DailyRiskPerTradePct=0.0010`, `DailyLossLimitPct=0.01`, BTC requires H1 trend alignment and directional PDA confirmation.
+- BTC continuous-scanning update (2026-06-11): `EnableBtcContinuousTrading=true` bypasses the London/NY session gate for BTC only; `EnableBtcCostFilters=true` rejects BTC entries when spread exceeds `MaxBtcSpreadAtrRatio=0.15` of ATR or `MaxBtcSpreadTakeProfitRatio=0.08` of target distance. Do not confuse this with the retired maximum-frequency profile; weak BTC signals and aggressive sizing remain disabled.
+- XAU weekday-market update (2026-06-11): `EnableXauWeekdayMarketHours=true` bypasses the old London/NY-only gate for XAU and instead checks Monday-Friday plus the broker's symbol trade sessions/trade mode. If the broker session is closed, the signal is `market_closed`, not `outside_trading_session`.
 - After EA source edits: run `scripts/sync_mt5_ea.sh`, then `pm2 restart mt5-terminal --update-env`. The installer keeps MT5 and Wine under `.runtime/`; do not restore host-specific runtime hardcoding.
 - `scripts/start_mt5.sh` refreshes `scripts/mt5_configure_profile.py` before launching MT5 unless `FINROBOT_CONFIGURE_PROFILE_ON_START=false`.
 - `scripts/autonomous_review_loop.py`: fixed a truncation bug — the trade report was sliced to the last 20000 chars, dropping the `Closed deal summary:` marker (~char 1800), so `closed_deals` always parsed as 0 and the reviewer never ran. Now keeps the head.

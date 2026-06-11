@@ -89,6 +89,13 @@ The EA writes MT5 Common Files:
 - `finrobot_acks.csv`
 - `finrobot_commands.csv`
 
+Current auto-trading posture:
+
+- BTCUSD scans continuously by default with `EnableBtcContinuousTrading=true`, but entries still require the fixed BTC spread cap, smart-money/directional confirmation, daily risk lot sizing, and BTC cost filters.
+- BTC cost filters reject entries when spread is more than `0.15` of current ATR or more than `0.08` of the planned target distance.
+- XAUUSD scans Monday-Friday whenever the broker symbol is inside its configured trade session, while keeping stricter premium/discount smart-money gates.
+- `finrobot_status.json` exposes per-symbol `session_gated`, `weekday_market_hours`, `session_open`, and daily `signal_telemetry` counters for filled trades and major rejection reasons.
+
 `scripts/start_mt5.sh` rewrites `Config\finrobot-login.ini` from `.env` before each PM2-managed terminal start. `scripts/mt5_configure_profile.py` then updates the Default chart profile and startup config file so MT5 runs `MQL5\Experts\FinRobot\FinRobotBridgeEA.ex5` on the `FINROBOT_ATTACH_SYMBOL` chart at launch. By default it keeps one chart in the profile and does not ask MT5 to open an extra startup chart; set `FINROBOT_SINGLE_CHART_PROFILE=false` or `FINROBOT_STARTUP_OPEN_CHART=true` only when you intentionally want that behavior.
 
 After EA edits, sync and compile when MetaEditor is available:
