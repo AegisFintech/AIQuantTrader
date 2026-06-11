@@ -14,6 +14,7 @@ from typing import Any
 
 from finrobot.backtest.engine import Backtester, BacktestConfig
 from finrobot.backtest.parity import ParityReport, compare_decisions
+from finrobot.backtest.strategies.base import Strategy
 from finrobot.backtest.strategies.stub_replay import StubReplayStrategy
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -92,6 +93,8 @@ def run_parity_replay(
     decisions: list[dict],
     config: ParityReplayConfig,
     backtest_config: BacktestConfig | None = None,
+    strategy: Strategy | None = None,
+    volume_sizer: Any | None = None,
 ) -> ParityReport:
     """Replay audited decisions and compare simulated trades with live EA acks."""
 
@@ -111,8 +114,17 @@ def run_parity_replay(
     replay_decisions = _prepare_replay_decisions(
         [d for d in resolved if d.get("bar_idx") is not None]
     )
-    result = Backtester(_replay_backtest_config(backtest_config, config, replay_decisions)).run(
-        strategy=StubReplayStrategy(replay_decisions),
+    replay_sizer = volume_sizer or _ReplayVolumeSizer(replay_decisions)
+    replay_strategy = strategy or StubReplayStrategy(replay_decisions)
+    result = Backtester(
+        _replay_backtest_config(
+            backtest_config,
+            config,
+            replay_decisions,
+            volume_sizer=replay_sizer,
+        )
+    ).run(
+        strategy=replay_strategy,
         bars=bars,
     )
 
@@ -370,12 +382,14 @@ def _replay_backtest_config(
     backtest_config: BacktestConfig | None,
     config: ParityReplayConfig,
     replay_decisions: list[dict],
+    *,
+    volume_sizer: Any | None = None,
 ) -> BacktestConfig:
     base = backtest_config or BacktestConfig(symbol=config.symbol)
     return replace(
         base,
         symbol=config.symbol,
-        sizer=_ReplayVolumeSizer(replay_decisions),
+        sizer=volume_sizer or _ReplayVolumeSizer(replay_decisions),
     )
 
 
