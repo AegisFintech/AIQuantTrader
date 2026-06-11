@@ -79,6 +79,9 @@ input bool EnableDynamicBreakEven = true;
 input double BreakEvenRrRatio = 1.0;
 input double BreakEvenExtraPoints = 10.0;
 
+string EaVersion = "unknown";
+string EaGitSha = "";
+
 CTrade trade;
 int lastCommandId = 0;
 int commandFileErrLogged = 0;
@@ -452,6 +455,8 @@ void WriteStatus() {
    payload += "\"trade_allowed_terminal\":" + IntegerToString((int)TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) + ",";
    payload += "\"trade_allowed_ea\":" + IntegerToString((int)MQLInfoInteger(MQL_TRADE_ALLOWED)) + ",";
    payload += "\"auto_trade_mt5\":" + IntegerToString((int)AutoTradeMT5) + ",";
+   payload += "\"ea_version\":\"" + Clean(EaVersion) + "\",";
+   payload += "\"git_sha\":\"" + Clean(EaGitSha) + "\",";
    payload += "\"symbol\":\"" + Clean(AutoSymbols) + "\",";
    payload += "\"last_auto_signal\":\"" + Clean(CombinedSignals()) + "\",";
    payload += "\"last_command_id\":" + IntegerToString(lastCommandId) + ",";
@@ -983,6 +988,25 @@ void WriteDealsHistory() {
 }
 
 int OnInit() {
+   // Read release manifest if present (graceful fallback when missing).
+   {
+      int mh = FileOpen("EA_MANIFEST.txt", FILE_READ|FILE_TXT|FILE_ANSI|FILE_COMMON);
+      if(mh != INVALID_HANDLE) {
+         while(!FileIsEnding(mh)) {
+            string line = FileReadString(mh);
+            line = Trim(line);
+            if(line == "" || StringFind(line, "=") <= 0) continue;
+            string kv[];
+            int n = StringSplit(line, '=', kv);
+            if(n < 2) continue;
+            string key = Trim(kv[0]);
+            string val = Trim(kv[1]);
+            if(key == "ea_version") EaVersion = val;
+            else if(key == "git_sha") EaGitSha = val;
+         }
+         FileClose(mh);
+      }
+   }
    EventSetTimer(MathMax(PollSeconds, 1));
    trade.SetExpertMagicNumber(MagicNumber);
    LoadManagedSymbols();

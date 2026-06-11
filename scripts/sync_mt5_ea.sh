@@ -31,6 +31,11 @@ cp "$ROOT/broker/mt5/BridgeIO.mqh" "$EXPERT_DIR/BridgeIO.mqh"
 cp "$ROOT/broker/mt5/RiskManagement.mqh" "$EXPERT_DIR/RiskManagement.mqh"
 cp "$ROOT/broker/mt5/SmartMoney.mqh" "$EXPERT_DIR/SmartMoney.mqh"
 
+# Refresh the release manifest so the EA can read version + git_sha on init.
+if MANIFEST_SRC="$ROOT/state/mt5/EA_MANIFEST.txt"; [ -f "$MANIFEST_SRC" ]; then
+    cp "$MANIFEST_SRC" "$EXPERT_DIR/EA_MANIFEST.txt"
+fi
+
 if [ "$COMPILE" -eq 0 ]; then
   echo "EA files synced to $EXPERT_DIR"
   exit 0

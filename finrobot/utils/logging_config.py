@@ -14,8 +14,10 @@ Usage:
     logger.info("Message here")
 """
 
+import json
 import logging
 import os
+from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
@@ -31,9 +33,57 @@ BACKUP_COUNT = 3
 _logging_configured = False
 
 
-def setup_logging(level=logging.INFO):
+class JsonFormatter(logging.Formatter):
+    def format(self, record):
+        obj = {
+            "ts": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info:
+            obj["exception"] = self.formatException(record.exc_info)
+        for key, value in record.__dict__.items():
+            if key in (
+                "name",
+                "msg",
+                "args",
+                "levelname",
+                "levelno",
+                "pathname",
+                "filename",
+                "module",
+                "exc_info",
+                "exc_text",
+                "stack_info",
+                "lineno",
+                "funcName",
+                "created",
+                "msecs",
+                "relativeCreated",
+                "thread",
+                "threadName",
+                "processName",
+                "process",
+                "getMessage",
+                "message",
+                "asctime",
+            ):
+                continue
+            try:
+                json.dumps(value)
+                obj[key] = value
+            except (TypeError, ValueError):
+                obj[key] = repr(value)
+        return json.dumps(obj, ensure_ascii=False)
+
+
+def setup_logging(level=logging.INFO, json_format: bool | None = None):
     """Setup consolidated logging to single file."""
     global _logging_configured
+
+    if json_format is None:
+        json_format = os.getenv("JSON_LOGS", "").strip().lower() in ("1", "true", "yes", "on")
 
     if _logging_configured:
         return
@@ -42,9 +92,13 @@ def setup_logging(level=logging.INFO):
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     # Formatter
-    formatter = logging.Formatter(
-        "%(asctime)s | %(levelname)-8s | %(name)-20s | %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+    formatter = (
+        JsonFormatter()
+        if json_format
+        else logging.Formatter(
+            "%(asctime)s | %(levelname)-8s | %(name)-20s | %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
     )
 
     # Rotating file handler
@@ -74,6 +128,11 @@ def setup_logging(level=logging.INFO):
     # Log that logging is set up
     logger = logging.getLogger("logging_config")
     logger.info(f"Logging initialized - all output to: {LOG_FILE}")
+
+
+def setup_logging_json(level=logging.INFO):
+    """Setup consolidated logging with one JSON object per log line."""
+    setup_logging(level=level, json_format=True)
 
 
 def get_logger(name: str) -> logging.Logger:

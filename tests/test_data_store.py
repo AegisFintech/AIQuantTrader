@@ -103,6 +103,41 @@ def test_query_summary_counts_rows(con):
     }
 
 
+def test_release_defaults_reads_manifest_from_default_state(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_store, "ROOT", tmp_path)
+    _write_release_json(tmp_path, ea_version="1.30", git_sha="abc123")
+
+    assert data_store.release_defaults() == ("1.30", "abc123")
+
+
+def test_ingest_status_without_explicit_version_uses_manifest_ea_version(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_store, "ROOT", tmp_path)
+    _write_release_json(tmp_path, ea_version="1.30", git_sha="abc123")
+    connection = data_store.connect(tmp_path / "warehouse.duckdb")
+    try:
+        data_store.init_schema(connection)
+
+        data_store.ingest_status(connection, {"ts": 1780000011})
+
+        assert connection.execute("SELECT ea_version FROM status").fetchone() == ("1.30",)
+    finally:
+        connection.close()
+
+
+def test_ingest_deals_without_explicit_git_sha_uses_manifest_git_sha(tmp_path, monkeypatch):
+    monkeypatch.setattr(data_store, "ROOT", tmp_path)
+    _write_release_json(tmp_path, ea_version="1.30", git_sha="abc123")
+    connection = data_store.connect(tmp_path / "warehouse.duckdb")
+    try:
+        data_store.init_schema(connection)
+
+        data_store.ingest_deals(connection, [_deal(ticket=202, position_id=7002, entry=1)])
+
+        assert connection.execute("SELECT git_sha FROM deals").fetchone() == ("abc123",)
+    finally:
+        connection.close()
+
+
 def test_ingest_common_files_flow_with_tmp_common_files(tmp_path):
     common = tmp_path / "common"
     common.mkdir()
@@ -210,3 +245,10 @@ def _write_csv(path: Path, fieldnames: list[str], rows: list[dict]) -> None:
         writer = csv.DictWriter(fh, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _write_release_json(root: Path, ea_version: str, git_sha: str) -> Path:
+    path = root / "state" / "mt5" / "RELEASE.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"ea_version": ea_version, "git_sha": git_sha}))
+    return path

@@ -15,6 +15,7 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from finrobot import data_store  # noqa: E402
+from finrobot.release_manifest import load_release_manifest  # noqa: E402
 from mt5_trade_report import read_csv, read_json  # noqa: E402
 from runtime_paths import common_dir  # noqa: E402
 
@@ -46,8 +47,9 @@ def ingest_common_files(common: Path, warehouse: Path | None = None) -> dict:
         positions = read_csv(common / "finrobot_positions.csv")
         deals = read_csv(common / "finrobot_deals.csv")
         acks = read_acks(common / "finrobot_acks.csv")
-        ea_version = status.get("ea_version")
-        git_sha = status.get("git_sha")
+        manifest = load_release_manifest()
+        ea_version = manifest.get("ea_version") or status.get("ea_version") or ""
+        git_sha = manifest.get("git_sha") or status.get("git_sha") or ""
         inserted = {
             "status": data_store.ingest_status(con, status, ea_version, git_sha),
             "positions": data_store.ingest_positions(

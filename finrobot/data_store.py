@@ -13,6 +13,26 @@ ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_WAREHOUSE = ROOT / "data" / "finrobot.duckdb"
 
 
+def load_release_manifest(path: Path | None = None) -> dict:
+    """Read state/mt5/RELEASE.json if it exists; return empty dict otherwise."""
+    path = path or (ROOT / "state" / "mt5" / "RELEASE.json")
+    if not path.exists() or not path.stat().st_size:
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except Exception:
+        return {}
+
+
+def release_defaults(manifest: dict | None = None) -> tuple[str | None, str | None]:
+    """Return (ea_version, git_sha) from a release manifest, or (None, None)."""
+    if manifest is None:
+        manifest = load_release_manifest()
+    v = manifest.get("ea_version")
+    s = manifest.get("git_sha")
+    return (v or None, s or None)
+
+
 def connect(path: Path | None = None) -> duckdb.DuckDBPyConnection:
     """Open the local DuckDB warehouse, creating its parent directory."""
     db_path = path or DEFAULT_WAREHOUSE
@@ -117,6 +137,10 @@ def ingest_status(
     ts_server = _as_int(_first(status, "ts", "ts_server"))
     if ts_server is None or _exists(con, "SELECT 1 FROM status WHERE ts_server = ?", [ts_server]):
         return 0
+    if ea_version is None or git_sha is None:
+        v, s = release_defaults()
+        ea_version = ea_version or v
+        git_sha = git_sha or s
     con.execute(
         """
         INSERT INTO status (
@@ -155,6 +179,10 @@ def ingest_positions(
     """Insert position snapshot rows, ignoring duplicate ticket/timestamp pairs."""
     inserted = 0
     ts_local = int(time.time())
+    if ea_version is None or git_sha is None:
+        v, s = release_defaults()
+        ea_version = ea_version or v
+        git_sha = git_sha or s
     for row in rows:
         server_ts = _as_int(ts_server) or _row_ts(row)
         ticket = _as_int(row.get("ticket"))
@@ -205,6 +233,10 @@ def ingest_deals(
     """Insert deal history rows, ignoring duplicate deal tickets."""
     inserted = 0
     ts_local = int(time.time())
+    if ea_version is None or git_sha is None:
+        v, s = release_defaults()
+        ea_version = ea_version or v
+        git_sha = git_sha or s
     for row in rows:
         ticket = _as_int(row.get("ticket"))
         server_ts = _row_ts(row)
@@ -253,6 +285,10 @@ def ingest_acks(
     """Insert acknowledgement rows, ignoring duplicate command/timestamp pairs."""
     inserted = 0
     ts_local = int(time.time())
+    if ea_version is None or git_sha is None:
+        v, s = release_defaults()
+        ea_version = ea_version or v
+        git_sha = git_sha or s
     for row in rows:
         command_id = _as_int(_first(row, "command_id", "id"))
         server_ts = _row_ts(row)
