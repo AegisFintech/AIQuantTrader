@@ -1,4 +1,4 @@
-"""XAU QuickMomentum_EMA_cross strategy ported from the MT5 bridge EA."""
+"""XAU ATR_impulse strategy ported from the MT5 bridge EA."""
 
 from __future__ import annotations
 
@@ -10,32 +10,32 @@ from finrobot.backtest.strategies.base import Signal, Strategy
 
 
 @dataclass(frozen=True)
-class XauQuickMomentumParams:
-    """Parameters for the M2.3a QuickMomentum_EMA_cross slice."""
+class XauAtrImpulseParams:
+    """Parameters for the M2.3b ATR_impulse slice."""
 
-    fast: int = 9
-    slow: int = 21
-    trend: int = 50
     rsi_period: int = 14
     atr_period: int = 14
+    impulse_atr_mult: float = 0.12
+    rsi_long_ceiling: float = 80.0
+    rsi_short_floor: float = 20.0
     stop_atr_mult: float = 1.2
     tp_atr_mult: float = 1.8
     min_stop_floor: float = 2.0
     min_stop_pct: float = 0.00045
 
 
-class XauQuickMomentumStrategy(Strategy):
-    """Emit XAU QuickMomentum signals for the deterministic backtester."""
+class XauAtrImpulseStrategy(Strategy):
+    """Emit XAU ATR_impulse signals for the deterministic backtester."""
 
-    name = "XauQuickMomentum"
+    name = "XauAtrImpulse"
 
     def __init__(
         self,
-        params: XauQuickMomentumParams | None = None,
+        params: XauAtrImpulseParams | None = None,
         **kwargs: float | int,
     ):
         if params is None:
-            params = XauQuickMomentumParams(**kwargs)
+            params = XauAtrImpulseParams(**kwargs)
         elif kwargs:
             params = replace(params, **kwargs)
         self.params = params
@@ -54,33 +54,50 @@ class XauQuickMomentumStrategy(Strategy):
         """Return BUY/SELL/HOLD for the current bar.
 
         Indicator inputs mirror MQL5 lines 751-777 of
-        ``FinRobotBridgeEA.mq5``. Signal booleans mirror lines 807-808,
-        after the XAU weak-signal filter in lines 832-835.
+        ``FinRobotBridgeEA.mq5``. Signal booleans mirror lines 803-804,
+        with the XAU weak-signal filter in lines 832-835 leaving
+        ``atrImpulseLong`` and ``atrImpulseShort`` intact.
         """
 
         feature = self._feature_for(idx=idx, history=history)
         atr = feature["atr"]
+        rsi = feature["rsi"]
         current = feature["current"]
-        if atr is None:
+        previous = feature["previous"]
+        if idx <= 0 or atr is None or rsi is None or previous is None:
             return Signal(action="HOLD", strategy=self.name)
 
-        if feature["quick_momentum_long"]:
+        params = self.params
+        previous_bar = history[idx - 1]
+        # mirrors MQL5 lines 803-804 of FinRobotBridgeEA.mq5
+        atr_impulse_long = (
+            current > float(previous_bar["high"])
+            and (current - previous) > atr * params.impulse_atr_mult
+            and rsi < params.rsi_long_ceiling
+        )
+        atr_impulse_short = (
+            current < float(previous_bar["low"])
+            and (previous - current) > atr * params.impulse_atr_mult
+            and rsi > params.rsi_short_floor
+        )
+
+        if atr_impulse_long:
             sl_distance, tp_distance = self._distances(current=current, atr=atr)
             return Signal(
                 action="BUY",
                 sl_distance=sl_distance,
                 tp_distance=tp_distance,
                 strategy=self.name,
-                comment="XauQuickMomentum_EMA_cross",
+                comment="ATR_impulse",
             )
-        if feature["quick_momentum_short"]:
+        if atr_impulse_short:
             sl_distance, tp_distance = self._distances(current=current, atr=atr)
             return Signal(
                 action="SELL",
                 sl_distance=sl_distance,
                 tp_distance=tp_distance,
                 strategy=self.name,
-                comment="XauQuickMomentum_EMA_cross",
+                comment="ATR_impulse",
             )
         return Signal(action="HOLD", strategy=self.name)
 
