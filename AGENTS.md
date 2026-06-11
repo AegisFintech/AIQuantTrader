@@ -83,7 +83,7 @@ pm2 list
 ## Money management guardrails
 
 - `broker/mt5/FinRobotBridgeEA.mq5` must keep daily risk lot sizing enabled unless the owner explicitly disables it.
-- New trades are sized from the broker-day equity snapshot, `DailyRiskPerTradePct`, and SL distance; do not revert to fixed `0.01` lots.
+- New trades are sized from the broker-day equity snapshot, `DailyRiskPerTradeFraction`, and SL distance; do not revert to fixed `0.01` lots.
 - `scripts/mt5_trade_report.py` reports total PnL, daily PnL, strategy expectancy, and the EA `money_management` status block. Check it before strategy edits.
 - Current owner posture is recovery trading after the maximum-frequency BTC experiment failed. Keep daily risk lot sizing enabled, reduced risk, stricter SMC gates, two managed positions per symbol, and weak BTC reversion/impulse signals disabled.
 
@@ -106,8 +106,8 @@ pm2 list
 
 - `MaxSpreadPointsBTCUSD` tightened `250000.0 -> 5000.0` (the old value was an effective no-op; current BTC spread ~1200 pts). XAUUSD cap unchanged (80).
 - BTC `MACD_trend` disabled inside the `DisableWeakStrategySignals` BTC block (`macdLong/macdShort=false`) — it had negative expectancy (~-$7.34/trade over 2 deals). `Momentum_trend` and `QuickMomentum` retained.
-- Owner-requested maximum-frequency demo defaults (2026-06-01) failed in live BTC trading and are retired: do not restore `DisableWeakStrategySignals=false`, `MaxAutoPositionsPerSymbol=5`, `MinSecondsBetweenTrades=60`, `MaxLotPerTrade=1.00`, `DailyRiskPerTradePct=0.0050`, or `MinSmcConfluenceScore=1` without fresh evidence.
-- Recovery defaults (2026-06-02): `DisableWeakStrategySignals=true`, `EnableBtcRsiReversion=false`, `EnableBtcAtrImpulse=false`, `EnableBtcMomentumTrend=false`, `MaxAutoPositionsPerSymbol=2`, `MaxLotPerTrade=0.25`, `DailyRiskPerTradePct=0.0010`, `DailyLossLimitPct=0.01`, BTC requires H1 trend alignment and directional PDA confirmation.
+- Owner-requested maximum-frequency demo defaults (2026-06-01) failed in live BTC trading and are retired: do not restore `DisableWeakStrategySignals=false`, `MaxAutoPositionsPerSymbol=5`, `MinSecondsBetweenTrades=60`, `MaxLotPerTrade=1.00`, `DailyRiskPerTradeFraction=0.0050`, or `MinSmcConfluenceScore=1` without fresh evidence.
+- Recovery defaults (2026-06-02, risk semantics clarified in v1.30): `DisableWeakStrategySignals=true`, `EnableBtcRsiReversion=false`, `EnableBtcAtrImpulse=false`, `EnableBtcMomentumTrend=false`, `MaxAutoPositionsPerSymbol=2`, `MaxLotPerTrade=0.25`, `DailyRiskPerTradeFraction=0.0010` (0.10% of equity), `DailyLossLimitFraction=0.01` (1.00% of equity), BTC requires H1 trend alignment and directional PDA confirmation.
 - BTC continuous-scanning update (2026-06-11): `EnableBtcContinuousTrading=true` bypasses the London/NY session gate for BTC only; `EnableBtcCostFilters=true` rejects BTC entries when spread exceeds `MaxBtcSpreadAtrRatio=0.15` of ATR or `MaxBtcSpreadTakeProfitRatio=0.08` of target distance. Do not confuse this with the retired maximum-frequency profile; weak BTC signals and aggressive sizing remain disabled.
 - XAU weekday-market update (2026-06-11): `EnableXauWeekdayMarketHours=true` bypasses the old London/NY-only gate for XAU and instead checks Monday-Friday plus the broker's symbol trade sessions/trade mode. If the broker session is closed, the signal is `market_closed`, not `outside_trading_session`.
 - After EA source edits: run `scripts/sync_mt5_ea.sh`, then `pm2 restart mt5-terminal --update-env`. The installer keeps MT5 and Wine under `.runtime/`; do not restore host-specific runtime hardcoding.

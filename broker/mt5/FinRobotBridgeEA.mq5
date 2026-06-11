@@ -30,8 +30,8 @@ input int MinSmcConfluenceScoreBTCUSD = 2;
 input int MinSmcConfluenceScoreXAUUSD = 3;
 input int HighConfluenceScore = 5;
 input bool UseDailyRiskLotSizing = true;
-input double DailyRiskPerTradePct = 0.0010;
-input double DailyLossLimitPct = 0.01;
+input double DailyRiskPerTradeFraction = 0.0010;   // 0.10% of equity per trade
+input double DailyLossLimitFraction = 0.01;        // 1.00% of equity daily cap
 input bool AutoClosePositionsWithoutStops = true;
 input bool DisableWeakStrategySignals = true;
 input int MaxAutoPositionsPerSymbol = 2;
@@ -482,7 +482,7 @@ void UpdateMoneyManagementState() {
 }
 
 bool IsDailyLossLimitReached() {
-   double limitMoney = dailyEquitySnapshot * DailyLossLimitPct / 100.0;
+   double limitMoney = dailyEquitySnapshot * DailyLossLimitFraction;
    return limitMoney > 0.0 && todayClosedPnlCache <= -limitMoney;
 }
 
@@ -503,7 +503,7 @@ double DailyRiskVolume(string symbol, double slDistance, int confluenceScore) {
    if(tickSize <= 0.0 || tickValue <= 0.0 || slDistance <= 0.0 || dailyEquitySnapshot <= 0.0) {
       return NormalizeVolume(symbol, BaseLotForSymbol(symbol));
    }
-   double riskMoney = dailyEquitySnapshot * DailyRiskPerTradePct / 100.0;
+   double riskMoney = dailyEquitySnapshot * DailyRiskPerTradeFraction;
    if(confluenceScore >= HighConfluenceScore) riskMoney *= MathMax(1.0, HighConfluenceLotMultiplier);
    if(todayClosedPnlCache < 0.0) riskMoney *= 0.5;
    double riskPerLot = (slDistance / tickSize) * tickValue;
@@ -519,8 +519,8 @@ string MoneyManagementJson() {
    payload += "\"day\":" + IntegerToString(moneyManagementDay) + ",";
    payload += "\"daily_equity_snapshot\":" + DoubleToString(dailyEquitySnapshot, 2) + ",";
    payload += "\"today_closed_pnl\":" + DoubleToString(todayClosedPnlCache, 2) + ",";
-   payload += "\"daily_risk_per_trade_pct\":" + DoubleToString(DailyRiskPerTradePct, 6) + ",";
-   payload += "\"daily_loss_limit_pct\":" + DoubleToString(DailyLossLimitPct, 4) + ",";
+   payload += "\"daily_risk_per_trade_fraction\":" + DoubleToString(DailyRiskPerTradeFraction, 6) + ",";
+   payload += "\"daily_loss_limit_fraction\":" + DoubleToString(DailyLossLimitFraction, 4) + ",";
    payload += "\"loss_limit_reached\":" + IntegerToString((int)IsDailyLossLimitReached()) + ",";
    payload += "\"risk_lot_sizing\":" + IntegerToString((int)UseDailyRiskLotSizing) + ",";
    payload += "\"auto_close_no_sl_tp\":" + IntegerToString((int)AutoClosePositionsWithoutStops);
