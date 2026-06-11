@@ -1,6 +1,6 @@
 #property strict
 #property description "FinRobot MT5 bridge and demo auto trader for XAUUSD + BTCUSD."
-#property version "1.30"
+#property version "1.31"
 
 #include <Trade/Trade.mqh>
 #include "BridgeIO.mqh"
@@ -1011,7 +1011,7 @@ int OnInit() {
    trade.SetExpertMagicNumber(MagicNumber);
    LoadManagedSymbols();
    UpdateMoneyManagementState();
-   Print("FinRobotBridgeEA 1.30 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(AutoTimeframe));
+   Print("FinRobotBridgeEA 1.31 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(AutoTimeframe));
    WriteStatus();
    WritePositions();
    WriteDealsHistory();
