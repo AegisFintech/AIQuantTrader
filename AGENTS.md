@@ -114,3 +114,11 @@ pm2 list
 - `scripts/start_mt5.sh` refreshes `scripts/mt5_configure_profile.py` before launching MT5 unless `FINROBOT_CONFIGURE_PROFILE_ON_START=false`.
 - `scripts/autonomous_review_loop.py`: fixed a truncation bug — the trade report was sliced to the last 20000 chars, dropping the `Closed deal summary:` marker (~char 1800), so `closed_deals` always parsed as 0 and the reviewer never ran. Now keeps the head.
 - LLM editing is HARD-GATED OFF by default via `AUTOREVIEW_ENABLE_LLM` (unset/false = analysis-only: the loop logs the real closed-deal count and journals analysis but never invokes opencode). Set `AUTOREVIEW_ENABLE_LLM=true` to re-enable autonomous code edits.
+
+## Operational scripts (Phase 1 quick wins)
+
+- `scripts/healthcheck.py`: stale heartbeat (>60s), missing Common Files, daily loss breach, unprotected managed positions, PM2 process state. Exits non-zero on any FAIL. Wire to cron or systemd timer.
+- `scripts/archive_common_files.py`: snapshot `finrobot_status.json`, `finrobot_positions.csv`, `finrobot_deals.csv`, `finrobot_acks.csv` into `state/mt5/archive/YYYY-MM-DD/HHMMSS/`. Run daily via cron (state/ is gitignored).
+- `config/logrotate-finrobot` + `scripts/install_logrotate.sh`: drop-in policy for `logs/combined.log` (rotate daily, keep 14, reload PM2 log handles). Install with `sudo scripts/install_logrotate.sh`.
+- `docs/RELEASE_CHECKLIST.md`: pre-flight, compile, pre-deploy snapshot, restart, post-deploy verification, and rollback steps. Run this in order before any EA source / risk / bridge change.
+- Tests cover the new scripts: `tests/test_healthcheck.py` and `tests/test_mt5_trade_report.py`. Full suite: `26 passed`.
