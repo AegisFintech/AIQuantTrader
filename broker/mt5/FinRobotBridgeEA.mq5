@@ -1,6 +1,6 @@
 #property strict
 #property description "FinRobot MT5 bridge and demo auto trader for XAUUSD + BTCUSD."
-#property version "1.29"
+#property version "1.30"
 
 #include <Trade/Trade.mqh>
 #include "BridgeIO.mqh"
@@ -602,15 +602,52 @@ void ExecuteCommand(int id, string action, string symbol, string side, double vo
       AppendAck(AckFile, id, "REJECTED", "SymbolSelect failed", symbol, side, volume, 0.0);
       return;
    }
+   // Phase 1 hardening (v1.30): enforce mandate and risk policy on the command path.
+   if(!IsManagedSymbol(symbol)) {
+      AppendAck(AckFile, id, "REJECTED", "Symbol not in mandate: " + symbol, symbol, side, volume, 0.0);
+      return;
+   }
 
    volume = NormalizeVolume(symbol, volume);
    bool ok = false;
    if(action == "MARKET") {
+      if(side != "BUY" && side != "SELL") {
+         AppendAck(AckFile, id, "REJECTED", "Unknown side: " + side, symbol, side, volume, 0.0);
+         return;
+      }
+      if(sl <= 0.0) {
+         AppendAck(AckFile, id, "REJECTED", "MARKET requires SL > 0", symbol, side, volume, 0.0);
+         return;
+      }
+      double maxLot = MaxLotForSymbol(symbol);
+      if(volume > maxLot + 1e-9) {
+         AppendAck(AckFile, id, "REJECTED", "Lot " + DoubleToString(volume, 4) + " exceeds MaxLot " + DoubleToString(maxLot, 4), symbol, side, volume, 0.0);
+         return;
+      }
+      int maxPos = MaxAutoPositionsForSymbol(symbol);
+      if(CountPositionsByMagic(symbol, MagicNumber) >= maxPos) {
+         AppendAck(AckFile, id, "REJECTED", "Max positions reached for " + symbol + " (max=" + IntegerToString(maxPos) + ")", symbol, side, volume, 0.0);
+         return;
+      }
+      if(DailyLossLimitReached()) {
+         AppendAck(AckFile, id, "REJECTED", "Daily loss limit reached", symbol, side, volume, 0.0);
+         return;
+      }
       if(side == "BUY") ok = trade.Buy(volume, symbol, 0.0, sl, tp, comment);
       else if(side == "SELL") ok = trade.Sell(volume, symbol, 0.0, sl, tp, comment);
-      else AppendAck(AckFile, id, "REJECTED", "Unknown side", symbol, side, volume, 0.0);
    } else if(action == "CLOSE") {
-      ok = trade.PositionClose(symbol, deviation);
+      // Magic-filtered close: only close positions owned by this EA on this symbol.
+      bool anyClosed = false;
+      for(int i = PositionsTotal() - 1; i >= 0; i--) {
+         ulong ticket = PositionGetTicket(i);
+         if(ticket == 0) continue;
+         if(!PositionSelectByTicket(ticket)) continue;
+         if(PositionGetString(POSITION_SYMBOL) != symbol) continue;
+         if((int)PositionGetInteger(POSITION_MAGIC) != MagicNumber) continue;
+         if(trade.PositionClose(ticket, deviation)) anyClosed = true;
+         Sleep(250);
+      }
+      ok = anyClosed;
    } else if(action == "CLOSE_ALL") {
       ok = CloseAllSymbolPositions(symbol);
    } else {
@@ -950,7 +987,7 @@ int OnInit() {
    trade.SetExpertMagicNumber(MagicNumber);
    LoadManagedSymbols();
    UpdateMoneyManagementState();
-   Print("FinRobotBridgeEA 1.29 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(AutoTimeframe));
+   Print("FinRobotBridgeEA 1.30 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(AutoTimeframe));
    WriteStatus();
    WritePositions();
    WriteDealsHistory();
