@@ -20,6 +20,7 @@ from mt5_trade_report import money  # noqa: E402
 
 
 MIN_VALID_TS = 1577836800  # 2020-01-01 00:00:00 UTC
+PRICE_MIN_VALID_TS = 1420070400  # 2015-01-01 00:00:00 UTC
 # MT5 broker servers run their own clocks; ICMarkets in particular has been
 # observed ~170 minutes ahead of the host. Allow 15 min of skew as the
 # normal case and surface anything beyond. Override via env var
@@ -272,6 +273,113 @@ def validate_ack(row: dict) -> list[Issue]:
     return issues
 
 
+def validate_price(row: dict) -> list[Issue]:
+    """Validate one row from the prices table."""
+    row = _safe_row(row)
+    issues: list[Issue] = []
+    location = _price_location(row)
+
+    if not _non_empty_text(row.get("symbol")):
+        issues.append(
+            _error(
+                "price_symbol_missing",
+                "prices:symbol",
+                "missing required field symbol",
+            )
+        )
+    ts_server = _coerce_int(row, "ts_server", "prices", issues, required=True)
+    _coerce_int(row, "ts_local", "prices", issues, required=True)
+    source = _text(row.get("source"))
+    if source is None:
+        issues.append(
+            _error(
+                "price_source_missing",
+                f"{location}:source",
+                "missing required field source",
+            )
+        )
+    elif source not in {"tsv", "status_snapshot", "synthetic"} and not source.startswith("tsv:"):
+        issues.append(
+            _warning(
+                "price_source_unknown",
+                f"{location}:source",
+                f"source should be tsv, status_snapshot, synthetic, or tsv:<path>, got {source!r}",
+            )
+        )
+
+    if ts_server is not None:
+        now = int(time.time())
+        if ts_server > now + MAX_FUTURE_SECONDS:
+            issues.append(
+                _warning(
+                    "price_ts_server_future",
+                    location,
+                    f"ts_server is more than {MAX_FUTURE_SECONDS} seconds in the future",
+                )
+            )
+        if ts_server < PRICE_MIN_VALID_TS:
+            issues.append(
+                _warning(
+                    "price_ts_server_too_old",
+                    location,
+                    "ts_server is before 2015-01-01",
+                )
+            )
+
+    ohlc_fields = ("open", "high", "low", "close")
+    present = [field for field in ohlc_fields if row.get(field) not in (None, "")]
+    ohlc: dict[str, float | None] = {
+        field: _coerce_float(row, field, "prices", issues) for field in ohlc_fields
+    }
+    if present and len(present) != len(ohlc_fields):
+        issues.append(
+            _error(
+                "price_ohlc_partial",
+                location,
+                f"OHLC fields must be all present or all absent; present={present}",
+            )
+        )
+    close = ohlc["close"]
+    if close is not None and close <= 0:
+        issues.append(
+            _error(
+                "price_close_nonpositive",
+                f"{location}:close",
+                f"close must be greater than 0, got {close}",
+            )
+        )
+    if present and all(ohlc[field] is not None for field in ohlc_fields):
+        open_price = ohlc["open"]
+        high = ohlc["high"]
+        low = ohlc["low"]
+        close_price = ohlc["close"]
+        assert open_price is not None
+        assert high is not None
+        assert low is not None
+        assert close_price is not None
+        _check_ohlc_bounds(location, open_price, high, low, close_price, issues)
+
+    spread_price = _coerce_float(row, "spread_price", "prices", issues)
+    if spread_price is not None and spread_price < 0:
+        issues.append(
+            _warning(
+                "price_spread_price_negative",
+                f"{location}:spread_price",
+                f"spread_price should be greater than or equal to 0, got {spread_price}",
+            )
+        )
+    spread_points = _coerce_float(row, "spread_points", "prices", issues)
+    if spread_points is not None and spread_points < 0:
+        issues.append(
+            _warning(
+                "price_spread_points_negative",
+                f"{location}:spread_points",
+                f"spread_points should be greater than or equal to 0, got {spread_points}",
+            )
+        )
+    return issues
+
+
 def reconcile_positions_vs_deals(con: duckdb.DuckDBPyConnection) -> list[Issue]:
     """Check open positions have entry deals and older entry deals have closes."""
     issues: list[Issue] = []
@@ -405,6 +513,72 @@ def reconcile_status_equity_vs_balance(con: duckdb.DuckDBPyConnection) -> list[I
     return []
 
 
+def reconcile_prices_against_positions(con: duckdb.DuckDBPyConnection) -> list[Issue]:
+    """Check latest open positions are aligned with the latest available price bar."""
+    if not _table_exists(con, "positions") or not _table_exists(con, "prices"):
+        return []
+    latest_ts = con.execute("SELECT max(ts_server) FROM positions").fetchone()[0]
+    if latest_ts is None:
+        return []
+    rows = _fetch_dicts(
+        con,
+        """
+        SELECT ticket, symbol, ts_server, open_price
+        FROM positions
+        WHERE ts_server = ?
+        ORDER BY ticket
+        """,
+        [latest_ts],
+    )
+    issues: list[Issue] = []
+    for row in rows:
+        symbol = _text(row.get("symbol"))
+        open_price = _float_value(row.get("open_price"))
+        position_ts = _int_value(row.get("ts_server"))
+        if not symbol or open_price is None or position_ts is None:
+            continue
+        price = con.execute(
+            """
+            SELECT ts_server, close, source
+            FROM prices
+            WHERE symbol = ?
+              AND close IS NOT NULL
+              AND ts_server <= ?
+            ORDER BY ts_server DESC, source
+            LIMIT 1
+            """,
+            [symbol, position_ts],
+        ).fetchone()
+        location = f"positions:ticket={row.get('ticket')}"
+        if price is None:
+            issues.append(
+                _warning(
+                    "position_price_reference_missing",
+                    location,
+                    f"no price bar found for {symbol} at or before ts_server={position_ts}",
+                )
+            )
+            continue
+        price_ts, close, source = price
+        close_value = _float_value(close)
+        if close_value is None or close_value <= 0:
+            continue
+        distance = abs(float(open_price) - close_value) / close_value
+        if distance > 0.005:
+            issues.append(
+                _warning(
+                    "position_price_mismatch",
+                    location,
+                    (
+                        f"open_price={float(open_price):.6f} is {distance:.2%} from "
+                        f"latest {symbol} close={close_value:.6f} "
+                        f"(price_ts_server={price_ts}, source={source})"
+                    ),
+                )
+            )
+    return issues
+
+
 def reconcile_deals_pnl_by_symbol(con: duckdb.DuckDBPyConnection) -> list[Issue]:
     """Surface symbols with many closed deals missing strategy comments."""
     rows = _fetch_dicts(
@@ -452,10 +626,14 @@ def validate_warehouse(con: duckdb.DuckDBPyConnection) -> list[Issue]:
         issues.extend(validate_deal(row))
     for row in _fetch_dicts(con, "SELECT * FROM acks ORDER BY ts_server, command_id"):
         issues.extend(validate_ack(row))
+    if _table_exists(con, "prices"):
+        for row in _fetch_dicts(con, "SELECT * FROM prices ORDER BY ts_server, symbol, source"):
+            issues.extend(validate_price(row))
     for check in (
         reconcile_positions_vs_deals,
         reconcile_status_positions_count,
         reconcile_status_equity_vs_balance,
+        reconcile_prices_against_positions,
         reconcile_deals_pnl_by_symbol,
     ):
         issues.extend(check(con))
@@ -553,10 +731,56 @@ def _validate_ts(
         )
 
 
-def _fetch_dicts(con: duckdb.DuckDBPyConnection, sql: str) -> list[dict]:
-    result = con.execute(sql)
+def _fetch_dicts(
+    con: duckdb.DuckDBPyConnection,
+    sql: str,
+    params: list[Any] | None = None,
+) -> list[dict]:
+    result = con.execute(sql, params or [])
     columns = [desc[0] for desc in result.description]
     return [dict(zip(columns, row)) for row in result.fetchall()]
+
+
+def _table_exists(con: duckdb.DuckDBPyConnection, table: str) -> bool:
+    row = con.execute(
+        """
+        SELECT 1
+        FROM information_schema.tables
+        WHERE table_name = ?
+        LIMIT 1
+        """,
+        [table],
+    ).fetchone()
+    return row is not None
+
+
+def _check_ohlc_bounds(
+    location: str,
+    open_price: float,
+    high: float,
+    low: float,
+    close: float,
+    issues: list[Issue],
+) -> None:
+    failures = []
+    if high < low:
+        failures.append("high < low")
+    if high < open_price:
+        failures.append("high < open")
+    if high < close:
+        failures.append("high < close")
+    if low > open_price:
+        failures.append("low > open")
+    if low > close:
+        failures.append("low > close")
+    if failures:
+        issues.append(
+            _warning(
+                "price_ohlc_inconsistent",
+                location,
+                "OHLC bounds are inconsistent: " + ", ".join(failures),
+            )
+        )
 
 
 def _safe_row(row: Any) -> dict:
@@ -694,11 +918,19 @@ def _row_location(table: str, row: Mapping[str, Any], key: str = "ticket") -> st
     return table
 
 
+def _price_location(row: Mapping[str, Any]) -> str:
+    symbol = row.get("symbol") or "?"
+    ts_server = row.get("ts_server") or "?"
+    source = row.get("source") or "?"
+    return f"prices:symbol={symbol},ts_server={ts_server},source={source}"
+
+
 def _singular(table: str) -> str:
     return {
         "positions": "position",
         "deals": "deal",
         "acks": "ack",
+        "prices": "price",
     }.get(table, table)
 
 
