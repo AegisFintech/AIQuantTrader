@@ -1,4 +1,5 @@
 python-dotenv
 pandas
 numpy
+duckdb
 pytest

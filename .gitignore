@@ -12,6 +12,7 @@ npm-debug.log*
 *.log
 logs/
 state/
+data/
 backups/
 *.db
 *.jsonl
