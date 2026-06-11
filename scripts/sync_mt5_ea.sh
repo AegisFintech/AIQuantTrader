@@ -31,6 +31,12 @@ cp "$ROOT/broker/mt5/BridgeIO.mqh" "$EXPERT_DIR/BridgeIO.mqh"
 cp "$ROOT/broker/mt5/RiskManagement.mqh" "$EXPERT_DIR/RiskManagement.mqh"
 cp "$ROOT/broker/mt5/SmartMoney.mqh" "$EXPERT_DIR/SmartMoney.mqh"
 
+# Refresh the M1 history exporter script.
+EXPORT_SRC="$ROOT/broker/mt5/scripts/ExportM1Bars.mq5"
+if [ -f "$EXPORT_SRC" ]; then
+    cp "$EXPORT_SRC" "$TERMINAL_DIR/MQL5/Experts/ExportM1Bars.mq5"
+fi
+
 # Refresh the release manifest so the EA can read version + git_sha on init.
 if MANIFEST_SRC="$ROOT/state/mt5/EA_MANIFEST.txt"; [ -f "$MANIFEST_SRC" ]; then
     cp "$MANIFEST_SRC" "$EXPERT_DIR/EA_MANIFEST.txt"
