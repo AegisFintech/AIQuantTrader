@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import math
 import os
 import time
 from pathlib import Path
@@ -11,6 +12,12 @@ import pytest
 pytest.importorskip("duckdb", reason="duckdb package is required for metrics tests")
 
 from finrobot import data_store, metrics  # noqa: E402
+from finrobot.backtest.engine import BacktestConfig, BacktestResult  # noqa: E402
+from finrobot.backtest.metrics import (  # noqa: E402
+    compute_metrics as compute_backtest_metrics,
+    max_drawdown as backtest_max_drawdown,
+)
+from finrobot.backtest.position import Position  # noqa: E402
 
 
 @pytest.fixture
@@ -221,6 +228,110 @@ def test_compute_snapshot_end_to_end_common_files_and_warehouse(con, tmp_path):
             "spread_points": 5.0,
         }
     }
+
+
+def test_backtest_compute_metrics_empty_result_returns_zero_values():
+    report = compute_backtest_metrics(_backtest_result(trades=[], equity_curve=[]))
+
+    assert report.n_trades == 0
+    assert report.win_rate == 0.0
+    assert report.total_pnl == 0.0
+    assert report.profit_factor == 0.0
+    assert report.expectancy == 0.0
+
+
+def test_backtest_compute_metrics_all_winners_has_full_win_rate_and_infinite_pf():
+    report = compute_backtest_metrics(
+        _backtest_result(
+            trades=[{"pnl": 10.0}, {"pnl": 5.0}],
+            equity_curve=[(1, 10000.0), (2, 10015.0)],
+            final_equity=10015.0,
+        )
+    )
+
+    assert report.win_rate == 1.0
+    assert math.isinf(report.profit_factor)
+    assert report.total_pnl == 15.0
+
+
+def test_backtest_compute_metrics_all_losers_has_zero_win_rate_and_pf():
+    report = compute_backtest_metrics(
+        _backtest_result(
+            trades=[{"pnl": -10.0}, {"pnl": -5.0}],
+            equity_curve=[(1, 10000.0), (2, 9985.0)],
+            final_equity=9985.0,
+        )
+    )
+
+    assert report.win_rate == 0.0
+    assert report.profit_factor == 0.0
+    assert report.avg_loss == -7.5
+
+
+def test_backtest_compute_metrics_positive_sharpe_for_rising_equity_curve():
+    report = compute_backtest_metrics(
+        _backtest_result(
+            trades=[{"pnl": 3.0}],
+            equity_curve=[(1, 10000.0), (2, 10001.0), (3, 10002.0), (4, 10003.0)],
+            final_equity=10003.0,
+        )
+    )
+
+    assert report.sharpe_ratio > 0
+
+
+def test_backtest_max_drawdown_flat_then_drop_returns_drop_magnitude():
+    drawdown, pct = backtest_max_drawdown([(1, 1000.0), (2, 1000.0), (3, 900.0)])
+
+    assert drawdown == 100.0
+    assert pct == 0.1
+
+
+def test_backtest_compute_metrics_accepts_dict_and_position_trade_records():
+    position_trade = Position(
+        symbol="XAUUSD",
+        side="BUY",
+        volume=0.1,
+        entry_price=100.0,
+        entry_time=1,
+        sl=95.0,
+        tp=110.0,
+        magic=1,
+        current_pnl=3.0,
+    )
+
+    report = compute_backtest_metrics(
+        _backtest_result(
+            trades=[{"pnl": 5.0, "entry_time": 1, "exit_time": 61}, position_trade],
+            equity_curve=[(1, 10000.0), (2, 10008.0)],
+            final_equity=10008.0,
+        )
+    )
+
+    assert report.n_trades == 2
+    assert report.total_pnl == 8.0
+    assert report.expectancy == 4.0
+
+
+def _backtest_result(
+    *,
+    trades: list,
+    equity_curve: list[tuple[int, float]],
+    final_equity: float = 10000.0,
+) -> BacktestResult:
+    return BacktestResult(
+        config=BacktestConfig(),
+        strategy_name="MetricsTest",
+        bars=len(equity_curve),
+        start_time=equity_curve[0][0] if equity_curve else 0,
+        end_time=equity_curve[-1][0] if equity_curve else 0,
+        initial_equity=10000.0,
+        final_equity=final_equity,
+        trades=trades,
+        equity_curve=equity_curve,
+        open_positions_at_end=[],
+        rejected_signals=0,
+    )
 
 
 def _now() -> int:

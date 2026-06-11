@@ -1,0 +1,48 @@
+"""Public backtesting surface for Phase 3 research workflows.
+
+The package exposes a deterministic bar-by-bar engine, pure fill and sizing
+helpers, standard backtest metrics, a strategy interface, the M2.1
+BuyAndHold smoke strategy, and the M2.2 parity harness skeleton.
+"""
+
+from __future__ import annotations
+
+from finrobot.backtest.engine import Backtester, BacktestConfig, BacktestResult
+from finrobot.backtest.fills import FillConfig, FillModel, simulate_fill
+from finrobot.backtest.metrics import (
+    MetricsReport,
+    compute_metrics,
+    expectancy,
+    max_drawdown,
+    profit_factor,
+    sharpe_ratio,
+    win_rate,
+)
+from finrobot.backtest.parity import ParityReport, compare_decisions
+from finrobot.backtest.position import Position, PositionSizer, PositionState
+from finrobot.backtest.strategies.base import Signal, Strategy
+from finrobot.backtest.strategies.buy_and_hold import BuyAndHold
+
+__all__ = [
+    "Backtester",
+    "BacktestConfig",
+    "BacktestResult",
+    "BuyAndHold",
+    "FillConfig",
+    "FillModel",
+    "MetricsReport",
+    "ParityReport",
+    "Position",
+    "PositionSizer",
+    "PositionState",
+    "Signal",
+    "Strategy",
+    "compare_decisions",
+    "compute_metrics",
+    "expectancy",
+    "max_drawdown",
+    "profit_factor",
+    "sharpe_ratio",
+    "simulate_fill",
+    "win_rate",
+]
