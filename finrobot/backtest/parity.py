@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from finrobot.backtest.engine import BacktestResult
@@ -20,11 +20,25 @@ class ParityReport:
     n_mismatched: int
     match_rate: float
     mismatches: list[dict]
+    run_id: str = ""
+    n_filled: int = 0
+    n_filled_matched: int = 0
+    n_filled_mismatched: int = 0
+    n_rejected: int = 0
+    n_rejected_matched: int = 0
+    n_rejected_mismatched: int = 0
+    n_unmatched: int = 0
+    config: dict[str, Any] = field(default_factory=dict)
+    summary: dict[str, Any] = field(default_factory=dict)
 
 
 def compare_decisions(
     backtest_result: BacktestResult,
     expected_decisions: list[dict],
+    *,
+    bar_window: int = DEFAULT_BAR_WINDOW,
+    fill_tolerance_points: float | None = None,
+    volume_tolerance: float = 1e-6,
 ) -> ParityReport:
     """Compare backtest trades with expected decisions within a small bar window."""
 
@@ -32,11 +46,16 @@ def compare_decisions(
     mismatches: list[dict] = []
     matched = 0
     for expected in expected_decisions:
-        trade = _closest_trade(expected, trades)
+        trade = _closest_trade(expected, trades, bar_window=bar_window)
         if trade is None:
             mismatches.append(_mismatch(expected, None, "no backtester trade within window"))
             continue
-        detail = _decision_mismatch_detail(expected, trade)
+        detail = _decision_mismatch_detail(
+            expected,
+            trade,
+            fill_tolerance_points=fill_tolerance_points,
+            volume_tolerance=volume_tolerance,
+        )
         if detail:
             mismatches.append(_mismatch(expected, trade, detail))
             continue
@@ -54,7 +73,12 @@ def compare_decisions(
     )
 
 
-def _closest_trade(expected: dict, trades: list[dict]) -> dict | None:
+def _closest_trade(
+    expected: dict,
+    trades: list[dict],
+    *,
+    bar_window: int = DEFAULT_BAR_WINDOW,
+) -> dict | None:
     expected_idx = _as_int(expected.get("bar_idx"))
     if expected_idx is None:
         return trades[0] if trades else None
@@ -64,7 +88,7 @@ def _closest_trade(expected: dict, trades: list[dict]) -> dict | None:
         if trade_idx is None:
             continue
         distance = abs(trade_idx - expected_idx)
-        if distance <= DEFAULT_BAR_WINDOW:
+        if distance <= int(bar_window):
             candidates.append((distance, trade))
     if not candidates:
         return None
@@ -72,7 +96,13 @@ def _closest_trade(expected: dict, trades: list[dict]) -> dict | None:
     return candidates[0][1]
 
 
-def _decision_mismatch_detail(expected: dict, trade: dict) -> str:
+def _decision_mismatch_detail(
+    expected: dict,
+    trade: dict,
+    *,
+    fill_tolerance_points: float | None = None,
+    volume_tolerance: float = 1e-6,
+) -> str:
     expected_action = str(expected.get("action", "")).upper()
     expected_side = str(expected.get("side", "")).upper()
     got_action = str(trade.get("action") or trade.get("side") or "").upper()
@@ -84,8 +114,26 @@ def _decision_mismatch_detail(expected: dict, trade: dict) -> str:
     expected_volume = _as_float(expected.get("volume"))
     got_volume = _as_float(trade.get("volume"))
     if expected_volume is not None and got_volume is not None:
-        if not math.isclose(expected_volume, got_volume, rel_tol=1e-6, abs_tol=1e-6):
+        if not math.isclose(
+            expected_volume,
+            got_volume,
+            rel_tol=0.0,
+            abs_tol=float(volume_tolerance),
+        ):
             return f"volume mismatch: expected {expected_volume}, got {got_volume}"
+    expected_price = _as_float(expected.get("price", expected.get("source_price")))
+    got_price = _as_float(trade.get("entry_price"))
+    if (
+        fill_tolerance_points is not None
+        and expected_price is not None
+        and got_price is not None
+        and abs(expected_price - got_price) > float(fill_tolerance_points)
+    ):
+        return (
+            "fill price mismatch: "
+            f"expected {expected_price}, got {got_price}, "
+            f"tolerance {float(fill_tolerance_points)}"
+        )
     return ""
 
 
@@ -103,9 +151,11 @@ def _mismatch(expected: dict, trade: dict | None, detail: str) -> dict:
         "expected_action": expected.get("action"),
         "expected_side": expected.get("side"),
         "expected_volume": expected.get("volume"),
+        "expected_price": expected.get("price", expected.get("source_price")),
         "got_action": None if trade is None else trade.get("action", trade.get("side")),
         "got_side": None if trade is None else trade.get("side"),
         "got_volume": None if trade is None else trade.get("volume"),
+        "got_price": None if trade is None else trade.get("entry_price"),
         "detail": detail,
     }
 
