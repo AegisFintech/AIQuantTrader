@@ -7,7 +7,12 @@ BuyAndHold smoke strategy, and the M2.2 parity harness skeleton.
 
 from __future__ import annotations
 
-from finrobot.backtest.engine import Backtester, BacktestConfig, BacktestResult
+from finrobot.backtest.engine import (
+    Backtester,
+    BacktestConfig,
+    BacktestResult,
+    BreakEvenConfig,
+)
 from finrobot.backtest.fills import FillConfig, FillModel, simulate_fill
 from finrobot.backtest.metrics import (
     MetricsReport,
@@ -42,6 +47,7 @@ __all__ = [
     "Backtester",
     "BacktestConfig",
     "BacktestResult",
+    "BreakEvenConfig",
     "BuyAndHold",
     "FillConfig",
     "FillModel",
