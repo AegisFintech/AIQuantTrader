@@ -28,6 +28,7 @@ class BacktestConfig:
     initial_equity: float = 10000.0
     magic: int = 20260522
     point_value: float = 1.0
+    min_seconds_between_trades: int = 0
 
 
 @dataclass
@@ -89,6 +90,7 @@ class Backtester:
         closed_pnl_by_day: dict[str, float] = {}
         rejected_signals = 0
         history: list[dict] = []
+        last_trade_time_by_symbol: dict[str, int] = {}
 
         for idx, bar in enumerate(normalized_bars):
             history.append(bar)
@@ -106,19 +108,30 @@ class Backtester:
             )
 
             if signal.action.upper() in {"BUY", "SELL"}:
-                opened = self._open_position(
-                    signal=signal,
-                    strategy=strategy,
-                    bar=bar,
-                    idx=idx,
-                    open_records=open_records,
-                    equity=equity,
-                    day_closed_pnl=closed_pnl_by_day.get(day_key, 0.0),
-                )
-                if opened is None:
+                symbol_key = self.config.symbol.upper()
+                min_seconds = int(self.config.min_seconds_between_trades)
+                last_trade_time = last_trade_time_by_symbol.get(symbol_key)
+                if (
+                    min_seconds > 0
+                    and last_trade_time is not None
+                    and now_epoch - last_trade_time < min_seconds
+                ):
                     rejected_signals += 1
                 else:
-                    open_records.append(opened)
+                    opened = self._open_position(
+                        signal=signal,
+                        strategy=strategy,
+                        bar=bar,
+                        idx=idx,
+                        open_records=open_records,
+                        equity=equity,
+                        day_closed_pnl=closed_pnl_by_day.get(day_key, 0.0),
+                    )
+                    if opened is None:
+                        rejected_signals += 1
+                    else:
+                        open_records.append(opened)
+                        last_trade_time_by_symbol[symbol_key] = now_epoch
 
             survivors: list[_OpenRecord] = []
             for record in open_records:

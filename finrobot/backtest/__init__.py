@@ -32,6 +32,7 @@ from finrobot.backtest.strategies.xau_gates import (
     smc_long_score,
     smc_short_score,
 )
+from finrobot.backtest.strategies.xau_gated import XauGatedParams, XauGatedStrategy
 from finrobot.backtest.strategies.xau_quick_momentum import (
     XauQuickMomentumParams,
     XauQuickMomentumStrategy,
@@ -54,6 +55,8 @@ __all__ = [
     "XauAtrImpulseParams",
     "XauAtrImpulseStrategy",
     "XauGateParams",
+    "XauGatedParams",
+    "XauGatedStrategy",
     "XauQuickMomentumParams",
     "XauQuickMomentumStrategy",
     "compare_decisions",
