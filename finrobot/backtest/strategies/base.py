@@ -16,6 +16,7 @@ class Signal:
     tp_distance: float | None = None
     strategy: str = ""
     comment: str = ""
+    smc_score: int | None = None
 
 
 class Strategy:

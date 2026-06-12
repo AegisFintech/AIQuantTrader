@@ -236,6 +236,7 @@ class Backtester:
             sl_distance=sizing_distance * float(self.config.point_value),
             open_positions=[record.position for record in open_records],
             today_closed_pnl=day_closed_pnl,
+            smc_score=signal.smc_score or 0,
         )
         if volume <= 0:
             return None
