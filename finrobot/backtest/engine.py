@@ -11,6 +11,15 @@ from finrobot.backtest.position import Position, PositionSizer
 from finrobot.backtest.strategies.base import Signal, Strategy
 
 
+@dataclass(frozen=True)
+class BreakEvenConfig:
+    """Dynamic break-even management for open simulated positions."""
+
+    enabled: bool = False
+    rr_ratio: float = 1.0
+    extra_points: float = 10.0
+
+
 @dataclass
 class BacktestConfig:
     """Configuration for one deterministic backtest run."""
@@ -28,6 +37,8 @@ class BacktestConfig:
     initial_equity: float = 10000.0
     magic: int = 20260522
     point_value: float = 1.0
+    min_seconds_between_trades: int = 0
+    break_even: BreakEvenConfig = field(default_factory=BreakEvenConfig)
 
 
 @dataclass
@@ -89,6 +100,7 @@ class Backtester:
         closed_pnl_by_day: dict[str, float] = {}
         rejected_signals = 0
         history: list[dict] = []
+        last_trade_time_by_symbol: dict[str, int] = {}
 
         for idx, bar in enumerate(normalized_bars):
             history.append(bar)
@@ -106,25 +118,41 @@ class Backtester:
             )
 
             if signal.action.upper() in {"BUY", "SELL"}:
-                opened = self._open_position(
-                    signal=signal,
-                    strategy=strategy,
-                    bar=bar,
-                    idx=idx,
-                    open_records=open_records,
-                    equity=equity,
-                    day_closed_pnl=closed_pnl_by_day.get(day_key, 0.0),
-                )
-                if opened is None:
+                symbol_key = self.config.symbol.upper()
+                min_seconds = int(self.config.min_seconds_between_trades)
+                last_trade_time = last_trade_time_by_symbol.get(symbol_key)
+                if (
+                    min_seconds > 0
+                    and last_trade_time is not None
+                    and now_epoch - last_trade_time < min_seconds
+                ):
                     rejected_signals += 1
                 else:
-                    open_records.append(opened)
+                    opened = self._open_position(
+                        signal=signal,
+                        strategy=strategy,
+                        bar=bar,
+                        idx=idx,
+                        open_records=open_records,
+                        equity=equity,
+                        day_closed_pnl=closed_pnl_by_day.get(day_key, 0.0),
+                    )
+                    if opened is None:
+                        rejected_signals += 1
+                    else:
+                        open_records.append(opened)
+                        last_trade_time_by_symbol[symbol_key] = now_epoch
 
             survivors: list[_OpenRecord] = []
             for record in open_records:
                 exit_price, exit_reason = self._exit_for_bar(record.position, bar)
                 if exit_price is None:
-                    survivors.append(record)
+                    survivors.append(
+                        self._apply_break_even(
+                            record=record,
+                            current_price=float(bar["close"]),
+                        )
+                    )
                     continue
                 trade, pnl = self._close_record(
                     record=record,
@@ -317,8 +345,50 @@ class Backtester:
             "commission": position.open_commission + close_commission,
             "swap": swap,
             "exit_reason": exit_reason,
+            "break_even_applied": position.break_even_applied,
         }
         return trade, pnl
+
+    def _apply_break_even(
+        self,
+        *,
+        record: _OpenRecord,
+        current_price: float,
+    ) -> _OpenRecord:
+        config = self.config.break_even
+        position = record.position
+        if position.break_even_applied or not config.enabled:
+            return record
+        if position.sl <= 0.0 or position.tp <= 0.0:
+            return record
+
+        side = position.side.upper()
+        if side == "BUY":
+            direction = 1.0
+        elif side == "SELL":
+            direction = -1.0
+        else:
+            return record
+
+        sl_distance = abs(position.entry_price - position.sl)
+        if sl_distance <= 0.0:
+            return record
+
+        profit_points = direction * (float(current_price) - position.entry_price)
+        threshold = sl_distance * float(config.rr_ratio)
+        if profit_points < threshold:
+            return record
+
+        new_sl = position.entry_price + direction * float(config.extra_points)
+        if side == "BUY" and new_sl <= position.sl:
+            return record
+        if side == "SELL" and new_sl >= position.sl:
+            return record
+
+        return replace(
+            record,
+            position=replace(position, sl=new_sl, break_even_applied=True),
+        )
 
     def _mark_record(self, record: _OpenRecord, bar: dict) -> _OpenRecord:
         position = record.position

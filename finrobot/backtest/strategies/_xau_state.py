@@ -4,12 +4,20 @@ from __future__ import annotations
 
 from typing import Any
 
+from finrobot.backtest.strategies.xau_gates import (
+    XauGateParams,
+    pda,
+    smc_long_score,
+    smc_short_score,
+)
+
 
 class XauRollingFeatureState:
     """O(1) rolling indicator state for normal sequential backtester calls."""
 
-    def __init__(self, params: Any):
+    def __init__(self, params: Any, gate_params: XauGateParams | None = None):
         self.params = params
+        self.gate_params = gate_params
         self.ema_fast = _RollingEma(getattr(params, "fast", 9))
         self.ema_slow = _RollingEma(getattr(params, "slow", 21))
         self.ema_trend = _RollingEma(getattr(params, "trend", 50))
@@ -19,6 +27,7 @@ class XauRollingFeatureState:
         self.macd_slow = _RollingEma(26)
         self.macd_signal = _RollingEma(9)
         self.closes: list[float] = []
+        self.bars: list[dict] = []
 
     def update(self, idx: int, bar: dict) -> dict:
         close = float(bar["close"])
@@ -83,8 +92,9 @@ class XauRollingFeatureState:
             )
 
         self.closes.append(close)
+        self.bars.append(bar)
         if idx < 3:
-            return {
+            feature = {
                 "ema_fast": None,
                 "ema_slow": None,
                 "ema_trend": None,
@@ -101,7 +111,12 @@ class XauRollingFeatureState:
                 "quick_momentum_long": False,
                 "quick_momentum_short": False,
             }
-        return {
+            return self._with_gate_features(
+                feature=feature,
+                current=close,
+                atr_value=atr_value,
+            )
+        feature = {
             "ema_fast": ema_fast,
             "ema_slow": ema_slow,
             "ema_trend": ema_trend,
@@ -117,6 +132,61 @@ class XauRollingFeatureState:
             "bearish_cross": bearish_cross,
             "quick_momentum_long": quick_long,
             "quick_momentum_short": quick_short,
+        }
+        return self._with_gate_features(
+            feature=feature,
+            current=close,
+            atr_value=atr_value,
+        )
+
+    def _with_gate_features(
+        self,
+        *,
+        feature: dict,
+        current: float,
+        atr_value: float | None,
+    ) -> dict:
+        if self.gate_params is None:
+            return feature
+
+        params = self.gate_params
+        atr_for_gate = (
+            float(atr_value) if atr_value and atr_value > 0 else current * 0.0015
+        )
+        pda_value = pda(self.bars, params.smc_lookback, current)
+        long_score, long_components = smc_long_score(
+            self.bars,
+            atr_for_gate,
+            current,
+            params,
+        )
+        short_score, short_components = smc_short_score(
+            self.bars,
+            atr_for_gate,
+            current,
+            params,
+        )
+        return {
+            **feature,
+            "pda": pda_value,
+            "smc_long_score": long_score,
+            "smc_short_score": short_score,
+            "smc_long_discount": long_components["discount"],
+            "smc_long_deep_discount": long_components["deep_discount"],
+            "smc_long_has_fvg": long_components["has_fvg"],
+            "smc_long_reclaimed_order_block": long_components[
+                "reclaimed_order_block"
+            ],
+            "smc_long_sweep": long_components["sweep"],
+            "smc_long_structure": long_components["structure"],
+            "smc_short_premium": short_components["premium"],
+            "smc_short_deep_premium": short_components["deep_premium"],
+            "smc_short_has_fvg": short_components["has_fvg"],
+            "smc_short_rejected_order_block": short_components[
+                "rejected_order_block"
+            ],
+            "smc_short_sweep": short_components["sweep"],
+            "smc_short_structure": short_components["structure"],
         }
 
 

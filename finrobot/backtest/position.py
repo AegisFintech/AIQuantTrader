@@ -28,6 +28,7 @@ class Position:
     open_commission: float = 0.0
     open_swap_accrued: float = 0.0
     current_pnl: float = 0.0
+    break_even_applied: bool = False
 
 
 def update_position_pnl(
