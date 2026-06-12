@@ -38,6 +38,32 @@ def test_compute_snapshot_empty_warehouse_has_no_live_status(con):
     assert snap.warehouse == {"status": 0, "positions": 0, "deals": 0, "acks": 0}
 
 
+def test_compute_snapshot_reads_ea_version_and_git_sha_from_status(con, tmp_path):
+    now = _now()
+    common = tmp_path / "common"
+    _write_status(
+        common,
+        ts=now,
+        ea_version="1.31",
+        git_sha="55b12aba8d001597984df2ec09d53a955238407d",
+    )
+
+    snap = metrics.compute_snapshot(con=con, common_dir=common, pm2_restarts=1)
+
+    assert snap.ea_version == "1.31"
+    assert snap.git_sha == "55b12aba8d001597984df2ec09d53a955238407d"
+
+
+def test_compute_snapshot_ea_version_defaults_to_none_when_status_lacks_it(con, tmp_path):
+    common = tmp_path / "common"
+    _write_status(common, ts=_now())
+
+    snap = metrics.compute_snapshot(con=con, common_dir=common, pm2_restarts=1)
+
+    assert snap.ea_version is None
+    assert snap.git_sha is None
+
+
 def test_compute_snapshot_fresh_status_heartbeat(con, tmp_path):
     _write_status(tmp_path, ts=_now())
 
@@ -345,10 +371,12 @@ def _status(
     balance: float = 1000.0,
     equity: float = 1000.0,
     symbols: list[dict] | None = None,
+    ea_version: str | None = None,
+    git_sha: str | None = None,
 ) -> dict:
     if symbols is None:
         symbols = [{"symbol": "BTCUSD", "last_signal": "no_signal"}]
-    return {
+    payload: dict = {
         "ts": ts_server,
         "ts_local": ts_local if ts_local is not None else _now(),
         "login": 123456,
@@ -367,6 +395,11 @@ def _status(
         },
         "symbols": symbols,
     }
+    if ea_version is not None:
+        payload["ea_version"] = ea_version
+    if git_sha is not None:
+        payload["git_sha"] = git_sha
+    return payload
 
 
 def _write_status(
@@ -376,6 +409,8 @@ def _write_status(
     balance: float = 1000.0,
     equity: float = 1000.0,
     symbols: list[dict] | None = None,
+    ea_version: str | None = None,
+    git_sha: str | None = None,
 ) -> Path:
     common.mkdir(parents=True, exist_ok=True)
     path = common / "finrobot_status.json"
@@ -387,6 +422,8 @@ def _write_status(
                 balance=balance,
                 equity=equity,
                 symbols=symbols,
+                ea_version=ea_version,
+                git_sha=git_sha,
             )
         )
     )

@@ -37,6 +37,8 @@ class MetricsSnapshot:
     clock_skew_seconds: int | None
     pm2_mt5_restarts: int | None
     validator_issues: dict[str, Any]
+    ea_version: str | None = None
+    git_sha: str | None = None
 
 
 def compute_snapshot(
@@ -79,6 +81,8 @@ def compute_snapshot(
         clock_skew_seconds=_clock_skew_seconds(
             con, timestamp_local, clock_skew_window_seconds
         ),
+        ea_version=(status.get("ea_version") if isinstance(status, dict) else None) or None,
+        git_sha=(status.get("git_sha") if isinstance(status, dict) else None) or None,
         pm2_mt5_restarts=pm2_restarts,
         validator_issues=_validator_issues(con),
     )

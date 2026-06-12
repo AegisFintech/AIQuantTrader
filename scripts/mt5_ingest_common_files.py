@@ -48,8 +48,13 @@ def ingest_common_files(common: Path, warehouse: Path | None = None) -> dict:
         deals = read_csv(common / "finrobot_deals.csv")
         acks = read_acks(common / "finrobot_acks.csv")
         manifest = load_release_manifest()
-        ea_version = manifest.get("ea_version") or status.get("ea_version") or ""
-        git_sha = manifest.get("git_sha") or status.get("git_sha") or ""
+        # Prefer the live finrobot_status.json over the static release manifest.
+        # The release manifest is generated from current HEAD, but the deployed .ex5
+        # was compiled at a (possibly older) commit; status.json reflects what's
+        # actually running. Fall back to the manifest only when status lacks these
+        # fields (e.g. v1.30 or earlier which predate the manifest reader).
+        ea_version = status.get("ea_version") or manifest.get("ea_version") or ""
+        git_sha = status.get("git_sha") or manifest.get("git_sha") or ""
         inserted = {
             "status": data_store.ingest_status(con, status, ea_version, git_sha),
             "positions": data_store.ingest_positions(

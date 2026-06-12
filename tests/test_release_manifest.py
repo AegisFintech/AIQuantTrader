@@ -112,6 +112,68 @@ def test_ingest_status_without_explicit_version_reads_manifest(tmp_path, monkeyp
         con.close()
 
 
+def test_ingest_status_prefers_live_status_over_manifest(tmp_path, monkeypatch):
+    """Live finrobot_status.json must override state/mt5/RELEASE.json.
+
+    The deployed .ex5 carries the compile-time SHA; state/mt5/RELEASE.json
+    carries the current HEAD SHA. They diverge between deploys. The script
+    must surface the actually-deployed SHA (live status), not the HEAD
+    snapshot (manifest), so downstream consumers see the real version.
+    """
+    from scripts import mt5_ingest_common_files
+
+    monkeypatch.setattr(data_store, "ROOT", tmp_path)
+    _write_release_json(tmp_path, ea_version="1.30", git_sha="head-sha-current")
+
+    common = tmp_path / "common"
+    common.mkdir()
+    (common / "finrobot_status.json").write_text(
+        json.dumps(
+            {
+                "ts": 1780000100,
+                "login": 123456,
+                "server": "ICMarketsSC-Demo",
+                "balance": 1000.0,
+                "equity": 1000.0,
+                "margin": 0.0,
+                "free_margin": 1000.0,
+                "positions": 0,
+                "money_management": {
+                    "loss_limit_reached": 0,
+                    "risk_lot_sizing": 1,
+                    "today_closed_pnl": 0.0,
+                    "daily_risk_per_trade_fraction": 0.001,
+                    "daily_loss_limit_fraction": 0.01,
+                },
+                "symbols": [],
+                "ea_version": "1.31",
+                "git_sha": "deployed-sha-older",
+            }
+        )
+    )
+    (common / "finrobot_positions.csv").write_text(
+        "time,ticket,symbol,type,side,volume,open_price,current_price,profit,sl,tp,comment\n"
+    )
+    (common / "finrobot_deals.csv").write_text(
+        "time,ticket,order,position_id,symbol,entry,type,volume,price,profit,commission,swap,comment\n"
+    )
+    (common / "finrobot_acks.csv").write_text(
+        "time,ticket,order,position_id,symbol,action,side,volume,price,sl,tp,comment,source\n"
+    )
+
+    warehouse = tmp_path / "warehouse.duckdb"
+    result = mt5_ingest_common_files.ingest_common_files(common, warehouse)
+
+    assert result["inserted"]["status"] == 1
+
+    con = data_store.connect(warehouse)
+    try:
+        row = con.execute("SELECT ea_version, git_sha FROM status").fetchone()
+    finally:
+        con.close()
+    assert row == ("1.31", "deployed-sha-older")
+
+
 def _write_ea(root: Path, version: str = "1.30") -> Path:
     mq5 = root / "broker" / "mt5" / "FinRobotBridgeEA.mq5"
     mq5.parent.mkdir(parents=True, exist_ok=True)
