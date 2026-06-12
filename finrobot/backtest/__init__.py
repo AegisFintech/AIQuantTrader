@@ -30,6 +30,17 @@ from finrobot.backtest.position import (
     PositionSizer,
     PositionState,
 )
+from finrobot.backtest.reporter import (
+    BacktestReport,
+    DrawdownWindow,
+    ReportMetadata,
+    StrategyAttribution,
+    Verdict,
+    generate_report,
+    render_markdown,
+    write_json,
+    write_markdown,
+)
 from finrobot.backtest.strategies.base import Signal, Strategy
 from finrobot.backtest.strategies.btc_gated import BtcGatedParams, BtcGatedStrategy
 from finrobot.backtest.strategies.btc_gates import btc_cost_filter_rejects
@@ -53,12 +64,14 @@ from finrobot.backtest.strategies.xau_quick_momentum import (
 __all__ = [
     "Backtester",
     "BacktestConfig",
+    "BacktestReport",
     "BacktestResult",
     "BtcGatedParams",
     "BtcGatedStrategy",
     "BreakEvenConfig",
     "BuyAndHold",
     "DailyRiskSizer",
+    "DrawdownWindow",
     "FillConfig",
     "FillModel",
     "MetricsReport",
@@ -66,8 +79,11 @@ __all__ = [
     "Position",
     "PositionSizer",
     "PositionState",
+    "ReportMetadata",
     "Signal",
     "Strategy",
+    "StrategyAttribution",
+    "Verdict",
     "XauAtrImpulseParams",
     "XauAtrImpulseStrategy",
     "XauGateParams",
@@ -79,12 +95,16 @@ __all__ = [
     "compare_decisions",
     "compute_metrics",
     "expectancy",
+    "generate_report",
     "max_drawdown",
     "pda",
     "profit_factor",
+    "render_markdown",
     "sharpe_ratio",
     "simulate_fill",
     "smc_long_score",
     "smc_short_score",
     "win_rate",
+    "write_json",
+    "write_markdown",
 ]
