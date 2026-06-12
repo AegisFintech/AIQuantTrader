@@ -8,11 +8,13 @@ import pytest
 
 from finrobot.backtest.engine import BacktestConfig
 from finrobot.backtest.fills import FillConfig
+from finrobot.backtest.position import PositionSizer
 from finrobot.backtest.parity_replay import (
     ParityReplayConfig,
     load_acked_decisions,
     run_parity_replay,
 )
+from finrobot.backtest.strategies.base import Signal, Strategy
 from finrobot.backtest.strategies.stub_replay import StubReplayStrategy
 
 
@@ -293,6 +295,33 @@ def test_run_parity_replay_is_deterministic_for_same_inputs():
     assert first == second
 
 
+def test_run_parity_replay_uses_config_sizer_with_real_strategy():
+    bars = [_bar(idx, close=100.0 + idx) for idx in range(3)]
+    decisions = [
+        {"bar_idx": 1, "action": "BUY", "side": "BUY", "volume": 0.50, "price": 101.0},
+    ]
+
+    report = run_parity_replay(
+        bars=bars,
+        decisions=decisions,
+        config=_config(),
+        backtest_config=BacktestConfig(
+            fill_config=FillConfig(spread_points=0.0, slippage_points=0.0),
+            sizer=PositionSizer(
+                risk_per_trade_fraction=0.001,
+                daily_loss_cap_fraction=0.01,
+                max_lot_per_trade=1.0,
+                max_positions_per_symbol=2,
+            ),
+        ),
+        strategy=_OneShotAtBar(1),
+        volume_sizer=None,
+    )
+
+    assert report.match_rate == 1.0
+    assert report.n_matched == 1
+
+
 def test_cli_smoke_writes_json_and_markdown(tmp_path: Path):
     bars_path = tmp_path / "bars.tsv"
     bars_path.write_text(
@@ -339,6 +368,23 @@ def test_cli_smoke_writes_json_and_markdown(tmp_path: Path):
     assert completed.returncode == 0, completed.stderr
     assert (output_dir / "test" / "test.json").exists()
     assert (output_dir / "test" / "test.md").exists()
+
+
+class _OneShotAtBar(Strategy):
+    name = "OneShotAtBar"
+
+    def __init__(self, bar_idx: int):
+        self.bar_idx = int(bar_idx)
+
+    def on_bar(self, *, idx: int, **kwargs) -> Signal:
+        if idx != self.bar_idx:
+            return Signal(action="HOLD", strategy=self.name)
+        return Signal(
+            action="BUY",
+            sl_distance=20.0,
+            tp_distance=40.0,
+            strategy=self.name,
+        )
 
 
 def _config(

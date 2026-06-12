@@ -114,7 +114,12 @@ def run_parity_replay(
     replay_decisions = _prepare_replay_decisions(
         [d for d in resolved if d.get("bar_idx") is not None]
     )
-    replay_sizer = volume_sizer or _ReplayVolumeSizer(replay_decisions)
+    if volume_sizer is not None:
+        replay_sizer = volume_sizer
+    elif strategy is None:
+        replay_sizer = _ReplayVolumeSizer(replay_decisions)
+    else:
+        replay_sizer = None
     replay_strategy = strategy or StubReplayStrategy(replay_decisions)
     result = Backtester(
         _replay_backtest_config(
@@ -387,10 +392,12 @@ def _replay_backtest_config(
     volume_sizer: Any | None = None,
 ) -> BacktestConfig:
     base = backtest_config or BacktestConfig(symbol=config.symbol)
+    if volume_sizer is None:
+        return replace(base, symbol=config.symbol)
     return replace(
         base,
         symbol=config.symbol,
-        sizer=volume_sizer or _ReplayVolumeSizer(replay_decisions),
+        sizer=volume_sizer,
     )
 
 
