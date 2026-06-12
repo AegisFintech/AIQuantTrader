@@ -31,6 +31,8 @@ from finrobot.backtest.position import (
     PositionState,
 )
 from finrobot.backtest.strategies.base import Signal, Strategy
+from finrobot.backtest.strategies.btc_gated import BtcGatedParams, BtcGatedStrategy
+from finrobot.backtest.strategies.btc_gates import btc_cost_filter_rejects
 from finrobot.backtest.strategies.buy_and_hold import BuyAndHold
 from finrobot.backtest.strategies.xau_atr_impulse import (
     XauAtrImpulseParams,
@@ -52,6 +54,8 @@ __all__ = [
     "Backtester",
     "BacktestConfig",
     "BacktestResult",
+    "BtcGatedParams",
+    "BtcGatedStrategy",
     "BreakEvenConfig",
     "BuyAndHold",
     "DailyRiskSizer",
@@ -71,6 +75,7 @@ __all__ = [
     "XauGatedStrategy",
     "XauQuickMomentumParams",
     "XauQuickMomentumStrategy",
+    "btc_cost_filter_rejects",
     "compare_decisions",
     "compute_metrics",
     "expectancy",
