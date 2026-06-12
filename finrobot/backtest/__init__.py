@@ -26,6 +26,12 @@ from finrobot.backtest.strategies.xau_atr_impulse import (
     XauAtrImpulseParams,
     XauAtrImpulseStrategy,
 )
+from finrobot.backtest.strategies.xau_gates import (
+    XauGateParams,
+    pda,
+    smc_long_score,
+    smc_short_score,
+)
 from finrobot.backtest.strategies.xau_quick_momentum import (
     XauQuickMomentumParams,
     XauQuickMomentumStrategy,
@@ -47,14 +53,18 @@ __all__ = [
     "Strategy",
     "XauAtrImpulseParams",
     "XauAtrImpulseStrategy",
+    "XauGateParams",
     "XauQuickMomentumParams",
     "XauQuickMomentumStrategy",
     "compare_decisions",
     "compute_metrics",
     "expectancy",
     "max_drawdown",
+    "pda",
     "profit_factor",
     "sharpe_ratio",
     "simulate_fill",
+    "smc_long_score",
+    "smc_short_score",
     "win_rate",
 ]
