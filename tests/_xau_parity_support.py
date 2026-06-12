@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 
@@ -24,12 +25,13 @@ def load_xau_bars(from_date: str, to_date: str) -> list[dict]:
 
     import duckdb
 
-    if not DUCKDB_PATH.exists():
+    duckdb_path = _duckdb_path()
+    if not duckdb_path.exists():
         return []
 
     start = _utc_epoch_start(from_date)
     end = _utc_epoch_end(to_date)
-    con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
+    con = duckdb.connect(str(duckdb_path), read_only=True)
     try:
         rows = con.execute(
             """
@@ -114,6 +116,14 @@ def decisions_from_trades(trades: list[dict]) -> list[dict]:
 def _utc_epoch_start(value: str) -> int:
     day = date.fromisoformat(value)
     return int(datetime.combine(day, time.min, tzinfo=timezone.utc).timestamp())
+
+
+def _duckdb_path() -> Path:
+    value = os.getenv("FINROBOT_WAREHOUSE")
+    if not value:
+        return DUCKDB_PATH
+    path = Path(value).expanduser()
+    return path if path.is_absolute() else ROOT / path
 
 
 def _utc_epoch_end(value: str) -> int:

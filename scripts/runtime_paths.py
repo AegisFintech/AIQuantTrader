@@ -32,6 +32,11 @@ def common_file_dirs() -> list[Path]:
 
 
 def common_dir() -> Path | None:
+    override = os.getenv("FINROBOT_COMMON_DIR")
+    if override:
+        directory = env_path("FINROBOT_COMMON_DIR", ROOT)
+        return directory if directory.is_dir() else None
+
     for directory in common_file_dirs():
         if (directory / "finrobot_status.json").exists() or (directory / "finrobot_deals.csv").exists():
             return directory
