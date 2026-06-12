@@ -85,6 +85,11 @@ class XauGatedStrategy(Strategy):
 
         feature = self._feature_for(idx=idx, history=history)
         pda_value = float(feature["pda"])
+        smc_score = int(
+            feature["smc_long_score"]
+            if action == "BUY"
+            else feature["smc_short_score"]
+        )
         if self.params.enable_pda_gate:
             if action == "BUY" and pda_value > self.params.pda_long_ceiling:
                 return Signal(
@@ -100,11 +105,6 @@ class XauGatedStrategy(Strategy):
                 )
 
         if self.params.enable_smc_gate:
-            smc_score = int(
-                feature["smc_long_score"]
-                if action == "BUY"
-                else feature["smc_short_score"]
-            )
             if smc_score < self.params.min_smc_score:
                 return Signal(action="HOLD", strategy=self.name, comment="smc_reject")
 
@@ -117,7 +117,7 @@ class XauGatedStrategy(Strategy):
 
         self._last_signal_bar_idx = idx
         self._last_signal_time = _numeric_epoch(bar.get("time"))
-        return replace(inner_signal, strategy=self.name)
+        return replace(inner_signal, strategy=self.name, smc_score=smc_score)
 
     def _feature_for(self, *, idx: int, history: list[dict]) -> dict:
         if idx == 0 and self._last_idx >= 0:

@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+from finrobot.backtest import DailyRiskSizer
+
+
+def test_daily_risk_sizer_basic():
+    sizer = _sizer(max_lot_per_trade=0.10)
+
+    volume = sizer.size(
+        symbol="XAUUSD",
+        equity=10000.0,
+        sl_distance=20.0,
+        open_positions=[],
+        today_closed_pnl=0.0,
+    )
+
+    assert volume == 0.10
+
+
+def test_daily_risk_sizer_high_confluence_multiplier():
+    sizer = _sizer(max_lot_per_trade=2.0)
+
+    volume = sizer.size(
+        symbol="BTCUSD",
+        equity=10000.0,
+        sl_distance=20.0,
+        open_positions=[],
+        today_closed_pnl=0.0,
+        smc_score=5,
+    )
+
+    assert volume == 1.50
+
+
+def test_daily_risk_sizer_below_threshold_no_multiplier():
+    sizer = _sizer(max_lot_per_trade=2.0)
+
+    volume = sizer.size(
+        symbol="BTCUSD",
+        equity=10000.0,
+        sl_distance=20.0,
+        open_positions=[],
+        today_closed_pnl=0.0,
+        smc_score=4,
+    )
+
+    assert volume == 0.50
+
+
+def test_daily_risk_sizer_per_symbol_max_lot():
+    sizer = _sizer(
+        max_lot_per_trade=0.25,
+        max_lot_per_symbol={"XAUUSD": 0.10},
+    )
+
+    volume = sizer.size(
+        symbol="XAUUSD",
+        equity=10000.0,
+        sl_distance=20.0,
+        open_positions=[],
+        today_closed_pnl=0.0,
+        smc_score=5,
+    )
+
+    assert volume == 0.10
+
+
+def test_daily_risk_sizer_rounds_lot_step():
+    sizer = _sizer(max_lot_per_trade=1.0)
+
+    volume = sizer.size(
+        symbol="BTCUSD",
+        equity=10000.0,
+        sl_distance=30.0,
+        open_positions=[],
+        today_closed_pnl=0.0,
+    )
+
+    assert volume == 0.33
+
+
+def test_daily_risk_sizer_zero_sl_returns_zero():
+    sizer = _sizer(max_lot_per_trade=1.0)
+
+    volume = sizer.size(
+        symbol="BTCUSD",
+        equity=10000.0,
+        sl_distance=0.0,
+        open_positions=[],
+        today_closed_pnl=0.0,
+        smc_score=5,
+    )
+
+    assert volume == 0.0
+
+
+def _sizer(
+    *,
+    max_lot_per_trade: float,
+    max_lot_per_symbol: dict[str, float] | None = None,
+) -> DailyRiskSizer:
+    return DailyRiskSizer(
+        risk_per_trade_fraction=0.001,
+        daily_loss_cap_fraction=0.01,
+        max_lot_per_trade=max_lot_per_trade,
+        max_positions_per_symbol=2,
+        max_lot_per_symbol=max_lot_per_symbol,
+        high_confluence_lot_multiplier=3.0,
+        high_confluence_score=5,
+    )

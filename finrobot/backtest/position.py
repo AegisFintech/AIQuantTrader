@@ -82,18 +82,17 @@ class PositionSizer:
         sl_distance: float,
         open_positions: list[Position],
         today_closed_pnl: float,
+        smc_score: int = 0,
     ) -> float:
         """Return lot size for a new position, or ``0.0`` when capped."""
 
         equity_value = float(equity)
-        if equity_value <= 0:
-            return 0.0
-        if float(today_closed_pnl) <= -self.daily_loss_cap_fraction * equity_value:
-            return 0.0
-        symbol_positions = [
-            pos for pos in open_positions if pos.symbol.upper() == symbol.upper()
-        ]
-        if len(symbol_positions) >= self.max_positions_per_symbol:
+        if not self._can_open(
+            symbol=symbol,
+            equity=equity_value,
+            open_positions=open_positions,
+            today_closed_pnl=today_closed_pnl,
+        ):
             return 0.0
         distance = float(sl_distance)
         if distance <= 0:
@@ -104,9 +103,27 @@ class PositionSizer:
         lot = risk_dollars / distance
         return round(max(0.0, min(self.max_lot_per_trade, lot)), 6)
 
+    def _can_open(
+        self,
+        *,
+        symbol: str,
+        equity: float,
+        open_positions: list[Position],
+        today_closed_pnl: float,
+    ) -> bool:
+        if float(equity) <= 0:
+            return False
+        if float(today_closed_pnl) <= -self.daily_loss_cap_fraction * float(equity):
+            return False
+        symbol_positions = [
+            pos for pos in open_positions if pos.symbol.upper() == symbol.upper()
+        ]
+        return len(symbol_positions) < self.max_positions_per_symbol
+
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, PositionSizer):
+        if type(other) is not type(self):
             return NotImplemented
+        assert isinstance(other, PositionSizer)
         return (
             self.risk_per_trade_fraction == other.risk_per_trade_fraction
             and self.daily_loss_cap_fraction == other.daily_loss_cap_fraction
@@ -121,4 +138,102 @@ class PositionSizer:
             f"daily_loss_cap_fraction={self.daily_loss_cap_fraction!r}, "
             f"max_lot_per_trade={self.max_lot_per_trade!r}, "
             f"max_positions_per_symbol={self.max_positions_per_symbol!r})"
+        )
+
+
+class DailyRiskSizer(PositionSizer):
+    """SMC-aware daily risk sizing that mirrors the MT5 bridge volume path."""
+
+    def __init__(
+        self,
+        *,
+        risk_per_trade_fraction: float,
+        daily_loss_cap_fraction: float,
+        max_lot_per_trade: float,
+        max_positions_per_symbol: int,
+        max_lot_per_symbol: dict[str, float] | None = None,
+        high_confluence_lot_multiplier: float = 3.0,
+        high_confluence_score: int = 5,
+        lot_digits: int = 2,
+    ):
+        super().__init__(
+            risk_per_trade_fraction=risk_per_trade_fraction,
+            daily_loss_cap_fraction=daily_loss_cap_fraction,
+            max_lot_per_trade=max_lot_per_trade,
+            max_positions_per_symbol=max_positions_per_symbol,
+        )
+        self.max_lot_per_symbol = {
+            str(symbol).upper(): float(max_lot)
+            for symbol, max_lot in (max_lot_per_symbol or {}).items()
+        }
+        self.high_confluence_lot_multiplier = float(high_confluence_lot_multiplier)
+        self.high_confluence_score = int(high_confluence_score)
+        self.lot_digits = int(lot_digits)
+
+    def size(
+        self,
+        *,
+        symbol: str,
+        equity: float,
+        sl_distance: float,
+        open_positions: list[Position],
+        today_closed_pnl: float,
+        smc_score: int = 0,
+    ) -> float:
+        """Return the risk lot, boosted for high SMC confluence, or ``0.0``."""
+
+        equity_value = float(equity)
+        if not self._can_open(
+            symbol=symbol,
+            equity=equity_value,
+            open_positions=open_positions,
+            today_closed_pnl=today_closed_pnl,
+        ):
+            return 0.0
+
+        distance = float(sl_distance)
+        if distance <= 0:
+            return 0.0
+
+        risk_dollars = self.risk_per_trade_fraction * equity_value
+        if risk_dollars <= 0:
+            return 0.0
+
+        volume = risk_dollars / distance
+        if int(smc_score) >= self.high_confluence_score:
+            volume *= self.high_confluence_lot_multiplier
+
+        max_lot = self.max_lot_per_symbol.get(
+            str(symbol).upper(),
+            self.max_lot_per_trade,
+        )
+        rounded = round(max(0.0, min(float(max_lot), volume)), self.lot_digits)
+        return rounded if rounded > 0.0 else 0.0
+
+    def __eq__(self, other: object) -> bool:
+        if type(other) is not type(self):
+            return NotImplemented
+        assert isinstance(other, DailyRiskSizer)
+        return (
+            super().__eq__(other)
+            and self.max_lot_per_symbol == other.max_lot_per_symbol
+            and self.high_confluence_lot_multiplier
+            == other.high_confluence_lot_multiplier
+            and self.high_confluence_score == other.high_confluence_score
+            and self.lot_digits == other.lot_digits
+        )
+
+    def __repr__(self) -> str:
+        return (
+            "DailyRiskSizer("
+            f"risk_per_trade_fraction={self.risk_per_trade_fraction!r}, "
+            f"daily_loss_cap_fraction={self.daily_loss_cap_fraction!r}, "
+            f"max_lot_per_trade={self.max_lot_per_trade!r}, "
+            f"max_positions_per_symbol={self.max_positions_per_symbol!r}, "
+            f"max_lot_per_symbol={self.max_lot_per_symbol!r}, "
+            "smc_score='size-time input', "
+            f"high_confluence_lot_multiplier="
+            f"{self.high_confluence_lot_multiplier!r}, "
+            f"high_confluence_score={self.high_confluence_score!r}, "
+            f"lot_digits={self.lot_digits!r})"
         )

@@ -24,7 +24,12 @@ from finrobot.backtest.metrics import (
     win_rate,
 )
 from finrobot.backtest.parity import ParityReport, compare_decisions
-from finrobot.backtest.position import Position, PositionSizer, PositionState
+from finrobot.backtest.position import (
+    DailyRiskSizer,
+    Position,
+    PositionSizer,
+    PositionState,
+)
 from finrobot.backtest.strategies.base import Signal, Strategy
 from finrobot.backtest.strategies.buy_and_hold import BuyAndHold
 from finrobot.backtest.strategies.xau_atr_impulse import (
@@ -49,6 +54,7 @@ __all__ = [
     "BacktestResult",
     "BreakEvenConfig",
     "BuyAndHold",
+    "DailyRiskSizer",
     "FillConfig",
     "FillModel",
     "MetricsReport",

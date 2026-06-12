@@ -208,6 +208,7 @@ class _ReplayVolumeSizer:
         sl_distance: float,
         open_positions: list[Any],
         today_closed_pnl: float,
+        smc_score: int = 0,
     ) -> float:
         """Return the next audited volume, ignoring risk caps for replay."""
 

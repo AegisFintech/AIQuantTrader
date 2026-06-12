@@ -28,6 +28,8 @@ def test_xau_gated_passes_inner_signal_when_pda_and_smc_pass():
 
     assert signal.action == "BUY"
     assert signal.strategy == "XauGated"
+    assert signal.smc_score is not None
+    assert signal.smc_score >= 3
 
 
 def test_xau_gated_pda_gate_blocks_long_in_premium():
