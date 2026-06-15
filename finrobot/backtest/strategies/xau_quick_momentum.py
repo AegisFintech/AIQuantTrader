@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from finrobot.backtest.position import Position
-from finrobot.backtest.strategies._xau_state import XauRollingFeatureState
+from finrobot.backtest.strategies._xau_state import XauM5RollingFeatureState
 from finrobot.backtest.strategies.base import Signal, Strategy
 
 
@@ -53,8 +53,9 @@ class XauQuickMomentumStrategy(Strategy):
     ) -> Signal:
         """Return BUY/SELL/HOLD for the current bar.
 
-        Indicator inputs mirror MQL5 lines 751-777 of
-        ``FinRobotBridgeEA.mq5``. Signal booleans mirror lines 807-808,
+        MQL5 uses ``AutoTimeframe = PERIOD_M5`` at line 21, so the rolling
+        state previews M5 indicators from incoming M1 bars. Indicator inputs
+        mirror lines 751-777 of ``FinRobotBridgeEA.mq5``. Signal booleans mirror lines 807-808,
         after the XAU weak-signal filter in lines 832-835.
         """
 
@@ -110,6 +111,6 @@ class XauQuickMomentumStrategy(Strategy):
         return sl_distance, tp_distance
 
     def _reset(self) -> None:
-        self._state = XauRollingFeatureState(self.params)
+        self._state = XauM5RollingFeatureState(self.params)
         self._features: list[dict] = []
         self._last_idx = -1

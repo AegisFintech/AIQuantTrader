@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, replace
 
 from finrobot.backtest.position import Position
-from finrobot.backtest.strategies._xau_state import XauRollingFeatureState
+from finrobot.backtest.strategies._xau_state import XauM5RollingFeatureState
 from finrobot.backtest.strategies.base import Signal, Strategy
 
 
@@ -53,35 +54,55 @@ class XauAtrImpulseStrategy(Strategy):
     ) -> Signal:
         """Return BUY/SELL/HOLD for the current bar.
 
-        Indicator inputs mirror MQL5 lines 751-777 of
-        ``FinRobotBridgeEA.mq5``. Signal booleans mirror lines 803-804,
+        MQL5 uses ``AutoTimeframe = PERIOD_M5`` at line 21, so the rolling
+        state previews M5 indicators from incoming M1 bars. Indicator inputs
+        mirror lines 751-777 of ``FinRobotBridgeEA.mq5``. Signal booleans mirror lines 813-814,
         with the XAU weak-signal filter in lines 832-835 leaving
         ``atrImpulseLong`` and ``atrImpulseShort`` intact.
         """
 
+        self._last_trigger_price = None
         feature = self._feature_for(idx=idx, history=history)
         atr = feature["atr"]
         rsi = feature["rsi"]
         current = feature["current"]
         previous = feature["previous"]
-        if idx <= 0 or atr is None or rsi is None or previous is None:
+        previous_high = feature.get("previous_high")
+        previous_low = feature.get("previous_low")
+        if (
+            idx <= 0
+            or atr is None
+            or rsi is None
+            or previous is None
+            or previous_high is None
+            or previous_low is None
+        ):
             return Signal(action="HOLD", strategy=self.name)
 
         params = self.params
-        previous_bar = history[idx - 1]
-        # mirrors MQL5 lines 803-804 of FinRobotBridgeEA.mq5
-        atr_impulse_long = (
-            current > float(previous_bar["high"])
-            and (current - previous) > atr * params.impulse_atr_mult
-            and rsi < params.rsi_long_ceiling
+        # Mirrors MQL5 lines 813-814: rates[0] is the forming M5 bar and
+        # rates[1] is the previous fully closed M5 bar.
+        long_trigger = _atr_impulse_long_trigger(
+            m1_high=float(bar["high"]),
+            previous_high=float(previous_high),
+            previous=previous,
+            atr=atr,
+            impulse_atr_mult=params.impulse_atr_mult,
+            rsi=rsi,
+            rsi_ceiling=params.rsi_long_ceiling,
         )
-        atr_impulse_short = (
-            current < float(previous_bar["low"])
-            and (previous - current) > atr * params.impulse_atr_mult
-            and rsi > params.rsi_short_floor
+        short_trigger = _atr_impulse_short_trigger(
+            m1_low=float(bar["low"]),
+            previous_low=float(previous_low),
+            previous=previous,
+            atr=atr,
+            impulse_atr_mult=params.impulse_atr_mult,
+            rsi=rsi,
+            rsi_floor=params.rsi_short_floor,
         )
 
-        if atr_impulse_long:
+        if long_trigger is not None:
+            self._last_trigger_price = long_trigger
             sl_distance, tp_distance = self._distances(current=current, atr=atr)
             return Signal(
                 action="BUY",
@@ -90,7 +111,8 @@ class XauAtrImpulseStrategy(Strategy):
                 strategy=self.name,
                 comment="ATR_impulse",
             )
-        if atr_impulse_short:
+        if short_trigger is not None:
+            self._last_trigger_price = short_trigger
             sl_distance, tp_distance = self._distances(current=current, atr=atr)
             return Signal(
                 action="SELL",
@@ -127,6 +149,43 @@ class XauAtrImpulseStrategy(Strategy):
         return sl_distance, tp_distance
 
     def _reset(self) -> None:
-        self._state = XauRollingFeatureState(self.params)
+        self._state = XauM5RollingFeatureState(self.params)
         self._features: list[dict] = []
         self._last_idx = -1
+        self._last_trigger_price: float | None = None
+
+
+def _atr_impulse_long_trigger(
+    *,
+    m1_high: float,
+    previous_high: float,
+    previous: float,
+    atr: float,
+    impulse_atr_mult: float,
+    rsi: float,
+    rsi_ceiling: float,
+) -> float | None:
+    if rsi >= rsi_ceiling:
+        return None
+    threshold = max(previous_high, previous + atr * impulse_atr_mult)
+    if m1_high <= threshold:
+        return None
+    return math.nextafter(threshold, math.inf)
+
+
+def _atr_impulse_short_trigger(
+    *,
+    m1_low: float,
+    previous_low: float,
+    previous: float,
+    atr: float,
+    impulse_atr_mult: float,
+    rsi: float,
+    rsi_floor: float,
+) -> float | None:
+    if rsi <= rsi_floor:
+        return None
+    threshold = min(previous_low, previous - atr * impulse_atr_mult)
+    if m1_low >= threshold:
+        return None
+    return math.nextafter(threshold, -math.inf)

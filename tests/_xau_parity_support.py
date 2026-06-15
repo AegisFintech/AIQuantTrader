@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time
 from pathlib import Path
 
 from finrobot.backtest import (
@@ -29,8 +29,8 @@ def load_xau_bars(from_date: str, to_date: str) -> list[dict]:
     if not duckdb_path.exists():
         return []
 
-    start = _utc_epoch_start(from_date)
-    end = _utc_epoch_end(to_date)
+    start = _broker_wall_epoch_start(from_date)
+    end = _broker_wall_epoch_end(to_date)
     con = duckdb.connect(str(duckdb_path), read_only=True)
     try:
         rows = con.execute(
@@ -53,7 +53,7 @@ def load_xau_bars(from_date: str, to_date: str) -> list[dict]:
 
     return [
         {
-            "time": _server_epoch_as_local_wall_epoch(int(row[0])),
+            "time": int(row[0]),
             "open": float(row[1]),
             "high": float(row[2]),
             "low": float(row[3]),
@@ -83,7 +83,7 @@ def build_xau_strategy() -> XauGatedStrategy:
     )
 
 
-def build_xau_backtest_config() -> BacktestConfig:
+def build_xau_backtest_config(*, max_positions_per_symbol: int = 2) -> BacktestConfig:
     return BacktestConfig(
         symbol=XAU_SYMBOL,
         fill_config=FillConfig(spread_points=5.0, slippage_points=2.0),
@@ -91,7 +91,7 @@ def build_xau_backtest_config() -> BacktestConfig:
             risk_per_trade_fraction=0.001,
             daily_loss_cap_fraction=0.01,
             max_lot_per_trade=0.10,
-            max_positions_per_symbol=2,
+            max_positions_per_symbol=max_positions_per_symbol,
             max_lot_per_symbol={XAU_SYMBOL: 0.10},
             high_confluence_lot_multiplier=3.0,
             high_confluence_score=5,
@@ -113,9 +113,9 @@ def decisions_from_trades(trades: list[dict]) -> list[dict]:
     return sorted(decisions, key=lambda decision: int(decision["bar_idx"]))
 
 
-def _utc_epoch_start(value: str) -> int:
+def _broker_wall_epoch_start(value: str) -> int:
     day = date.fromisoformat(value)
-    return int(datetime.combine(day, time.min, tzinfo=timezone.utc).timestamp())
+    return int(datetime.combine(day, time.min).timestamp())
 
 
 def _duckdb_path() -> Path:
@@ -126,11 +126,6 @@ def _duckdb_path() -> Path:
     return path if path.is_absolute() else ROOT / path
 
 
-def _utc_epoch_end(value: str) -> int:
+def _broker_wall_epoch_end(value: str) -> int:
     day = date.fromisoformat(value)
-    return int(datetime.combine(day, time.max, tzinfo=timezone.utc).timestamp())
-
-
-def _server_epoch_as_local_wall_epoch(epoch: int) -> int:
-    server_wall = datetime.fromtimestamp(int(epoch), timezone.utc).replace(tzinfo=None)
-    return int(server_wall.timestamp())
+    return int(datetime.combine(day, time.max).timestamp())

@@ -16,13 +16,13 @@ from finrobot.backtest.parity_replay import (
     _ReplayVolumeSizer,
     run_parity_replay,
 )
-from finrobot.backtest.strategies._xau_state import XauRollingFeatureState
+from finrobot.backtest.strategies._xau_state import XauM5RollingFeatureState
 
 
 def test_xau_rolling_state_no_regression():
     bars = _atr_impulse_long_bars()
     params = XauQuickMomentumParams()
-    state = XauRollingFeatureState(params)
+    state = XauM5RollingFeatureState(params)
     expected_features = [
         state.update(idx, bar)
         for idx, bar in enumerate(bars)
@@ -93,7 +93,8 @@ def test_xau_atr_impulse_breakout_filter():
     signal = _run_strategy_to_bar(strategy, bars, len(bars) - 1)
     feature = strategy._features[-1]
 
-    assert feature["current"] <= bars[-2]["high"]
+    assert feature["current"] <= feature["previous_high"]
+    assert bars[-1]["high"] <= feature["previous_high"]
     assert (feature["current"] - feature["previous"]) > feature["atr"] * 0.12
     assert feature["rsi"] < 80.0
     assert signal.action == "HOLD"
@@ -103,7 +104,7 @@ def test_xau_atr_impulse_breakout_filter():
 def test_xau_atr_impulse_runs_through_backtester():
     bars = _atr_impulse_long_bars()
     signal_bar = len(bars) - 1
-    state = XauRollingFeatureState(XauQuickMomentumParams())
+    state = XauM5RollingFeatureState(XauQuickMomentumParams())
     features = [state.update(idx, bar) for idx, bar in enumerate(bars)]
     expected_sl, expected_tp = _expected_distances(features[signal_bar])
 
@@ -195,23 +196,24 @@ def _atr_impulse_long_bars(
     else:
         closes = _alternating_closes()
 
-    bars = []
+    m5_bars = []
     final_close = closes[-1] + 1.0
     for idx, close in enumerate(closes):
         if idx == len(closes) - 1:
             previous_high = close + 0.1 if breakout else final_close
-            bars.append(_bar(idx, close=close, high=previous_high, low=close - 2.0))
+            m5_bars.append(_bar(idx, close=close, high=previous_high))
         else:
-            bars.append(_bar(idx, close=close))
-    bars.append(
+            m5_bars.append(_bar(idx, close=close))
+    m5_bars.append(
         _bar(
             len(closes),
+            open_=closes[-1],
             close=final_close,
-            high=final_close + 0.1,
+            high=final_close + 0.1 if breakout else final_close,
             low=final_close - 0.1,
         )
     )
-    return bars
+    return _m1_bars_from_m5(m5_bars)
 
 
 def _atr_impulse_short_bars(*, oversold: bool = False) -> list[dict]:
@@ -220,22 +222,23 @@ def _atr_impulse_short_bars(*, oversold: bool = False) -> list[dict]:
     else:
         closes = _alternating_closes()
 
-    bars = []
+    m5_bars = []
     final_close = closes[-1] - 1.0
     for idx, close in enumerate(closes):
         if idx == len(closes) - 1:
-            bars.append(_bar(idx, close=close, high=close + 2.0, low=close - 0.1))
+            m5_bars.append(_bar(idx, close=close, low=close - 0.1))
         else:
-            bars.append(_bar(idx, close=close))
-    bars.append(
+            m5_bars.append(_bar(idx, close=close))
+    m5_bars.append(
         _bar(
             len(closes),
+            open_=closes[-1],
             close=final_close,
             high=final_close + 0.1,
             low=final_close - 0.1,
         )
     )
-    return bars
+    return _m1_bars_from_m5(m5_bars)
 
 
 def _alternating_closes() -> list[float]:
@@ -263,12 +266,43 @@ def _backtest_config() -> BacktestConfig:
     )
 
 
-def _bar(idx: int, *, close: float, high: float | None = None, low: float | None = None):
+def _m1_bars_from_m5(m5_bars: list[dict]) -> list[dict]:
+    bars: list[dict] = []
+    for m5_idx, m5_bar in enumerate(m5_bars):
+        start = int(m5_bar["time"])
+        neutral = float(m5_bar["open"])
+        for minute in range(5):
+            is_close_minute = minute == 4
+            close = float(m5_bar["close"]) if is_close_minute else neutral
+            high = float(m5_bar["high"]) if is_close_minute else max(neutral, close)
+            low = float(m5_bar["low"]) if is_close_minute else min(neutral, close)
+            bars.append(
+                {
+                    "time": start + minute * 60,
+                    "open": neutral,
+                    "high": high,
+                    "low": low,
+                    "close": close,
+                    "volume": 1.0,
+                }
+            )
+    return bars
+
+
+def _bar(
+    idx: int,
+    *,
+    close: float,
+    open_: float | None = None,
+    high: float | None = None,
+    low: float | None = None,
+):
+    open_value = close if open_ is None else open_
     return {
-        "time": f"2026-05-01 10:{idx:02d}:00",
-        "open": close,
-        "high": close + 2.0 if high is None else high,
-        "low": close - 2.0 if low is None else low,
+        "time": 1_700_000_100 + idx * 300,
+        "open": open_value,
+        "high": max(close + 0.1, 2001.0) if high is None else high,
+        "low": min(close - 0.1, 1999.0) if low is None else low,
         "close": close,
         "volume": 1.0,
     }

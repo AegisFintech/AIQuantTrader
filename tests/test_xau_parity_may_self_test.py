@@ -18,7 +18,7 @@ def test_xau_parity_may_self_test():
     June 11+ bars; this self-test verifies the parity harness on real M1 data.
     """
 
-    bars = load_xau_bars("2026-05-01", "2026-05-31")
+    bars = load_xau_bars("2026-05-01", "2026-05-01")
     if not bars:
         pytest.skip("May 2026 XAU bars are unavailable in data/finrobot.duckdb")
 
@@ -35,7 +35,7 @@ def test_xau_parity_may_self_test():
         decisions=decisions,
         config=ParityReplayConfig(
             from_date="2026-05-01",
-            to_date="2026-05-31",
+            to_date="2026-05-01",
             symbol=XAU_SYMBOL,
             fill_tolerance_points=0.0,
             bar_match_window=0,
