@@ -6,7 +6,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from finrobot.backtest.position import Position
-from finrobot.backtest.strategies._xau_state import XauRollingFeatureState
+from finrobot.backtest.strategies._xau_state import XauM5RollingFeatureState
 from finrobot.backtest.strategies.base import Signal, Strategy
 from finrobot.backtest.strategies.xau_gates import XauGateParams
 
@@ -62,8 +62,10 @@ class XauGatedStrategy(Strategy):
     ) -> Signal:
         """Return the inner signal only when the XAU gates pass.
 
-        PDA gate mirrors MQL5 FinRobotBridgeEA.mq5 lines 873-879. SMC score
-        gate mirrors lines 883-889.
+        The inner XAU strategies and this gate state both preview MQL5
+        ``PERIOD_M5`` features from M1 bars. PDA gate mirrors MQL5
+        FinRobotBridgeEA.mq5 lines 873-879. SMC score gate mirrors lines
+        883-889.
         """
 
         if idx == 0 and self._last_idx >= 0:
@@ -84,6 +86,15 @@ class XauGatedStrategy(Strategy):
             return Signal(action="HOLD", strategy=self.name)
 
         feature = self._feature_for(idx=idx, history=history)
+        trigger_price = getattr(self._inner, "_last_trigger_price", None)
+        gate_price = float(trigger_price) if trigger_price is not None else feature["current"]
+        feature = {
+            **feature,
+            **self._state.gate_features_for_price(
+                price=gate_price,
+                atr_value=feature.get("atr"),
+            ),
+        }
         pda_value = float(feature["pda"])
         smc_score = int(
             feature["smc_long_score"]
@@ -125,11 +136,7 @@ class XauGatedStrategy(Strategy):
         if idx <= self._last_idx:
             return self._features[idx]
 
-        if idx != self._last_idx + 1:
-            self._reset()
-            start = 0
-        else:
-            start = idx
+        start = self._last_idx + 1
 
         for replay_idx in range(start, idx + 1):
             self._features.append(
@@ -155,9 +162,10 @@ class XauGatedStrategy(Strategy):
         return False
 
     def _reset(self) -> None:
-        self._state = XauRollingFeatureState(
+        self._state = XauM5RollingFeatureState(
             self._state_params,
             gate_params=self.params.gate_params,
+            eager_gate_features=False,
         )
         self._features: list[dict] = []
         self._last_idx = -1

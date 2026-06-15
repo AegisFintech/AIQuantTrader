@@ -21,9 +21,9 @@ from finrobot.backtest import (
 
 def test_xau_gated_passes_inner_signal_when_pda_and_smc_pass():
     signal = _run_strategy_to_bar(
-        XauGatedStrategy(_SignalAtBar(59, "BUY")),
+        XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY")),
         _long_gate_pass_bars(),
-        59,
+        _signal_idx(),
     )
 
     assert signal.action == "BUY"
@@ -34,9 +34,9 @@ def test_xau_gated_passes_inner_signal_when_pda_and_smc_pass():
 
 def test_xau_gated_pda_gate_blocks_long_in_premium():
     signal = _run_strategy_to_bar(
-        XauGatedStrategy(_SignalAtBar(59, "BUY")),
+        XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY")),
         _long_pda_reject_bars(),
-        59,
+        _signal_idx(),
     )
 
     assert signal.action == "HOLD"
@@ -46,9 +46,9 @@ def test_xau_gated_pda_gate_blocks_long_in_premium():
 
 def test_xau_gated_pda_gate_blocks_short_in_discount():
     signal = _run_strategy_to_bar(
-        XauGatedStrategy(_SignalAtBar(59, "SELL")),
+        XauGatedStrategy(_SignalAtBar(_signal_idx(), "SELL")),
         _short_pda_reject_bars(),
-        59,
+        _signal_idx(),
     )
 
     assert signal.action == "HOLD"
@@ -58,9 +58,9 @@ def test_xau_gated_pda_gate_blocks_short_in_discount():
 
 def test_xau_gated_smc_gate_blocks_low_confluence():
     signal = _run_strategy_to_bar(
-        XauGatedStrategy(_SignalAtBar(59, "BUY")),
+        XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY")),
         _long_low_smc_bars(),
-        59,
+        _signal_idx(),
     )
 
     assert signal.action == "HOLD"
@@ -71,11 +71,11 @@ def test_xau_gated_smc_gate_blocks_low_confluence():
 def test_xau_gated_disable_smc_gate():
     signal = _run_strategy_to_bar(
         XauGatedStrategy(
-            _SignalAtBar(59, "BUY"),
+            _SignalAtBar(_signal_idx(), "BUY"),
             XauGatedParams(enable_smc_gate=False),
         ),
         _long_low_smc_bars(),
-        59,
+        _signal_idx(),
     )
 
     assert signal.action == "BUY"
@@ -85,11 +85,11 @@ def test_xau_gated_disable_smc_gate():
 def test_xau_gated_disable_pda_gate():
     signal = _run_strategy_to_bar(
         XauGatedStrategy(
-            _SignalAtBar(59, "BUY"),
+            _SignalAtBar(_signal_idx(), "BUY"),
             XauGatedParams(enable_pda_gate=False, min_smc_score=0),
         ),
         _long_pda_reject_bars(),
-        59,
+        _signal_idx(),
     )
 
     assert signal.action == "BUY"
@@ -98,9 +98,9 @@ def test_xau_gated_disable_pda_gate():
 
 def test_xau_gated_inner_hold_means_outer_hold():
     signal = _run_strategy_to_bar(
-        XauGatedStrategy(_SignalAtBar(59, "HOLD")),
+        XauGatedStrategy(_SignalAtBar(_signal_idx(), "HOLD")),
         _long_gate_pass_bars(),
-        59,
+        _signal_idx(),
     )
 
     assert signal.action == "HOLD"
@@ -110,9 +110,9 @@ def test_xau_gated_inner_hold_means_outer_hold():
 
 def test_xau_gated_preserves_inner_comment():
     signal = _run_strategy_to_bar(
-        XauGatedStrategy(_SignalAtBar(59, "BUY", comment="ATR_impulse")),
+        XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY", comment="ATR_impulse")),
         _long_gate_pass_bars(),
-        59,
+        _signal_idx(),
     )
 
     assert signal.action == "BUY"
@@ -121,7 +121,7 @@ def test_xau_gated_preserves_inner_comment():
 
 def test_xau_gated_runs_through_backtester():
     result = Backtester(_backtest_config()).run(
-        strategy=XauGatedStrategy(_SignalAtBar(59, "BUY")),
+        strategy=XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY")),
         bars=_long_gate_pass_bars(),
     )
 
@@ -133,7 +133,9 @@ def test_xau_gated_runs_through_backtester():
 def test_xau_gated_synthesized_parity():
     bars = _long_gate_pass_bars()
     result = Backtester(_backtest_config(risk_per_trade_fraction=0.0001)).run(
-        strategy=XauGatedStrategy(_SignalAtBar(59, "BUY", sl_distance=100.0)),
+        strategy=XauGatedStrategy(
+            _SignalAtBar(_signal_idx(), "BUY", sl_distance=100.0)
+        ),
         bars=bars,
     )
 
@@ -141,11 +143,11 @@ def test_xau_gated_synthesized_parity():
         result,
         [
             {
-                "bar_idx": 59,
+                "bar_idx": _signal_idx(),
                 "action": "BUY",
                 "side": "BUY",
                 "volume": 0.01,
-                "price": bars[59]["close"],
+                "price": bars[_signal_idx()]["close"],
             }
         ],
         bar_window=0,
@@ -158,17 +160,19 @@ def test_xau_gated_synthesized_parity():
 
 def test_xau_gated_min_bars_between_signals_blocks_second_signal():
     strategy = XauGatedStrategy(
-        _SignalOnBars({59: "BUY", 60: "BUY"}),
+        _SignalOnBars({_signal_idx(): "BUY", _signal_idx() + 1: "BUY"}),
         XauGatedParams(
             enable_pda_gate=False,
             enable_smc_gate=False,
             min_bars_between_signals=2,
         ),
     )
-    bars = _long_gate_pass_bars() + [_bar(60, close=101.2, high=101.7, low=100.7)]
+    bars = _long_gate_pass_bars() + _m1_bars_from_m5(
+        [_bar(60, close=101.2, high=101.7, low=100.7)]
+    )
 
-    first = _run_strategy_to_bar(strategy, bars, 59)
-    second = _run_strategy_to_bar(strategy, bars, 60)
+    first = _run_strategy_to_bar(strategy, bars, _signal_idx())
+    second = _run_strategy_to_bar(strategy, bars, _signal_idx() + 1)
 
     assert first.action == "BUY"
     assert second.action == "HOLD"
@@ -181,9 +185,9 @@ def test_backtester_min_seconds_between_trades_rejects_second_open():
     ).run(
         strategy=_SignalOnBars({0: "BUY", 1: "BUY"}),
         bars=[
-            _bar(0, close=100.0, high=101.0, low=99.0),
-            _bar(1, close=100.2, high=101.2, low=99.2),
-            _bar(2, close=100.4, high=101.4, low=99.4),
+            _m1_bar(0, close=100.0, high=101.0, low=99.0),
+            _m1_bar(1, close=100.2, high=101.2, low=99.2),
+            _m1_bar(2, close=100.4, high=101.4, low=99.4),
         ],
     )
 
@@ -281,6 +285,10 @@ def _run_strategy_to_bar(strategy: Strategy, bars: list[dict], target_idx: int) 
 
 
 def _long_gate_pass_bars() -> list[dict]:
+    return _m1_bars_from_m5(_long_gate_pass_m5_bars())
+
+
+def _long_gate_pass_m5_bars() -> list[dict]:
     bars = _flat_range_prefix()
     bars.extend(
         [
@@ -294,18 +302,22 @@ def _long_gate_pass_bars() -> list[dict]:
 
 
 def _long_pda_reject_bars() -> list[dict]:
-    bars = _long_gate_pass_bars()
+    bars = _long_gate_pass_m5_bars()
     bars[-1] = _bar(59, close=108.0, high=108.5, low=107.5)
-    return bars
+    return _m1_bars_from_m5(bars)
 
 
 def _long_low_smc_bars() -> list[dict]:
     bars = _flat_range_prefix(length=59)
     bars.append(_bar(59, close=103.0, high=103.1, low=102.9))
-    return bars
+    return _m1_bars_from_m5(bars)
 
 
 def _short_gate_pass_bars() -> list[dict]:
+    return _m1_bars_from_m5(_short_gate_pass_m5_bars())
+
+
+def _short_gate_pass_m5_bars() -> list[dict]:
     bars = _flat_range_prefix()
     bars.extend(
         [
@@ -319,9 +331,9 @@ def _short_gate_pass_bars() -> list[dict]:
 
 
 def _short_pda_reject_bars() -> list[dict]:
-    bars = _short_gate_pass_bars()
+    bars = _short_gate_pass_m5_bars()
     bars[-1] = _bar(59, close=102.0, high=102.5, low=101.5)
-    return bars
+    return _m1_bars_from_m5(bars)
 
 
 def _flat_range_prefix(*, length: int = 56) -> list[dict]:
@@ -345,7 +357,9 @@ def _quick_momentum_long_bars() -> list[dict]:
             base + 0.2,
         ]
     )
-    return [_bar(idx, close=close) for idx, close in enumerate(closes)]
+    m5_bars = [_bar(idx, close=close) for idx, close in enumerate(closes)]
+    m5_bars[-1] = _bar(len(closes) - 1, open_=closes[-2], close=closes[-1])
+    return _m1_bars_from_m5(m5_bars)
 
 
 def _atr_impulse_long_bars() -> list[dict]:
@@ -354,18 +368,19 @@ def _atr_impulse_long_bars() -> list[dict]:
     final_close = closes[-1] + 1.0
     for idx, close in enumerate(closes):
         if idx == len(closes) - 1:
-            bars.append(_bar(idx, close=close, high=close + 0.1, low=close - 2.0))
+            bars.append(_bar(idx, close=close, high=close + 0.1))
         else:
-            bars.append(_bar(idx, close=close, high=close + 2.0, low=close - 2.0))
+            bars.append(_bar(idx, close=close))
     bars.append(
         _bar(
             len(closes),
+            open_=closes[-1],
             close=final_close,
             high=final_close + 0.1,
             low=final_close - 0.1,
         )
     )
-    return bars
+    return _m1_bars_from_m5(bars)
 
 
 def _backtest_config(
@@ -386,6 +401,52 @@ def _backtest_config(
     )
 
 
+def _signal_idx(m5_idx: int = 59) -> int:
+    return int(m5_idx) * 5 + 4
+
+
+def _m1_bars_from_m5(m5_bars: list[dict]) -> list[dict]:
+    bars: list[dict] = []
+    for m5_bar in m5_bars:
+        start = int(m5_bar["time"])
+        neutral = float(m5_bar["open"])
+        for minute in range(5):
+            is_close_minute = minute == 4
+            close = float(m5_bar["close"]) if is_close_minute else neutral
+            high = float(m5_bar["high"]) if is_close_minute else max(neutral, close)
+            low = float(m5_bar["low"]) if is_close_minute else min(neutral, close)
+            bars.append(
+                {
+                    "time": start + minute * 60,
+                    "open": neutral,
+                    "high": high,
+                    "low": low,
+                    "close": close,
+                    "volume": 1.0,
+                }
+            )
+    return bars
+
+
+def _m1_bar(
+    idx: int,
+    *,
+    close: float,
+    open_: float | None = None,
+    high: float | None = None,
+    low: float | None = None,
+) -> dict:
+    open_value = close if open_ is None else open_
+    return {
+        "time": 1_700_000_000 + idx * 60,
+        "open": open_value,
+        "high": close + 0.5 if high is None else high,
+        "low": close - 0.5 if low is None else low,
+        "close": close,
+        "volume": 1.0,
+    }
+
+
 def _bar(
     idx: int,
     *,
@@ -394,9 +455,10 @@ def _bar(
     high: float | None = None,
     low: float | None = None,
 ) -> dict:
+    open_value = close if open_ is None else open_
     return {
-        "time": 1_700_000_000 + idx * 60,
-        "open": close if open_ is None else open_,
+        "time": 1_700_000_100 + idx * 300,
+        "open": open_value,
         "high": close + 0.5 if high is None else high,
         "low": close - 0.5 if low is None else low,
         "close": close,

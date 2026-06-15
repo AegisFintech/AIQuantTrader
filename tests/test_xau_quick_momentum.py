@@ -72,7 +72,7 @@ def test_atr_warmup():
 
 
 def test_compute_xau_features_quick_momentum_long_fires():
-    bars = _quick_momentum_long_bars()
+    bars = _quick_momentum_long_m5_bars()
 
     features = compute_xau_features(bars)
 
@@ -81,7 +81,7 @@ def test_compute_xau_features_quick_momentum_long_fires():
 
 
 def test_compute_xau_features_quick_momentum_short_fires():
-    bars = _quick_momentum_short_bars()
+    bars = _quick_momentum_short_m5_bars()
 
     features = compute_xau_features(bars)
 
@@ -90,11 +90,12 @@ def test_compute_xau_features_quick_momentum_short_fires():
 
 
 def test_xau_quick_momentum_emits_buy_with_sl_tp():
-    bars = _quick_momentum_long_bars()
+    m5_bars = _quick_momentum_long_m5_bars()
+    bars = _m1_bars_from_m5(m5_bars)
     strategy = XauQuickMomentumStrategy()
 
     signal = _run_strategy_to_bar(strategy, bars, len(bars) - 1)
-    feature = compute_xau_features(bars)[-1]
+    feature = compute_xau_features(m5_bars)[-1]
     expected_sl = max(
         feature["atr"] * 1.2,
         max(feature["current"] * 0.00045, 2.0),
@@ -108,7 +109,7 @@ def test_xau_quick_momentum_emits_buy_with_sl_tp():
 
 
 def test_xau_quick_momentum_holds_when_no_signal():
-    bars = [_bar(idx, close=2000.0) for idx in range(60)]
+    bars = _m1_bars_from_m5([_bar(idx, close=2000.0) for idx in range(60)])
     strategy = XauQuickMomentumStrategy()
 
     signal = _run_strategy_to_bar(strategy, bars, len(bars) - 1)
@@ -118,9 +119,10 @@ def test_xau_quick_momentum_holds_when_no_signal():
 
 
 def test_xau_quick_momentum_runs_through_backtester():
-    bars = _quick_momentum_long_bars()
+    m5_bars = _quick_momentum_long_m5_bars()
+    bars = _m1_bars_from_m5(m5_bars)
     signal_bar = len(bars) - 1
-    feature = compute_xau_features(bars)[signal_bar]
+    feature = compute_xau_features(m5_bars)[-1]
     sl_distance = max(
         feature["atr"] * 1.2,
         max(feature["current"] * 0.00045, 2.0),
@@ -140,7 +142,7 @@ def test_xau_quick_momentum_runs_through_backtester():
 
 
 def test_xau_quick_momentum_synthesized_parity():
-    bars = _quick_momentum_long_bars()
+    bars = _m1_bars_from_m5(_quick_momentum_long_m5_bars())
     signal_bar = len(bars) - 1
     close = bars[signal_bar]["close"]
     decisions = [
@@ -195,7 +197,7 @@ def _run_strategy_to_bar(
     return signal
 
 
-def _quick_momentum_long_bars() -> list[dict]:
+def _quick_momentum_long_m5_bars() -> list[dict]:
     closes = _synthetic_quick_momentum_closes(
         direction=1.0,
         trend_step=0.0,
@@ -204,10 +206,12 @@ def _quick_momentum_long_bars() -> list[dict]:
         pullback=0.5,
         rebound=0.2,
     )
-    return [_bar(idx, close=close) for idx, close in enumerate(closes)]
+    bars = [_bar(idx, close=close) for idx, close in enumerate(closes)]
+    bars[-1] = _bar(len(closes) - 1, open_=closes[-2], close=closes[-1])
+    return bars
 
 
-def _quick_momentum_short_bars() -> list[dict]:
+def _quick_momentum_short_m5_bars() -> list[dict]:
     closes = _synthetic_quick_momentum_closes(
         direction=-1.0,
         trend_step=0.0,
@@ -216,7 +220,9 @@ def _quick_momentum_short_bars() -> list[dict]:
         pullback=0.2,
         rebound=0.5,
     )
-    return [_bar(idx, close=close) for idx, close in enumerate(closes)]
+    bars = [_bar(idx, close=close) for idx, close in enumerate(closes)]
+    bars[-1] = _bar(len(closes) - 1, open_=closes[-2], close=closes[-1])
+    return bars
 
 
 def _synthetic_quick_momentum_closes(
@@ -261,10 +267,41 @@ def _backtest_config() -> BacktestConfig:
     )
 
 
-def _bar(idx: int, *, close: float, high: float | None = None, low: float | None = None):
+def _m1_bars_from_m5(m5_bars: list[dict]) -> list[dict]:
+    bars: list[dict] = []
+    for m5_bar in m5_bars:
+        start = int(m5_bar["time"])
+        neutral = float(m5_bar["open"])
+        for minute in range(5):
+            is_close_minute = minute == 4
+            close = float(m5_bar["close"]) if is_close_minute else neutral
+            high = float(m5_bar["high"]) if is_close_minute else max(neutral, close)
+            low = float(m5_bar["low"]) if is_close_minute else min(neutral, close)
+            bars.append(
+                {
+                    "time": start + minute * 60,
+                    "open": neutral,
+                    "high": high,
+                    "low": low,
+                    "close": close,
+                    "volume": 1.0,
+                }
+            )
+    return bars
+
+
+def _bar(
+    idx: int,
+    *,
+    close: float,
+    open_: float | None = None,
+    high: float | None = None,
+    low: float | None = None,
+):
+    open_value = close if open_ is None else open_
     return {
-        "time": f"2026-05-01 10:{idx:02d}:00",
-        "open": close,
+        "time": 1_700_000_100 + idx * 300,
+        "open": open_value,
         "high": close + 1.0 if high is None else high,
         "low": close - 1.0 if low is None else low,
         "close": close,

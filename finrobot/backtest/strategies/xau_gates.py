@@ -1,4 +1,8 @@
-"""XAU feature helpers mirroring the MT5 bridge EA signal inputs."""
+"""XAU feature helpers mirroring the MT5 bridge EA signal inputs.
+
+Live XAU parity callers pass M5 bars here because the MT5 bridge reads
+``AutoTimeframe = PERIOD_M5`` for both indicator and PDA/SMC inputs.
+"""
 
 from __future__ import annotations
 
