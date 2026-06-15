@@ -3,13 +3,16 @@
 #property version   "1.00"
 #property script_show_inputs
 
-input string Symbol = "XAUUSD";
+input string ExportSymbol = "XAUUSD";
 input int    BarCount = 50000;
 
 int OnStart()
 {
-   string export_symbol = StringTrimLeft(Symbol);
-   export_symbol = StringTrimRight(export_symbol);
+   // Copy the input into a local mutable string because StringTrimLeft /
+   // StringTrimRight take their first argument by reference and `input` is const.
+   string export_symbol = ExportSymbol;
+   StringTrimLeft(export_symbol);
+   StringTrimRight(export_symbol);
    if(export_symbol == "")
    {
       Print("FinRobot export error: Symbol is required");
