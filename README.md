@@ -5,7 +5,7 @@ FinRobot is an MT5-first autonomous demo-trading repo for exactly two symbols:
 - `XAUUSD`
 - `BTCUSD`
 
-The active runtime is simple: MetaTrader 5 runs under Wine/Xvfb, the FinRobot EA trades inside MT5, and PM2 keeps MT5 plus the autonomous review loop alive.
+The active runtime is simple: MetaTrader 5 runs under Wine/Xvfb, the FinRobot EA trades inside MT5, and PM2 keeps MT5 plus the autonomous review loop and read-only dashboard alive.
 
 ## Install
 
@@ -58,7 +58,7 @@ For a fresh generic MT5 install, the IC Markets server list may need to be seede
 
 ```bash
 pm2 list
-pm2 restart mt5-terminal autonomous-review --update-env
+pm2 restart mt5-terminal autonomous-review finrobot-dashboard --update-env
 python3 scripts/mt5_status.py
 python3 scripts/mt5_trade_report.py
 ```
@@ -69,8 +69,11 @@ Active PM2 processes:
 |---|---|
 | `mt5-terminal` | Starts repo-local MT5 under Wine/Xvfb. |
 | `autonomous-review` | Reviews MT5 trade performance every 6 hours and records analysis. |
+| `finrobot-dashboard` | Serves the read-only Streamlit trade/status dashboard on `127.0.0.1:8501`. |
 
 All PM2 output goes to `logs/combined.log`.
+
+The dashboard reads MT5 Common Files and PM2 logs only; it does not expose a command form or trading controls. When nginx is configured for the host, proxy `trading.aims-sg.com` to `127.0.0.1:8501`.
 
 ## MT5 Bridge
 

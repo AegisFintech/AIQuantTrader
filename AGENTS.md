@@ -14,6 +14,7 @@ FinRobot is now an MT5-first autonomous demo-trading repo. Trade and optimize on
 - Runtime process list: `ecosystem.config.js`
 - Installer: `install.sh`
 - MT5 status/report tools: `scripts/mt5_status.py`, `scripts/mt5_trade_report.py`
+- Dashboard: `dashboard/app.py` served by `finrobot-dashboard` on `127.0.0.1:8501`
 - MT5 startup/profile helper: `scripts/mt5_configure_profile.py`
 - 6-hour Opencode loop: `scripts/autonomous_review_loop.py`
 - Indicators: `finrobot/indicators.py` (consolidated)
@@ -33,7 +34,7 @@ Use only these active processes:
 ```bash
 ./install.sh
 pm2 start ecosystem.config.js
-pm2 restart mt5-terminal autonomous-review --update-env
+pm2 restart mt5-terminal autonomous-review finrobot-dashboard --update-env
 pm2 list
 ```
 
