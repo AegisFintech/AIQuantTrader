@@ -24,6 +24,7 @@ class XauRollingFeatureState:
         self.ema_trend = _RollingEma(getattr(params, "trend", 50))
         self.rsi = _RollingRsi(getattr(params, "rsi_period", 14))
         self.atr = _RollingAtr(params.atr_period)
+        self.adx = _RollingAdx(getattr(params, "adx_period", 14))
         self.macd_fast = _RollingEma(12)
         self.macd_slow = _RollingEma(26)
         self.macd_signal = _RollingEma(9)
@@ -42,6 +43,7 @@ class XauRollingFeatureState:
         ema_trend = self.ema_trend.update(close)
         rsi_value = self.rsi.update(close)
         atr_value = self.atr.update(bar)
+        adx_value = self.adx.update(bar)
 
         macd_fast = self.macd_fast.update(close)
         macd_slow = self.macd_slow.update(close)
@@ -104,6 +106,7 @@ class XauRollingFeatureState:
                 "macd_signal": None,
                 "macd_hist": None,
                 "atr": None,
+                "adx": None,
                 "current": close,
                 "previous": previous,
                 "momentum3": None,
@@ -126,6 +129,7 @@ class XauRollingFeatureState:
             "macd_signal": macd_signal,
             "macd_hist": macd_hist,
             "atr": atr_value,
+            "adx": adx_value,
             "current": close,
             "previous": previous,
             "momentum3": momentum3,
@@ -232,6 +236,7 @@ class XauRollingFeatureState:
                 "macd_signal": None,
                 "macd_hist": None,
                 "atr": None,
+                "adx": None,
                 "current": close,
                 "previous": previous,
                 "momentum3": None,
@@ -257,6 +262,7 @@ class XauRollingFeatureState:
             "macd_signal": macd_signal,
             "macd_hist": macd_hist,
             "atr": atr_value,
+            "adx": _preview_adx(self.adx, bar),
             "current": close,
             "previous": previous,
             "momentum3": momentum3,
@@ -458,6 +464,60 @@ class _RollingAtr:
             return self.value
         self.value = self.value + (true_range - self.value) / self.period
         return self.value
+
+
+class _RollingAdx:
+    """Wilder-smoothed ADX matching MT5 iADX behaviour."""
+
+    def __init__(self, period: int = 14):
+        self.period = _positive_period(period)
+        self.value: float | None = None
+        self._previous_high: float | None = None
+        self._previous_low: float | None = None
+        self._previous_close: float | None = None
+        self._atr = _RollingAtr(period)
+        self._plus_dm_ema = _RollingEma(period, alpha=1.0 / period)
+        self._minus_dm_ema = _RollingEma(period, alpha=1.0 / period)
+        self._dx_ema = _RollingEma(period, alpha=1.0 / period)
+
+    def update(self, bar: dict) -> float | None:
+        high = float(bar["high"])
+        low = float(bar["low"])
+        atr = self._atr.update(bar)
+
+        if self._previous_high is None:
+            self._previous_high = high
+            self._previous_low = low
+            self._previous_close = float(bar["close"])
+            return None
+
+        up_move = high - self._previous_high
+        down_move = self._previous_low - low
+        plus_dm = up_move if up_move > down_move and up_move > 0 else 0.0
+        minus_dm = down_move if down_move > up_move and down_move > 0 else 0.0
+
+        self._previous_high = high
+        self._previous_low = low
+        self._previous_close = float(bar["close"])
+
+        plus_dm_smooth = self._plus_dm_ema.update(plus_dm)
+        minus_dm_smooth = self._minus_dm_ema.update(minus_dm)
+
+        if atr is None or plus_dm_smooth is None or minus_dm_smooth is None:
+            return None
+
+        atr_safe = atr if atr > 0 else 1e-10
+        plus_di = 100.0 * plus_dm_smooth / atr_safe
+        minus_di = 100.0 * minus_dm_smooth / atr_safe
+        di_sum = plus_di + minus_di
+        dx = 100.0 * abs(plus_di - minus_di) / di_sum if di_sum > 0 else 0.0
+
+        self.value = self._dx_ema.update(dx)
+        return self.value
+
+
+def _preview_adx(state: "_RollingAdx", bar: dict) -> float | None:
+    return state.value
 
 
 def _rolling_bullish_cross(
