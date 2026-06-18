@@ -65,6 +65,8 @@ def load_xau_bars(from_date: str, to_date: str) -> list[dict]:
 
 
 def build_xau_strategy() -> XauGatedStrategy:
+    # Parity fixture: mirrors EA v1.31 parameters (pre-v1.32 acks).
+    # ADX gate disabled so replayed acks from the old EA are not filtered.
     return XauGatedStrategy(
         inner=XauAtrImpulseStrategy(),
         gate_params=XauGatedParams(
@@ -79,6 +81,7 @@ def build_xau_strategy() -> XauGatedStrategy:
             pda_short_floor=0.60,
             min_smc_score=3,
             min_bars_between_signals=1,
+            enable_adx_gate=False,
         ),
     )
 

@@ -20,6 +20,8 @@ class XauGatedParams:
     min_smc_score: int = 3
     enable_smc_gate: bool = True
     enable_pda_gate: bool = True
+    enable_adx_gate: bool = True
+    adx_min_threshold: float = 20.0
     gate_params: XauGateParams = field(default_factory=XauGateParams)
     min_bars_between_signals: int = 0
     min_seconds_between_trades: int = 0
@@ -101,6 +103,11 @@ class XauGatedStrategy(Strategy):
             if action == "BUY"
             else feature["smc_short_score"]
         )
+        if self.params.enable_adx_gate:
+            adx_value = feature.get("adx")
+            if adx_value is None or float(adx_value) < self.params.adx_min_threshold:
+                return Signal(action="HOLD", strategy=self.name, comment="adx_regime_reject")
+
         if self.params.enable_pda_gate:
             if action == "BUY" and pda_value > self.params.pda_long_ceiling:
                 return Signal(
