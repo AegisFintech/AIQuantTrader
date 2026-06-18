@@ -277,11 +277,11 @@ class Backtester:
         low = float(bar["low"])
         side = position.side.upper()
         if side == "BUY":
-            sl_hit = position.sl > 0 and low <= position.sl <= high
-            tp_hit = position.tp > 0 and low <= position.tp <= high
+            sl_hit = position.sl > 0 and low <= position.sl
+            tp_hit = position.tp > 0 and high >= position.tp
         elif side == "SELL":
-            sl_hit = position.sl > 0 and low <= position.sl <= high
-            tp_hit = position.tp > 0 and low <= position.tp <= high
+            sl_hit = position.sl > 0 and high >= position.sl
+            tp_hit = position.tp > 0 and low <= position.tp
         else:
             return None, ""
 

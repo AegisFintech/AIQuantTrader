@@ -139,7 +139,7 @@ def calculate_trend_direction(df_m1: pd.DataFrame, cfg: GridConfig) -> pd.DataFr
             how="left"
         )
         # Forward fill missing trend values
-        merged["trend"] = merged["trend"].fillna(method="ffill").fillna(0)
+        merged["trend"] = merged["trend"].ffill().fillna(0)
         
         _log_info(f"Successfully merged trend data with {len(merged)} rows", cfg)
         

@@ -1,6 +1,6 @@
 #property strict
 #property description "FinRobot MT5 bridge and demo auto trader for XAUUSD + BTCUSD."
-#property version "1.31"
+#property version "1.32"
 
 #include <Trade/Trade.mqh>
 #include "BridgeIO.mqh"
@@ -47,16 +47,16 @@ input int TrendEmaPeriod = 50;
 input int RsiPeriod = 14;
 input int AtrPeriod = 14;
 input double StopAtrMultiplier = 1.2;
-input double TakeProfitAtrMultiplier = 1.8;
+input double TakeProfitAtrMultiplier = 2.4;
 input double MaxSpreadPointsXAUUSD = 80.0;
 input double MaxSpreadPointsBTCUSD = 5000.0;
 input bool EnableSmartMoneyGates = true;
 input bool EnableXauAutoTrading = true;
 input int SmcLookbackBars = 48;
-input double FvgMinAtrMultiplier = 0.15;
+input double FvgMinAtrMultiplier = 0.30;
 input double DiscountThreshold = 0.38;
 input double PremiumThreshold = 0.62;
-input double LiquiditySweepAtrMultiplier = 0.10;
+input double LiquiditySweepAtrMultiplier = 0.30;
 input double MinTrendSlopeAtrMultiplier = 0.04;
 input bool EnableBtcRsiReversion = false;
 input bool EnableBtcAtrImpulse = false;
@@ -75,6 +75,9 @@ input int LondonStartHour = 7;
 input int LondonEndHour = 11;
 input int NyStartHour = 13;
 input int NyEndHour = 17;
+input bool EnableAdxRegimeFilter = true;
+input int AdxPeriod = 14;
+input double AdxMinThreshold = 20.0;
 input bool EnableDynamicBreakEven = true;
 input double BreakEvenRrRatio = 1.0;
 input double BreakEvenExtraPoints = 10.0;
@@ -754,12 +757,13 @@ void ManageAutoSymbol(string symbol, int idx) {
    int rsiHandle = iRSI(symbol, AutoTimeframe, RsiPeriod, PRICE_CLOSE);
    int macdHandle = iMACD(symbol, AutoTimeframe, 12, 26, 9, PRICE_CLOSE);
    int atrHandle = iATR(symbol, AutoTimeframe, AtrPeriod);
-   if(emaFastHandle == INVALID_HANDLE || emaSlowHandle == INVALID_HANDLE || emaTrendHandle == INVALID_HANDLE || rsiHandle == INVALID_HANDLE || macdHandle == INVALID_HANDLE || atrHandle == INVALID_HANDLE) {
+   int adxHandle = iADX(symbol, AutoTimeframe, AdxPeriod);
+   if(emaFastHandle == INVALID_HANDLE || emaSlowHandle == INVALID_HANDLE || emaTrendHandle == INVALID_HANDLE || rsiHandle == INVALID_HANDLE || macdHandle == INVALID_HANDLE || atrHandle == INVALID_HANDLE || adxHandle == INVALID_HANDLE) {
       SetLastSignal(idx, "indicator_handle_failed");
       return;
    }
 
-   double emaFast[], emaSlow[], emaTrend[], rsi[], macdMain[], macdSignal[], atr[];
+   double emaFast[], emaSlow[], emaTrend[], rsi[], macdMain[], macdSignal[], atr[], adxVal[];
    ArraySetAsSeries(emaFast, true);
    ArraySetAsSeries(emaSlow, true);
    ArraySetAsSeries(emaTrend, true);
@@ -767,6 +771,7 @@ void ManageAutoSymbol(string symbol, int idx) {
    ArraySetAsSeries(macdMain, true);
    ArraySetAsSeries(macdSignal, true);
    ArraySetAsSeries(atr, true);
+   ArraySetAsSeries(adxVal, true);
 
    bool copied = CopyBuffer(emaFastHandle, 0, 0, 5, emaFast) >= 5 &&
                  CopyBuffer(emaSlowHandle, 0, 0, 5, emaSlow) >= 5 &&
@@ -774,13 +779,15 @@ void ManageAutoSymbol(string symbol, int idx) {
                  CopyBuffer(rsiHandle, 0, 0, 5, rsi) >= 5 &&
                  CopyBuffer(macdHandle, 0, 0, 5, macdMain) >= 5 &&
                  CopyBuffer(macdHandle, 1, 0, 5, macdSignal) >= 5 &&
-                 CopyBuffer(atrHandle, 0, 0, 5, atr) >= 5;
+                 CopyBuffer(atrHandle, 0, 0, 5, atr) >= 5 &&
+                 CopyBuffer(adxHandle, 0, 0, 3, adxVal) >= 3;
    IndicatorRelease(emaFastHandle);
    IndicatorRelease(emaSlowHandle);
    IndicatorRelease(emaTrendHandle);
    IndicatorRelease(rsiHandle);
    IndicatorRelease(macdHandle);
    IndicatorRelease(atrHandle);
+   IndicatorRelease(adxHandle);
    if(!copied) {
       SetLastSignal(idx, "indicator_copy_failed");
       return;
@@ -850,6 +857,11 @@ void ManageAutoSymbol(string symbol, int idx) {
 
    if(side == 0) {
       SetLastSignal(idx, "no_signal rsi=" + DoubleToString(rsi[0], 1) + " mom3=" + DoubleToString(momentum3 * 100.0, 3) + "% pda=" + DoubleToString(pda, 2));
+      return;
+   }
+
+   if(EnableAdxRegimeFilter && adxVal[0] < AdxMinThreshold) {
+      SetLastSignal(idx, "adx_regime_reject " + reason + " adx=" + DoubleToString(adxVal[0], 1));
       return;
    }
 

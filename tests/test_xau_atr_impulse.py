@@ -250,7 +250,7 @@ def _expected_distances(feature: dict) -> tuple[float, float]:
         feature["atr"] * 1.2,
         max(feature["current"] * 0.00045, 2.0),
     )
-    tp_distance = sl_distance * 1.8
+    tp_distance = sl_distance * 2.4
     return sl_distance, tp_distance
 
 

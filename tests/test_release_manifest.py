@@ -34,7 +34,7 @@ def test_build_manifest_returns_required_keys():
 def test_build_manifest_extracts_ea_version_from_mq5_source():
     manifest = release_manifest.build_manifest(ROOT)
 
-    assert manifest["ea_version"] == "1.31"
+    assert manifest["ea_version"] == "1.32"
 
 
 def test_build_manifest_extracts_auto_symbols_as_managed_symbols():

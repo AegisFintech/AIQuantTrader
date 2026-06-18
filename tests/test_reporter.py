@@ -201,7 +201,10 @@ def test_reporter_verdict_marginal():
         total_pnl=20.0,
         max_drawdown=2500.0,
         max_drawdown_pct=0.25,
+        max_drawdown_duration_bars=0,
         sharpe_ratio=0.0,
+        sortino_ratio=0.0,
+        calmar_ratio=0.0,
         avg_holding_time_seconds=60.0,
         final_equity=10020.0,
     )
