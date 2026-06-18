@@ -17,8 +17,8 @@ class XauGateParams:
     smc_lookback: int = 48
     discount_threshold: float = 0.38
     premium_threshold: float = 0.62
-    fvg_min_atr_mult: float = 0.15
-    liquidity_sweep_atr_mult: float = 0.10
+    fvg_min_atr_mult: float = 0.30
+    liquidity_sweep_atr_mult: float = 0.30
 
 
 def ema(values: list[float], period: int) -> list[float | None]:

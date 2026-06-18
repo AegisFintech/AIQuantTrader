@@ -287,7 +287,10 @@ def _metrics(
         total_pnl=total_pnl,
         max_drawdown=max_drawdown_pct * 10000.0,
         max_drawdown_pct=max_drawdown_pct,
+        max_drawdown_duration_bars=0,
         sharpe_ratio=1.0,
+        sortino_ratio=1.0,
+        calmar_ratio=1.0,
         avg_holding_time_seconds=60.0,
         final_equity=10000.0 + total_pnl,
     )

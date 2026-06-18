@@ -28,7 +28,10 @@ class MetricsReport:
     total_pnl: float
     max_drawdown: float
     max_drawdown_pct: float
+    max_drawdown_duration_bars: int
     sharpe_ratio: float
+    sortino_ratio: float
+    calmar_ratio: float
     avg_holding_time_seconds: float
     final_equity: float
 
@@ -40,7 +43,10 @@ def compute_metrics(result: BacktestResult) -> MetricsReport:
     pnls = [_trade_pnl(trade) for trade in trades]
     wins = [pnl for pnl in pnls if pnl > 0]
     losses = [pnl for pnl in pnls if pnl < 0]
-    drawdown_abs, drawdown_pct = max_drawdown(list(getattr(result, "equity_curve", [])))
+    equity_curve = list(getattr(result, "equity_curve", []))
+    drawdown_abs, drawdown_pct = max_drawdown(equity_curve)
+    initial = float(getattr(result, "initial_equity", 0.0))
+    final = float(getattr(result, "final_equity", 0.0))
     return MetricsReport(
         n_trades=len(trades),
         win_rate=win_rate(trades),
@@ -51,9 +57,12 @@ def compute_metrics(result: BacktestResult) -> MetricsReport:
         total_pnl=sum(pnls),
         max_drawdown=drawdown_abs,
         max_drawdown_pct=drawdown_pct,
-        sharpe_ratio=sharpe_ratio(list(getattr(result, "equity_curve", []))),
+        max_drawdown_duration_bars=max_drawdown_duration(equity_curve),
+        sharpe_ratio=sharpe_ratio(equity_curve),
+        sortino_ratio=sortino_ratio(equity_curve),
+        calmar_ratio=calmar_ratio(equity_curve, initial_equity=initial, final_equity=final),
         avg_holding_time_seconds=_avg_holding_time(trades),
-        final_equity=float(getattr(result, "final_equity", 0.0)),
+        final_equity=final,
     )
 
 
@@ -82,6 +91,79 @@ def sharpe_ratio(
             return -math.inf
         return 0.0
     return avg_excess / std * math.sqrt(M1_PERIODS_PER_YEAR)
+
+
+def sortino_ratio(
+    equity_curve: list[tuple[int, float]], *, risk_free_rate: float = 0.0
+) -> float:
+    """Return annualized Sortino ratio (penalises downside volatility only)."""
+
+    if len(equity_curve) < 2:
+        return 0.0
+    returns: list[float] = []
+    for (_, previous), (_, current) in zip(equity_curve, equity_curve[1:]):
+        if previous == 0:
+            continue
+        returns.append((current / previous) - 1.0)
+    if not returns:
+        return 0.0
+    period_rf = float(risk_free_rate) / M1_PERIODS_PER_YEAR
+    excess = [r - period_rf for r in returns]
+    avg_excess = mean(excess)
+    downside = [r for r in excess if r < 0]
+    if not downside:
+        return math.inf if avg_excess > 0 else 0.0
+    downside_std = math.sqrt(sum(r ** 2 for r in downside) / len(downside))
+    if downside_std == 0:
+        return math.inf if avg_excess > 0 else 0.0
+    return avg_excess / downside_std * math.sqrt(M1_PERIODS_PER_YEAR)
+
+
+def calmar_ratio(
+    equity_curve: list[tuple[int, float]],
+    *,
+    initial_equity: float,
+    final_equity: float,
+) -> float:
+    """Return Calmar ratio: annualized return divided by max drawdown percentage."""
+
+    if len(equity_curve) < 2 or initial_equity <= 0:
+        return 0.0
+    _, drawdown_pct = max_drawdown(equity_curve)
+    if drawdown_pct == 0:
+        return math.inf if final_equity > initial_equity else 0.0
+    n_bars = len(equity_curve)
+    years = n_bars / M1_PERIODS_PER_YEAR
+    if years <= 0:
+        return 0.0
+    ratio = final_equity / initial_equity
+    if ratio <= 0:
+        return 0.0
+    try:
+        annualized_return = ratio ** (1.0 / years) - 1.0
+    except (OverflowError, ZeroDivisionError):
+        return 0.0
+    return annualized_return / drawdown_pct
+
+
+def max_drawdown_duration(equity_curve: list[tuple[int, float]]) -> int:
+    """Return the longest streak of bars spent below a prior equity peak."""
+
+    if not equity_curve:
+        return 0
+    peak = float(equity_curve[0][1])
+    current_streak = 0
+    longest = 0
+    for _, equity in equity_curve:
+        value = float(equity)
+        if value >= peak:
+            peak = value
+            current_streak = 0
+        else:
+            current_streak += 1
+            if current_streak > longest:
+                longest = current_streak
+    return longest
 
 
 def max_drawdown(equity_curve: list[tuple[int, float]]) -> tuple[float, float]:

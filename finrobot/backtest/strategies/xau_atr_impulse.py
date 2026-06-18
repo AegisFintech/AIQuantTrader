@@ -20,7 +20,7 @@ class XauAtrImpulseParams:
     rsi_long_ceiling: float = 80.0
     rsi_short_floor: float = 20.0
     stop_atr_mult: float = 1.2
-    tp_atr_mult: float = 1.8
+    tp_atr_mult: float = 2.4
     min_stop_floor: float = 2.0
     min_stop_pct: float = 0.00045
 

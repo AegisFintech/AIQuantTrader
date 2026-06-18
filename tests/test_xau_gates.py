@@ -95,7 +95,9 @@ def test_smc_liquidity_sweep_bullish():
         _bar(6, close=96.4, high=97.0, low=96.0),
     ]
 
-    components = smc_long_components(bars, 10.0, 96.4, XauGateParams())
+    components = smc_long_components(
+        bars, 10.0, 96.4, XauGateParams(liquidity_sweep_atr_mult=0.10)
+    )
 
     assert components["sweep"] is True
 
