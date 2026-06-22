@@ -1,191 +1,206 @@
-## 1. AUDIT OF CURRENT STATE
+# FinRobot Quant Roadmap - XAUUSD-Only Status
 
-- **Live artifact:** [broker/mt5/FinRobotBridgeEA.mq5](/root/FinRobot/broker/mt5/FinRobotBridgeEA.mq5:1), declared v1.29, is the deployed MT5 EA. It trades configured `AutoSymbols="XAUUSD,BTCUSD"`, polls `finrobot_commands.csv`, writes `finrobot_status.json`, `finrobot_positions.csv`, `finrobot_deals.csv`, and `finrobot_acks.csv`.
-- **EA modules:** [BridgeIO.mqh](/root/FinRobot/broker/mt5/BridgeIO.mqh:1) handles CSV acks/string cleanup; [RiskManagement.mqh](/root/FinRobot/broker/mt5/RiskManagement.mqh:1) handles day PnL/session/break-even logic; [SmartMoney.mqh](/root/FinRobot/broker/mt5/SmartMoney.mqh:1) implements SMC scoring.
-- **Runtime:** [ecosystem.config.js](/root/FinRobot/ecosystem.config.js:1) runs `mt5-terminal` and `autonomous-review` through PM2, logging to `logs/combined.log`. Current `pm2 list` also showed unrelated `skill-odoo-bot` in the same PM2 namespace.
-- **Install/startup:** [install.sh](/root/FinRobot/install.sh:1), [scripts/start_mt5.sh](/root/FinRobot/scripts/start_mt5.sh:1), [scripts/sync_mt5_ea.sh](/root/FinRobot/scripts/sync_mt5_ea.sh:1), and [scripts/mt5_configure_profile.py](/root/FinRobot/scripts/mt5_configure_profile.py:1) manage Wine/MT5, EA sync, profile config, and PM2 startup.
-- **Live status/reporting:** [scripts/mt5_status.py](/root/FinRobot/scripts/mt5_status.py:1) and [scripts/mt5_trade_report.py](/root/FinRobot/scripts/mt5_trade_report.py:1) read MT5 Common Files. Current report showed fresh heartbeat, `ICMarketsSC-Demo`, zero open managed positions, and zero closed managed deals.
-- **Risk controls in place:** daily risk lot sizing, daily loss limit, max positions, same-side cap, cooldown, spread caps, BTC cost filters, BTC H1/PDA gates, XAU PDA gates, SMC gates, dynamic break-even, and partial no-SL/TP protection.
-- **Research/data:** [data/XAUUSD1.csv](/root/FinRobot/data/XAUUSD1.csv:1) has 100,000 XAUUSD M1 rows from `2026-01-19 18:51` to `2026-05-01 10:59`. Python research code exists in [finrobot/hft.py](/root/FinRobot/finrobot/hft.py:1), [finrobot/indicators.py](/root/FinRobot/finrobot/indicators.py:1), and `finrobot/strategies/`.
-- **Tests:** [tests/](/root/FinRobot/tests/conftest.py:1) contains 6 Python smoke tests. They passed with `.venv/bin/python -B -m pytest -q -s -p no:cacheprovider`. There are no EA, bridge, deployment, or risk-gate tests.
-- **Monitoring:** file-based only. No metrics, alerts, SLOs, dashboards, durable ledger, or incident escalation.
-- **Security:** `.env` is ignored, but an env-like `/root/FinRobot/.env.bak-arm-wine` exists. I did not open it. `autonomous_review_loop.py` can run Opencode with `--dangerously-skip-permissions`, but current code gates LLM edits unless `AUTOREVIEW_ENABLE_LLM=true`.
-- **Article/blog generator:** not present in current tracked files. I found only `.github/workflows/jekyll-gh-pages.yml`.
-- **Verdict:** credible live demo prototype. Not production-grade.
+Last updated: 2026-06-22
 
-## 2. GAP ANALYSIS
+Status legend:
 
-**Blocker**
+- `[done]` implemented or operationally present in the current repo/runtime.
+- `[partial]` usable pieces exist, but the control is incomplete or not enforced end to end.
+- `[not done]` not implemented yet.
+- `[retired]` no longer part of the active mandate.
 
-- `ExecuteCommand` in the EA can trade symbols outside the mandate and bypass auto risk sizing, max lot caps, required SL/TP, and daily-risk policy. `CLOSE` is also not magic-filtered like `CLOSE_ALL`.
-- No reproducible EA build gate. `sync_mt5_ea.sh` may compile, but there is no CI compile proof, retained compile log, or source-to-`.ex5` release manifest.
-- No durable trading ledger. `WriteDealsHistory` exports only a 14-day MT5 history slice to CSV.
-- No real alerts for stale heartbeat, PM2 restart loop, unprotected positions, order rejects, or daily drawdown.
-- Risk input semantics are ambiguous: `DailyRiskPerTradePct=0.0010` and `DailyLossLimitPct=0.01` are divided by 100 in code, so they mean `0.001%` and `0.01%`, not `0.10%` and `1.00%`.
-- PM2 host/process isolation is weak because non-FinRobot processes share the namespace.
+## 1. Current Standing
 
-**Important**
+- Active trading mandate is `XAUUSD` only. BTC and all non-XAU symbols are retired from active trading, scanning, optimization, and roadmap scope unless the owner explicitly reverses the mandate. `[done]`
+- Active EA is `broker/mt5/FinRobotBridgeEA.mq5`, version `1.33`, with `AutoSymbols="XAUUSD"` and `AutoTimeframe=PERIOD_M5`. `[done]`
+- Daily risk lot sizing is enabled with `DailyRiskPerTradeFraction=0.0010` and `DailyLossLimitFraction=0.01`. `[done]`
+- Current recovery defaults are conservative: weak signals disabled, XAU auto-trading enabled, SMC/PDA gates enabled, ADX regime filter enabled, max two managed XAU positions. `[done]`
+- PM2 active runtime is `mt5-terminal`, `mt5-watchdog`, `autonomous-review`, and `finrobot-dashboard`, all writing to `logs/combined.log`. `[done]`
+- MT5 healthcheck currently passes: Common Files present, heartbeat fresh, no daily loss breach, no open unprotected managed positions, `mt5-terminal` online. `[done]`
+- Live trade report currently shows zero open managed positions and positive total managed XAU closed PnL over the available 14-day MT5 deal export. `[done]`
+- Full Python test suite passed with `.venv/bin/python -m pytest -q -p no:cacheprovider`: `324 passed`. `[done]`
+- `QUANT_ROADMAP.md` was stale before this update: it referenced EA v1.29, `XAUUSD,BTCUSD`, six smoke tests, and several blockers that have since been fixed. `[done]`
 
-- No BTC research dataset, no tick/bid/ask data, no broker spread history, no walk-forward framework, no experiment tracker.
-- Python strategy code does not reproduce live MQL5 logic, fills, session gates, stops, costs, or broker constraints.
-- Logs are human text, not structured operational data.
-- Secrets are file-based; no rotation, least privilege, or audit trail.
-- `finrobot/utils/logging_config.py` still points to `/home/openclaw/FinRobot/finrobot.log`, conflicting with the active `/root/FinRobot/logs/combined.log`.
+## 2. Phase 1: MVP Hardening
 
-**Nice-to-have**
+Goal: make the current demo EA safe, observable, and reproducible enough to keep running.
 
-- Dashboard after metrics exist.
-- Research notebooks after data warehouse exists.
-- Blog/article generation after operations produce reliable research artifacts.
-- Portfolio optimizer after multiple validated strategies exist.
+Exit criteria:
 
-## 3. PHASED ROADMAP
+- Command path enforces mandate and basic risk policy. `[done]`
+- Healthcheck fails loudly on stale heartbeat, missing Common Files, PM2 offline, unprotected positions, or daily loss breach. `[done]`
+- Python tests pass. `[done]`
+- EA sync/compile status is recorded and checked before deploy. `[partial]`
+- `.env.sample` documents safety toggles. `[done]`
+- Operator runbook/release checklist exists. `[done]`
 
-### Phase 1: MVP Hardening This Week
+Tasks:
 
-**Goal:** make the current demo EA safe, observable, and reproducible enough to continue running.
+- Harden `ExecuteCommand`: whitelist only managed symbols, require SL/TP for market commands, enforce max lot, daily loss, max positions, and magic-safe close. `[done]`
+- Retire BTC from the command and auto-trading mandate. `[done]`
+- Rename/clarify risk inputs from ambiguous percent semantics to fraction semantics. `[done]`
+- Keep `UseDailyRiskLotSizing=true` unless the owner explicitly disables it. `[done]`
+- Add `AUTOREVIEW_ENABLE_LLM=false` to `.env.sample` and docs. `[done]`
+- Keep autonomous review LLM editing hard-gated off by default. `[done]`
+- Add `scripts/healthcheck.py` for heartbeat, Common Files, PM2, unprotected positions, and daily loss status. `[done]`
+- Add tests for `scripts/mt5_trade_report.py`. `[done]`
+- Fix the hardcoded `/home/openclaw` logging path. `[done]`
+- Keep active service logs consolidated in `logs/combined.log`. `[done]`
+- Remove/rotate `.env.bak-arm-wine` without printing secrets. `[done]`
+- Archive Common Files snapshots daily under `state/mt5/archive/YYYY-MM-DD/HHMMSS/`. `[done]`
+- Capture EA compile log after sync. `[partial]`
+- Make compile success a hard CI/release gate, not only a checklist step. `[not done]`
 
-**Exit criteria:** command path enforces mandate/risk; healthcheck fails loudly; Python tests pass; EA sync/compile status is recorded; `.env.sample` documents safety toggles; runbook exists.
+## 3. Phase 2: Productionization
 
-**Key work items:**
+Goal: turn the demo runtime into a controlled trading service.
 
-- Harden `ExecuteCommand`: whitelist `XAUUSD/BTCUSD`, require SL/TP for market commands, enforce max lot, daily loss, max positions, and magic-safe close.
-- Decide percent-vs-fraction semantics for `DailyRiskPerTradePct` and `DailyLossLimitPct`; rename or adjust docs/defaults.
-- Add `AUTOREVIEW_ENABLE_LLM=false` to `.env.sample` and README.
-- Add `scripts/healthcheck.py`: stale heartbeat, missing Common Files, PM2 offline, unprotected managed positions, daily loss breach.
-- Add tests for `mt5_trade_report.py`.
-- Fix `finrobot/utils/logging_config.py`.
-- Remove/rotate `.env.bak-arm-wine`.
-- Archive Common Files snapshots daily.
-- Capture EA compile result/log after sync.
+Exit criteria:
 
-**Effort:** 3-5 focused days.
+- MT5 Common Files are ingested into a durable local warehouse. `[done]`
+- Alerts exist for core runtime/risk failures. `[done]`
+- CI runs Python tests and MQL compile. `[partial]`
+- Deployed EA version, git SHA, source, and compiled artifact are released together. `[partial]`
 
-### Phase 2: Productionization
+Tasks:
 
-**Goal:** turn the demo runtime into a controlled trading service.
+- Build `scripts/mt5_ingest_common_files.py` and `finrobot/data_store.py`. `[done]`
+- Store raw status, positions, deals, and acks with ingestion time, broker time, EA version, git SHA, symbol, and core risk fields. `[partial]`
+- Store XAU bid/ask/spread snapshots from live status into the warehouse. `[done]`
+- Add Parquet export/partitioning for long-term research portability. `[not done]`
+- Add schema validation and reconciliation checks. `[done]`
+- Add metrics exporter and alert rules. `[done]`
+- Deliver alert transitions to Telegram or equivalent operator channel. `[partial]`
+- Add JSON structured logs for active services. `[not done]`
+- Add log rotation for `logs/combined.log`. `[done]`
+- Run FinRobot in a dedicated PM2 namespace or dedicated host. `[partial]`
+- Add watchdog restart recovery for stale MT5 heartbeat. `[done]`
+- Release `.mq5`, `.mqh`, `.ex5`, config, release manifest, and git SHA together. `[partial]`
+- Fix DuckDB lock contention between ingestion, metrics, validation, and research readers. `[not done]`
+- Make all DuckDB-backed cron/docs commands consistently use `.venv/bin/python` or bootstrap dependencies. `[partial]`
 
-**Exit criteria:** MT5 files ingested to DuckDB/Parquet; alerts exist; CI runs Python tests and MQL compile; deployed EA has version manifest.
+## 4. Phase 3: XAU Strategy Research Platform
 
-**Key work items:**
+Goal: stop hand-tuning live MQL inputs and promote changes only from reproducible XAU evidence.
 
-- Build `scripts/mt5_ingest_common_files.py` and `finrobot/data_store.py`.
-- Store raw status/positions/deals/acks with ingestion time, broker time, EA version, git SHA, symbol, bid/ask/spread, schema version.
-- Add schema validation and reconciliation checks.
-- Add JSON structured logs and log rotation.
-- Add metrics exporter and alerts.
-- Run FinRobot in a dedicated PM2 namespace or host.
-- Release `.mq5`, `.mqh`, `.ex5`, config, and git SHA together.
+Exit criteria:
 
-**Effort:** 2-4 weeks.
+- Event-driven backtester matches EA assumptions for XAU entries, gates, stops, sizing, and fills. `[partial]`
+- Walk-forward validation is standard before promotion. `[partial]`
+- Costs use broker spread, commission, swap, reject, and slippage data. `[partial]`
+- Every experiment has immutable inputs, code/data hashes, metrics, and a written promotion decision. `[partial]`
 
-### Phase 3: Strategy Research Platform
+Tasks:
 
-**Goal:** stop hand-tuning live MQL inputs and build a proper research loop.
+- Ingest XAUUSD broker M1 bid/ask/spread data from MT5 exports and live snapshots. `[partial]`
+- Ingest BTCUSD research data. `[retired]`
+- Implement an EA-equivalent XAU simulator for M5 indicators, PDA/SMC gates, ADX filter, stops, sizing, sessions, and fills. `[partial]`
+- Keep the live XAU parity test green; current documented result is `19/19 matched (100.00%)`. `[done]`
+- Add purged walk-forward splits and leakage checks. `[partial]`
+- Track experiment configs, data hashes, code hashes, metrics, and decisions in DuckDB. `[partial]`
+- Compare challenger strategies against the current EA before live changes. `[partial]`
+- Promote no XAU strategy from a single CSV or single short live window. `[done]`
+- Add richer fill/reject attribution: requested price, observed bid/ask, result price, spread, retcode, latency bucket, strategy ID, gate decisions, and risk decision. `[not done]`
+- Persist signal telemetry counters durably; status JSON counters reset and are not a reliable trade ledger. `[not done]`
 
-**Exit criteria:** event-driven backtester matches EA assumptions; walk-forward validation is standard; costs use broker spreads/commission/swap; every experiment has immutable inputs and promotion decision.
+## 5. Phase 4: XAU Multi-Strategy Control
 
-**Key work items:**
+Goal: support multiple XAU strategy sleeves without increasing operational risk.
 
-- Ingest BTCUSD and XAUUSD broker bid/ask/tick or M1 bid/ask data.
-- Implement an EA-equivalent simulator for current MQL gates, stops, sizing, spread filters, sessions, and fills.
-- Add purged walk-forward splits and leakage checks.
-- Track experiment configs, data hashes, code hashes, metrics, and decisions.
-- Compare challenger strategies against current EA before live changes.
+Exit criteria:
 
-**Effort:** 4-8 weeks.
+- Strategy registry exists with per-strategy versioning and promotion state. `[partial]`
+- Every order has durable strategy attribution. `[partial]`
+- Risk limits can be applied per strategy and globally. `[partial]`
+- Independent kill switches and staged rollout exist. `[not done]`
 
-### Phase 4: Multi-Strategy / Multi-Asset Scaling
+Tasks:
 
-**Goal:** support multiple strategy sleeves without increasing operational risk.
+- Add or formalize a versioned strategy registry for XAU strategy sleeves. `[partial]`
+- Tag every order with `strategy_id` and strategy version, not only a free-form MT5 comment. `[partial]`
+- Build per-strategy PnL attribution from deals and acks. `[partial]`
+- Build portfolio risk aggregator for multi-asset expansion. `[retired]`
+- Build XAU strategy-level risk aggregator: max daily loss, max loss streak, max exposure, max same-side concentration. `[not done]`
+- Separate signal generation from execution so the EA can act as a broker adapter. `[not done]`
+- Add champion/challenger deployment and capital allocation rules. `[partial]`
+- Add file/env kill switch checked every EA timer tick; block new orders and optionally flatten managed positions. `[not done]`
 
-**Exit criteria:** strategy registry, per-strategy PnL attribution, portfolio exposure limits, independent kill switches, staged rollout. Stay on XAUUSD/BTCUSD until owner explicitly expands mandate.
+## 6. Phase 5: Institutional-Grade Operations
 
-**Key work items:**
+Goal: make the operation auditable, resilient, and governable before real or client capital.
 
-- Add `strategies/registry.yaml`.
-- Tag every order with `strategy_id` and version.
-- Build portfolio risk aggregator.
-- Separate signal generation from execution.
-- Add champion/challenger deployment and capital allocation rules.
+Exit criteria:
 
-**Effort:** 2-3 months after Phase 3.
+- Compliance-ready audit trail exists. `[not done]`
+- Access control and least-privilege service accounts exist. `[not done]`
+- BCP/DR restore process is tested. `[not done]`
+- Model-risk review and incident process are written and exercised. `[not done]`
+- Legal, tax, and jurisdictional obligations are documented before live capital. `[not done]`
 
-### Phase 5: Institutional-Grade
+Tasks:
 
-**Goal:** make the operation auditable, resilient, and governable.
+- Add WORM-style audit logs. `[not done]`
+- Add signed releases. `[not done]`
+- Move secrets to a real secrets manager. `[not done]`
+- Add least-privilege service accounts. `[not done]`
+- Build disaster recovery environment. `[not done]`
+- Test restore from backup. `[not done]`
+- Require independent risk approval for EA/risk/deploy changes. `[not done]`
+- Run monthly strategy review. `[not done]`
+- Add regulatory/tax reporting workflow before real or client capital. `[not done]`
 
-**Exit criteria:** compliance-ready audit trail, access control, BCP/DR, tested restore, model-risk review, incident process, legal review.
+## 7. Current XAU Market Posture
 
-**Key work items:**
+This section is operational context, not a trading signal.
 
-- WORM-style audit logs.
-- Signed releases.
-- Secrets manager.
-- Least-privilege service accounts.
-- Disaster recovery environment.
-- Independent risk approvals.
-- Monthly strategy review.
-- Regulatory/tax reporting workflow before real or client capital.
+- XAUUSD is trading around the low `4200` area on 2026-06-22, with the live broker quote observed near `4198.64/4198.74` and external spot gold reporting near `4211`. `[done]`
+- The macro backdrop is mixed: central-bank gold demand remains a structural support, while Fed policy expectations are less friendly to gold because markets are no longer pricing an easy path to cuts. `[done]`
+- Recent gold behavior is volatile after a sharp correction from the January 2026 high. This favors controlled recovery trading over looser high-frequency settings. `[done]`
+- The live EA is positive over the available managed XAU deal window, but recent daily performance was uneven: strong June 11-12 and June 16, losses on June 15, June 17-19, then a June 22 recovery. `[done]`
+- Keep XAU-only scope until the XAU execution, data, and promotion loop is more durable. `[done]`
+- Keep conservative defaults: 0.10% daily-risk lot sizing, 1.00% daily loss limit, max two XAU positions, SMC/PDA gates, ADX filter, and weak-signal suppression. `[done]`
+- Do not loosen SMC/PDA/ADX gates just because today recovered. `[done]`
+- Add a bad-day throttle: reduce risk or pause new entries after a configured daily loss, loss streak, or two losing broker days in a rolling window. `[not done]`
+- Add a high-volatility/news blackout for Fed decisions, CPI/PCE, NFP, major geopolitical shock windows, and abnormal XAU spread/ATR regimes. `[not done]`
+- Use deals, acks, and the warehouse as performance truth; use `finrobot_status.json` telemetry only as a live diagnostic. `[partial]`
 
-**Effort:** 3-6+ months.
+## 8. Prioritized Backlog
 
-## 4. SPECIFIC RECOMMENDATIONS
+### P0: Next Safety/Quality Work
 
-- **Data pipeline:** use DuckDB locally first, Parquet partitions by date/symbol. Ingest Common Files into durable raw tables before doing analysis.
-- **Data validation:** reject duplicate deals, impossible prices, stale timestamps, missing SL/TP, negative volume, unknown symbols, schema drift.
-- **Feature store:** keep it simple: `finrobot/features.py` generates reproducible features from warehouse tables. Persist only promoted features.
-- **Backtesting:** keep vectorized scans for discovery, but promotion requires event-driven simulation matching MT5/EA behavior.
-- **Leakage prevention:** forbid current-bar future leakage in research. Add purged walk-forward validation and embargo windows.
-- **Cost model:** use broker-specific bid/ask spreads, commission, swap, slippage, stop execution, and reject rates.
-- **Execution layer:** treat MT5 EA as broker adapter. Build a small OMS around command ID, intent, quote snapshot, risk approval, ack, retry, reconciliation.
-- **Fill analysis:** extend acks with requested price, observed bid/ask, result price, spread, retcode, latency bucket, strategy ID, risk decision.
-- **Risk:** apply identical pre-trade checks to auto and command trades: whitelist, max lot/notional, max positions, SL/TP, daily loss, margin, spread, kill switch.
-- **Kill switches:** add file/env kill switch checked every timer tick; block new orders and optionally flatten managed positions.
-- **Monitoring:** alert on heartbeat age, PM2 status, Common Files missing, open positions without stops, repeated rejects, daily loss, high spread, no telemetry movement.
-- **Deployment:** add CI for Python tests/lint and MQL compile. Release by git tag with artifact manifest.
-- **Security:** delete or secure `.env.bak-arm-wine`; move secrets to a real secrets manager before live capital.
-- **MLOps:** define research -> paper -> staging -> demo prod -> live -> retirement. Use champion/challenger with written promotion criteria.
-- **Compliance:** before live capital, document jurisdiction, account ownership, leverage/margin rules, audit retention, and reporting obligations.
-- **Team/process:** require review for every EA/risk/deploy change; maintain runbooks; write post-mortems for drawdown, bad fill, outage, restart loop.
+- Fix DuckDB warehouse lock contention with retry/backoff, a single-writer pattern, or separate read snapshots. `[not done]`
+- Make `scripts/mt5_validate_warehouse.py` resilient when another process holds the DuckDB lock. `[not done]`
+- Add XAU bad-day/loss-streak throttle in the EA and parity layer. `[not done]`
+- Add market-event blackout configuration for XAU. `[not done]`
+- Enrich acks and warehouse rows with fill/reject context and risk/gate decisions. `[not done]`
+- Add CI/release gate for MetaEditor compile result and `.ex5` manifest. `[not done]`
+- Extend durable deal history beyond the EA's 14-day MT5 export window. `[partial]`
 
-## 5. QUICK WINS <= 1 DAY EACH
+### P1: Research/Promotion Work
 
-1. Harden `ExecuteCommand` in `broker/mt5/FinRobotBridgeEA.mq5`.
-2. Add `AUTOREVIEW_ENABLE_LLM=false` to `.env.sample` and docs.
-3. Fix `finrobot/utils/logging_config.py` hardcoded `/home/openclaw` path.
-4. Add unit tests for `scripts/mt5_trade_report.py`.
-5. Add `scripts/healthcheck.py`.
-6. Decide and document risk percent semantics.
-7. Remove/rotate `.env.bak-arm-wine`.
-8. Add PM2/logrotate policy for `logs/combined.log`.
-9. Archive Common Files daily under `state/mt5/archive/YYYY-MM-DD/`.
-10. Add release checklist: `git status`, `mt5_trade_report`, tests, EA sync, compile result.
+- Keep harvesting fresh XAU M1/M5 broker history and bid/ask/spread data. `[partial]`
+- Add Parquet partitions by date/symbol/source for warehouse exports. `[not done]`
+- Expand event-driven backtest cost model with commission, swap, spread, slippage, and rejects. `[partial]`
+- Enforce written champion/challenger promotion decisions before EA parameter changes. `[partial]`
+- Add strategy-level risk and PnL dashboard panels for XAU sleeves. `[partial]`
+- Add daily XAU parity watch to approved operational cron once scheduling is accepted. `[partial]`
 
-## 6. MEDIUM-TERM PROJECTS 1-4 WEEKS EACH
+### P2: Governance/Resilience
 
-1. MT5 warehouse ingestion from Common Files to DuckDB/Parquet.
-2. MQL build pipeline with CI compile logs/artifacts.
-3. Broker data collector for XAUUSD/BTCUSD bid/ask/spread history.
-4. EA-equivalent backtester.
-5. Metrics exporter, alert rules, and minimal dashboard.
-6. Durable OMS command protocol.
-7. Versioned strategy registry.
-8. Paper/staging challenger workflow.
-9. Secrets and PM2 namespace hardening.
-10. Runbooks for startup, restart, kill switch, broker outage, stale status, rollback.
+- Move secrets out of local `.env` before live capital. `[not done]`
+- Add signed release artifacts. `[not done]`
+- Add restore-tested backup and disaster recovery plan. `[not done]`
+- Run FinRobot in a dedicated host or isolated PM2 namespace. `[partial]`
+- Write incident playbooks for stale heartbeat, broker outage, spread spike, drawdown breach, bad fill, and restart loop. `[partial]`
 
-## 7. ANTI-RECOMMENDATIONS
+## 9. Anti-Recommendations
 
-- Do not add more symbols now.
-- Do not revive martingale/grid sizing as live alpha.
-- Do not optimize on the single XAUUSD CSV and call it edge.
-- Do not let LLM auto-edits touch production without human review.
-- Do not build dashboards before metrics and alerts.
-- Do not treat MT5 Common Files as a database.
-- Do not run real capital from single-host Wine/PM2 without DR.
-- Do not trust Python backtests unless they match the EA exactly.
-- Do not store secrets in backup env files, logs, screenshots, or generated MT5 configs.
-- Do not scale to multi-asset before data quality, portfolio risk, and execution reconciliation are solved.
-
-I attempted to write `/root/FinRobot/QUANT_ROADMAP.md` with `apply_patch`, but this session’s filesystem is read-only and the sandbox rejected the write.
+- Do not add symbols beyond XAUUSD. `[done]`
+- Do not restore retired BTC code or BTC optimization without explicit owner reversal. `[done]`
+- Do not revive martingale/grid sizing as live alpha. `[done]`
+- Do not optimize on the single legacy XAUUSD CSV and call it edge. `[done]`
+- Do not let LLM auto-edits touch production without human review. `[done]`
+- Do not treat MT5 Common Files as a database; ingest them into the warehouse. `[done]`
+- Do not trust Python backtests unless parity against live EA behavior remains green. `[done]`
+- Do not store secrets in backup env files, logs, screenshots, or generated MT5 configs. `[done]`
+- Do not run real capital from single-host Wine/PM2 without DR, audited releases, and incident process. `[done]`
