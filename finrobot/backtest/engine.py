@@ -30,7 +30,7 @@ class BacktestConfig:
         default_factory=lambda: PositionSizer(
             risk_per_trade_fraction=0.001,
             daily_loss_cap_fraction=0.01,
-            max_lot_per_trade=0.10,
+            max_lot_per_trade=5.0,
             max_positions_per_symbol=2,
         )
     )

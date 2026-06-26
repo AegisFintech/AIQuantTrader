@@ -4,6 +4,13 @@ Run these steps **in order** before any change to the MT5 EA source, the
 risk model, or the bridge protocol. The order matters: an early
 `pm2 restart` on broken code breaks the live demo.
 
+Sizing note: M5.1 keeps daily risk sizing as the primary control at 0.10%
+of equity per trade and the daily kill switch at 1.00%, but raises the
+default XAUUSD/global lot ceilings to 5.0 lots and the risk-sizing-disabled
+XAU fallback lot to 0.05. The caps are now emergency ceilings for the 1M+
+demo account instead of small-account sizing controls; smaller accounts
+continue to scale from equity, stop distance, and the same risk fraction.
+
 ```bash
 cd /root/FinRobot
 ```

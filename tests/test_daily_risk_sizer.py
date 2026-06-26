@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from finrobot.backtest import DailyRiskSizer
 
 
@@ -49,20 +51,45 @@ def test_daily_risk_sizer_below_threshold_no_multiplier():
 
 def test_daily_risk_sizer_per_symbol_max_lot():
     sizer = _sizer(
-        max_lot_per_trade=0.25,
-        max_lot_per_symbol={"XAUUSD": 0.10},
+        max_lot_per_trade=5.0,
+        max_lot_per_symbol={"XAUUSD": 5.0},
     )
 
     volume = sizer.size(
         symbol="XAUUSD",
-        equity=10000.0,
+        equity=1_000_000.0,
         sl_distance=20.0,
         open_positions=[],
         today_closed_pnl=0.0,
         smc_score=5,
     )
 
-    assert volume == 0.10
+    assert volume == 5.0
+
+
+def test_proportional_sizing_across_account_sizes():
+    sizer = _sizer(
+        max_lot_per_trade=5.0,
+        max_lot_per_symbol={"XAUUSD": 5.0},
+    )
+
+    account_sizes = [10_000.0, 100_000.0, 1_000_000.0, 5_000_000.0]
+    volumes = [
+        sizer.size(
+            symbol="XAUUSD",
+            equity=equity,
+            sl_distance=1000.0,
+            open_positions=[],
+            today_closed_pnl=0.0,
+        )
+        for equity in account_sizes
+    ]
+
+    assert volumes == [0.01, 0.10, 1.0, 5.0]
+    assert volumes[-1] <= 5.0
+    assert volumes[1] / volumes[0] == pytest.approx(10.0)
+    assert volumes[2] / volumes[1] == pytest.approx(10.0)
+    assert volumes[3] / volumes[2] == pytest.approx(5.0)
 
 
 def test_daily_risk_sizer_rounds_lot_step():
