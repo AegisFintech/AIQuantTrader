@@ -11,10 +11,6 @@ from statistics import mean
 from runtime_paths import common_dir
 
 RETIRED_AUTO_STRATEGIES = {
-    ('BTCUSD', 'RSI_reversion'),
-    ('BTCUSD', 'ATR_impulse'),
-    ('BTCUSD', 'Momentum_trend'),
-    ('BTCUSD', 'MACD_trend'),
     ('XAUUSD', 'RSI_reversion'),
 }
 

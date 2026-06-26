@@ -1,5 +1,5 @@
 // PM2 ecosystem for FinRobot.
-// Active trading is MT5 demo via FinRobotBridgeEA on XAUUSD and BTCUSD.
+// Active trading is MT5 demo via FinRobotBridgeEA on XAUUSD.
 // All PM2 service output is intentionally consolidated into logs/combined.log.
 
 const path = require("path");
@@ -26,6 +26,19 @@ module.exports = {
       name: "autonomous-review",
       cwd: ROOT,
       script: "scripts/autonomous_review_loop.py",
+      interpreter: path.join(ROOT, ".venv", "bin", "python"),
+      autorestart: true,
+      restart_delay: 30000,
+      max_restarts: 20,
+      out_file: COMBINED_LOG,
+      error_file: COMBINED_LOG,
+      merge_logs: true,
+      time: true,
+    },
+    {
+      name: "mt5-watchdog",
+      cwd: ROOT,
+      script: "scripts/mt5_watchdog.py",
       interpreter: path.join(ROOT, ".venv", "bin", "python"),
       autorestart: true,
       restart_delay: 30000,

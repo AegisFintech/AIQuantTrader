@@ -273,7 +273,7 @@ label, label_class = status_label(status_path, status_age)
 
 with st.sidebar:
     st.title("FinRobot")
-    st.caption("MT5 demo monitor for XAUUSD and BTCUSD")
+    st.caption("MT5 demo monitor for XAUUSD")
     st.markdown(f"<span class='fr-{label_class}'>{label}</span>", unsafe_allow_html=True)
     st.write(f"Heartbeat age: {status_age:.1f}s" if status_age is not None else "Heartbeat unavailable")
     st.write(f"Common files: `{common or 'not found'}`")

@@ -1,6 +1,6 @@
 #property strict
-#property description "FinRobot MT5 bridge and demo auto trader for XAUUSD + BTCUSD."
-#property version "1.32"
+#property description "FinRobot MT5 bridge and demo auto trader for XAUUSD."
+#property version "1.33"
 
 #include <Trade/Trade.mqh>
 #include "BridgeIO.mqh"
@@ -17,16 +17,13 @@ input int MagicNumber = 20260522;
 input int DefaultDeviationPoints = 30;
 input bool AllowTrading = true;
 input bool AutoTradeMT5 = true;
-input string AutoSymbols = "XAUUSD,BTCUSD";
+input string AutoSymbols = "XAUUSD";
 input ENUM_TIMEFRAMES AutoTimeframe = PERIOD_M5;
 input double XauBaseLot = 0.05;                // Fallback only when daily risk sizing is disabled
-input double BtcBaseLot = 0.01;
-input double MaxLotPerTrade = 5.0;             // Global ceiling; daily risk sizing remains primary
-input double MaxLotPerTradeBTCUSD = 0.25;
-input double MaxLotPerTradeXAUUSD = 5.0;       // XAU ceiling for proportional 1M+ demo sizing
+input double MaxLotPerTrade = 5.0;             // Proportional compounding ceiling; daily risk sizing remains primary
+input double MaxLotPerTradeXAUUSD = 5.0;       // XAU ceiling for 1M+ demo equity compounding
 input double HighConfluenceLotMultiplier = 3.0;
 input int MinSmcConfluenceScore = 3;
-input int MinSmcConfluenceScoreBTCUSD = 2;
 input int MinSmcConfluenceScoreXAUUSD = 3;
 input int HighConfluenceScore = 5;
 input bool UseDailyRiskLotSizing = true;
@@ -35,11 +32,9 @@ input double DailyLossLimitFraction = 0.01;        // 1.00% of equity daily cap
 input bool AutoClosePositionsWithoutStops = true;
 input bool DisableWeakStrategySignals = true;
 input int MaxAutoPositionsPerSymbol = 2;
-input int MaxAutoPositionsBTCUSD = 2;
 input int MaxAutoPositionsXAUUSD = 2;
 input int MaxSameDirectionPositionsPerSymbol = 2;
 input int MinSecondsBetweenTrades = 300;
-input int MinSecondsBetweenTradesBTCUSD = 300;
 input int MinSecondsBetweenTradesXAUUSD = 180;
 input int FastEmaPeriod = 9;
 input int SlowEmaPeriod = 21;
@@ -49,7 +44,6 @@ input int AtrPeriod = 14;
 input double StopAtrMultiplier = 1.2;
 input double TakeProfitAtrMultiplier = 2.4;
 input double MaxSpreadPointsXAUUSD = 80.0;
-input double MaxSpreadPointsBTCUSD = 5000.0;
 input bool EnableSmartMoneyGates = true;
 input bool EnableXauAutoTrading = true;
 input int SmcLookbackBars = 48;
@@ -58,19 +52,10 @@ input double DiscountThreshold = 0.38;
 input double PremiumThreshold = 0.62;
 input double LiquiditySweepAtrMultiplier = 0.30;
 input double MinTrendSlopeAtrMultiplier = 0.04;
-input bool EnableBtcRsiReversion = false;
-input bool EnableBtcAtrImpulse = false;
-input bool EnableBtcMomentumTrend = false;
-input bool EnableBtcMacdTrend = false;
-input bool EnableBtcQuickMomentum = true;
 input bool EnableXauRsiReversion = false;
 input bool EnableXauAtrImpulse = true;
 input bool EnableSessionGating = true;
-input bool EnableBtcContinuousTrading = true;
 input bool EnableXauWeekdayMarketHours = true;
-input bool EnableBtcCostFilters = true;
-input double MaxBtcSpreadAtrRatio = 0.15;
-input double MaxBtcSpreadTakeProfitRatio = 0.08;
 input int LondonStartHour = 7;
 input int LondonEndHour = 11;
 input int NyStartHour = 13;
@@ -109,11 +94,6 @@ double todayClosedPnlCache = 0.0;
 datetime lastMoneyManagementUpdate = 0;
 string riskCloseAttemptTickets = "";
 int riskCloseAttemptDay = 0;
-
-bool IsBtcSymbol(string symbol) {
-   string s = Upper(symbol);
-   return StringFind(s, "BTC") >= 0;
-}
 
 bool IsXauSymbol(string symbol) {
    string s = Upper(symbol);
@@ -163,10 +143,9 @@ void CountSignalTelemetry(int idx, string signal) {
    if(StringFind(signal, "BUY ") == 0 || StringFind(signal, "SELL ") == 0) filledSignalCounts[idx]++;
    else if(StringFind(signal, "outside_trading_session") == 0) outsideSessionRejectCounts[idx]++;
    else if(StringFind(signal, "market_closed") == 0) marketClosedRejectCounts[idx]++;
-   else if(StringFind(signal, "spread_too_wide") == 0 || StringFind(signal, "btc_cost_reject") == 0) spreadRejectCounts[idx]++;
+   else if(StringFind(signal, "spread_too_wide") == 0) spreadRejectCounts[idx]++;
    else if(StringFind(signal, "no_signal") == 0) noSignalCounts[idx]++;
    else if(StringFind(signal, "smc_reject") == 0) smcRejectCounts[idx]++;
-   else if(StringFind(signal, "btc_direction_reject") == 0) directionRejectCounts[idx]++;
    else if(StringFind(signal, "xau_pda_reject") == 0) pdaRejectCounts[idx]++;
    else if(StringFind(signal, "max_positions") == 0 || StringFind(signal, "same_side_max") == 0 || StringFind(signal, "cooldown") == 0) positionRejectCounts[idx]++;
    else if(StringFind(signal, "order_failed") == 0 || StringFind(signal, "risk_volume_zero") == 0) orderRejectCounts[idx]++;
@@ -181,7 +160,6 @@ void SetLastSignal(int idx, string signal) {
 
 bool UseSessionGateForSymbol(string symbol) {
    if(!EnableSessionGating) return false;
-   if(IsBtcSymbol(symbol) && EnableBtcContinuousTrading) return false;
    if(IsXauSymbol(symbol) && EnableXauWeekdayMarketHours) return false;
    return true;
 }
@@ -236,22 +214,6 @@ string AutoSessionRejectReason(string symbol) {
    return "outside_trading_session";
 }
 
-bool BtcCostFilterReject(double spreadPrice, double atrValue, double tpDistance, string &detail) {
-   if(!EnableBtcCostFilters) return false;
-   double atrRatio = atrValue > 0.0 ? spreadPrice / atrValue : 0.0;
-   double tpRatio = tpDistance > 0.0 ? spreadPrice / tpDistance : 0.0;
-   if(MaxBtcSpreadAtrRatio > 0.0 && atrRatio > MaxBtcSpreadAtrRatio) {
-      detail = "spread_atr=" + DoubleToString(atrRatio, 3) + " max=" + DoubleToString(MaxBtcSpreadAtrRatio, 3);
-      return true;
-   }
-   if(MaxBtcSpreadTakeProfitRatio > 0.0 && tpRatio > MaxBtcSpreadTakeProfitRatio) {
-      detail = "spread_tp=" + DoubleToString(tpRatio, 3) + " max=" + DoubleToString(MaxBtcSpreadTakeProfitRatio, 3);
-      return true;
-   }
-   detail = "spread_atr=" + DoubleToString(atrRatio, 3) + " spread_tp=" + DoubleToString(tpRatio, 3);
-   return false;
-}
-
 double PremiumDiscountPosition(string symbol, int idx) {
    MqlRates rates[];
    ArraySetAsSeries(rates, true);
@@ -276,9 +238,8 @@ void LoadManagedSymbols() {
    string parts[];
    int n = StringSplit(AutoSymbols, ',', parts);
    if(n <= 0) {
-      ArrayResize(managedSymbols, 2);
+      ArrayResize(managedSymbols, 1);
       managedSymbols[0] = "XAUUSD";
-      managedSymbols[1] = "BTCUSD";
    } else {
       ArrayResize(managedSymbols, 0);
       for(int i = 0; i < n; i++) {
@@ -290,9 +251,8 @@ void LoadManagedSymbols() {
       }
    }
    if(ArraySize(managedSymbols) == 0) {
-      ArrayResize(managedSymbols, 2);
+      ArrayResize(managedSymbols, 1);
       managedSymbols[0] = "XAUUSD";
-      managedSymbols[1] = "BTCUSD";
    }
    ArrayResize(lastSignals, ArraySize(managedSymbols));
    ArrayResize(lastTradeTimes, ArraySize(managedSymbols));
@@ -348,51 +308,23 @@ int CountPositionsByMagicAndSide(string symbol, int magic, int side) {
 }
 
 int MaxAutoPositionsForSymbol(string symbol) {
-   if(IsBtcSymbol(symbol)) return MathMax(0, MaxAutoPositionsBTCUSD);
    if(IsXauSymbol(symbol)) return MathMax(0, MaxAutoPositionsXAUUSD);
    return MathMax(0, MaxAutoPositionsPerSymbol);
 }
 
 int MinSecondsBetweenTradesForSymbol(string symbol) {
-   if(IsBtcSymbol(symbol)) return MathMax(0, MinSecondsBetweenTradesBTCUSD);
    if(IsXauSymbol(symbol)) return MathMax(0, MinSecondsBetweenTradesXAUUSD);
    return MathMax(0, MinSecondsBetweenTrades);
 }
 
 int MinSmcConfluenceForSymbol(string symbol) {
-   if(IsBtcSymbol(symbol)) return MathMax(1, MinSmcConfluenceScoreBTCUSD);
    if(IsXauSymbol(symbol)) return MathMax(1, MinSmcConfluenceScoreXAUUSD);
    return MathMax(1, MinSmcConfluenceScore);
 }
 
 double MaxLotForSymbol(string symbol) {
-   if(IsBtcSymbol(symbol)) return MathMax(0.0, MathMin(MaxLotPerTrade, MaxLotPerTradeBTCUSD));
    if(IsXauSymbol(symbol)) return MathMax(0.0, MathMin(MaxLotPerTrade, MaxLotPerTradeXAUUSD));
    return MathMax(0.0, MaxLotPerTrade);
-}
-
-int HigherTimeframeTrend(string symbol) {
-   MqlRates h1[];
-   ArraySetAsSeries(h1, true);
-   if(CopyRates(symbol, PERIOD_H1, 0, 240, h1) < 210) return 0;
-   int emaFastHandle = iMA(symbol, PERIOD_H1, 50, 0, MODE_EMA, PRICE_CLOSE);
-   int emaSlowHandle = iMA(symbol, PERIOD_H1, 200, 0, MODE_EMA, PRICE_CLOSE);
-   if(emaFastHandle == INVALID_HANDLE || emaSlowHandle == INVALID_HANDLE) {
-      if(emaFastHandle != INVALID_HANDLE) IndicatorRelease(emaFastHandle);
-      if(emaSlowHandle != INVALID_HANDLE) IndicatorRelease(emaSlowHandle);
-      return 0;
-   }
-   double emaFast[], emaSlow[];
-   ArraySetAsSeries(emaFast, true);
-   ArraySetAsSeries(emaSlow, true);
-   bool copied = CopyBuffer(emaFastHandle, 0, 0, 5, emaFast) >= 5 && CopyBuffer(emaSlowHandle, 0, 0, 5, emaSlow) >= 5;
-   IndicatorRelease(emaFastHandle);
-   IndicatorRelease(emaSlowHandle);
-   if(!copied) return 0;
-   double slope = emaFast[0] - emaFast[3];
-   if(emaFast[0] > emaSlow[0] && slope > 0.0) return 1;
-   if(emaFast[0] < emaSlow[0] && slope < 0.0) return -1;
-   return 0;
 }
 
 string CombinedSignals() {
@@ -500,7 +432,6 @@ bool DailyLossLimitReached() {
 }
 
 double BaseLotForSymbol(string symbol) {
-   if(IsBtcSymbol(symbol)) return BtcBaseLot;
    return XauBaseLot;
 }
 
@@ -627,6 +558,10 @@ void ExecuteCommand(int id, string action, string symbol, string side, double vo
          AppendAck(AckFile, id, "REJECTED", "MARKET requires SL > 0", symbol, side, volume, 0.0);
          return;
       }
+      if(tp <= 0.0) {
+         AppendAck(AckFile, id, "REJECTED", "MARKET requires TP > 0", symbol, side, volume, 0.0);
+         return;
+      }
       double maxLot = MaxLotForSymbol(symbol);
       if(volume > maxLot + 1e-9) {
          AppendAck(AckFile, id, "REJECTED", "Lot " + DoubleToString(volume, 4) + " exceeds MaxLot " + DoubleToString(maxLot, 4), symbol, side, volume, 0.0);
@@ -695,17 +630,14 @@ void PollCommands() {
 }
 
 double MaxSpreadForSymbol(string symbol) {
-   if(IsBtcSymbol(symbol)) return MaxSpreadPointsBTCUSD;
    return MaxSpreadPointsXAUUSD;
 }
 
 double MinStopDistanceForSymbol(string symbol, double entry) {
-   if(IsBtcSymbol(symbol)) return MathMax(entry * 0.003, 100.0);
    return MathMax(entry * 0.00045, 2.0);
 }
 
 void ManageAutoSymbol(string symbol, int idx) {
-   bool isBtc = IsBtcSymbol(symbol);
    bool isXau = IsXauSymbol(symbol);
    if(!AutoTradeMT5 || !AllowTrading) {
       SetLastSignal(idx, "auto_trading_disabled");
@@ -810,7 +742,6 @@ void ManageAutoSymbol(string symbol, int idx) {
    double prevMacdHist = macdMain[1] - macdSignal[1];
    bool bullishCross = emaFast[1] <= emaSlow[1] && emaFast[0] > emaSlow[0];
    bool bearishCross = emaFast[1] >= emaSlow[1] && emaFast[0] < emaSlow[0];
-   int htfTrend = isBtc ? HigherTimeframeTrend(symbol) : 0;
    bool quickMomentumLong = emaFast[0] > emaSlow[0] && previous <= emaFast[1] && current > emaFast[0] && rsi[0] >= 42 && rsi[0] < 68;
    bool quickMomentumShort = emaFast[0] < emaSlow[0] && previous >= emaFast[1] && current < emaFast[0] && rsi[0] <= 58 && rsi[0] > 32;
    bool macdLong = macdHist > 0 && macdHist > prevMacdHist && current > emaTrend[0] && rsi[0] >= 45 && rsi[0] < 68;
@@ -819,25 +750,11 @@ void ManageAutoSymbol(string symbol, int idx) {
    bool rsiReversionShort = rsi[1] > 70 && rsi[0] < rsi[1] && current < previous;
    bool atrImpulseLong = current > rates[1].high && (current - previous) > atr[0] * 0.12 && rsi[0] < 80;
    bool atrImpulseShort = current < rates[1].low && (previous - current) > atr[0] * 0.12 && rsi[0] > 20;
-   if(isBtc) {
-      if(!EnableBtcQuickMomentum) {
-         bullishCross = false;
-         bearishCross = false;
-         quickMomentumLong = false;
-         quickMomentumShort = false;
-      }
-      if(!EnableBtcMacdTrend) { macdLong = false; macdShort = false; }
-      if(!EnableBtcRsiReversion) { rsiReversionLong = false; rsiReversionShort = false; }
-      if(!EnableBtcAtrImpulse) { atrImpulseLong = false; atrImpulseShort = false; }
-      if(!EnableBtcMomentumTrend) { momentum3 = 0.0; }
-      if(htfTrend <= 0) { bullishCross = false; quickMomentumLong = false; macdLong = false; }
-      if(htfTrend >= 0) { bearishCross = false; quickMomentumShort = false; macdShort = false; }
-   } else if(isXau) {
+   if(isXau) {
       if(!EnableXauRsiReversion) { rsiReversionLong = false; rsiReversionShort = false; }
       if(!EnableXauAtrImpulse) { atrImpulseLong = false; atrImpulseShort = false; }
    }
    if(DisableWeakStrategySignals) {
-      if(isBtc) { rsiReversionLong = false; rsiReversionShort = false; atrImpulseLong = false; atrImpulseShort = false; }
       if(isXau) { bullishCross = false; bearishCross = false; macdLong = false; macdShort = false; }
    }
 
@@ -871,16 +788,6 @@ void ManageAutoSymbol(string symbol, int idx) {
       return;
    }
 
-   if(isBtc) {
-      if(side > 0 && (htfTrend <= 0 || pda > 0.45)) {
-         SetLastSignal(idx, "btc_direction_reject " + reason + " h1=" + IntegerToString(htfTrend) + " pda=" + DoubleToString(pda, 2));
-         return;
-      }
-      if(side < 0 && (htfTrend >= 0 || pda < 0.55)) {
-         SetLastSignal(idx, "btc_direction_reject " + reason + " h1=" + IntegerToString(htfTrend) + " pda=" + DoubleToString(pda, 2));
-         return;
-      }
-   }
    if(isXau) {
       if(side > 0 && pda > 0.40) {
          SetLastSignal(idx, "xau_pda_reject " + reason + " pda=" + DoubleToString(pda, 2));
@@ -903,13 +810,6 @@ void ManageAutoSymbol(string symbol, int idx) {
 
    double slDistance = MathMax(atrValue * StopAtrMultiplier, MinStopDistanceForSymbol(symbol, entry));
    double tpDistance = slDistance * TakeProfitAtrMultiplier;
-   if(isBtc) {
-      string costDetail = "";
-      if(BtcCostFilterReject(ask - bid, atrValue, tpDistance, costDetail)) {
-         SetLastSignal(idx, "btc_cost_reject " + reason + " " + costDetail);
-         return;
-      }
-   }
    double sl = side > 0 ? entry - slDistance : entry + slDistance;
    double tp = side > 0 ? entry + tpDistance : entry - tpDistance;
    double volume = UseDailyRiskLotSizing ? DailyRiskVolume(symbol, slDistance, smcScore) : BaseLotForSymbol(symbol);
@@ -1023,7 +923,7 @@ int OnInit() {
    trade.SetExpertMagicNumber(MagicNumber);
    LoadManagedSymbols();
    UpdateMoneyManagementState();
-   Print("FinRobotBridgeEA 1.31 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(AutoTimeframe));
+   Print("FinRobotBridgeEA 1.33 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(AutoTimeframe));
    WriteStatus();
    WritePositions();
    WriteDealsHistory();

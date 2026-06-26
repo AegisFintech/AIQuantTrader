@@ -40,6 +40,14 @@ fi
 # Refresh the release manifest so the EA can read version + git_sha on init.
 if MANIFEST_SRC="$ROOT/state/mt5/EA_MANIFEST.txt"; [ -f "$MANIFEST_SRC" ]; then
     cp "$MANIFEST_SRC" "$EXPERT_DIR/EA_MANIFEST.txt"
+    if [ -n "${FINROBOT_COMMON_DIR:-}" ] && [ -d "$FINROBOT_COMMON_DIR" ]; then
+        cp "$MANIFEST_SRC" "$FINROBOT_COMMON_DIR/EA_MANIFEST.txt"
+    fi
+    for COMMON_DIR in "$WINEPREFIX_DIR"/drive_c/users/*/AppData/Roaming/MetaQuotes/Terminal/Common/Files; do
+        if [ -d "$COMMON_DIR" ]; then
+            cp "$MANIFEST_SRC" "$COMMON_DIR/EA_MANIFEST.txt"
+        fi
+    done
 fi
 
 if [ "$COMPILE" -eq 0 ]; then

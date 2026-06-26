@@ -2,7 +2,7 @@
 """6-hour autonomous FinRobot review loop.
 
 Policy:
-- Review MT5 XAUUSD/BTCUSD performance and strategy memory every 6 hours.
+- Review MT5 XAUUSD performance and strategy memory every 6 hours.
 - Require enough fresh closed trades before changing code/parameters.
 - Ask Opencode to patch the repo directly when evidence supports an improvement.
 - Keep the system MT5-demo-only until explicitly changed.
@@ -103,8 +103,8 @@ def opencode_review(memory: list[dict], mt5_report: str, dry_run: bool) -> dict:
 You are a senior HFT/quant trading engineer reviewing FinRobot.
 
 Current mandate:
-- Trade only two broker/demo MT5 symbols: XAUUSD and BTCUSD.
-- Stay strictly on MT5 demo execution for XAUUSD and BTCUSD only.
+- Trade only broker/demo MT5 symbol: XAUUSD.
+- Stay strictly on MT5 demo execution for XAUUSD only.
 - MT5 is demo-only unless the human explicitly changes that.
 - Preserve the simple PM2 process layout.
 - Use memory: keep what works, stop what does not, and do not repeat rejected ideas.
@@ -117,7 +117,7 @@ Recent strategy memory:
 
 Task:
 1. Inspect the repo.
-2. Modify code/config/docs directly if there is a clear improvement for MT5 XAUUSD/BTCUSD.
+2. Modify code/config/docs directly if there is a clear improvement for MT5 XAUUSD.
 3. Prefer simple parameter gates and symbol-specific rules before adding complexity.
 4. Keep docs current for future agents.
 5. Run syntax/tests or dry checks.

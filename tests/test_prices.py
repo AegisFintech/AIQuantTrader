@@ -44,7 +44,7 @@ def test_load_tsv_bars_reads_existing_xauusd_file_count():
 
 def test_load_tsv_bars_auto_detects_ohlcv_vs_ohlcv_bidask(tmp_path):
     ohlcv = tmp_path / "XAUUSD1.csv"
-    bidask = tmp_path / "BTCUSD_M1.csv"
+    bidask = tmp_path / "XAUUSD_M1.csv"
     ohlcv.write_text("2026-01-01 00:00\t1\t2\t0.5\t1.5\t10\n")
     bidask.write_text("2026-01-01 00:00\t1\t2\t0.5\t1.5\t10\t1.49\t1.51\n")
 
@@ -87,7 +87,7 @@ def test_load_status_bidask_returns_one_snapshot_per_symbol(tmp_path):
                 "ts": 1780000000,
                 "symbols": [
                     {"symbol": "XAUUSD", "bid": "4078.01", "ask": "4078.13", "spread_points": "12"},
-                    {"symbol": "BTCUSD", "bid": 62545.73, "ask": 62557.73, "spread_points": 1200},
+                    {"symbol": "XAUUSD", "bid": 62545.73, "ask": 62557.73, "spread_points": 1200},
                 ],
             }
         )
@@ -97,7 +97,7 @@ def test_load_status_bidask_returns_one_snapshot_per_symbol(tmp_path):
 
     assert snapshots == [
         {"symbol": "XAUUSD", "ts": 1780000000, "bid": 4078.01, "ask": 4078.13, "spread_points": 12.0},
-        {"symbol": "BTCUSD", "ts": 1780000000, "bid": 62545.73, "ask": 62557.73, "spread_points": 1200.0},
+        {"symbol": "XAUUSD", "ts": 1780000000, "bid": 62545.73, "ask": 62557.73, "spread_points": 1200.0},
     ]
 
 
@@ -109,7 +109,7 @@ def test_generate_synthetic_bars_is_deterministic_with_seed():
 
 
 def test_generate_synthetic_bars_produces_n_rows():
-    assert len(prices.generate_synthetic_bars("BTCUSD", 7)) == 7
+    assert len(prices.generate_synthetic_bars("XAUUSD", 7)) == 7
 
 
 def test_generate_synthetic_bars_high_is_not_below_low():
@@ -141,14 +141,14 @@ def test_ingest_bars_is_idempotent(con):
 def test_ingest_bidask_snapshots_with_two_snapshots_returns_two(con):
     snapshots = [
         {"symbol": "XAUUSD", "ts": 1780000100, "bid": 4078.01, "ask": 4078.13},
-        {"symbol": "BTCUSD", "ts": 1780000100, "bid": 62545.73, "ask": 62557.73},
+        {"symbol": "GOLD", "ts": 1780000100, "bid": 62545.73, "ask": 62557.73},
     ]
 
     assert prices.ingest_bidask_snapshots(con, snapshots) == 2
     spreads = con.execute(
         "SELECT symbol, spread_price FROM prices ORDER BY symbol"
     ).fetchall()
-    assert spreads == [("BTCUSD", 12.0), ("XAUUSD", pytest.approx(0.12))]
+    assert spreads == [("GOLD", 12.0), ("XAUUSD", pytest.approx(0.12))]
 
 
 def test_ingest_bidask_snapshots_is_idempotent_on_symbol_ts_source(con):

@@ -17,8 +17,8 @@ def test_parse_export_filename_xauusd():
     assert harvest.parse_export_filename("finrobot_export_XAUUSD_M1.tsv") == ("XAUUSD",)
 
 
-def test_parse_export_filename_btcusd():
-    assert harvest.parse_export_filename("finrobot_export_BTCUSD_M1.tsv") == ("BTCUSD",)
+def test_parse_export_filename_xauusd():
+    assert harvest.parse_export_filename("finrobot_export_XAUUSD_M1.tsv") == ("XAUUSD",)
 
 
 def test_parse_export_filename_rejects_garbage():
@@ -38,11 +38,11 @@ def test_copy_to_data_dir_writes_symbol_m1_csv(tmp_path):
 
 def test_discover_exports_returns_symbol_path_pairs(tmp_path):
     xau = _write_export(tmp_path, "XAUUSD")
-    btc = _write_export(tmp_path, "BTCUSD")
+    gold = _write_export(tmp_path, "GOLD")
     (tmp_path / "garbage.tsv").write_text("ignored\n")
 
     assert harvest.discover_exports(tmp_path) == [
-        ("BTCUSD", btc),
+        ("GOLD", gold),
         ("XAUUSD", xau),
     ]
 
@@ -72,17 +72,17 @@ def test_harvest_all_dry_run_is_repeatable_without_copying(tmp_path):
 def test_harvest_all_loads_export_into_tmp_warehouse(tmp_path):
     common_dir = tmp_path / "common"
     common_dir.mkdir()
-    _write_export(common_dir, "BTCUSD", rows=_rows("2026-06-10 12:00", "2026-06-10 12:01"))
+    _write_export(common_dir, "XAUUSD", rows=_rows("2026-06-10 12:00", "2026-06-10 12:01"))
     data_dir = tmp_path / "data"
     warehouse = tmp_path / "warehouse.duckdb"
 
     results = harvest.harvest_all(common_dir, data_dir, warehouse_path=warehouse)
 
-    assert [(result.symbol, result.bars, result.inserted) for result in results] == [("BTCUSD", 2, 2)]
-    assert (data_dir / "BTCUSD_M1.csv").exists()
+    assert [(result.symbol, result.bars, result.inserted) for result in results] == [("XAUUSD", 2, 2)]
+    assert (data_dir / "XAUUSD_M1.csv").exists()
     con = duckdb.connect(str(warehouse))
     try:
-        assert con.execute("SELECT symbol, count(*) FROM prices GROUP BY symbol").fetchall() == [("BTCUSD", 2)]
+        assert con.execute("SELECT symbol, count(*) FROM prices GROUP BY symbol").fetchall() == [("XAUUSD", 2)]
     finally:
         con.close()
 
@@ -127,23 +127,23 @@ def test_harvest_all_filters_symbols_like_cli_option(tmp_path):
     common_dir = tmp_path / "common"
     common_dir.mkdir()
     _write_export(common_dir, "XAUUSD")
-    _write_export(common_dir, "BTCUSD")
+    _write_export(common_dir, "XAUUSD")
 
     results = harvest.harvest_all(
         common_dir,
         tmp_path / "data",
         dry_run=True,
-        symbols=harvest.parse_symbol_filter("BTCUSD"),
+        symbols=harvest.parse_symbol_filter("XAUUSD"),
     )
 
-    assert [result.symbol for result in results] == ["BTCUSD"]
+    assert [result.symbol for result in results] == ["XAUUSD"]
 
 
 def test_harvest_all_skips_empty_and_unparseable_exports(tmp_path):
     common_dir = tmp_path / "common"
     common_dir.mkdir()
     (common_dir / "finrobot_export_XAUUSD_M1.tsv").write_text("")
-    (common_dir / "finrobot_export_BTCUSD_M1.tsv").write_text("time\topen\thigh\tlow\tclose\tvolume\n")
+    (common_dir / "finrobot_export_XAUUSD_M1.tsv").write_text("time\topen\thigh\tlow\tclose\tvolume\n")
 
     results = harvest.harvest_all(common_dir, tmp_path / "data", dry_run=True)
 

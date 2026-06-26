@@ -34,14 +34,23 @@ def test_build_manifest_returns_required_keys():
 def test_build_manifest_extracts_ea_version_from_mq5_source():
     manifest = release_manifest.build_manifest(ROOT)
 
-    assert manifest["ea_version"] == "1.32"
+    assert manifest["ea_version"] == "1.33"
 
 
 def test_build_manifest_extracts_auto_symbols_as_managed_symbols():
     manifest = release_manifest.build_manifest(ROOT)
 
-    assert manifest["config_inputs"]["AutoSymbols"] == "XAUUSD,BTCUSD"
-    assert manifest["managed_symbols"] == ["XAUUSD", "BTCUSD"]
+    assert manifest["config_inputs"]["AutoSymbols"] == "XAUUSD"
+    assert manifest["managed_symbols"] == ["XAUUSD"]
+
+
+def test_build_manifest_extracts_compounding_risk_defaults():
+    manifest = release_manifest.build_manifest(ROOT)
+
+    assert manifest["config_inputs"]["MaxLotPerTrade"] == "5.0"
+    assert manifest["config_inputs"]["MaxLotPerTradeXAUUSD"] == "5.0"
+    assert manifest["config_inputs"]["DailyRiskPerTradeFraction"] == "0.0010"
+    assert manifest["config_inputs"]["DailyLossLimitFraction"] == "0.01"
 
 
 def test_build_manifest_returns_empty_git_fields_outside_git_repo(tmp_path):
@@ -182,7 +191,7 @@ def _write_ea(root: Path, version: str = "1.30") -> Path:
             [
                 "#property strict",
                 f'#property version "{version}"',
-                'input string AutoSymbols = "XAUUSD,BTCUSD";',
+                'input string AutoSymbols = "XAUUSD";',
                 "input bool UseDailyRiskLotSizing = true;",
             ]
         )

@@ -14,7 +14,7 @@ if str(ROOT) not in sys.path:
 from finrobot import data_store, prices  # noqa: E402
 
 
-DEFAULT_SYMBOLS = "XAUUSD,BTCUSD"
+DEFAULT_SYMBOLS = "XAUUSD"
 PRICE_FILE_RE = re.compile(r"^([A-Za-z0-9]+?)(?:1|_M1)\.csv$")
 
 
@@ -62,7 +62,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def parse_symbol(path: Path) -> str:
-    """Parse XAUUSD from XAUUSD1.csv or BTCUSD from BTCUSD_M1.csv."""
+    """Parse XAUUSD from filenames such as XAUUSD1.csv or XAUUSD_M1.csv."""
     match = PRICE_FILE_RE.match(path.name)
     if not match:
         raise ValueError(f"unsupported price filename: {path.name}")

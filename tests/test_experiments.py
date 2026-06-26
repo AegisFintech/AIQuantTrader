@@ -86,13 +86,13 @@ def test_query_filters_by_symbol(tmp_path):
     con = duckdb.connect(":memory:")
     init_registry(con)
     xau = _record("xau", symbol="XAUUSD")
-    btc = _record("btc", symbol="BTCUSD")
+    other = _record("other", symbol="GOLD")
     index_experiment(con, xau, save_experiment(xau, root=tmp_path))
-    index_experiment(con, btc, save_experiment(btc, root=tmp_path))
+    index_experiment(con, other, save_experiment(other, root=tmp_path))
 
-    rows = query_experiments(con, symbol="BTCUSD")
+    rows = query_experiments(con, symbol="XAUUSD")
 
-    assert [row["run_id"] for row in rows] == ["btc"]
+    assert [row["run_id"] for row in rows] == ["xau"]
 
 
 def test_latest_experiment_returns_most_recent(tmp_path):

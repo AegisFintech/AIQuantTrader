@@ -23,7 +23,7 @@ def test_daily_risk_sizer_high_confluence_multiplier():
     sizer = _sizer(max_lot_per_trade=2.0)
 
     volume = sizer.size(
-        symbol="BTCUSD",
+        symbol="XAUUSD",
         equity=10000.0,
         sl_distance=20.0,
         open_positions=[],
@@ -38,7 +38,7 @@ def test_daily_risk_sizer_below_threshold_no_multiplier():
     sizer = _sizer(max_lot_per_trade=2.0)
 
     volume = sizer.size(
-        symbol="BTCUSD",
+        symbol="XAUUSD",
         equity=10000.0,
         sl_distance=20.0,
         open_positions=[],
@@ -96,7 +96,7 @@ def test_daily_risk_sizer_rounds_lot_step():
     sizer = _sizer(max_lot_per_trade=1.0)
 
     volume = sizer.size(
-        symbol="BTCUSD",
+        symbol="XAUUSD",
         equity=10000.0,
         sl_distance=30.0,
         open_positions=[],
@@ -110,7 +110,7 @@ def test_daily_risk_sizer_zero_sl_returns_zero():
     sizer = _sizer(max_lot_per_trade=1.0)
 
     volume = sizer.size(
-        symbol="BTCUSD",
+        symbol="XAUUSD",
         equity=10000.0,
         sl_distance=0.0,
         open_positions=[],
