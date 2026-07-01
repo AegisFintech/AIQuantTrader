@@ -95,7 +95,7 @@ The EA writes MT5 Common Files:
 Current auto-trading posture:
 
 - XAUUSD lot sizing is proportional to broker-day equity, configured risk fraction, and SL distance, with a high demo compounding ceiling.
-- XAUUSD scans Monday-Friday whenever the broker symbol is inside its configured trade session, while keeping stricter premium/discount smart-money gates.
+- XAUUSD scans Monday-Friday whenever the broker symbol is inside its configured trade session, while requiring premium/discount smart-money score 4+ entries.
 - Entries require spread, smart-money, position-count, and daily-risk checks before any order is sent.
 - Auto trades and command-file market trades require broker-side SL and TP values before the EA sends the order.
 - `finrobot_status.json` exposes per-symbol `session_gated`, `weekday_market_hours`, `session_open`, and daily `signal_telemetry` counters for filled trades and major rejection reasons.

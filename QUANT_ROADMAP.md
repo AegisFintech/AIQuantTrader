@@ -12,7 +12,7 @@ Status legend:
 ## 1. Current Standing
 
 - Active trading mandate is `XAUUSD` only. BTC and all non-XAU symbols are retired from active trading, scanning, optimization, and roadmap scope unless the owner explicitly reverses the mandate. `[done]`
-- Active EA is `broker/mt5/FinRobotBridgeEA.mq5`, version `1.33`, with `AutoSymbols="XAUUSD"` and `AutoTimeframe=PERIOD_M5`. `[done]`
+- Active EA is `broker/mt5/FinRobotBridgeEA.mq5`, version `1.34`, with `AutoSymbols="XAUUSD"` and `AutoTimeframe=PERIOD_M5`. `[done]`
 - Daily risk lot sizing is enabled with `DailyRiskPerTradeFraction=0.0010` and `DailyLossLimitFraction=0.01`. `[done]`
 - Current recovery defaults are conservative: weak signals disabled, XAU auto-trading enabled, SMC/PDA gates enabled, ADX regime filter enabled, max two managed XAU positions. `[done]`
 - PM2 active runtime is `mt5-terminal`, `mt5-watchdog`, `autonomous-review`, and `finrobot-dashboard`, all writing to `logs/combined.log`. `[done]`

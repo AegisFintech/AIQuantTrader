@@ -18,7 +18,16 @@ from mt5_trade_report import (  # noqa: E402
 )
 
 
-def _deal(symbol, position_id, entry, profit, comment="", time="2026-06-10 10:00:00", deal_type=1):
+def _deal(
+    symbol,
+    position_id,
+    entry,
+    profit,
+    comment="",
+    time="2026-06-10 10:00:00",
+    deal_type=1,
+    commission="0.0",
+):
     return {
         "time": time,
         "ticket": str(position_id),
@@ -30,7 +39,7 @@ def _deal(symbol, position_id, entry, profit, comment="", time="2026-06-10 10:00
         "volume": "0.01",
         "price": "100.00",
         "profit": str(profit),
-        "commission": "0.0",
+        "commission": str(commission),
         "swap": "0.0",
         "comment": comment,
     }
@@ -81,6 +90,25 @@ def test_summarize_deals_pairs_entries_with_exits():
     assert "XAUUSD:FinRobot_XAUUSD_QuickMomentum_EMA_cross" in by_strat
     by_day = summary["by_day"]
     assert by_day.get("2026-06-10")["n"] == 2
+
+
+def test_summarize_deals_includes_entry_and_exit_commission():
+    rows = [
+        _deal(
+            "XAUUSD",
+            1,
+            entry=0,
+            profit=0.0,
+            commission="-0.35",
+            comment="FinRobot_XAUUSD_ATR_impulse",
+            time="2026-06-10 10:00:00",
+        ),
+        _deal("XAUUSD", 1, entry=1, profit=10.0, commission="-0.35", time="2026-06-10 11:00:00"),
+    ]
+    summary = summarize_deals(rows)
+    assert summary["closed_deals"] == 1
+    assert summary["total_pnl"] == 9.3
+    assert summary["by_symbol"]["XAUUSD"]["expectancy"] == 9.3
 
 
 def test_summarize_deals_empty_input():

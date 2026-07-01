@@ -20,11 +20,12 @@ from finrobot.backtest import (
 
 
 _NO_ADX = XauGatedParams(enable_adx_gate=False)
+_NO_ADX_SMC3 = XauGatedParams(enable_adx_gate=False, min_smc_score=3)
 
 
 def test_xau_gated_passes_inner_signal_when_pda_and_smc_pass():
     signal = _run_strategy_to_bar(
-        XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY"), _NO_ADX),
+        XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY"), _NO_ADX_SMC3),
         _long_gate_pass_bars(),
         _signal_idx(),
     )
@@ -35,9 +36,21 @@ def test_xau_gated_passes_inner_signal_when_pda_and_smc_pass():
     assert signal.smc_score >= 3
 
 
-def test_xau_gated_pda_gate_blocks_long_in_premium():
+def test_xau_gated_default_smc4_blocks_legacy_score3_setup():
     signal = _run_strategy_to_bar(
         XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY"), _NO_ADX),
+        _long_gate_pass_bars(),
+        _signal_idx(),
+    )
+
+    assert signal.action == "HOLD"
+    assert signal.strategy == "XauGated"
+    assert signal.comment == "smc_reject"
+
+
+def test_xau_gated_pda_gate_blocks_long_in_premium():
+    signal = _run_strategy_to_bar(
+        XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY"), _NO_ADX_SMC3),
         _long_pda_reject_bars(),
         _signal_idx(),
     )
@@ -49,7 +62,7 @@ def test_xau_gated_pda_gate_blocks_long_in_premium():
 
 def test_xau_gated_pda_gate_blocks_short_in_discount():
     signal = _run_strategy_to_bar(
-        XauGatedStrategy(_SignalAtBar(_signal_idx(), "SELL"), _NO_ADX),
+        XauGatedStrategy(_SignalAtBar(_signal_idx(), "SELL"), _NO_ADX_SMC3),
         _short_pda_reject_bars(),
         _signal_idx(),
     )
@@ -113,7 +126,7 @@ def test_xau_gated_disable_adx_gate():
     signal = _run_strategy_to_bar(
         XauGatedStrategy(
             _SignalAtBar(_signal_idx(), "BUY"),
-            XauGatedParams(enable_adx_gate=False),
+            _NO_ADX_SMC3,
         ),
         _long_gate_pass_bars(),
         _signal_idx(),
@@ -135,7 +148,7 @@ def test_xau_gated_inner_hold_means_outer_hold():
 
 def test_xau_gated_preserves_inner_comment():
     signal = _run_strategy_to_bar(
-        XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY", comment="ATR_impulse"), _NO_ADX),
+        XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY", comment="ATR_impulse"), _NO_ADX_SMC3),
         _long_gate_pass_bars(),
         _signal_idx(),
     )
@@ -146,7 +159,7 @@ def test_xau_gated_preserves_inner_comment():
 
 def test_xau_gated_runs_through_backtester():
     result = Backtester(_backtest_config()).run(
-        strategy=XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY"), _NO_ADX),
+        strategy=XauGatedStrategy(_SignalAtBar(_signal_idx(), "BUY"), _NO_ADX_SMC3),
         bars=_long_gate_pass_bars(),
     )
 
@@ -159,7 +172,7 @@ def test_xau_gated_synthesized_parity():
     bars = _long_gate_pass_bars()
     result = Backtester(_backtest_config(risk_per_trade_fraction=0.0001)).run(
         strategy=XauGatedStrategy(
-            _SignalAtBar(_signal_idx(), "BUY", sl_distance=100.0), _NO_ADX
+            _SignalAtBar(_signal_idx(), "BUY", sl_distance=100.0), _NO_ADX_SMC3
         ),
         bars=bars,
     )

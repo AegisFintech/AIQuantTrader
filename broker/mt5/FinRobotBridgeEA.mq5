@@ -1,6 +1,6 @@
 #property strict
 #property description "FinRobot MT5 bridge and demo auto trader for XAUUSD."
-#property version "1.33"
+#property version "1.34"
 
 #include <Trade/Trade.mqh>
 #include "BridgeIO.mqh"
@@ -24,7 +24,7 @@ input double MaxLotPerTrade = 5.0;             // Proportional compounding ceili
 input double MaxLotPerTradeXAUUSD = 5.0;       // XAU ceiling for 1M+ demo equity compounding
 input double HighConfluenceLotMultiplier = 3.0;
 input int MinSmcConfluenceScore = 3;
-input int MinSmcConfluenceScoreXAUUSD = 3;
+input int MinSmcConfluenceScoreXAUUSD = 4;
 input int HighConfluenceScore = 5;
 input bool UseDailyRiskLotSizing = true;
 input double DailyRiskPerTradeFraction = 0.0010;   // 0.10% of equity per trade
@@ -923,7 +923,7 @@ int OnInit() {
    trade.SetExpertMagicNumber(MagicNumber);
    LoadManagedSymbols();
    UpdateMoneyManagementState();
-   Print("FinRobotBridgeEA 1.33 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(AutoTimeframe));
+   Print("FinRobotBridgeEA 1.34 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(AutoTimeframe));
    WriteStatus();
    WritePositions();
    WriteDealsHistory();

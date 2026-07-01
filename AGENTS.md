@@ -8,7 +8,7 @@ FinRobot is now an MT5-first autonomous demo-trading repo. Trade and optimize on
 
 ## Source of truth
 
-- Active EA: `broker/mt5/FinRobotBridgeEA.mq5` (v1.33)
+- Active EA: `broker/mt5/FinRobotBridgeEA.mq5` (v1.34)
 - EA Modules: `broker/mt5/RiskManagement.mqh`, `SmartMoney.mqh`, `BridgeIO.mqh`
 - Runtime process list: `ecosystem.config.js`
 - MT5 heartbeat watchdog: `scripts/mt5_watchdog.py`
@@ -92,8 +92,8 @@ pm2 list
 
 - Current owner directive: non-XAU symbols are retired completely and must not be traded, scanned, optimized, or restored without an explicit owner reversal.
 - Owner directive (2026-06-26): keep proportional compounding lot sizing enabled for the high-equity demo account. Do not restore the emergency auto-entry pause or the `0.25` XAU lot ceiling unless the owner explicitly asks.
-- `FinRobotBridgeEA.mq5` should keep `AutoSymbols="XAUUSD"`, `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=true`, `UseDailyRiskLotSizing=true`, `DisableWeakStrategySignals=true`, `EnableXauWeekdayMarketHours=true`, `MaxAutoPositionsPerSymbol=2`, and `MaxLotPerTradeXAUUSD=5.0` unless the owner changes risk again.
-- Smart-money gate intent: trade XAU only from stricter premium/discount SMC setups. High-confluence score 5+ entries can size up via the risk model while respecting symbol lot caps and daily loss controls. `smc_reject` and `xau_pda_reject` mean the signal was intentionally blocked.
+- `FinRobotBridgeEA.mq5` should keep `AutoSymbols="XAUUSD"`, `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=true`, `UseDailyRiskLotSizing=true`, `DisableWeakStrategySignals=true`, `EnableXauWeekdayMarketHours=true`, `MinSmcConfluenceScoreXAUUSD=4`, `MaxAutoPositionsPerSymbol=2`, and `MaxLotPerTradeXAUUSD=5.0` unless the owner changes risk again.
+- Smart-money gate intent: trade XAU only from stricter premium/discount SMC score 4+ setups. High-confluence score 5+ entries can size up via the risk model while respecting symbol lot caps and daily loss controls. `smc_reject` and `xau_pda_reject` mean the signal was intentionally blocked.
 - Session intent: XAU may scan Monday-Friday whenever the broker symbol is inside its configured trade session; it should not be limited to London/NY windows.
 - `finrobot_status.json` includes per-symbol `session_gated`, `weekday_market_hours`, `session_open`, and daily `signal_telemetry` counters. Use these counters to distinguish no-signal periods from intentional market-closed, spread/cost, SMC, direction, PDA, cooldown, or session rejections before changing strategy.
 
@@ -109,6 +109,7 @@ pm2 list
 
 - Owner-requested maximum-frequency demo defaults (2026-06-01) failed and are retired: do not restore `DisableWeakStrategySignals=false`, `MaxAutoPositionsPerSymbol=5`, `MinSecondsBetweenTrades=60`, `MaxLotPerTrade=1.00`, `DailyRiskPerTradeFraction=0.0050`, or `MinSmcConfluenceScore=1` without fresh evidence.
 - Compounding demo defaults (2026-06-26): `DisableWeakStrategySignals=true`, `MaxAutoPositionsPerSymbol=2`, `MaxLotPerTrade=5.0`, `MaxLotPerTradeXAUUSD=5.0`, `DailyRiskPerTradeFraction=0.0010` (0.10% of equity), and `DailyLossLimitFraction=0.01` (1.00% of equity).
+- SMC tightening (2026-07-01): `MinSmcConfluenceScoreXAUUSD=4` after live fills showed score-3 XAU ATR impulse entries drove the recent drawdown. Keep score 4+ unless new evidence supports loosening.
 - XAU-only update (2026-06-22): non-XAU trading is removed from active EA defaults, startup profile defaults, docs, and symbol-specific research/backtest scaffolding.
 - XAU weekday-market update (2026-06-11): `EnableXauWeekdayMarketHours=true` bypasses the old London/NY-only gate for XAU and instead checks Monday-Friday plus the broker's symbol trade sessions/trade mode. If the broker session is closed, the signal is `market_closed`, not `outside_trading_session`.
 - After EA source edits: run `scripts/sync_mt5_ea.sh`, then `pm2 restart mt5-terminal --update-env`. The installer keeps MT5 and Wine under `.runtime/`; do not restore host-specific runtime hardcoding.

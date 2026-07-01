@@ -17,7 +17,7 @@ class XauGatedParams:
 
     pda_long_ceiling: float = 0.40
     pda_short_floor: float = 0.60
-    min_smc_score: int = 3
+    min_smc_score: int = 4
     enable_smc_gate: bool = True
     enable_pda_gate: bool = True
     enable_adx_gate: bool = True
