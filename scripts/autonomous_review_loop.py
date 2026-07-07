@@ -98,7 +98,30 @@ def mt5_report_text() -> str:
     return text if len(text) <= 200000 else text[:200000]
 
 
-def opencode_review(memory: list[dict], mt5_report: str, dry_run: bool) -> dict:
+def strategy_lab_review(deploy_profile: bool) -> dict:
+    if os.getenv('AUTOREVIEW_ENABLE_PROFILE_LAB', 'true').strip().lower() not in ('1', 'true', 'yes', 'on'):
+        return {'enabled': False, 'skipped': True, 'reason': 'profile_lab_disabled'}
+    cmd = [sys.executable, 'scripts/xau_strategy_lab.py']
+    if os.getenv('AUTOREVIEW_HARVEST_FIRST', '').strip().lower() in ('1', 'true', 'yes', 'on'):
+        cmd.append('--harvest-first')
+    max_bars = os.getenv('AUTOREVIEW_PROFILE_LAB_MAX_BARS', '').strip()
+    if max_bars:
+        cmd.extend(['--max-bars', max_bars])
+    if deploy_profile:
+        cmd.append('--write-profile')
+        if os.getenv('AUTOREVIEW_FORCE_PROFILE_DEPLOY', '').strip().lower() in ('1', 'true', 'yes', 'on'):
+            cmd.append('--force-profile')
+    cp = run(cmd, timeout=int(os.getenv('AUTOREVIEW_PROFILE_LAB_TIMEOUT', '1800')))
+    return {
+        'enabled': True,
+        'deploy_profile': deploy_profile,
+        'returncode': cp.returncode,
+        'stdout': cp.stdout[-12000:],
+        'stderr': cp.stderr[-12000:],
+    }
+
+
+def opencode_review(memory: list[dict], mt5_report: str, strategy_lab: dict, dry_run: bool) -> dict:
     prompt = f"""
 You are a senior HFT/quant trading engineer reviewing FinRobot.
 
@@ -111,6 +134,9 @@ Current mandate:
 
 MT5 report:
 {mt5_report[:20000]}
+
+Latest XAU strategy lab:
+{json.dumps(strategy_lab, indent=2)[:12000]}
 
 Recent strategy memory:
 {json.dumps(memory, indent=2)[:12000]}
@@ -159,22 +185,28 @@ def cycle(args: argparse.Namespace) -> dict:
         })
         return {'applied': False, 'skipped': True, 'reason': rec['reason']}
 
+    deploy_profile = os.getenv('AUTOREVIEW_ENABLE_PROMOTION_DEPLOY', '').strip().lower() in ('1', 'true', 'yes', 'on')
+    lab_result = strategy_lab_review(deploy_profile)
+    append_journal(STATE / 'improver_journal.jsonl', {'ts': time.time(), 'event': 'autonomous_strategy_lab', 'result': lab_result})
+    if lab_result.get('enabled'):
+        log(f"profile_lab_returncode={lab_result.get('returncode')} deploy_profile={deploy_profile}")
+
     if os.getenv('AUTOREVIEW_ENABLE_LLM', '').strip().lower() not in ('1', 'true', 'yes', 'on'):
         log(f"llm_editing_disabled=1 closed_deals={n} (analysis-only; set AUTOREVIEW_ENABLE_LLM=true to allow edits)")
-        rec = {'ts': time.time(), 'event': 'autonomous_review_analysis_only', 'closed_deals': n, 'llm_editing': 'disabled', 'mt5_report': mt5_report[-8000:]}
+        rec = {'ts': time.time(), 'event': 'autonomous_review_analysis_only', 'closed_deals': n, 'llm_editing': 'disabled', 'strategy_lab': lab_result, 'mt5_report': mt5_report[-8000:]}
         append_journal(STATE / 'improver_journal.jsonl', rec)
         memory.add({
             'ts': time.time(),
             'fingerprint': fingerprint({'event': 'mt5_review_analysis_only', 'closed_deals': closed}),
-            'changes': {'event': 'mt5_review_analysis_only', 'closed_deals': closed},
+            'changes': {'event': 'mt5_review_analysis_only', 'closed_deals': closed, 'strategy_lab': lab_result},
             'rationale': 'LLM editing disabled by AUTOREVIEW_ENABLE_LLM; recorded analysis only',
             'decision': 'rejected',
             'reason': 'llm_editing_disabled',
             'model': 'autonomous-review',
         })
-        return {'applied': False, 'analysis_only': True, 'closed_deals': n}
+        return {'applied': False, 'analysis_only': True, 'closed_deals': n, 'strategy_lab': lab_result}
 
-    result = opencode_review(memory.recent(30), mt5_report, args.dry_run)
+    result = opencode_review(memory.recent(30), mt5_report, lab_result, args.dry_run)
     append_journal(STATE / 'improver_journal.jsonl', {'ts': time.time(), 'event': 'autonomous_opencode_review', 'result': result})
     memory.add({
         'ts': time.time(),

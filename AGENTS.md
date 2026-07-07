@@ -17,6 +17,8 @@ FinRobot is now an MT5-first autonomous demo-trading repo. Trade and optimize on
 - Dashboard: `dashboard/app.py` served by `finrobot-dashboard` on `127.0.0.1:8501`
 - MT5 startup/profile helper: `scripts/mt5_configure_profile.py`
 - 6-hour Opencode loop: `scripts/autonomous_review_loop.py`
+- XAU profile lab: `scripts/xau_strategy_lab.py`
+- Runtime XAU profile definitions: `finrobot/xau_profiles.py`
 - Indicators: `finrobot/indicators.py` (consolidated)
 - HFT Logic: `finrobot/hft.py` (consolidated)
 - Runtime MT5/Wine files live under `.runtime/` and are intentionally gitignored.
@@ -47,6 +49,7 @@ The EA uses MT5 Common Files:
 - `finrobot_deals.csv` for managed deal history.
 - `finrobot_acks.csv` for fills/rejections/auto decisions.
 - `finrobot_commands.csv` for optional external commands.
+- `finrobot_strategy_profile.csv` for optional bounded XAU runtime profile overrides.
 
 Use `python3 scripts/mt5_trade_report.py` before making strategy changes. It summarizes open MT5 positions and closed managed deal performance.
 
@@ -57,9 +60,11 @@ Use `python3 scripts/mt5_trade_report.py` before making strategy changes. It sum
 1. Reads MT5 trade report and improvement memory.
 2. On service restart, waits one full `AUTOREVIEW_INTERVAL_HOURS` period before the first review unless `AUTOREVIEW_RUN_ON_START=true`.
 3. Skips if fewer than `AUTOREVIEW_MIN_TRADES` closed deals are available.
-4. Calls Opencode with the current mandate.
-4. Runs `compileall` and `scripts/mt5_trade_report.py` after successful Opencode changes.
-5. Restarts `mt5-terminal` and `autonomous-review` when checks pass.
+4. Runs `scripts/xau_strategy_lab.py` by default for bounded profile research unless `AUTOREVIEW_ENABLE_PROFILE_LAB=false`.
+5. Writes a live `finrobot_strategy_profile.csv` only when `AUTOREVIEW_ENABLE_PROMOTION_DEPLOY=true` and the lab winner clears promotion gates.
+6. Calls Opencode with the current mandate only when `AUTOREVIEW_ENABLE_LLM=true`.
+7. Runs `compileall` and `scripts/mt5_trade_report.py` after successful Opencode changes.
+8. Restarts `mt5-terminal` and `autonomous-review` when checks pass.
 
 Default minimum is 12 closed deals and default cadence is every 6 hours. Keep this evidence gate unless the owner asks for more aggressive changes.
 
@@ -93,6 +98,8 @@ pm2 list
 - Current owner directive: non-XAU symbols are retired completely and must not be traded, scanned, optimized, or restored without an explicit owner reversal.
 - Owner directive (2026-06-26): keep proportional compounding lot sizing enabled for the high-equity demo account. Do not restore the emergency auto-entry pause or the `0.25` XAU lot ceiling unless the owner explicitly asks.
 - `FinRobotBridgeEA.mq5` should keep `AutoSymbols="XAUUSD"`, `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=true`, `UseDailyRiskLotSizing=true`, `DisableWeakStrategySignals=true`, `EnableXauWeekdayMarketHours=true`, `MinSmcConfluenceScoreXAUUSD=4`, `MaxAutoPositionsPerSymbol=2`, and `MaxLotPerTradeXAUUSD=5.0` unless the owner changes risk again.
+- Runtime profiles may override bounded XAU-only settings through `finrobot_strategy_profile.csv`; compiled defaults remain the fallback when the file is missing, empty, or disabled.
+- Aggressive demo risk tiers are bounded at 0.50% risk per trade, 5.00% daily loss cap, 10.0 XAU max lot, and four managed XAU positions. Do not bypass these clamps without an explicit owner reversal.
 - Smart-money gate intent: trade XAU only from stricter premium/discount SMC score 4+ setups. High-confluence score 5+ entries can size up via the risk model while respecting symbol lot caps and daily loss controls. `smc_reject` and `xau_pda_reject` mean the signal was intentionally blocked.
 - Session intent: XAU may scan Monday-Friday whenever the broker symbol is inside its configured trade session; it should not be limited to London/NY windows.
 - `finrobot_status.json` includes per-symbol `session_gated`, `weekday_market_hours`, `session_open`, and daily `signal_telemetry` counters. Use these counters to distinguish no-signal periods from intentional market-closed, spread/cost, SMC, direction, PDA, cooldown, or session rejections before changing strategy.
@@ -116,6 +123,7 @@ pm2 list
 - `scripts/start_mt5.sh` refreshes `scripts/mt5_configure_profile.py` before launching MT5 unless `FINROBOT_CONFIGURE_PROFILE_ON_START=false`.
 - `scripts/autonomous_review_loop.py`: fixed a truncation bug — the trade report was sliced to the last 20000 chars, dropping the `Closed deal summary:` marker (~char 1800), so `closed_deals` always parsed as 0 and the reviewer never ran. Now keeps the head.
 - LLM editing is HARD-GATED OFF by default via `AUTOREVIEW_ENABLE_LLM` (unset/false = analysis-only: the loop logs the real closed-deal count and journals analysis but never invokes opencode). Set `AUTOREVIEW_ENABLE_LLM=true` to re-enable autonomous code edits.
+- Runtime profile update (2026-07-07): `scripts/xau_strategy_lab.py` evaluates bounded aggressive XAU profiles and can write `finrobot_strategy_profile.csv`; `FinRobotBridgeEA.mq5` reloads the profile periodically and reports the active profile in `finrobot_status.json`. Profile deployment is gated separately from LLM edits by `AUTOREVIEW_ENABLE_PROMOTION_DEPLOY`.
 
 ## Operational scripts (Phase 1 quick wins)
 
