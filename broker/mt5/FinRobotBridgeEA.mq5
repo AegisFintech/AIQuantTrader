@@ -1,6 +1,6 @@
 #property strict
-#property description "FinRobot MT5 bridge and demo auto trader for XAUUSD + BTCUSD."
-#property version "1.32"
+#property description "FinRobot MT5 bridge and demo auto trader for XAUUSD."
+#property version "1.35"
 
 #include <Trade/Trade.mqh>
 #include "BridgeIO.mqh"
@@ -12,44 +12,47 @@ input string AckFile = "finrobot_acks.csv";
 input string StatusFile = "finrobot_status.json";
 input string PositionsFile = "finrobot_positions.csv";
 input string DealsFile = "finrobot_deals.csv";
+input string StrategyProfileFile = "finrobot_strategy_profile.csv";
+input bool EnableRuntimeStrategyProfile = true;
 input int PollSeconds = 1;
 input int MagicNumber = 20260522;
 input int DefaultDeviationPoints = 30;
 input bool AllowTrading = true;
 input bool AutoTradeMT5 = true;
-input string AutoSymbols = "XAUUSD,BTCUSD";
+input string AutoSymbols = "XAUUSD";
 input ENUM_TIMEFRAMES AutoTimeframe = PERIOD_M5;
-input double XauBaseLot = 0.01;
-input double BtcBaseLot = 0.01;
-input double MaxLotPerTrade = 0.25;
-input double MaxLotPerTradeBTCUSD = 0.25;
-input double MaxLotPerTradeXAUUSD = 0.10;
+input double XauBaseLot = 0.05;                // Fallback only when daily risk sizing is disabled
+input double MaxLotPerTrade = 5.0;             // Proportional compounding ceiling; daily risk sizing remains primary
+input double MaxLotPerTradeXAUUSD = 5.0;       // XAU ceiling for 1M+ demo equity compounding
 input double HighConfluenceLotMultiplier = 3.0;
 input int MinSmcConfluenceScore = 3;
-input int MinSmcConfluenceScoreBTCUSD = 2;
-input int MinSmcConfluenceScoreXAUUSD = 3;
+input int MinSmcConfluenceScoreXAUUSD = 4;
 input int HighConfluenceScore = 5;
 input bool UseDailyRiskLotSizing = true;
 input double DailyRiskPerTradeFraction = 0.0010;   // 0.10% of equity per trade
 input double DailyLossLimitFraction = 0.01;        // 1.00% of equity daily cap
+input int LossStreakPauseCount = 0;                // 0 disables loss-streak pause
+input double BadDayDownshiftFraction = 0.50;       // Multiplier after broker-day closed PnL turns negative
+input double MaxRecentDrawdownFraction = 0.0;      // 0 disables earlier drawdown pause
+input bool BlackoutEnabled = false;
+input string BlackoutFile = "finrobot_blackout.csv";
+input double MaxAtrRegimeMultiplier = 0.0;         // 0 disables ATR regime pause
 input bool AutoClosePositionsWithoutStops = true;
 input bool DisableWeakStrategySignals = true;
 input int MaxAutoPositionsPerSymbol = 2;
-input int MaxAutoPositionsBTCUSD = 2;
 input int MaxAutoPositionsXAUUSD = 2;
 input int MaxSameDirectionPositionsPerSymbol = 2;
 input int MinSecondsBetweenTrades = 300;
-input int MinSecondsBetweenTradesBTCUSD = 300;
 input int MinSecondsBetweenTradesXAUUSD = 180;
 input int FastEmaPeriod = 9;
 input int SlowEmaPeriod = 21;
 input int TrendEmaPeriod = 50;
 input int RsiPeriod = 14;
 input int AtrPeriod = 14;
+input double AtrImpulseMultiplier = 0.12;
 input double StopAtrMultiplier = 1.2;
 input double TakeProfitAtrMultiplier = 2.4;
 input double MaxSpreadPointsXAUUSD = 80.0;
-input double MaxSpreadPointsBTCUSD = 5000.0;
 input bool EnableSmartMoneyGates = true;
 input bool EnableXauAutoTrading = true;
 input int SmcLookbackBars = 48;
@@ -58,19 +61,10 @@ input double DiscountThreshold = 0.38;
 input double PremiumThreshold = 0.62;
 input double LiquiditySweepAtrMultiplier = 0.30;
 input double MinTrendSlopeAtrMultiplier = 0.04;
-input bool EnableBtcRsiReversion = false;
-input bool EnableBtcAtrImpulse = false;
-input bool EnableBtcMomentumTrend = false;
-input bool EnableBtcMacdTrend = false;
-input bool EnableBtcQuickMomentum = true;
 input bool EnableXauRsiReversion = false;
 input bool EnableXauAtrImpulse = true;
 input bool EnableSessionGating = true;
-input bool EnableBtcContinuousTrading = true;
 input bool EnableXauWeekdayMarketHours = true;
-input bool EnableBtcCostFilters = true;
-input double MaxBtcSpreadAtrRatio = 0.15;
-input double MaxBtcSpreadTakeProfitRatio = 0.08;
 input int LondonStartHour = 7;
 input int LondonEndHour = 11;
 input int NyStartHour = 13;
@@ -103,21 +97,210 @@ int directionRejectCounts[];
 int pdaRejectCounts[];
 int positionRejectCounts[];
 int orderRejectCounts[];
+int recoveryRejectCounts[];
 int moneyManagementDay = 0;
 double dailyEquitySnapshot = 0.0;
 double todayClosedPnlCache = 0.0;
 datetime lastMoneyManagementUpdate = 0;
 string riskCloseAttemptTickets = "";
 int riskCloseAttemptDay = 0;
-
-bool IsBtcSymbol(string symbol) {
-   string s = Upper(symbol);
-   return StringFind(s, "BTC") >= 0;
-}
+string activeProfileName = "compiled_defaults";
+int activeRiskTier = 0;
+int runtimeProfileLoaded = 0;
+string runtimeProfileMessage = "compiled defaults";
+ENUM_TIMEFRAMES runtimeAutoTimeframe = PERIOD_M5;
+double runtimeAtrImpulseMultiplier = 0.12;
+double runtimeMaxLotPerTradeXAUUSD = 5.0;
+double runtimeHighConfluenceLotMultiplier = 3.0;
+int runtimeMinSmcConfluenceScoreXAUUSD = 4;
+int runtimeHighConfluenceScore = 5;
+double runtimeDailyRiskPerTradeFraction = 0.0010;
+double runtimeDailyLossLimitFraction = 0.01;
+int runtimeMaxAutoPositionsXAUUSD = 2;
+int runtimeMaxSameDirectionPositionsPerSymbol = 2;
+int runtimeMinSecondsBetweenTradesXAUUSD = 180;
+double runtimeStopAtrMultiplier = 1.2;
+double runtimeTakeProfitAtrMultiplier = 2.4;
+double runtimeMaxSpreadPointsXAUUSD = 80.0;
+bool runtimeEnableSmartMoneyGates = true;
+double runtimeFvgMinAtrMultiplier = 0.30;
+double runtimeDiscountThreshold = 0.38;
+double runtimePremiumThreshold = 0.62;
+double runtimeLiquiditySweepAtrMultiplier = 0.30;
+bool runtimeEnableXauRsiReversion = false;
+bool runtimeEnableXauAtrImpulse = true;
+bool runtimeEnableAdxRegimeFilter = true;
+double runtimeAdxMinThreshold = 20.0;
+double runtimePdaLongCeiling = 0.40;
+double runtimePdaShortFloor = 0.60;
+int runtimeLossStreakPauseCount = 0;
+double runtimeBadDayDownshiftFraction = 0.50;
+double runtimeMaxRecentDrawdownFraction = 0.0;
+bool runtimeBlackoutEnabled = false;
+double runtimeMaxAtrRegimeMultiplier = 0.0;
 
 bool IsXauSymbol(string symbol) {
    string s = Upper(symbol);
    return StringFind(s, "XAU") >= 0 || StringFind(s, "GOLD") >= 0;
+}
+
+string Lower(string s) {
+   StringToLower(s);
+   return s;
+}
+
+double ClampProfileDouble(double value, double lo, double hi) {
+   return MathMax(lo, MathMin(hi, value));
+}
+
+int ClampProfileInt(int value, int lo, int hi) {
+   return MathMax(lo, MathMin(hi, value));
+}
+
+bool ParseProfileBool(string value, bool fallback) {
+   string v = Lower(Trim(value));
+   if(v == "1" || v == "true" || v == "yes" || v == "on") return true;
+   if(v == "0" || v == "false" || v == "no" || v == "off") return false;
+   return fallback;
+}
+
+ENUM_TIMEFRAMES ParseProfileTimeframe(string value, ENUM_TIMEFRAMES fallback) {
+   string v = Upper(Trim(value));
+   if(v == "1" || v == "M1" || v == "PERIOD_M1") return PERIOD_M1;
+   if(v == "5" || v == "M5" || v == "PERIOD_M5") return PERIOD_M5;
+   if(v == "15" || v == "M15" || v == "PERIOD_M15") return PERIOD_M15;
+   return fallback;
+}
+
+void ResetRuntimeStrategyProfile() {
+   activeProfileName = "compiled_defaults";
+   activeRiskTier = 0;
+   runtimeProfileLoaded = 0;
+   runtimeProfileMessage = "compiled defaults";
+   runtimeAutoTimeframe = AutoTimeframe;
+   runtimeAtrImpulseMultiplier = ClampProfileDouble(AtrImpulseMultiplier, 0.04, 0.30);
+   runtimeMaxLotPerTradeXAUUSD = ClampProfileDouble(MaxLotPerTradeXAUUSD, 0.01, 10.0);
+   runtimeHighConfluenceLotMultiplier = ClampProfileDouble(HighConfluenceLotMultiplier, 1.0, 5.0);
+   runtimeMinSmcConfluenceScoreXAUUSD = ClampProfileInt(MinSmcConfluenceScoreXAUUSD, 1, 6);
+   runtimeHighConfluenceScore = ClampProfileInt(HighConfluenceScore, 4, 6);
+   runtimeDailyRiskPerTradeFraction = ClampProfileDouble(DailyRiskPerTradeFraction, 0.0001, 0.0050);
+   runtimeDailyLossLimitFraction = ClampProfileDouble(DailyLossLimitFraction, 0.0025, 0.0500);
+   runtimeMaxAutoPositionsXAUUSD = ClampProfileInt(MaxAutoPositionsXAUUSD, 1, 4);
+   runtimeMaxSameDirectionPositionsPerSymbol = ClampProfileInt(MaxSameDirectionPositionsPerSymbol, 1, 4);
+   runtimeMinSecondsBetweenTradesXAUUSD = ClampProfileInt(MinSecondsBetweenTradesXAUUSD, 30, 900);
+   runtimeStopAtrMultiplier = ClampProfileDouble(StopAtrMultiplier, 0.50, 3.00);
+   runtimeTakeProfitAtrMultiplier = ClampProfileDouble(TakeProfitAtrMultiplier, 0.80, 6.00);
+   runtimeMaxSpreadPointsXAUUSD = ClampProfileDouble(MaxSpreadPointsXAUUSD, 20.0, 120.0);
+   runtimeEnableSmartMoneyGates = EnableSmartMoneyGates;
+   runtimeFvgMinAtrMultiplier = ClampProfileDouble(FvgMinAtrMultiplier, 0.05, 1.50);
+   runtimeDiscountThreshold = ClampProfileDouble(DiscountThreshold, 0.10, 0.50);
+   runtimePremiumThreshold = ClampProfileDouble(PremiumThreshold, 0.50, 0.90);
+   runtimeLiquiditySweepAtrMultiplier = ClampProfileDouble(LiquiditySweepAtrMultiplier, 0.05, 1.50);
+   runtimeEnableXauRsiReversion = EnableXauRsiReversion;
+   runtimeEnableXauAtrImpulse = EnableXauAtrImpulse;
+   runtimeEnableAdxRegimeFilter = EnableAdxRegimeFilter;
+   runtimeAdxMinThreshold = ClampProfileDouble(AdxMinThreshold, 5.0, 45.0);
+   runtimePdaLongCeiling = 0.40;
+   runtimePdaShortFloor = 0.60;
+   runtimeLossStreakPauseCount = ClampProfileInt(LossStreakPauseCount, 0, 8);
+   runtimeBadDayDownshiftFraction = ClampProfileDouble(BadDayDownshiftFraction, 0.0, 1.0);
+   runtimeMaxRecentDrawdownFraction = ClampProfileDouble(MaxRecentDrawdownFraction, 0.0, 0.0500);
+   runtimeBlackoutEnabled = BlackoutEnabled;
+   runtimeMaxAtrRegimeMultiplier = ClampProfileDouble(MaxAtrRegimeMultiplier, 0.0, 8.0);
+}
+
+void ApplyRuntimeProfileKey(string keyRaw, string valueRaw) {
+   string key = Lower(Trim(keyRaw));
+   string value = Trim(valueRaw);
+   if(key == "profile_name") activeProfileName = value;
+   else if(key == "risk_tier") activeRiskTier = ClampProfileInt((int)StringToInteger(value), 0, 2);
+   else if(key == "auto_timeframe") runtimeAutoTimeframe = ParseProfileTimeframe(value, runtimeAutoTimeframe);
+   else if(key == "enable_xau_atr_impulse") runtimeEnableXauAtrImpulse = ParseProfileBool(value, runtimeEnableXauAtrImpulse);
+   else if(key == "enable_xau_rsi_reversion") runtimeEnableXauRsiReversion = ParseProfileBool(value, runtimeEnableXauRsiReversion);
+   else if(key == "enable_smart_money_gates") runtimeEnableSmartMoneyGates = ParseProfileBool(value, runtimeEnableSmartMoneyGates);
+   else if(key == "enable_adx_regime_filter") runtimeEnableAdxRegimeFilter = ParseProfileBool(value, runtimeEnableAdxRegimeFilter);
+   else if(key == "impulse_atr_multiplier") runtimeAtrImpulseMultiplier = ClampProfileDouble(StringToDouble(value), 0.04, 0.30);
+   else if(key == "min_smc_confluence_score_xauusd") runtimeMinSmcConfluenceScoreXAUUSD = ClampProfileInt((int)StringToInteger(value), 1, 6);
+   else if(key == "pda_long_ceiling") runtimePdaLongCeiling = ClampProfileDouble(StringToDouble(value), 0.05, 0.50);
+   else if(key == "pda_short_floor") runtimePdaShortFloor = ClampProfileDouble(StringToDouble(value), 0.50, 0.95);
+   else if(key == "discount_threshold") runtimeDiscountThreshold = ClampProfileDouble(StringToDouble(value), 0.10, 0.50);
+   else if(key == "premium_threshold") runtimePremiumThreshold = ClampProfileDouble(StringToDouble(value), 0.50, 0.90);
+   else if(key == "fvg_min_atr_multiplier") runtimeFvgMinAtrMultiplier = ClampProfileDouble(StringToDouble(value), 0.05, 1.50);
+   else if(key == "liquidity_sweep_atr_multiplier") runtimeLiquiditySweepAtrMultiplier = ClampProfileDouble(StringToDouble(value), 0.05, 1.50);
+   else if(key == "daily_risk_per_trade_fraction") runtimeDailyRiskPerTradeFraction = ClampProfileDouble(StringToDouble(value), 0.0001, 0.0050);
+   else if(key == "daily_loss_limit_fraction") runtimeDailyLossLimitFraction = ClampProfileDouble(StringToDouble(value), 0.0025, 0.0500);
+   else if(key == "max_lot_per_trade_xauusd") runtimeMaxLotPerTradeXAUUSD = ClampProfileDouble(StringToDouble(value), 0.01, 10.0);
+   else if(key == "max_auto_positions_xauusd") runtimeMaxAutoPositionsXAUUSD = ClampProfileInt((int)StringToInteger(value), 1, 4);
+   else if(key == "max_same_direction_positions_per_symbol") runtimeMaxSameDirectionPositionsPerSymbol = ClampProfileInt((int)StringToInteger(value), 1, 4);
+   else if(key == "min_seconds_between_trades_xauusd") runtimeMinSecondsBetweenTradesXAUUSD = ClampProfileInt((int)StringToInteger(value), 30, 900);
+   else if(key == "stop_atr_multiplier") runtimeStopAtrMultiplier = ClampProfileDouble(StringToDouble(value), 0.50, 3.00);
+   else if(key == "take_profit_atr_multiplier") runtimeTakeProfitAtrMultiplier = ClampProfileDouble(StringToDouble(value), 0.80, 6.00);
+   else if(key == "adx_min_threshold") runtimeAdxMinThreshold = ClampProfileDouble(StringToDouble(value), 5.0, 45.0);
+   else if(key == "high_confluence_lot_multiplier") runtimeHighConfluenceLotMultiplier = ClampProfileDouble(StringToDouble(value), 1.0, 5.0);
+   else if(key == "high_confluence_score") runtimeHighConfluenceScore = ClampProfileInt((int)StringToInteger(value), 4, 6);
+   else if(key == "max_spread_points_xauusd") runtimeMaxSpreadPointsXAUUSD = ClampProfileDouble(StringToDouble(value), 20.0, 120.0);
+   else if(key == "loss_streak_pause_count") runtimeLossStreakPauseCount = ClampProfileInt((int)StringToInteger(value), 0, 8);
+   else if(key == "bad_day_downshift_fraction") runtimeBadDayDownshiftFraction = ClampProfileDouble(StringToDouble(value), 0.0, 1.0);
+   else if(key == "max_recent_drawdown_fraction") runtimeMaxRecentDrawdownFraction = ClampProfileDouble(StringToDouble(value), 0.0, 0.0500);
+   else if(key == "blackout_enabled") runtimeBlackoutEnabled = ParseProfileBool(value, runtimeBlackoutEnabled);
+   else if(key == "max_atr_regime_multiplier") runtimeMaxAtrRegimeMultiplier = ClampProfileDouble(StringToDouble(value), 0.0, 8.0);
+}
+
+void LoadRuntimeStrategyProfile() {
+   ResetRuntimeStrategyProfile();
+   if(!EnableRuntimeStrategyProfile) {
+      runtimeProfileMessage = "runtime profile disabled";
+      return;
+   }
+   int h = FileOpen(StrategyProfileFile, FILE_READ|FILE_TXT|FILE_ANSI|FILE_COMMON);
+   if(h == INVALID_HANDLE) {
+      runtimeProfileMessage = "profile file not found";
+      return;
+   }
+   int applied = 0;
+   while(!FileIsEnding(h)) {
+      string line = Trim(FileReadString(h));
+      if(line == "" || StringFind(line, "#") == 0) continue;
+      string cols[];
+      int n = StringSplit(line, ',', cols);
+      if(n < 2) continue;
+      string key = Trim(cols[0]);
+      if(Lower(key) == "key") continue;
+      ApplyRuntimeProfileKey(key, cols[1]);
+      applied++;
+   }
+   FileClose(h);
+   if(applied > 0) {
+      runtimeProfileLoaded = 1;
+      runtimeProfileMessage = "loaded";
+   } else {
+      activeProfileName = "compiled_defaults";
+      runtimeProfileMessage = "profile empty";
+   }
+}
+
+string StrategyProfileJson() {
+   string payload = "{";
+   payload += "\"name\":\"" + Clean(activeProfileName) + "\",";
+   payload += "\"risk_tier\":" + IntegerToString(activeRiskTier) + ",";
+   payload += "\"loaded\":" + IntegerToString(runtimeProfileLoaded) + ",";
+   payload += "\"message\":\"" + Clean(runtimeProfileMessage) + "\",";
+   payload += "\"timeframe\":\"" + Clean(EnumToString(runtimeAutoTimeframe)) + "\",";
+   payload += "\"risk_per_trade\":" + DoubleToString(runtimeDailyRiskPerTradeFraction, 6) + ",";
+   payload += "\"daily_loss_limit\":" + DoubleToString(runtimeDailyLossLimitFraction, 4) + ",";
+   payload += "\"max_lot_xauusd\":" + DoubleToString(runtimeMaxLotPerTradeXAUUSD, 2) + ",";
+   payload += "\"max_positions_xauusd\":" + IntegerToString(runtimeMaxAutoPositionsXAUUSD) + ",";
+   payload += "\"min_smc_xauusd\":" + IntegerToString(runtimeMinSmcConfluenceScoreXAUUSD) + ",";
+   payload += "\"pda_long_ceiling\":" + DoubleToString(runtimePdaLongCeiling, 2) + ",";
+   payload += "\"pda_short_floor\":" + DoubleToString(runtimePdaShortFloor, 2) + ",";
+   payload += "\"atr_impulse_multiplier\":" + DoubleToString(runtimeAtrImpulseMultiplier, 3) + ",";
+   payload += "\"loss_streak_pause_count\":" + IntegerToString(runtimeLossStreakPauseCount) + ",";
+   payload += "\"bad_day_downshift_fraction\":" + DoubleToString(runtimeBadDayDownshiftFraction, 2) + ",";
+   payload += "\"max_recent_drawdown_fraction\":" + DoubleToString(runtimeMaxRecentDrawdownFraction, 4) + ",";
+   payload += "\"blackout_enabled\":" + IntegerToString((int)runtimeBlackoutEnabled) + ",";
+   payload += "\"max_atr_regime_multiplier\":" + DoubleToString(runtimeMaxAtrRegimeMultiplier, 2);
+   payload += "}";
+   return payload;
 }
 
 void ResizeSignalTelemetry(int n) {
@@ -131,6 +314,7 @@ void ResizeSignalTelemetry(int n) {
    ArrayResize(pdaRejectCounts, n);
    ArrayResize(positionRejectCounts, n);
    ArrayResize(orderRejectCounts, n);
+   ArrayResize(recoveryRejectCounts, n);
 }
 
 void ResetSignalTelemetry() {
@@ -148,6 +332,7 @@ void ResetSignalTelemetry() {
       pdaRejectCounts[i] = 0;
       positionRejectCounts[i] = 0;
       orderRejectCounts[i] = 0;
+      recoveryRejectCounts[i] = 0;
    }
 }
 
@@ -163,13 +348,13 @@ void CountSignalTelemetry(int idx, string signal) {
    if(StringFind(signal, "BUY ") == 0 || StringFind(signal, "SELL ") == 0) filledSignalCounts[idx]++;
    else if(StringFind(signal, "outside_trading_session") == 0) outsideSessionRejectCounts[idx]++;
    else if(StringFind(signal, "market_closed") == 0) marketClosedRejectCounts[idx]++;
-   else if(StringFind(signal, "spread_too_wide") == 0 || StringFind(signal, "btc_cost_reject") == 0) spreadRejectCounts[idx]++;
+   else if(StringFind(signal, "spread_too_wide") == 0) spreadRejectCounts[idx]++;
    else if(StringFind(signal, "no_signal") == 0) noSignalCounts[idx]++;
    else if(StringFind(signal, "smc_reject") == 0) smcRejectCounts[idx]++;
-   else if(StringFind(signal, "btc_direction_reject") == 0) directionRejectCounts[idx]++;
    else if(StringFind(signal, "xau_pda_reject") == 0) pdaRejectCounts[idx]++;
    else if(StringFind(signal, "max_positions") == 0 || StringFind(signal, "same_side_max") == 0 || StringFind(signal, "cooldown") == 0) positionRejectCounts[idx]++;
    else if(StringFind(signal, "order_failed") == 0 || StringFind(signal, "risk_volume_zero") == 0) orderRejectCounts[idx]++;
+   else if(StringFind(signal, "loss_streak_pause") == 0 || StringFind(signal, "recent_drawdown_pause") == 0 || StringFind(signal, "blackout_reject") == 0 || StringFind(signal, "atr_regime_reject") == 0) recoveryRejectCounts[idx]++;
 }
 
 void SetLastSignal(int idx, string signal) {
@@ -181,7 +366,6 @@ void SetLastSignal(int idx, string signal) {
 
 bool UseSessionGateForSymbol(string symbol) {
    if(!EnableSessionGating) return false;
-   if(IsBtcSymbol(symbol) && EnableBtcContinuousTrading) return false;
    if(IsXauSymbol(symbol) && EnableXauWeekdayMarketHours) return false;
    return true;
 }
@@ -236,26 +420,10 @@ string AutoSessionRejectReason(string symbol) {
    return "outside_trading_session";
 }
 
-bool BtcCostFilterReject(double spreadPrice, double atrValue, double tpDistance, string &detail) {
-   if(!EnableBtcCostFilters) return false;
-   double atrRatio = atrValue > 0.0 ? spreadPrice / atrValue : 0.0;
-   double tpRatio = tpDistance > 0.0 ? spreadPrice / tpDistance : 0.0;
-   if(MaxBtcSpreadAtrRatio > 0.0 && atrRatio > MaxBtcSpreadAtrRatio) {
-      detail = "spread_atr=" + DoubleToString(atrRatio, 3) + " max=" + DoubleToString(MaxBtcSpreadAtrRatio, 3);
-      return true;
-   }
-   if(MaxBtcSpreadTakeProfitRatio > 0.0 && tpRatio > MaxBtcSpreadTakeProfitRatio) {
-      detail = "spread_tp=" + DoubleToString(tpRatio, 3) + " max=" + DoubleToString(MaxBtcSpreadTakeProfitRatio, 3);
-      return true;
-   }
-   detail = "spread_atr=" + DoubleToString(atrRatio, 3) + " spread_tp=" + DoubleToString(tpRatio, 3);
-   return false;
-}
-
 double PremiumDiscountPosition(string symbol, int idx) {
    MqlRates rates[];
    ArraySetAsSeries(rates, true);
-   int bars = CopyRates(symbol, AutoTimeframe, 0, MathMax(SmcLookbackBars + 5, 60), rates);
+   int bars = CopyRates(symbol, runtimeAutoTimeframe, 0, MathMax(SmcLookbackBars + 5, 60), rates);
    if(bars < 10) return 0.5;
    double mid = (SymbolInfoDouble(symbol, SYMBOL_BID) + SymbolInfoDouble(symbol, SYMBOL_ASK)) * 0.5;
    return PremiumDiscountPosition(rates, SmcLookbackBars, mid);
@@ -276,9 +444,8 @@ void LoadManagedSymbols() {
    string parts[];
    int n = StringSplit(AutoSymbols, ',', parts);
    if(n <= 0) {
-      ArrayResize(managedSymbols, 2);
+      ArrayResize(managedSymbols, 1);
       managedSymbols[0] = "XAUUSD";
-      managedSymbols[1] = "BTCUSD";
    } else {
       ArrayResize(managedSymbols, 0);
       for(int i = 0; i < n; i++) {
@@ -290,9 +457,8 @@ void LoadManagedSymbols() {
       }
    }
    if(ArraySize(managedSymbols) == 0) {
-      ArrayResize(managedSymbols, 2);
+      ArrayResize(managedSymbols, 1);
       managedSymbols[0] = "XAUUSD";
-      managedSymbols[1] = "BTCUSD";
    }
    ArrayResize(lastSignals, ArraySize(managedSymbols));
    ArrayResize(lastTradeTimes, ArraySize(managedSymbols));
@@ -348,51 +514,23 @@ int CountPositionsByMagicAndSide(string symbol, int magic, int side) {
 }
 
 int MaxAutoPositionsForSymbol(string symbol) {
-   if(IsBtcSymbol(symbol)) return MathMax(0, MaxAutoPositionsBTCUSD);
-   if(IsXauSymbol(symbol)) return MathMax(0, MaxAutoPositionsXAUUSD);
+   if(IsXauSymbol(symbol)) return MathMax(0, runtimeMaxAutoPositionsXAUUSD);
    return MathMax(0, MaxAutoPositionsPerSymbol);
 }
 
 int MinSecondsBetweenTradesForSymbol(string symbol) {
-   if(IsBtcSymbol(symbol)) return MathMax(0, MinSecondsBetweenTradesBTCUSD);
-   if(IsXauSymbol(symbol)) return MathMax(0, MinSecondsBetweenTradesXAUUSD);
+   if(IsXauSymbol(symbol)) return MathMax(0, runtimeMinSecondsBetweenTradesXAUUSD);
    return MathMax(0, MinSecondsBetweenTrades);
 }
 
 int MinSmcConfluenceForSymbol(string symbol) {
-   if(IsBtcSymbol(symbol)) return MathMax(1, MinSmcConfluenceScoreBTCUSD);
-   if(IsXauSymbol(symbol)) return MathMax(1, MinSmcConfluenceScoreXAUUSD);
+   if(IsXauSymbol(symbol)) return MathMax(1, runtimeMinSmcConfluenceScoreXAUUSD);
    return MathMax(1, MinSmcConfluenceScore);
 }
 
 double MaxLotForSymbol(string symbol) {
-   if(IsBtcSymbol(symbol)) return MathMax(0.0, MathMin(MaxLotPerTrade, MaxLotPerTradeBTCUSD));
-   if(IsXauSymbol(symbol)) return MathMax(0.0, MathMin(MaxLotPerTrade, MaxLotPerTradeXAUUSD));
+   if(IsXauSymbol(symbol)) return MathMax(0.0, MathMin(MaxLotPerTrade, runtimeMaxLotPerTradeXAUUSD));
    return MathMax(0.0, MaxLotPerTrade);
-}
-
-int HigherTimeframeTrend(string symbol) {
-   MqlRates h1[];
-   ArraySetAsSeries(h1, true);
-   if(CopyRates(symbol, PERIOD_H1, 0, 240, h1) < 210) return 0;
-   int emaFastHandle = iMA(symbol, PERIOD_H1, 50, 0, MODE_EMA, PRICE_CLOSE);
-   int emaSlowHandle = iMA(symbol, PERIOD_H1, 200, 0, MODE_EMA, PRICE_CLOSE);
-   if(emaFastHandle == INVALID_HANDLE || emaSlowHandle == INVALID_HANDLE) {
-      if(emaFastHandle != INVALID_HANDLE) IndicatorRelease(emaFastHandle);
-      if(emaSlowHandle != INVALID_HANDLE) IndicatorRelease(emaSlowHandle);
-      return 0;
-   }
-   double emaFast[], emaSlow[];
-   ArraySetAsSeries(emaFast, true);
-   ArraySetAsSeries(emaSlow, true);
-   bool copied = CopyBuffer(emaFastHandle, 0, 0, 5, emaFast) >= 5 && CopyBuffer(emaSlowHandle, 0, 0, 5, emaSlow) >= 5;
-   IndicatorRelease(emaFastHandle);
-   IndicatorRelease(emaSlowHandle);
-   if(!copied) return 0;
-   double slope = emaFast[0] - emaFast[3];
-   if(emaFast[0] > emaSlow[0] && slope > 0.0) return 1;
-   if(emaFast[0] < emaSlow[0] && slope < 0.0) return -1;
-   return 0;
 }
 
 string CombinedSignals() {
@@ -417,7 +555,8 @@ string SymbolTelemetryJson(int idx) {
    payload += "\"direction_reject\":" + IntegerToString(directionRejectCounts[idx]) + ",";
    payload += "\"pda_reject\":" + IntegerToString(pdaRejectCounts[idx]) + ",";
    payload += "\"position_reject\":" + IntegerToString(positionRejectCounts[idx]) + ",";
-   payload += "\"order_reject\":" + IntegerToString(orderRejectCounts[idx]);
+   payload += "\"order_reject\":" + IntegerToString(orderRejectCounts[idx]) + ",";
+   payload += "\"recovery_reject\":" + IntegerToString(recoveryRejectCounts[idx]);
    payload += "}";
    return payload;
 }
@@ -437,6 +576,7 @@ string SymbolStatusJson(string symbol, int idx) {
    payload += "\"session_gated\":" + IntegerToString((int)UseSessionGateForSymbol(symbol)) + ",";
    payload += "\"weekday_market_hours\":" + IntegerToString((int)UseWeekdayMarketHoursForSymbol(symbol)) + ",";
    payload += "\"session_open\":" + IntegerToString((int)IsAutoSessionOpen(symbol)) + ",";
+   payload += "\"recovery_armed\":" + IntegerToString((int)(runtimeLossStreakPauseCount > 0 || runtimeMaxRecentDrawdownFraction > 0.0 || runtimeBlackoutEnabled || runtimeMaxAtrRegimeMultiplier > 0.0)) + ",";
    payload += "\"last_signal\":\"" + Clean(lastSignals[idx]) + "\",";
    payload += "\"signal_telemetry\":" + SymbolTelemetryJson(idx);
    payload += "}";
@@ -463,6 +603,7 @@ void WriteStatus() {
    payload += "\"symbol\":\"" + Clean(AutoSymbols) + "\",";
    payload += "\"last_auto_signal\":\"" + Clean(CombinedSignals()) + "\",";
    payload += "\"last_command_id\":" + IntegerToString(lastCommandId) + ",";
+   payload += "\"strategy_profile\":" + StrategyProfileJson() + ",";
    payload += "\"money_management\":" + MoneyManagementJson() + ",";
    payload += "\"symbols\":[";
    for(int i = 0; i < ArraySize(managedSymbols); i++) {
@@ -490,7 +631,7 @@ void UpdateMoneyManagementState() {
 }
 
 bool IsDailyLossLimitReached() {
-   double limitMoney = dailyEquitySnapshot * DailyLossLimitFraction;
+   double limitMoney = dailyEquitySnapshot * runtimeDailyLossLimitFraction;
    return limitMoney > 0.0 && todayClosedPnlCache <= -limitMoney;
 }
 
@@ -500,7 +641,6 @@ bool DailyLossLimitReached() {
 }
 
 double BaseLotForSymbol(string symbol) {
-   if(IsBtcSymbol(symbol)) return BtcBaseLot;
    return XauBaseLot;
 }
 
@@ -511,9 +651,10 @@ double DailyRiskVolume(string symbol, double slDistance, int confluenceScore) {
    if(tickSize <= 0.0 || tickValue <= 0.0 || slDistance <= 0.0 || dailyEquitySnapshot <= 0.0) {
       return NormalizeVolume(symbol, BaseLotForSymbol(symbol));
    }
-   double riskMoney = dailyEquitySnapshot * DailyRiskPerTradeFraction;
-   if(confluenceScore >= HighConfluenceScore) riskMoney *= MathMax(1.0, HighConfluenceLotMultiplier);
-   if(todayClosedPnlCache < 0.0) riskMoney *= 0.5;
+   double riskMoney = dailyEquitySnapshot * runtimeDailyRiskPerTradeFraction;
+   if(confluenceScore >= runtimeHighConfluenceScore) riskMoney *= MathMax(1.0, runtimeHighConfluenceLotMultiplier);
+   if(todayClosedPnlCache < 0.0) riskMoney *= runtimeBadDayDownshiftFraction;
+   if(riskMoney <= 0.0) return 0.0;
    double riskPerLot = (slDistance / tickSize) * tickValue;
    if(riskPerLot <= 0.0) return NormalizeVolume(symbol, BaseLotForSymbol(symbol));
    double volume = riskMoney / riskPerLot;
@@ -527,8 +668,11 @@ string MoneyManagementJson() {
    payload += "\"day\":" + IntegerToString(moneyManagementDay) + ",";
    payload += "\"daily_equity_snapshot\":" + DoubleToString(dailyEquitySnapshot, 2) + ",";
    payload += "\"today_closed_pnl\":" + DoubleToString(todayClosedPnlCache, 2) + ",";
-   payload += "\"daily_risk_per_trade_fraction\":" + DoubleToString(DailyRiskPerTradeFraction, 6) + ",";
-   payload += "\"daily_loss_limit_fraction\":" + DoubleToString(DailyLossLimitFraction, 4) + ",";
+   payload += "\"daily_risk_per_trade_fraction\":" + DoubleToString(runtimeDailyRiskPerTradeFraction, 6) + ",";
+   payload += "\"daily_loss_limit_fraction\":" + DoubleToString(runtimeDailyLossLimitFraction, 4) + ",";
+   payload += "\"bad_day_downshift_fraction\":" + DoubleToString(runtimeBadDayDownshiftFraction, 2) + ",";
+   payload += "\"max_recent_drawdown_fraction\":" + DoubleToString(runtimeMaxRecentDrawdownFraction, 4) + ",";
+   payload += "\"loss_streak_pause_count\":" + IntegerToString(runtimeLossStreakPauseCount) + ",";
    payload += "\"loss_limit_reached\":" + IntegerToString((int)IsDailyLossLimitReached()) + ",";
    payload += "\"risk_lot_sizing\":" + IntegerToString((int)UseDailyRiskLotSizing) + ",";
    payload += "\"auto_close_no_sl_tp\":" + IntegerToString((int)AutoClosePositionsWithoutStops);
@@ -627,6 +771,10 @@ void ExecuteCommand(int id, string action, string symbol, string side, double vo
          AppendAck(AckFile, id, "REJECTED", "MARKET requires SL > 0", symbol, side, volume, 0.0);
          return;
       }
+      if(tp <= 0.0) {
+         AppendAck(AckFile, id, "REJECTED", "MARKET requires TP > 0", symbol, side, volume, 0.0);
+         return;
+      }
       double maxLot = MaxLotForSymbol(symbol);
       if(volume > maxLot + 1e-9) {
          AppendAck(AckFile, id, "REJECTED", "Lot " + DoubleToString(volume, 4) + " exceeds MaxLot " + DoubleToString(maxLot, 4), symbol, side, volume, 0.0);
@@ -695,17 +843,84 @@ void PollCommands() {
 }
 
 double MaxSpreadForSymbol(string symbol) {
-   if(IsBtcSymbol(symbol)) return MaxSpreadPointsBTCUSD;
-   return MaxSpreadPointsXAUUSD;
+   return runtimeMaxSpreadPointsXAUUSD;
 }
 
 double MinStopDistanceForSymbol(string symbol, double entry) {
-   if(IsBtcSymbol(symbol)) return MathMax(entry * 0.003, 100.0);
    return MathMax(entry * 0.00045, 2.0);
 }
 
+int RecentManagedLossStreak(string symbol) {
+   if(runtimeLossStreakPauseCount <= 0) return 0;
+   if(!HistorySelect(TimeCurrent() - 86400 * 14, TimeCurrent())) return 0;
+   int streak = 0;
+   for(int i = HistoryDealsTotal() - 1; i >= 0; i--) {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(ticket == 0) continue;
+      if(HistoryDealGetString(ticket, DEAL_SYMBOL) != symbol) continue;
+      if((int)HistoryDealGetInteger(ticket, DEAL_MAGIC) != MagicNumber) continue;
+      long entry = HistoryDealGetInteger(ticket, DEAL_ENTRY);
+      if(entry != DEAL_ENTRY_OUT && entry != DEAL_ENTRY_OUT_BY) continue;
+      double pnl = HistoryDealGetDouble(ticket, DEAL_PROFIT) + HistoryDealGetDouble(ticket, DEAL_COMMISSION) + HistoryDealGetDouble(ticket, DEAL_SWAP);
+      if(pnl < 0.0) {
+         streak++;
+         continue;
+      }
+      if(pnl > 0.0) break;
+   }
+   return streak;
+}
+
+bool IsRecentDrawdownPauseActive() {
+   if(runtimeMaxRecentDrawdownFraction <= 0.0) return false;
+   UpdateMoneyManagementState();
+   double limitMoney = dailyEquitySnapshot * runtimeMaxRecentDrawdownFraction;
+   return limitMoney > 0.0 && todayClosedPnlCache <= -limitMoney;
+}
+
+bool IsRuntimeBlackoutActive(string &reason) {
+   reason = "";
+   if(!runtimeBlackoutEnabled) return false;
+   int h = FileOpen(BlackoutFile, FILE_READ|FILE_TXT|FILE_ANSI|FILE_COMMON);
+   if(h == INVALID_HANDLE) return false;
+   datetime now = TimeCurrent();
+   while(!FileIsEnding(h)) {
+      string line = Trim(FileReadString(h));
+      if(line == "" || StringFind(line, "#") == 0) continue;
+      string cols[];
+      int n = StringSplit(line, ',', cols);
+      if(n < 2) n = StringSplit(line, '\t', cols);
+      if(n < 2) continue;
+      if(Lower(Trim(cols[0])) == "start") continue;
+      datetime fromTime = StringToTime(Trim(cols[0]));
+      datetime toTime = StringToTime(Trim(cols[1]));
+      if(fromTime <= 0 || toTime <= 0) continue;
+      if(now >= fromTime && now < toTime) {
+         reason = n >= 3 ? Trim(cols[2]) : "scheduled";
+         FileClose(h);
+         return true;
+      }
+   }
+   FileClose(h);
+   return false;
+}
+
+bool AtrRegimeTooHot(double currentAtr, double &atrValues[], int copied) {
+   if(runtimeMaxAtrRegimeMultiplier <= 0.0 || currentAtr <= 0.0 || copied < 12) return false;
+   double sumAtr = 0.0;
+   int count = 0;
+   int maxItems = MathMin(copied - 1, 50);
+   for(int i = 1; i <= maxItems; i++) {
+      if(atrValues[i] <= 0.0) continue;
+      sumAtr += atrValues[i];
+      count++;
+   }
+   if(count < 10) return false;
+   double avgAtr = sumAtr / count;
+   return avgAtr > 0.0 && currentAtr > avgAtr * runtimeMaxAtrRegimeMultiplier;
+}
+
 void ManageAutoSymbol(string symbol, int idx) {
-   bool isBtc = IsBtcSymbol(symbol);
    bool isXau = IsXauSymbol(symbol);
    if(!AutoTradeMT5 || !AllowTrading) {
       SetLastSignal(idx, "auto_trading_disabled");
@@ -731,6 +946,20 @@ void ManageAutoSymbol(string symbol, int idx) {
       SetLastSignal(idx, AutoSessionRejectReason(symbol));
       return;
    }
+   if(IsRecentDrawdownPauseActive()) {
+      SetLastSignal(idx, "recent_drawdown_pause pnl=" + DoubleToString(todayClosedPnlCache, 2));
+      return;
+   }
+   int lossStreak = RecentManagedLossStreak(symbol);
+   if(runtimeLossStreakPauseCount > 0 && lossStreak >= runtimeLossStreakPauseCount) {
+      SetLastSignal(idx, "loss_streak_pause streak=" + IntegerToString(lossStreak));
+      return;
+   }
+   string blackoutReason = "";
+   if(IsRuntimeBlackoutActive(blackoutReason)) {
+      SetLastSignal(idx, "blackout_reject " + blackoutReason);
+      return;
+   }
 
    int autoCount = CountPositionsByMagic(symbol, MagicNumber);
    int maxAutoPositions = MaxAutoPositionsForSymbol(symbol);
@@ -745,19 +974,19 @@ void ManageAutoSymbol(string symbol, int idx) {
 
    MqlRates rates[];
    ArraySetAsSeries(rates, true);
-   int bars = CopyRates(symbol, AutoTimeframe, 0, 100, rates);
+   int bars = CopyRates(symbol, runtimeAutoTimeframe, 0, 100, rates);
    if(bars < 55) {
       SetLastSignal(idx, "not_enough_bars");
       return;
    }
 
-   int emaFastHandle = iMA(symbol, AutoTimeframe, FastEmaPeriod, 0, MODE_EMA, PRICE_CLOSE);
-   int emaSlowHandle = iMA(symbol, AutoTimeframe, SlowEmaPeriod, 0, MODE_EMA, PRICE_CLOSE);
-   int emaTrendHandle = iMA(symbol, AutoTimeframe, TrendEmaPeriod, 0, MODE_EMA, PRICE_CLOSE);
-   int rsiHandle = iRSI(symbol, AutoTimeframe, RsiPeriod, PRICE_CLOSE);
-   int macdHandle = iMACD(symbol, AutoTimeframe, 12, 26, 9, PRICE_CLOSE);
-   int atrHandle = iATR(symbol, AutoTimeframe, AtrPeriod);
-   int adxHandle = iADX(symbol, AutoTimeframe, AdxPeriod);
+   int emaFastHandle = iMA(symbol, runtimeAutoTimeframe, FastEmaPeriod, 0, MODE_EMA, PRICE_CLOSE);
+   int emaSlowHandle = iMA(symbol, runtimeAutoTimeframe, SlowEmaPeriod, 0, MODE_EMA, PRICE_CLOSE);
+   int emaTrendHandle = iMA(symbol, runtimeAutoTimeframe, TrendEmaPeriod, 0, MODE_EMA, PRICE_CLOSE);
+   int rsiHandle = iRSI(symbol, runtimeAutoTimeframe, RsiPeriod, PRICE_CLOSE);
+   int macdHandle = iMACD(symbol, runtimeAutoTimeframe, 12, 26, 9, PRICE_CLOSE);
+   int atrHandle = iATR(symbol, runtimeAutoTimeframe, AtrPeriod);
+   int adxHandle = iADX(symbol, runtimeAutoTimeframe, AdxPeriod);
    if(emaFastHandle == INVALID_HANDLE || emaSlowHandle == INVALID_HANDLE || emaTrendHandle == INVALID_HANDLE || rsiHandle == INVALID_HANDLE || macdHandle == INVALID_HANDLE || atrHandle == INVALID_HANDLE || adxHandle == INVALID_HANDLE) {
       SetLastSignal(idx, "indicator_handle_failed");
       return;
@@ -773,13 +1002,14 @@ void ManageAutoSymbol(string symbol, int idx) {
    ArraySetAsSeries(atr, true);
    ArraySetAsSeries(adxVal, true);
 
+   int atrCopied = CopyBuffer(atrHandle, 0, 0, 60, atr);
    bool copied = CopyBuffer(emaFastHandle, 0, 0, 5, emaFast) >= 5 &&
                  CopyBuffer(emaSlowHandle, 0, 0, 5, emaSlow) >= 5 &&
                  CopyBuffer(emaTrendHandle, 0, 0, 5, emaTrend) >= 5 &&
                  CopyBuffer(rsiHandle, 0, 0, 5, rsi) >= 5 &&
                  CopyBuffer(macdHandle, 0, 0, 5, macdMain) >= 5 &&
                  CopyBuffer(macdHandle, 1, 0, 5, macdSignal) >= 5 &&
-                 CopyBuffer(atrHandle, 0, 0, 5, atr) >= 5 &&
+                 atrCopied >= 5 &&
                  CopyBuffer(adxHandle, 0, 0, 3, adxVal) >= 3;
    IndicatorRelease(emaFastHandle);
    IndicatorRelease(emaSlowHandle);
@@ -810,34 +1040,19 @@ void ManageAutoSymbol(string symbol, int idx) {
    double prevMacdHist = macdMain[1] - macdSignal[1];
    bool bullishCross = emaFast[1] <= emaSlow[1] && emaFast[0] > emaSlow[0];
    bool bearishCross = emaFast[1] >= emaSlow[1] && emaFast[0] < emaSlow[0];
-   int htfTrend = isBtc ? HigherTimeframeTrend(symbol) : 0;
    bool quickMomentumLong = emaFast[0] > emaSlow[0] && previous <= emaFast[1] && current > emaFast[0] && rsi[0] >= 42 && rsi[0] < 68;
    bool quickMomentumShort = emaFast[0] < emaSlow[0] && previous >= emaFast[1] && current < emaFast[0] && rsi[0] <= 58 && rsi[0] > 32;
    bool macdLong = macdHist > 0 && macdHist > prevMacdHist && current > emaTrend[0] && rsi[0] >= 45 && rsi[0] < 68;
    bool macdShort = macdHist < 0 && macdHist < prevMacdHist && current < emaTrend[0] && rsi[0] <= 55 && rsi[0] > 32;
    bool rsiReversionLong = rsi[1] < 30 && rsi[0] > rsi[1] && current > previous;
    bool rsiReversionShort = rsi[1] > 70 && rsi[0] < rsi[1] && current < previous;
-   bool atrImpulseLong = current > rates[1].high && (current - previous) > atr[0] * 0.12 && rsi[0] < 80;
-   bool atrImpulseShort = current < rates[1].low && (previous - current) > atr[0] * 0.12 && rsi[0] > 20;
-   if(isBtc) {
-      if(!EnableBtcQuickMomentum) {
-         bullishCross = false;
-         bearishCross = false;
-         quickMomentumLong = false;
-         quickMomentumShort = false;
-      }
-      if(!EnableBtcMacdTrend) { macdLong = false; macdShort = false; }
-      if(!EnableBtcRsiReversion) { rsiReversionLong = false; rsiReversionShort = false; }
-      if(!EnableBtcAtrImpulse) { atrImpulseLong = false; atrImpulseShort = false; }
-      if(!EnableBtcMomentumTrend) { momentum3 = 0.0; }
-      if(htfTrend <= 0) { bullishCross = false; quickMomentumLong = false; macdLong = false; }
-      if(htfTrend >= 0) { bearishCross = false; quickMomentumShort = false; macdShort = false; }
-   } else if(isXau) {
-      if(!EnableXauRsiReversion) { rsiReversionLong = false; rsiReversionShort = false; }
-      if(!EnableXauAtrImpulse) { atrImpulseLong = false; atrImpulseShort = false; }
+   bool atrImpulseLong = current > rates[1].high && (current - previous) > atr[0] * runtimeAtrImpulseMultiplier && rsi[0] < 80;
+   bool atrImpulseShort = current < rates[1].low && (previous - current) > atr[0] * runtimeAtrImpulseMultiplier && rsi[0] > 20;
+   if(isXau) {
+      if(!runtimeEnableXauRsiReversion) { rsiReversionLong = false; rsiReversionShort = false; }
+      if(!runtimeEnableXauAtrImpulse) { atrImpulseLong = false; atrImpulseShort = false; }
    }
    if(DisableWeakStrategySignals) {
-      if(isBtc) { rsiReversionLong = false; rsiReversionShort = false; atrImpulseLong = false; atrImpulseShort = false; }
       if(isXau) { bullishCross = false; bearishCross = false; macdLong = false; macdShort = false; }
    }
 
@@ -860,56 +1075,44 @@ void ManageAutoSymbol(string symbol, int idx) {
       return;
    }
 
-   if(EnableAdxRegimeFilter && adxVal[0] < AdxMinThreshold) {
+   if(AtrRegimeTooHot(atrValue, atr, atrCopied)) {
+      SetLastSignal(idx, "atr_regime_reject atr=" + DoubleToString(atrValue, digits));
+      return;
+   }
+
+   if(runtimeEnableAdxRegimeFilter && adxVal[0] < runtimeAdxMinThreshold) {
       SetLastSignal(idx, "adx_regime_reject " + reason + " adx=" + DoubleToString(adxVal[0], 1));
       return;
    }
 
    int sameSidePositions = CountPositionsByMagicAndSide(symbol, MagicNumber, side);
-   if(sameSidePositions >= MaxSameDirectionPositionsPerSymbol) {
+   if(sameSidePositions >= runtimeMaxSameDirectionPositionsPerSymbol) {
       SetLastSignal(idx, "same_side_max " + reason + " side=" + (side > 0 ? "BUY" : "SELL"));
       return;
    }
 
-   if(isBtc) {
-      if(side > 0 && (htfTrend <= 0 || pda > 0.45)) {
-         SetLastSignal(idx, "btc_direction_reject " + reason + " h1=" + IntegerToString(htfTrend) + " pda=" + DoubleToString(pda, 2));
-         return;
-      }
-      if(side < 0 && (htfTrend >= 0 || pda < 0.55)) {
-         SetLastSignal(idx, "btc_direction_reject " + reason + " h1=" + IntegerToString(htfTrend) + " pda=" + DoubleToString(pda, 2));
-         return;
-      }
-   }
    if(isXau) {
-      if(side > 0 && pda > 0.40) {
+      if(side > 0 && pda > runtimePdaLongCeiling) {
          SetLastSignal(idx, "xau_pda_reject " + reason + " pda=" + DoubleToString(pda, 2));
          return;
       }
-      if(side < 0 && pda < 0.60) {
+      if(side < 0 && pda < runtimePdaShortFloor) {
          SetLastSignal(idx, "xau_pda_reject " + reason + " pda=" + DoubleToString(pda, 2));
          return;
       }
    }
 
    int smcScore = side > 0 
-      ? SmartMoneyLongScore(rates, atrValue, entry, SmcLookbackBars, DiscountThreshold, FvgMinAtrMultiplier, LiquiditySweepAtrMultiplier) 
-      : SmartMoneyShortScore(rates, atrValue, entry, SmcLookbackBars, PremiumThreshold, FvgMinAtrMultiplier, LiquiditySweepAtrMultiplier);
+      ? SmartMoneyLongScore(rates, atrValue, entry, SmcLookbackBars, runtimeDiscountThreshold, runtimeFvgMinAtrMultiplier, runtimeLiquiditySweepAtrMultiplier)
+      : SmartMoneyShortScore(rates, atrValue, entry, SmcLookbackBars, runtimePremiumThreshold, runtimeFvgMinAtrMultiplier, runtimeLiquiditySweepAtrMultiplier);
    int minSmc = MinSmcConfluenceForSymbol(symbol);
-   if(EnableSmartMoneyGates && smcScore < minSmc) {
+   if(runtimeEnableSmartMoneyGates && smcScore < minSmc) {
       SetLastSignal(idx, "smc_reject " + reason + " score=" + IntegerToString(smcScore) + " pda=" + DoubleToString(pda, 2));
       return;
    }
 
-   double slDistance = MathMax(atrValue * StopAtrMultiplier, MinStopDistanceForSymbol(symbol, entry));
-   double tpDistance = slDistance * TakeProfitAtrMultiplier;
-   if(isBtc) {
-      string costDetail = "";
-      if(BtcCostFilterReject(ask - bid, atrValue, tpDistance, costDetail)) {
-         SetLastSignal(idx, "btc_cost_reject " + reason + " " + costDetail);
-         return;
-      }
-   }
+   double slDistance = MathMax(atrValue * runtimeStopAtrMultiplier, MinStopDistanceForSymbol(symbol, entry));
+   double tpDistance = slDistance * runtimeTakeProfitAtrMultiplier;
    double sl = side > 0 ? entry - slDistance : entry + slDistance;
    double tp = side > 0 ? entry + tpDistance : entry - tpDistance;
    double volume = UseDailyRiskLotSizing ? DailyRiskVolume(symbol, slDistance, smcScore) : BaseLotForSymbol(symbol);
@@ -1022,8 +1225,9 @@ int OnInit() {
    EventSetTimer(MathMax(PollSeconds, 1));
    trade.SetExpertMagicNumber(MagicNumber);
    LoadManagedSymbols();
+   LoadRuntimeStrategyProfile();
    UpdateMoneyManagementState();
-   Print("FinRobotBridgeEA 1.31 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(AutoTimeframe));
+   Print("FinRobotBridgeEA 1.34 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(runtimeAutoTimeframe), " profile=", activeProfileName, " profile_loaded=", runtimeProfileLoaded);
    WriteStatus();
    WritePositions();
    WriteDealsHistory();
@@ -1039,6 +1243,7 @@ void OnDeinit(const int reason) {
 
 void OnTimer() {
    timerTicks++;
+   if(timerTicks % 30 == 0) LoadRuntimeStrategyProfile();
    PollCommands();
    EnforceManagedRisk();
    ApplyDynamicBreakEven(EnableDynamicBreakEven, AllowTrading, MagicNumber, BreakEvenRrRatio, BreakEvenExtraPoints, trade);

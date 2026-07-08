@@ -212,6 +212,7 @@ def symbol_status_frame(status: dict[str, Any]) -> pd.DataFrame:
             "managed_positions": item.get("auto_positions"),
             "session_open": item.get("session_open"),
             "session_gated": item.get("session_gated"),
+            "recovery_armed": item.get("recovery_armed"),
             "last_signal": item.get("last_signal"),
         }
         row.update({f"telemetry_{key}": value for key, value in telemetry.items() if key != "day"})
@@ -227,6 +228,9 @@ def money_management_frame(status: dict[str, Any]) -> pd.DataFrame:
         ("Today closed PnL", money(mm.get("today_closed_pnl"))),
         ("Risk per trade", pct(mm.get("daily_risk_per_trade_fraction"))),
         ("Daily loss limit", pct(mm.get("daily_loss_limit_fraction"))),
+        ("Bad-day downshift", pct(mm.get("bad_day_downshift_fraction"))),
+        ("Recent drawdown pause", pct(mm.get("max_recent_drawdown_fraction"))),
+        ("Loss-streak pause", mm.get("loss_streak_pause_count")),
         ("Loss limit reached", "yes" if mm.get("loss_limit_reached") else "no"),
         ("Risk lot sizing", "enabled" if mm.get("risk_lot_sizing") else "disabled"),
         ("Auto-close no SL/TP", "enabled" if mm.get("auto_close_no_sl_tp") else "disabled"),
@@ -261,19 +265,21 @@ status_path = common / "finrobot_status.json" if common else None
 positions_path = common / "finrobot_positions.csv" if common else None
 deals_path = common / "finrobot_deals.csv" if common else None
 acks_path = common / "finrobot_acks.csv" if common else None
+profile_path = common / "finrobot_strategy_profile.csv" if common else None
 
 status = read_json(status_path)
 status_age = time.time() - status_path.stat().st_mtime if status_path and status_path.exists() else None
 positions = read_csv_rows(positions_path)
 deals = read_csv_rows(deals_path)
 acks = read_csv_rows(acks_path)
+profile_rows = read_csv_rows(profile_path)
 deal_summary = summarize_deals(deals)
 label, label_class = status_label(status_path, status_age)
 
 
 with st.sidebar:
     st.title("FinRobot")
-    st.caption("MT5 demo monitor for XAUUSD and BTCUSD")
+    st.caption("MT5 demo monitor for XAUUSD")
     st.markdown(f"<span class='fr-{label_class}'>{label}</span>", unsafe_allow_html=True)
     st.write(f"Heartbeat age: {status_age:.1f}s" if status_age is not None else "Heartbeat unavailable")
     st.write(f"Common files: `{common or 'not found'}`")
@@ -290,14 +296,16 @@ equity = as_float(status.get("equity"))
 floating = equity - balance
 mm = status.get("money_management") or {}
 total = deal_summary["total"]
+strategy_profile = status.get("strategy_profile") or {}
 
-top = st.columns(6)
+top = st.columns(7)
 top[0].metric("Equity", money(equity), delta=money(floating))
 top[1].metric("Balance", money(balance))
 top[2].metric("Open Positions", as_int(status.get("positions")))
 top[3].metric("Today PnL", money(mm.get("today_closed_pnl")))
 top[4].metric("Closed PnL", money(total.get("pnl")))
 top[5].metric("Closed Deals", as_int(total.get("deals")))
+top[6].metric("Risk Tier", as_int(strategy_profile.get("risk_tier")))
 
 tabs = st.tabs(["Overview", "Symbols", "Trades", "Runtime"])
 
@@ -319,6 +327,24 @@ with tabs[0]:
     with right:
         st.subheader("Money Management")
         st.dataframe(money_management_frame(status), hide_index=True, width="stretch")
+
+    st.subheader("Runtime Strategy Profile")
+    profile_summary = [
+        ("Name", strategy_profile.get("name", "compiled_defaults")),
+        ("Loaded", "yes" if strategy_profile.get("loaded") else "no"),
+        ("Message", strategy_profile.get("message", "-")),
+        ("Timeframe", strategy_profile.get("timeframe", "-")),
+        ("Risk tier", strategy_profile.get("risk_tier", "-")),
+        ("Risk per trade", pct(strategy_profile.get("risk_per_trade"))),
+        ("Daily loss limit", pct(strategy_profile.get("daily_loss_limit"))),
+        ("Max XAU lot", number(strategy_profile.get("max_lot_xauusd"))),
+        ("Max XAU positions", strategy_profile.get("max_positions_xauusd", "-")),
+        ("Min SMC", strategy_profile.get("min_smc_xauusd", "-")),
+    ]
+    st.dataframe(pd.DataFrame(profile_summary, columns=["field", "value"]).astype(str), hide_index=True, width="stretch")
+    if profile_rows:
+        st.caption(f"Profile file: `{profile_path}`")
+        st.dataframe(pd.DataFrame(profile_rows).astype(str), hide_index=True, width="stretch")
 
     st.subheader("Cumulative Closed PnL")
     curve = pd.DataFrame(deal_summary["equity_curve"])

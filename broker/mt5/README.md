@@ -8,4 +8,4 @@ FinRobot uses MT5 as the active demo execution layer.
 
 Runtime management is intentionally simple: PM2 starts MT5 and the autonomous review loop, and the EA writes status/deal files for Python reports.
 
-As of `FinRobotBridgeEA` v1.29, BTCUSD bypasses the London/NY session gate by default for continuous scanning, while XAUUSD scans Monday-Friday when the broker symbol is inside its configured trade session. Both symbols still require spread, smart-money, position-count, and daily-risk checks before any order is sent; BTCUSD also has ATR/target-distance cost filters. Per-symbol `signal_telemetry` in `finrobot_status.json` records daily fills and major rejection reasons.
+As of `FinRobotBridgeEA` v1.34, XAUUSD is the only managed auto-trading symbol. It scans Monday-Friday when the broker symbol is inside its configured trade session. Entries still require spread, premium/discount smart-money score 4+, position-count, and daily-risk checks before any order is sent. Per-symbol `signal_telemetry` in `finrobot_status.json` records daily fills and major rejection reasons.

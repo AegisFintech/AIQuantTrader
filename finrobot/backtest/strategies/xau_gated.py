@@ -17,7 +17,7 @@ class XauGatedParams:
 
     pda_long_ceiling: float = 0.40
     pda_short_floor: float = 0.60
-    min_smc_score: int = 3
+    min_smc_score: int = 4
     enable_smc_gate: bool = True
     enable_pda_gate: bool = True
     enable_adx_gate: bool = True
@@ -25,6 +25,8 @@ class XauGatedParams:
     gate_params: XauGateParams = field(default_factory=XauGateParams)
     min_bars_between_signals: int = 0
     min_seconds_between_trades: int = 0
+    blackout_enabled: bool = False
+    max_atr_regime_multiplier: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -88,6 +90,11 @@ class XauGatedStrategy(Strategy):
             return Signal(action="HOLD", strategy=self.name)
 
         feature = self._feature_for(idx=idx, history=history)
+        if self.params.blackout_enabled and _truthy(bar.get("blackout")):
+            return Signal(action="HOLD", strategy=self.name, comment="blackout_reject")
+        if self._atr_regime_too_hot(feature):
+            return Signal(action="HOLD", strategy=self.name, comment="atr_regime_reject")
+
         trigger_price = getattr(self._inner, "_last_trigger_price", None)
         gate_price = float(trigger_price) if trigger_price is not None else feature["current"]
         feature = {
@@ -168,6 +175,24 @@ class XauGatedStrategy(Strategy):
             return current_time - self._last_signal_time < min_seconds
         return False
 
+    def _atr_regime_too_hot(self, feature: dict) -> bool:
+        multiplier = float(self.params.max_atr_regime_multiplier)
+        if multiplier <= 0.0:
+            return False
+        current_atr = feature.get("atr")
+        if current_atr is None:
+            return False
+        previous_values = [
+            float(item["atr"])
+            for item in self._features[:-1]
+            if item.get("atr") is not None and float(item["atr"]) > 0.0
+        ]
+        if len(previous_values) < 10:
+            return False
+        window = previous_values[-50:]
+        average_atr = sum(window) / len(window)
+        return average_atr > 0.0 and float(current_atr) > average_atr * multiplier
+
     def _reset(self) -> None:
         self._state = XauM5RollingFeatureState(
             self._state_params,
@@ -187,3 +212,10 @@ def _numeric_epoch(value: Any) -> int | None:
         return int(float(value))
     except (TypeError, ValueError):
         return None
+
+
+def _truthy(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    text = str(value or "").strip().lower()
+    return text in {"1", "true", "yes", "on"}

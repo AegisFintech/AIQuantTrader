@@ -18,7 +18,16 @@ from mt5_trade_report import (  # noqa: E402
 )
 
 
-def _deal(symbol, position_id, entry, profit, comment="", time="2026-06-10 10:00:00", deal_type=1):
+def _deal(
+    symbol,
+    position_id,
+    entry,
+    profit,
+    comment="",
+    time="2026-06-10 10:00:00",
+    deal_type=1,
+    commission="0.0",
+):
     return {
         "time": time,
         "ticket": str(position_id),
@@ -30,7 +39,7 @@ def _deal(symbol, position_id, entry, profit, comment="", time="2026-06-10 10:00
         "volume": "0.01",
         "price": "100.00",
         "profit": str(profit),
-        "commission": "0.0",
+        "commission": str(commission),
         "swap": "0.0",
         "comment": comment,
     }
@@ -65,25 +74,41 @@ def test_summarize_deals_pairs_entries_with_exits():
     rows = [
         _deal("XAUUSD", 1, entry=0, profit=0.0, comment="FinRobot_XAUUSD_MACD_trend", time="2026-06-10 10:00:00"),
         _deal("XAUUSD", 1, entry=1, profit=10.0, time="2026-06-10 11:00:00"),
-        _deal("BTCUSD", 2, entry=0, profit=0.0, comment="FinRobot_BTCUSD_QuickMomentum_EMA_cross", time="2026-06-10 12:00:00"),
-        _deal("BTCUSD", 2, entry=1, profit=-5.0, time="2026-06-10 13:00:00"),
+        _deal("XAUUSD", 2, entry=0, profit=0.0, comment="FinRobot_XAUUSD_QuickMomentum_EMA_cross", time="2026-06-10 12:00:00"),
+        _deal("XAUUSD", 2, entry=1, profit=-5.0, time="2026-06-10 13:00:00"),
     ]
     summary = summarize_deals(rows)
     assert summary["closed_deals"] == 2
     assert summary["total_pnl"] == 5.0
     by_sym = summary["by_symbol"]
-    assert by_sym["XAUUSD"]["n"] == 1
-    assert by_sym["XAUUSD"]["pnl"] == 10.0
-    assert by_sym["XAUUSD"]["win_rate"] == 1.0
-    assert by_sym["BTCUSD"]["n"] == 1
-    assert by_sym["BTCUSD"]["pnl"] == -5.0
-    assert by_sym["BTCUSD"]["win_rate"] == 0.0
+    assert by_sym["XAUUSD"]["n"] == 2
+    assert by_sym["XAUUSD"]["pnl"] == 5.0
+    assert by_sym["XAUUSD"]["win_rate"] == 0.5
     by_strat = summary["by_strategy"]
     # The report keys strategies by the full entry comment (e.g. "FinRobot_XAUUSD_MACD_trend").
     assert "XAUUSD:FinRobot_XAUUSD_MACD_trend" in by_strat
-    assert "BTCUSD:FinRobot_BTCUSD_QuickMomentum_EMA_cross" in by_strat
+    assert "XAUUSD:FinRobot_XAUUSD_QuickMomentum_EMA_cross" in by_strat
     by_day = summary["by_day"]
     assert by_day.get("2026-06-10")["n"] == 2
+
+
+def test_summarize_deals_includes_entry_and_exit_commission():
+    rows = [
+        _deal(
+            "XAUUSD",
+            1,
+            entry=0,
+            profit=0.0,
+            commission="-0.35",
+            comment="FinRobot_XAUUSD_ATR_impulse",
+            time="2026-06-10 10:00:00",
+        ),
+        _deal("XAUUSD", 1, entry=1, profit=10.0, commission="-0.35", time="2026-06-10 11:00:00"),
+    ]
+    summary = summarize_deals(rows)
+    assert summary["closed_deals"] == 1
+    assert summary["total_pnl"] == 9.3
+    assert summary["by_symbol"]["XAUUSD"]["expectancy"] == 9.3
 
 
 def test_summarize_deals_empty_input():
@@ -100,23 +125,21 @@ def test_retired_strategy_fills_flags_only_retired_set():
     headers = "id,time,status,detail,symbol,side,volume,price"
     lines = [
         "1,2026-06-10 10:00:00,AUTO_FILLED,XAUUSD strategy MACD_trend smc=4 pda=0.32,XAUUSD,BUY,0.01,2000.00",
-        "2,2026-06-10 11:00:00,AUTO_FILLED,BTCUSD strategy QuickMomentum_EMA_cross smc=3 pda=0.30,BTCUSD,BUY,0.01,60000.00",
-        "3,2026-06-10 12:00:00,AUTO_FILLED,BTCUSD strategy RSI_reversion smc=2 pda=0.50,BTCUSD,SELL,0.01,60000.00",
-        "4,2026-06-10 13:00:00,AUTO_FILLED,BTCUSD strategy ATR_impulse smc=3 pda=0.40,BTCUSD,BUY,0.01,60000.00",
-        "5,2026-06-10 14:00:00,AUTO_FILLED,BTCUSD strategy Momentum_trend smc=2 pda=0.45,BTCUSD,BUY,0.01,60000.00",
-        "6,2026-06-10 15:00:00,AUTO_FILLED,BTCUSD strategy MACD_trend smc=2 pda=0.40,BTCUSD,BUY,0.01,60000.00",
+        "2,2026-06-10 11:00:00,AUTO_FILLED,XAUUSD strategy QuickMomentum_EMA_cross smc=3 pda=0.30,XAUUSD,BUY,0.01,60000.00",
+        "3,2026-06-10 12:00:00,AUTO_FILLED,XAUUSD strategy RSI_reversion smc=2 pda=0.50,XAUUSD,SELL,0.01,60000.00",
+        "4,2026-06-10 13:00:00,AUTO_FILLED,XAUUSD strategy ATR_impulse smc=3 pda=0.40,XAUUSD,BUY,0.01,60000.00",
+        "5,2026-06-10 14:00:00,AUTO_FILLED,XAUUSD strategy Momentum_trend smc=2 pda=0.45,XAUUSD,BUY,0.01,60000.00",
+        "6,2026-06-10 15:00:00,AUTO_FILLED,XAUUSD strategy MACD_trend smc=2 pda=0.40,XAUUSD,BUY,0.01,60000.00",
     ]
     result = retired_strategy_fills(lines, recent=80)
-    # RSI_reversion, ATR_impulse, Momentum_trend, MACD_trend for BTCUSD are all retired.
-    # The XAU MACD_trend is NOT in the retired set, and BTC QuickMomentum_EMA_cross is not retired.
+    # XAU RSI_reversion is retired; active impulse/momentum examples are not.
     counts = result["counts"]
-    assert "BTCUSD:RSI_reversion" in counts
-    assert "BTCUSD:ATR_impulse" in counts
-    assert "BTCUSD:Momentum_trend" in counts
-    assert "BTCUSD:MACD_trend" in counts
+    assert "XAUUSD:RSI_reversion" in counts
     assert "XAUUSD:MACD_trend" not in counts
-    assert "BTCUSD:QuickMomentum_EMA_cross" not in counts
-    assert len(result["recent"]) == 4
+    assert "XAUUSD:ATR_impulse" not in counts
+    assert "XAUUSD:Momentum_trend" not in counts
+    assert "XAUUSD:QuickMomentum_EMA_cross" not in counts
+    assert len(result["recent"]) == 1
 
 
 def test_retired_strategy_fills_empty_input():
@@ -127,7 +150,4 @@ def test_retired_strategy_fills_empty_input():
 
 def test_retired_set_is_not_empty():
     # Sanity: the retired set should match the AGENTS.md policy
-    assert ('BTCUSD', 'RSI_reversion') in RETIRED_AUTO_STRATEGIES
-    assert ('BTCUSD', 'ATR_impulse') in RETIRED_AUTO_STRATEGIES
-    assert ('BTCUSD', 'Momentum_trend') in RETIRED_AUTO_STRATEGIES
-    assert ('BTCUSD', 'MACD_trend') in RETIRED_AUTO_STRATEGIES
+    assert ('XAUUSD', 'RSI_reversion') in RETIRED_AUTO_STRATEGIES

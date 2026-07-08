@@ -30,7 +30,7 @@ class BacktestConfig:
         default_factory=lambda: PositionSizer(
             risk_per_trade_fraction=0.001,
             daily_loss_cap_fraction=0.01,
-            max_lot_per_trade=0.10,
+            max_lot_per_trade=5.0,
             max_positions_per_symbol=2,
         )
     )
@@ -38,6 +38,8 @@ class BacktestConfig:
     magic: int = 20260522
     point_value: float = 1.0
     min_seconds_between_trades: int = 0
+    loss_streak_pause_count: int = 0
+    max_recent_drawdown_fraction: float = 0.0
     break_even: BreakEvenConfig = field(default_factory=BreakEvenConfig)
 
 
@@ -101,6 +103,7 @@ class Backtester:
         rejected_signals = 0
         history: list[dict] = []
         last_trade_time_by_symbol: dict[str, int] = {}
+        current_loss_streak = 0
 
         for idx, bar in enumerate(normalized_bars):
             history.append(bar)
@@ -125,6 +128,12 @@ class Backtester:
                     min_seconds > 0
                     and last_trade_time is not None
                     and now_epoch - last_trade_time < min_seconds
+                ):
+                    rejected_signals += 1
+                elif self._recovery_pause_active(
+                    equity=equity,
+                    day_closed_pnl=closed_pnl_by_day.get(day_key, 0.0),
+                    loss_streak=current_loss_streak,
                 ):
                     rejected_signals += 1
                 else:
@@ -163,6 +172,10 @@ class Backtester:
                 )
                 trades.append(trade)
                 realized_pnl += pnl
+                if pnl < 0:
+                    current_loss_streak += 1
+                elif pnl > 0:
+                    current_loss_streak = 0
                 closed_pnl_by_day[day_key] = closed_pnl_by_day.get(day_key, 0.0) + pnl
             open_records = [self._mark_record(record, bar) for record in survivors]
             equity_curve.append((now_epoch, self._equity(realized_pnl, open_records)))
@@ -180,6 +193,10 @@ class Backtester:
             )
             trades.append(trade)
             realized_pnl += pnl
+            if pnl < 0:
+                current_loss_streak += 1
+            elif pnl > 0:
+                current_loss_streak = 0
             closed_pnl_by_day[last_day] = closed_pnl_by_day.get(last_day, 0.0) + pnl
 
         final_equity = float(self.config.initial_equity) + realized_pnl
@@ -199,6 +216,22 @@ class Backtester:
             open_positions_at_end=[],
             rejected_signals=rejected_signals,
         )
+
+    def _recovery_pause_active(
+        self,
+        *,
+        equity: float,
+        day_closed_pnl: float,
+        loss_streak: int,
+    ) -> bool:
+        loss_limit = int(self.config.loss_streak_pause_count)
+        if loss_limit > 0 and int(loss_streak) >= loss_limit:
+            return True
+
+        drawdown_fraction = float(self.config.max_recent_drawdown_fraction)
+        if drawdown_fraction > 0.0 and float(equity) > 0.0:
+            return float(day_closed_pnl) <= -drawdown_fraction * float(equity)
+        return False
 
     def _open_position(
         self,

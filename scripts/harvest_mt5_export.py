@@ -162,7 +162,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--data-dir", type=Path, default=ROOT / "data")
     parser.add_argument("--warehouse", type=Path, default=None)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--symbols", default=None, help="Comma-separated symbol filter, e.g. XAUUSD,BTCUSD.")
+    parser.add_argument("--symbols", default=None, help="Comma-separated symbol filter, e.g. XAUUSD,XAUUSD.")
     args = parser.parse_args(argv)
 
     common_files_dir = args.common_dir if args.common_dir is not None else default_common_dir()

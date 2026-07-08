@@ -97,7 +97,7 @@ def test_compute_snapshot_reads_per_symbol_status(con, tmp_path):
         ts=_now(),
         symbols=[
             {
-                "symbol": "BTCUSD",
+                "symbol": "XAUUSD",
                 "last_signal": "no_signal rsi=51.2",
                 "auto_positions": 2,
                 "session_open": 1,
@@ -108,10 +108,10 @@ def test_compute_snapshot_reads_per_symbol_status(con, tmp_path):
 
     snap = metrics.compute_snapshot(con=con, common_dir=tmp_path, pm2_restarts=None)
 
-    assert snap.per_symbol["BTCUSD"]["last_signal"] == "no_signal rsi=51.2"
-    assert snap.per_symbol["BTCUSD"]["auto_positions"] == 2
-    assert snap.per_symbol["BTCUSD"]["session_open"] is True
-    assert snap.per_symbol["BTCUSD"]["spread_points"] == 1200.0
+    assert snap.per_symbol["XAUUSD"]["last_signal"] == "no_signal rsi=51.2"
+    assert snap.per_symbol["XAUUSD"]["auto_positions"] == 2
+    assert snap.per_symbol["XAUUSD"]["session_open"] is True
+    assert snap.per_symbol["XAUUSD"]["spread_points"] == 1200.0
 
 
 def test_compute_snapshot_clock_skew_with_two_rows_returns_median(con):
@@ -375,7 +375,7 @@ def _status(
     git_sha: str | None = None,
 ) -> dict:
     if symbols is None:
-        symbols = [{"symbol": "BTCUSD", "last_signal": "no_signal"}]
+        symbols = [{"symbol": "XAUUSD", "last_signal": "no_signal"}]
     payload: dict = {
         "ts": ts_server,
         "ts_local": ts_local if ts_local is not None else _now(),
@@ -430,7 +430,7 @@ def _write_status(
     return path
 
 
-def _position(ticket: int, symbol: str = "BTCUSD") -> dict:
+def _position(ticket: int, symbol: str = "XAUUSD") -> dict:
     return {
         "ts_local": str(_now()),
         "ticket": str(ticket),
@@ -447,7 +447,7 @@ def _position(ticket: int, symbol: str = "BTCUSD") -> dict:
     }
 
 
-def _deal(ticket: int, position_id: int, symbol: str = "BTCUSD", ts_server: int | None = None) -> dict:
+def _deal(ticket: int, position_id: int, symbol: str = "XAUUSD", ts_server: int | None = None) -> dict:
     return {
         "ts_server": str(ts_server if ts_server is not None else _now()),
         "ts_local": str(_now()),

@@ -12,7 +12,7 @@ Status legend:
 ## 1. Current Standing
 
 - Active trading mandate is `XAUUSD` only. BTC and all non-XAU symbols are retired from active trading, scanning, optimization, and roadmap scope unless the owner explicitly reverses the mandate. `[done]`
-- Active EA is `broker/mt5/FinRobotBridgeEA.mq5`, version `1.33`, with `AutoSymbols="XAUUSD"` and `AutoTimeframe=PERIOD_M5`. `[done]`
+- Active EA is `broker/mt5/FinRobotBridgeEA.mq5`, version `1.35`, with `AutoSymbols="XAUUSD"` and `AutoTimeframe=PERIOD_M5`. `[done]`
 - Daily risk lot sizing is enabled with `DailyRiskPerTradeFraction=0.0010` and `DailyLossLimitFraction=0.01`. `[done]`
 - Current recovery defaults are conservative: weak signals disabled, XAU auto-trading enabled, SMC/PDA gates enabled, ADX regime filter enabled, max two managed XAU positions. `[done]`
 - PM2 active runtime is `mt5-terminal`, `mt5-watchdog`, `autonomous-review`, and `finrobot-dashboard`, all writing to `logs/combined.log`. `[done]`
@@ -160,8 +160,8 @@ This section is operational context, not a trading signal.
 - Keep XAU-only scope until the XAU execution, data, and promotion loop is more durable. `[done]`
 - Keep conservative defaults: 0.10% daily-risk lot sizing, 1.00% daily loss limit, max two XAU positions, SMC/PDA gates, ADX filter, and weak-signal suppression. `[done]`
 - Do not loosen SMC/PDA/ADX gates just because today recovered. `[done]`
-- Add a bad-day throttle: reduce risk or pause new entries after a configured daily loss, loss streak, or two losing broker days in a rolling window. `[not done]`
-- Add a high-volatility/news blackout for Fed decisions, CPI/PCE, NFP, major geopolitical shock windows, and abnormal XAU spread/ATR regimes. `[not done]`
+- Add a bad-day throttle: reduce risk or pause new entries after a configured daily loss, loss streak, or two losing broker days in a rolling window. `[partial]`
+- Add a high-volatility/news blackout for Fed decisions, CPI/PCE, NFP, major geopolitical shock windows, and abnormal XAU spread/ATR regimes. `[partial]`
 - Use deals, acks, and the warehouse as performance truth; use `finrobot_status.json` telemetry only as a live diagnostic. `[partial]`
 
 ## 8. Prioritized Backlog

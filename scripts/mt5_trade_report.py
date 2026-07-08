@@ -11,10 +11,6 @@ from statistics import mean
 from runtime_paths import common_dir
 
 RETIRED_AUTO_STRATEGIES = {
-    ('BTCUSD', 'RSI_reversion'),
-    ('BTCUSD', 'ATR_impulse'),
-    ('BTCUSD', 'Momentum_trend'),
-    ('BTCUSD', 'MACD_trend'),
     ('XAUUSD', 'RSI_reversion'),
 }
 
@@ -48,15 +44,29 @@ def summarize_deals(rows: list[dict]) -> dict:
             entries[r.get('position_id')].append(r)
         if str(r.get('entry')) in {'1', '3'} or money(r.get('profit')) != 0:
             exits.append(r)
+    entry_costs: dict[str, float] = {}
+    entry_volumes: dict[str, float] = {}
+    for position_id, position_entries in entries.items():
+        entry_costs[position_id] = sum(
+            money(r.get('profit')) + money(r.get('commission')) + money(r.get('swap'))
+            for r in position_entries
+        )
+        entry_volumes[position_id] = sum(money(r.get('volume')) for r in position_entries)
     by_symbol: dict[str, list[float]] = defaultdict(list)
     by_strategy: dict[str, list[float]] = defaultdict(list)
     by_day: dict[str, list[float]] = defaultdict(list)
     for r in exits:
-        pnl = money(r.get('profit')) + money(r.get('commission')) + money(r.get('swap'))
+        position_id = r.get('position_id')
+        exit_pnl = money(r.get('profit')) + money(r.get('commission')) + money(r.get('swap'))
+        entry_volume = entry_volumes.get(position_id, 0.0)
+        entry_cost_share = 0.0
+        if entry_volume > 0.0:
+            entry_cost_share = entry_costs.get(position_id, 0.0) * min(1.0, money(r.get('volume')) / entry_volume)
+        pnl = exit_pnl + entry_cost_share
         sym = r.get('symbol') or '?'
         by_symbol[sym].append(pnl)
         by_day[(r.get('time') or '')[:10]].append(pnl)
-        entry = (entries.get(r.get('position_id')) or [{}])[0]
+        entry = (entries.get(position_id) or [{}])[0]
         strategy = entry.get('comment') or 'UNKNOWN'
         by_strategy[f'{sym}:{strategy}'].append(pnl)
     def stats(pnls: list[float]) -> dict:

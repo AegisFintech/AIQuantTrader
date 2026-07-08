@@ -72,7 +72,7 @@ def test_validate_deal_unknown_entry_warns():
 
 
 def test_validate_deal_non_ascii_comment_warns():
-    issues = validate_deal(_deal(comment="FinRobot_BTCUSD_\u00e9"))
+    issues = validate_deal(_deal(comment="FinRobot_XAUUSD_\u00e9"))
     assert _has_warning(issues, "deal_comment_nonprintable")
 
 
@@ -129,7 +129,7 @@ def test_validate_warehouse_end_to_end_mixed_issues(con):
             "daily_risk_per_trade_fraction": 0.001,
             "daily_loss_limit_fraction": 0.01,
         },
-        symbols=[{"symbol": "BTCUSD"}],
+        symbols=[{"symbol": "XAUUSD"}],
     )
     data_store.ingest_status(con, bad_status)
     data_store.ingest_positions(
@@ -248,7 +248,7 @@ def _status(
             "daily_loss_limit_fraction": 0.01,
         }
     if symbols is None:
-        symbols = [{"symbol": "BTCUSD", "last_signal": "no_signal"}]
+        symbols = [{"symbol": "XAUUSD", "last_signal": "no_signal"}]
     return {
         "ts": now,
         "ts_server": now,
@@ -266,7 +266,7 @@ def _status(
 
 def _position(
     ticket: int = 1001,
-    symbol: str = "BTCUSD",
+    symbol: str = "XAUUSD",
     side: str = "BUY",
     volume: str = "0.01",
     sl: str = "59000.00",
@@ -284,7 +284,7 @@ def _position(
         "profit": "1.23",
         "sl": sl,
         "tp": tp,
-        "comment": "FinRobot_BTCUSD_QuickMomentum",
+        "comment": "FinRobot_XAUUSD_QuickMomentum",
     }
 
 
@@ -293,8 +293,8 @@ def _deal(
     position_id: int = 9001,
     entry: int = 1,
     ts_server: int | None = None,
-    symbol: str = "BTCUSD",
-    comment: str = "FinRobot_BTCUSD_QuickMomentum",
+    symbol: str = "XAUUSD",
+    comment: str = "FinRobot_XAUUSD_QuickMomentum",
 ) -> dict:
     server_ts = _now() if ts_server is None else ts_server
     return {
@@ -318,7 +318,7 @@ def _ack(
     command_id: int = 3001,
     status: str = "AUTO_FILLED",
     source: str = "AUTO",
-    symbol: str = "BTCUSD",
+    symbol: str = "XAUUSD",
 ) -> dict:
     server_ts = _now()
     return {

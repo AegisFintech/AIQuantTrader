@@ -1,11 +1,10 @@
 # FinRobot
 
-FinRobot is an MT5-first autonomous demo-trading repo for exactly two symbols:
+FinRobot is an MT5-first autonomous demo-trading repo for exactly one symbol:
 
 - `XAUUSD`
-- `BTCUSD`
 
-The active runtime is simple: MetaTrader 5 runs under Wine/Xvfb, the FinRobot EA trades inside MT5, and PM2 keeps MT5 plus the autonomous review loop and read-only dashboard alive.
+The active runtime is simple: MetaTrader 5 runs under Wine/Xvfb, the FinRobot EA trades inside MT5, and PM2 keeps MT5 plus the watchdog, autonomous review loop, and read-only dashboard alive.
 
 ## Install
 
@@ -46,7 +45,7 @@ MT5_PASSWORD=
 MT5_SERVER=ICMarketsSC-Demo
 MT5_MODE=demo
 MT5_AUTOTRADING_ENABLED=true
-FINROBOT_ATTACH_SYMBOL=BTCUSD
+FINROBOT_ATTACH_SYMBOL=XAUUSD
 FINROBOT_ATTACH_PERIOD=M1
 ```
 
@@ -58,7 +57,7 @@ For a fresh generic MT5 install, the IC Markets server list may need to be seede
 
 ```bash
 pm2 list
-pm2 restart mt5-terminal autonomous-review finrobot-dashboard --update-env
+pm2 restart mt5-terminal mt5-watchdog autonomous-review finrobot-dashboard --update-env
 python3 scripts/mt5_status.py
 python3 scripts/mt5_trade_report.py
 ```
@@ -68,6 +67,7 @@ Active PM2 processes:
 | Process | Purpose |
 |---|---|
 | `mt5-terminal` | Starts repo-local MT5 under Wine/Xvfb. |
+| `mt5-watchdog` | Restarts only `mt5-terminal` when the bridge heartbeat is stale. |
 | `autonomous-review` | Reviews MT5 trade performance every 6 hours and records analysis. |
 | `finrobot-dashboard` | Serves the read-only Streamlit trade/status dashboard on `127.0.0.1:8501`. |
 
@@ -91,12 +91,16 @@ The EA writes MT5 Common Files:
 - `finrobot_deals.csv`
 - `finrobot_acks.csv`
 - `finrobot_commands.csv`
+- `finrobot_strategy_profile.csv` (optional generated runtime profile)
 
 Current auto-trading posture:
 
-- BTCUSD scans continuously by default with `EnableBtcContinuousTrading=true`, but entries still require the fixed BTC spread cap, smart-money/directional confirmation, daily risk lot sizing, and BTC cost filters.
-- BTC cost filters reject entries when spread is more than `0.15` of current ATR or more than `0.08` of the planned target distance.
-- XAUUSD scans Monday-Friday whenever the broker symbol is inside its configured trade session, while keeping stricter premium/discount smart-money gates.
+- XAUUSD lot sizing is proportional to broker-day equity, configured risk fraction, and SL distance, with a high demo compounding ceiling.
+- XAUUSD scans Monday-Friday whenever the broker symbol is inside its configured trade session, while requiring premium/discount smart-money score 4+ entries.
+- Entries require spread, smart-money, position-count, and daily-risk checks before any order is sent.
+- Auto trades and command-file market trades require broker-side SL and TP values before the EA sends the order.
+- When present, `finrobot_strategy_profile.csv` may override bounded XAU-only strategy/risk settings such as ATR impulse threshold, PDA/SMC gates, cooldown, risk tier, XAU lot cap, and recovery controls. Missing or invalid profile data falls back to compiled defaults.
+- Recovery controls can downshift bad-day risk, pause after a loss streak or recent drawdown threshold, reject abnormal ATR regimes, and honor scheduled blackout windows from `finrobot_blackout.csv` when enabled.
 - `finrobot_status.json` exposes per-symbol `session_gated`, `weekday_market_hours`, `session_open`, and daily `signal_telemetry` counters for filled trades and major rejection reasons.
 
 `scripts/start_mt5.sh` rewrites `Config\finrobot-login.ini` from `.env` before each PM2-managed terminal start. `scripts/mt5_configure_profile.py` then updates the Default chart profile and startup config file so MT5 runs `MQL5\Experts\FinRobot\FinRobotBridgeEA.ex5` on the `FINROBOT_ATTACH_SYMBOL` chart at launch. By default it keeps one chart in the profile and does not ask MT5 to open an extra startup chart; set `FINROBOT_SINGLE_CHART_PROFILE=false` or `FINROBOT_STARTUP_OPEN_CHART=true` only when you intentionally want that behavior.
@@ -109,12 +113,24 @@ python3 scripts/mt5_configure_profile.py
 pm2 restart mt5-terminal --update-env
 ```
 
+## Strategy Lab
+
+`scripts/xau_strategy_lab.py` evaluates bounded aggressive XAUUSD profiles with the deterministic walk-forward backtester and writes reports under `state/research/profile_lab/`.
+
+```bash
+python3 scripts/xau_strategy_lab.py
+python3 scripts/xau_strategy_lab.py --harvest-first
+python3 scripts/xau_strategy_lab.py --write-profile
+```
+
+The lab writes a live profile only when `--write-profile` is passed and the winning candidate clears the promotion gates, unless `--force-profile` is also passed. The 6-hour `autonomous-review` loop runs the lab by default for analysis; live profile deployment remains gated by `AUTOREVIEW_ENABLE_PROMOTION_DEPLOY=true`. LLM code edits remain separately gated by `AUTOREVIEW_ENABLE_LLM=true`.
+
 ## Clean Reset
 
 To rebuild MT5/Wine from scratch:
 
 ```bash
-pm2 delete mt5-terminal autonomous-review
+pm2 delete mt5-terminal mt5-watchdog autonomous-review finrobot-dashboard
 rm -rf .runtime
 ./install.sh
 ```
@@ -122,6 +138,6 @@ rm -rf .runtime
 ## Guardrails
 
 - Demo-only unless the owner explicitly says otherwise.
-- Trade only `XAUUSD` and `BTCUSD`.
+- Trade only `XAUUSD`.
 - Keep PM2 as the service manager.
 - Do not commit `.env`, `.runtime/`, `logs/`, or `state/`.

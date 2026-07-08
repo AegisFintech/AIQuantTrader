@@ -51,7 +51,7 @@ def test_ingest_status_is_idempotent_on_server_timestamp(con):
 
 def test_ingest_positions_is_idempotent_on_ticket_and_timestamp(con):
     rows = [
-        _position(ticket=11, symbol="BTCUSD", side="BUY"),
+        _position(ticket=11, symbol="XAUUSD", side="BUY"),
         _position(ticket=12, symbol="XAUUSD", side="SELL"),
     ]
     assert data_store.ingest_positions(con, rows, ts_server=1780000002) == 2
@@ -152,7 +152,7 @@ def test_ingest_common_files_flow_with_tmp_common_files(tmp_path):
                 "equity": "1001.00",
                 "positions": 1,
                 "money_management": {"risk_lot_sizing": 1},
-                "symbols": [{"symbol": "BTCUSD"}],
+                "symbols": [{"symbol": "XAUUSD"}],
                 "ea_version": "1.30",
                 "git_sha": "abc123",
             }
@@ -161,7 +161,7 @@ def test_ingest_common_files_flow_with_tmp_common_files(tmp_path):
     _write_csv(
         common / "finrobot_positions.csv",
         ["time", "ticket", "symbol", "type", "volume", "open_price", "current_price", "profit", "sl", "tp", "comment"],
-        [_position(ticket=301, symbol="BTCUSD", side="BUY")],
+        [_position(ticket=301, symbol="XAUUSD", side="BUY")],
     )
     _write_csv(
         common / "finrobot_deals.csv",
@@ -169,7 +169,7 @@ def test_ingest_common_files_flow_with_tmp_common_files(tmp_path):
         [_deal(ticket=401, position_id=8001, entry=1, profit=3.21)],
     )
     (common / "finrobot_acks.csv").write_text(
-        "41,2026.06.10 10:00:00,AUTO_FILLED,BTCUSD strategy QuickMomentum,BTCUSD,BUY,0.01,60000.00\n"
+        "41,2026.06.10 10:00:00,AUTO_FILLED,XAUUSD strategy QuickMomentum,XAUUSD,BUY,0.01,60000.00\n"
     )
 
     result = ingest_common_files(common, warehouse)
@@ -189,7 +189,7 @@ def test_ingest_common_files_flow_with_tmp_common_files(tmp_path):
         connection.close()
 
 
-def _position(ticket: int, symbol: str = "BTCUSD", side: str = "BUY") -> dict:
+def _position(ticket: int, symbol: str = "XAUUSD", side: str = "BUY") -> dict:
     return {
         "time": "2026-06-10 10:00:00",
         "ticket": str(ticket),
@@ -201,7 +201,7 @@ def _position(ticket: int, symbol: str = "BTCUSD", side: str = "BUY") -> dict:
         "profit": "1.23",
         "sl": "59000.00",
         "tp": "62000.00",
-        "comment": "FinRobot_BTCUSD_QuickMomentum",
+        "comment": "FinRobot_XAUUSD_QuickMomentum",
     }
 
 
@@ -211,7 +211,7 @@ def _deal(ticket: int, position_id: int, entry: int, profit: float = 0.0) -> dic
         "ticket": str(ticket),
         "order": "9001",
         "position_id": str(position_id),
-        "symbol": "BTCUSD",
+        "symbol": "XAUUSD",
         "entry": str(entry),
         "type": "0",
         "volume": "0.01",
@@ -219,7 +219,7 @@ def _deal(ticket: int, position_id: int, entry: int, profit: float = 0.0) -> dic
         "profit": str(profit),
         "commission": "-0.10",
         "swap": "0.00",
-        "comment": "FinRobot_BTCUSD_QuickMomentum",
+        "comment": "FinRobot_XAUUSD_QuickMomentum",
     }
 
 
@@ -233,7 +233,7 @@ def _ack(
         "time": time,
         "status": status,
         "message": "filled",
-        "symbol": "BTCUSD",
+        "symbol": "XAUUSD",
         "side": "BUY",
         "volume": "0.01",
         "price": "60000.00",
