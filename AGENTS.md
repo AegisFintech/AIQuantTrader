@@ -8,7 +8,7 @@ FinRobot is now an MT5-first autonomous demo-trading repo. Trade and optimize on
 
 ## Source of truth
 
-- Active EA: `broker/mt5/FinRobotBridgeEA.mq5` (v1.34)
+- Active EA: `broker/mt5/FinRobotBridgeEA.mq5` (v1.35)
 - EA Modules: `broker/mt5/RiskManagement.mqh`, `SmartMoney.mqh`, `BridgeIO.mqh`
 - Runtime process list: `ecosystem.config.js`
 - MT5 heartbeat watchdog: `scripts/mt5_watchdog.py`
@@ -99,6 +99,7 @@ pm2 list
 - Owner directive (2026-06-26): keep proportional compounding lot sizing enabled for the high-equity demo account. Do not restore the emergency auto-entry pause or the `0.25` XAU lot ceiling unless the owner explicitly asks.
 - `FinRobotBridgeEA.mq5` should keep `AutoSymbols="XAUUSD"`, `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=true`, `UseDailyRiskLotSizing=true`, `DisableWeakStrategySignals=true`, `EnableXauWeekdayMarketHours=true`, `MinSmcConfluenceScoreXAUUSD=4`, `MaxAutoPositionsPerSymbol=2`, and `MaxLotPerTradeXAUUSD=5.0` unless the owner changes risk again.
 - Runtime profiles may override bounded XAU-only settings through `finrobot_strategy_profile.csv`; compiled defaults remain the fallback when the file is missing, empty, or disabled.
+- Runtime profiles may also arm recovery controls: loss-streak pause, bad-day risk downshift, recent drawdown pause, blackout-file windows, and ATR regime rejection.
 - Aggressive demo risk tiers are bounded at 0.50% risk per trade, 5.00% daily loss cap, 10.0 XAU max lot, and four managed XAU positions. Do not bypass these clamps without an explicit owner reversal.
 - Smart-money gate intent: trade XAU only from stricter premium/discount SMC score 4+ setups. High-confluence score 5+ entries can size up via the risk model while respecting symbol lot caps and daily loss controls. `smc_reject` and `xau_pda_reject` mean the signal was intentionally blocked.
 - Session intent: XAU may scan Monday-Friday whenever the broker symbol is inside its configured trade session; it should not be limited to London/NY windows.
@@ -124,6 +125,7 @@ pm2 list
 - `scripts/autonomous_review_loop.py`: fixed a truncation bug — the trade report was sliced to the last 20000 chars, dropping the `Closed deal summary:` marker (~char 1800), so `closed_deals` always parsed as 0 and the reviewer never ran. Now keeps the head.
 - LLM editing is HARD-GATED OFF by default via `AUTOREVIEW_ENABLE_LLM` (unset/false = analysis-only: the loop logs the real closed-deal count and journals analysis but never invokes opencode). Set `AUTOREVIEW_ENABLE_LLM=true` to re-enable autonomous code edits.
 - Runtime profile update (2026-07-07): `scripts/xau_strategy_lab.py` evaluates bounded aggressive XAU profiles and can write `finrobot_strategy_profile.csv`; `FinRobotBridgeEA.mq5` reloads the profile periodically and reports the active profile in `finrobot_status.json`. Profile deployment is gated separately from LLM edits by `AUTOREVIEW_ENABLE_PROMOTION_DEPLOY`.
+- Recovery-control update (2026-07-08): profile-lab promotion now requires recent-window evidence and challenger improvement over the incumbent. The EA exposes recovery settings in status and can block new entries after configured loss streaks, recent drawdown, active blackout windows from `finrobot_blackout.csv`, or abnormal ATR regimes.
 
 ## Operational scripts (Phase 1 quick wins)
 

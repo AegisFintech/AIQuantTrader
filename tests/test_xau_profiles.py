@@ -12,6 +12,10 @@ def test_profile_csv_round_trip_and_bounds(tmp_path):
         daily_loss_limit_fraction=0.99,
         max_auto_positions_xauusd=99,
         min_seconds_between_trades_xauusd=1,
+        loss_streak_pause_count=99,
+        bad_day_downshift_fraction=-1.0,
+        max_recent_drawdown_fraction=0.99,
+        max_atr_regime_multiplier=99.0,
     )
 
     write_profile_csv(profile, path)
@@ -23,3 +27,7 @@ def test_profile_csv_round_trip_and_bounds(tmp_path):
     assert rows["daily_loss_limit_fraction"] == "0.05"
     assert rows["max_auto_positions_xauusd"] == "4"
     assert rows["min_seconds_between_trades_xauusd"] == "30"
+    assert rows["loss_streak_pause_count"] == "8"
+    assert rows["bad_day_downshift_fraction"] == "0"
+    assert rows["max_recent_drawdown_fraction"] == "0.05"
+    assert rows["max_atr_regime_multiplier"] == "8"

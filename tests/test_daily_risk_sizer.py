@@ -121,10 +121,39 @@ def test_daily_risk_sizer_zero_sl_returns_zero():
     assert volume == 0.0
 
 
+def test_daily_risk_sizer_downshifts_after_bad_day():
+    sizer = _sizer(max_lot_per_trade=2.0, bad_day_downshift_fraction=0.5)
+
+    volume = sizer.size(
+        symbol="XAUUSD",
+        equity=10000.0,
+        sl_distance=20.0,
+        open_positions=[],
+        today_closed_pnl=-1.0,
+    )
+
+    assert volume == 0.25
+
+
+def test_daily_risk_sizer_can_pause_after_bad_day():
+    sizer = _sizer(max_lot_per_trade=2.0, bad_day_downshift_fraction=0.0)
+
+    volume = sizer.size(
+        symbol="XAUUSD",
+        equity=10000.0,
+        sl_distance=20.0,
+        open_positions=[],
+        today_closed_pnl=-1.0,
+    )
+
+    assert volume == 0.0
+
+
 def _sizer(
     *,
     max_lot_per_trade: float,
     max_lot_per_symbol: dict[str, float] | None = None,
+    bad_day_downshift_fraction: float = 1.0,
 ) -> DailyRiskSizer:
     return DailyRiskSizer(
         risk_per_trade_fraction=0.001,
@@ -134,4 +163,5 @@ def _sizer(
         max_lot_per_symbol=max_lot_per_symbol,
         high_confluence_lot_multiplier=3.0,
         high_confluence_score=5,
+        bad_day_downshift_fraction=bad_day_downshift_fraction,
     )

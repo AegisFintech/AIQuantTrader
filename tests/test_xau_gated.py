@@ -134,6 +134,28 @@ def test_xau_gated_disable_adx_gate():
     assert signal.action == "BUY"
 
 
+def test_xau_gated_blackout_hook_blocks_signal():
+    bars = _long_gate_pass_bars()
+    bars[_signal_idx()]["blackout"] = True
+
+    signal = _run_strategy_to_bar(
+        XauGatedStrategy(
+            _SignalAtBar(_signal_idx(), "BUY"),
+            XauGatedParams(
+                enable_pda_gate=False,
+                enable_smc_gate=False,
+                enable_adx_gate=False,
+                blackout_enabled=True,
+            ),
+        ),
+        bars,
+        _signal_idx(),
+    )
+
+    assert signal.action == "HOLD"
+    assert signal.comment == "blackout_reject"
+
+
 def test_xau_gated_inner_hold_means_outer_hold():
     signal = _run_strategy_to_bar(
         XauGatedStrategy(_SignalAtBar(_signal_idx(), "HOLD"), _NO_ADX),
@@ -231,6 +253,24 @@ def test_backtester_min_seconds_between_trades_rejects_second_open():
     )
 
     assert len(result.trades) == 1
+    assert result.rejected_signals == 1
+
+
+def test_backtester_loss_streak_pause_rejects_new_signal():
+    config = _backtest_config(max_positions_per_symbol=5)
+    config.loss_streak_pause_count = 1
+
+    result = Backtester(config).run(
+        strategy=_SignalOnBars({0: "BUY", 2: "BUY"}),
+        bars=[
+            _m1_bar(0, close=100.0, high=101.0, low=99.0),
+            _m1_bar(1, close=100.0, high=101.0, low=70.0),
+            _m1_bar(2, close=100.0, high=101.0, low=99.0),
+        ],
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0]["pnl"] < 0
     assert result.rejected_signals == 1
 
 

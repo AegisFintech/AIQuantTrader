@@ -154,6 +154,7 @@ class DailyRiskSizer(PositionSizer):
         max_lot_per_symbol: dict[str, float] | None = None,
         high_confluence_lot_multiplier: float = 3.0,
         high_confluence_score: int = 5,
+        bad_day_downshift_fraction: float = 1.0,
         lot_digits: int = 2,
     ):
         super().__init__(
@@ -168,6 +169,10 @@ class DailyRiskSizer(PositionSizer):
         }
         self.high_confluence_lot_multiplier = float(high_confluence_lot_multiplier)
         self.high_confluence_score = int(high_confluence_score)
+        self.bad_day_downshift_fraction = max(
+            0.0,
+            min(1.0, float(bad_day_downshift_fraction)),
+        )
         self.lot_digits = int(lot_digits)
 
     def size(
@@ -198,6 +203,10 @@ class DailyRiskSizer(PositionSizer):
         risk_dollars = self.risk_per_trade_fraction * equity_value
         if risk_dollars <= 0:
             return 0.0
+        if float(today_closed_pnl) < 0.0:
+            risk_dollars *= self.bad_day_downshift_fraction
+        if risk_dollars <= 0:
+            return 0.0
 
         volume = risk_dollars / distance
         if int(smc_score) >= self.high_confluence_score:
@@ -220,6 +229,7 @@ class DailyRiskSizer(PositionSizer):
             and self.high_confluence_lot_multiplier
             == other.high_confluence_lot_multiplier
             and self.high_confluence_score == other.high_confluence_score
+            and self.bad_day_downshift_fraction == other.bad_day_downshift_fraction
             and self.lot_digits == other.lot_digits
         )
 
@@ -235,5 +245,6 @@ class DailyRiskSizer(PositionSizer):
             f"high_confluence_lot_multiplier="
             f"{self.high_confluence_lot_multiplier!r}, "
             f"high_confluence_score={self.high_confluence_score!r}, "
+            f"bad_day_downshift_fraction={self.bad_day_downshift_fraction!r}, "
             f"lot_digits={self.lot_digits!r})"
         )

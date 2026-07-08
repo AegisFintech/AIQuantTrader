@@ -99,7 +99,8 @@ Current auto-trading posture:
 - XAUUSD scans Monday-Friday whenever the broker symbol is inside its configured trade session, while requiring premium/discount smart-money score 4+ entries.
 - Entries require spread, smart-money, position-count, and daily-risk checks before any order is sent.
 - Auto trades and command-file market trades require broker-side SL and TP values before the EA sends the order.
-- When present, `finrobot_strategy_profile.csv` may override bounded XAU-only strategy/risk settings such as ATR impulse threshold, PDA/SMC gates, cooldown, risk tier, and XAU lot cap. Missing or invalid profile data falls back to compiled defaults.
+- When present, `finrobot_strategy_profile.csv` may override bounded XAU-only strategy/risk settings such as ATR impulse threshold, PDA/SMC gates, cooldown, risk tier, XAU lot cap, and recovery controls. Missing or invalid profile data falls back to compiled defaults.
+- Recovery controls can downshift bad-day risk, pause after a loss streak or recent drawdown threshold, reject abnormal ATR regimes, and honor scheduled blackout windows from `finrobot_blackout.csv` when enabled.
 - `finrobot_status.json` exposes per-symbol `session_gated`, `weekday_market_hours`, `session_open`, and daily `signal_telemetry` counters for filled trades and major rejection reasons.
 
 `scripts/start_mt5.sh` rewrites `Config\finrobot-login.ini` from `.env` before each PM2-managed terminal start. `scripts/mt5_configure_profile.py` then updates the Default chart profile and startup config file so MT5 runs `MQL5\Experts\FinRobot\FinRobotBridgeEA.ex5` on the `FINROBOT_ATTACH_SYMBOL` chart at launch. By default it keeps one chart in the profile and does not ask MT5 to open an extra startup chart; set `FINROBOT_SINGLE_CHART_PROFILE=false` or `FINROBOT_STARTUP_OPEN_CHART=true` only when you intentionally want that behavior.

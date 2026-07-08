@@ -212,6 +212,7 @@ def symbol_status_frame(status: dict[str, Any]) -> pd.DataFrame:
             "managed_positions": item.get("auto_positions"),
             "session_open": item.get("session_open"),
             "session_gated": item.get("session_gated"),
+            "recovery_armed": item.get("recovery_armed"),
             "last_signal": item.get("last_signal"),
         }
         row.update({f"telemetry_{key}": value for key, value in telemetry.items() if key != "day"})
@@ -227,6 +228,9 @@ def money_management_frame(status: dict[str, Any]) -> pd.DataFrame:
         ("Today closed PnL", money(mm.get("today_closed_pnl"))),
         ("Risk per trade", pct(mm.get("daily_risk_per_trade_fraction"))),
         ("Daily loss limit", pct(mm.get("daily_loss_limit_fraction"))),
+        ("Bad-day downshift", pct(mm.get("bad_day_downshift_fraction"))),
+        ("Recent drawdown pause", pct(mm.get("max_recent_drawdown_fraction"))),
+        ("Loss-streak pause", mm.get("loss_streak_pause_count")),
         ("Loss limit reached", "yes" if mm.get("loss_limit_reached") else "no"),
         ("Risk lot sizing", "enabled" if mm.get("risk_lot_sizing") else "disabled"),
         ("Auto-close no SL/TP", "enabled" if mm.get("auto_close_no_sl_tp") else "disabled"),

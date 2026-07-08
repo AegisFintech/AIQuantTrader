@@ -10,7 +10,7 @@ import math
 import os
 import subprocess
 import sys
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -24,9 +24,11 @@ if str(SCRIPTS) not in sys.path:
 
 from finrobot.backtest import (  # noqa: E402
     BacktestConfig,
+    Backtester,
     BreakEvenConfig,
     DailyRiskSizer,
     FillConfig,
+    compute_metrics,
     WalkForwardConfig,
     XauAtrImpulseParams,
     XauAtrImpulseStrategy,
@@ -43,6 +45,7 @@ from finrobot.research.experiments import (  # noqa: E402
 )
 from finrobot.research.registry import init_registry, index_experiment  # noqa: E402
 from finrobot.xau_profiles import (  # noqa: E402
+    DEFAULT_PROFILE,
     PROFILE_CANDIDATES,
     PROFILE_FILENAME,
     XauStrategyProfile,
@@ -66,6 +69,9 @@ class CandidateResult:
     mean_n_trades: float
     consistency_score: float
     worst_fold_pnl: float
+    recent_total_pnl: float
+    recent_profit_factor: float
+    incumbent_delta_pnl: float
     notes: str
 
 
@@ -93,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
         output_dir.mkdir(parents=True, exist_ok=True)
         experiment_dir.mkdir(parents=True, exist_ok=True)
 
-        results = [
+        raw_results = [
             _evaluate_profile(
                 profile=profile,
                 bars=bars,
@@ -103,6 +109,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             for profile in profiles
         ]
+        results = _apply_relative_promotion_gates(raw_results, args)
         winner = _winner(results)
         profile_path = ""
         if args.write_profile:
@@ -131,6 +138,11 @@ def main(argv: list[str] | None = None) -> int:
                 "initial_equity": args.initial_equity,
                 "min_trades": args.min_trades,
                 "min_consistency": args.min_consistency,
+                "recent_bars": args.recent_bars,
+                "min_recent_pnl": args.min_recent_pnl,
+                "min_recent_profit_factor": args.min_recent_profit_factor,
+                "min_challenger_pnl_delta": args.min_challenger_pnl_delta,
+                "min_challenger_pf_delta": args.min_challenger_pf_delta,
             },
             "winner": _json_safe(winner),
             "deployed_profile_path": profile_path,
@@ -158,6 +170,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-train-bars", type=int, default=1000)
     parser.add_argument("--min-test-bars", type=int, default=100)
     parser.add_argument("--train-size-bars", type=int, default=None)
+    parser.add_argument("--recent-bars", type=int, default=10000)
+    parser.add_argument("--min-recent-pnl", type=float, default=0.0)
+    parser.add_argument("--min-recent-profit-factor", type=float, default=1.05)
+    parser.add_argument("--min-challenger-pnl-delta", type=float, default=250.0)
+    parser.add_argument("--min-challenger-pf-delta", type=float, default=0.05)
     parser.add_argument("--from-date", default="")
     parser.add_argument("--to-date", default="")
     parser.add_argument("--max-bars", type=int, default=0)
@@ -209,12 +226,21 @@ def _evaluate_profile(
     mean_n_trades = _metric_mean(aggregated, "n_trades")
     consistency = float(stability.get("consistency_score") or 0.0)
     worst_fold_pnl = float(stability.get("worst_fold_pnl") or 0.0)
+    recent_metrics = _recent_metrics(
+        profile=bounded,
+        bars=bars,
+        args=args,
+        backtest_config=backtest_config,
+    )
+    recent_total_pnl = float(recent_metrics.total_pnl)
+    recent_profit_factor = float(recent_metrics.profit_factor)
     score = _score(
         mean_total_pnl=mean_total_pnl,
         mean_profit_factor=mean_profit_factor,
         mean_max_drawdown_pct=mean_max_drawdown_pct,
         consistency=consistency,
         worst_fold_pnl=worst_fold_pnl,
+        recent_total_pnl=recent_total_pnl,
     )
     promotable = (
         str(verdict.get("status")) == "pass"
@@ -222,6 +248,8 @@ def _evaluate_profile(
         and mean_n_trades >= float(args.min_trades)
         and consistency >= float(args.min_consistency)
         and worst_fold_pnl > -float(args.initial_equity) * bounded.daily_loss_limit_fraction
+        and recent_total_pnl >= float(args.min_recent_pnl)
+        and recent_profit_factor >= float(args.min_recent_profit_factor)
     )
     record = ExperimentRecord(
         run_id=run_id,
@@ -261,6 +289,9 @@ def _evaluate_profile(
         mean_n_trades=mean_n_trades,
         consistency_score=consistency,
         worst_fold_pnl=worst_fold_pnl,
+        recent_total_pnl=recent_total_pnl,
+        recent_profit_factor=recent_profit_factor,
+        incumbent_delta_pnl=0.0,
         notes=str(verdict.get("rationale") or "").splitlines()[0],
     )
 
@@ -284,6 +315,8 @@ def _strategy(profile: XauStrategyProfile) -> XauGatedStrategy:
             enable_adx_gate=profile.enable_adx_regime_filter,
             adx_min_threshold=profile.adx_min_threshold,
             min_seconds_between_trades=profile.min_seconds_between_trades_xauusd,
+            blackout_enabled=profile.blackout_enabled,
+            max_atr_regime_multiplier=profile.max_atr_regime_multiplier,
         ),
     )
 
@@ -314,11 +347,30 @@ def _backtest_config(
             max_lot_per_symbol={args.symbol: profile.max_lot_per_trade_xauusd},
             high_confluence_lot_multiplier=profile.high_confluence_lot_multiplier,
             high_confluence_score=profile.high_confluence_score,
+            bad_day_downshift_fraction=profile.bad_day_downshift_fraction,
         ),
         initial_equity=args.initial_equity,
         min_seconds_between_trades=profile.min_seconds_between_trades_xauusd,
+        loss_streak_pause_count=profile.loss_streak_pause_count,
+        max_recent_drawdown_fraction=profile.max_recent_drawdown_fraction,
         break_even=BreakEvenConfig(enabled=True),
     )
+
+
+def _recent_metrics(
+    *,
+    profile: XauStrategyProfile,
+    bars: list[dict],
+    args: argparse.Namespace,
+    backtest_config: BacktestConfig,
+):
+    recent_count = max(1, int(args.recent_bars))
+    recent_bars = bars[-recent_count:] if len(bars) > recent_count else bars
+    result = Backtester(backtest_config).run(
+        strategy=_strategy(profile),
+        bars=recent_bars,
+    )
+    return compute_metrics(result)
 
 
 def _load_bars(
@@ -380,6 +432,59 @@ def _winner(results: list[CandidateResult]) -> CandidateResult:
     return max(pool, key=lambda result: result.score)
 
 
+def _apply_relative_promotion_gates(
+    results: list[CandidateResult],
+    args: argparse.Namespace,
+) -> list[CandidateResult]:
+    incumbent = next(
+        (
+            result
+            for result in results
+            if result.profile.get("profile_name") == DEFAULT_PROFILE.profile_name
+        ),
+        None,
+    )
+    if incumbent is None:
+        return results
+
+    adjusted: list[CandidateResult] = []
+    for result in results:
+        profile_name = str(result.profile.get("profile_name") or "")
+        delta_pnl = result.mean_total_pnl - incumbent.mean_total_pnl
+        notes = result.notes
+        promotable = bool(result.promotable)
+        if profile_name == DEFAULT_PROFILE.profile_name:
+            promotable = False
+            notes = _append_note(notes, "incumbent baseline, not a challenger deployment")
+        else:
+            min_delta = float(args.min_challenger_pnl_delta)
+            min_pf_delta = float(args.min_challenger_pf_delta)
+            pf_delta = _finite_pf(result.mean_profit_factor) - _finite_pf(
+                incumbent.mean_profit_factor
+            )
+            if delta_pnl < min_delta:
+                promotable = False
+                notes = _append_note(
+                    notes,
+                    f"challenger pnl delta {delta_pnl:.2f} < {min_delta:.2f}",
+                )
+            if pf_delta < min_pf_delta:
+                promotable = False
+                notes = _append_note(
+                    notes,
+                    f"challenger pf delta {pf_delta:.3g} < {min_pf_delta:.3g}",
+                )
+        adjusted.append(
+            replace(
+                result,
+                promotable=promotable,
+                incumbent_delta_pnl=delta_pnl,
+                notes=notes,
+            )
+        )
+    return adjusted
+
+
 def _write_winner_profile(winner: CandidateResult, args: argparse.Namespace) -> Path:
     profile = profile_by_name(str(winner.profile["profile_name"]))
     if args.profile_output is not None:
@@ -416,11 +521,19 @@ def _score(
     mean_max_drawdown_pct: float,
     consistency: float,
     worst_fold_pnl: float,
+    recent_total_pnl: float,
 ) -> float:
     pf = 5.0 if math.isinf(mean_profit_factor) else max(0.0, mean_profit_factor)
     drawdown_penalty = max(0.0, mean_max_drawdown_pct) * 25_000.0
     worst_penalty = abs(min(0.0, worst_fold_pnl)) * 0.20
-    return mean_total_pnl + min(pf, 5.0) * 250.0 + consistency * 1_000.0 - drawdown_penalty - worst_penalty
+    return (
+        mean_total_pnl
+        + recent_total_pnl * 0.25
+        + min(pf, 5.0) * 250.0
+        + consistency * 1_000.0
+        - drawdown_penalty
+        - worst_penalty
+    )
 
 
 def _metric_mean(metrics: dict[str, Any], name: str) -> float:
@@ -431,6 +544,20 @@ def _metric_mean(metrics: dict[str, Any], name: str) -> float:
         return float(value)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _finite_pf(value: float) -> float:
+    return 5.0 if math.isinf(float(value)) else float(value)
+
+
+def _append_note(existing: str, addition: str) -> str:
+    text = str(existing or "").strip()
+    extra = str(addition or "").strip()
+    if not text:
+        return extra
+    if not extra:
+        return text
+    return f"{text}; {extra}"
 
 
 def _fold_results_payload(folds) -> list[dict[str, Any]]:
@@ -514,8 +641,8 @@ def _print_summary(
     if profile_path:
         print(f"  deployed_profile: {profile_path}")
     print("")
-    print("| Profile | Promote | Score | Mean PnL | PF | Trades | Consistency | Worst Fold |")
-    print("|---|---:|---:|---:|---:|---:|---:|---:|")
+    print("| Profile | Promote | Score | Mean PnL | Recent PnL | PF | Recent PF | Trades | Consistency | Inc Delta | Worst Fold |")
+    print("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
     for result in sorted(results, key=lambda item: item.score, reverse=True):
         print(
             "| "
@@ -525,9 +652,12 @@ def _print_summary(
                     str(int(result.promotable)),
                     f"{result.score:.2f}",
                     f"{result.mean_total_pnl:.2f}",
+                    f"{result.recent_total_pnl:.2f}",
                     f"{result.mean_profit_factor:.3g}",
+                    f"{result.recent_profit_factor:.3g}",
                     f"{result.mean_n_trades:.1f}",
                     f"{result.consistency_score:.2f}",
+                    f"{result.incumbent_delta_pnl:.2f}",
                     f"{result.worst_fold_pnl:.2f}",
                 ]
             )

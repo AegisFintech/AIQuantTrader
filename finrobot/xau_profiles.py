@@ -42,6 +42,11 @@ class XauStrategyProfile:
     high_confluence_lot_multiplier: float = 3.0
     high_confluence_score: int = 5
     max_spread_points_xauusd: float = 80.0
+    loss_streak_pause_count: int = 0
+    bad_day_downshift_fraction: float = 0.50
+    max_recent_drawdown_fraction: float = 0.0
+    blackout_enabled: bool = False
+    max_atr_regime_multiplier: float = 0.0
 
     def bounded(self) -> "XauStrategyProfile":
         """Return a profile clamped to demo-safe XAUUSD bounds."""
@@ -121,6 +126,26 @@ class XauStrategyProfile:
                 20.0,
                 120.0,
             ),
+            loss_streak_pause_count=_clamp_int(
+                self.loss_streak_pause_count,
+                0,
+                8,
+            ),
+            bad_day_downshift_fraction=_clamp_float(
+                self.bad_day_downshift_fraction,
+                0.0,
+                1.0,
+            ),
+            max_recent_drawdown_fraction=_clamp_float(
+                self.max_recent_drawdown_fraction,
+                0.0,
+                0.0500,
+            ),
+            max_atr_regime_multiplier=_clamp_float(
+                self.max_atr_regime_multiplier,
+                0.0,
+                8.0,
+            ),
         )
 
     def to_rows(self) -> list[tuple[str, str]]:
@@ -158,6 +183,9 @@ PROFILE_CANDIDATES: tuple[XauStrategyProfile, ...] = (
         take_profit_atr_multiplier=2.00,
         adx_min_threshold=18.0,
         high_confluence_lot_multiplier=3.0,
+        loss_streak_pause_count=3,
+        max_recent_drawdown_fraction=0.0150,
+        max_atr_regime_multiplier=3.0,
     ),
     XauStrategyProfile(
         profile_name="sweep_reversal",
@@ -174,6 +202,9 @@ PROFILE_CANDIDATES: tuple[XauStrategyProfile, ...] = (
         stop_atr_multiplier=0.90,
         take_profit_atr_multiplier=2.70,
         adx_min_threshold=16.0,
+        loss_streak_pause_count=2,
+        max_recent_drawdown_fraction=0.0125,
+        max_atr_regime_multiplier=2.75,
     ),
     XauStrategyProfile(
         profile_name="breakout_continuation",
@@ -192,6 +223,10 @@ PROFILE_CANDIDATES: tuple[XauStrategyProfile, ...] = (
         take_profit_atr_multiplier=1.80,
         adx_min_threshold=24.0,
         high_confluence_lot_multiplier=4.0,
+        loss_streak_pause_count=3,
+        bad_day_downshift_fraction=0.35,
+        max_recent_drawdown_fraction=0.0200,
+        max_atr_regime_multiplier=3.25,
     ),
     XauStrategyProfile(
         profile_name="sniper_smc5",
@@ -210,6 +245,10 @@ PROFILE_CANDIDATES: tuple[XauStrategyProfile, ...] = (
         take_profit_atr_multiplier=3.20,
         adx_min_threshold=20.0,
         high_confluence_lot_multiplier=4.0,
+        loss_streak_pause_count=2,
+        max_recent_drawdown_fraction=0.0100,
+        blackout_enabled=True,
+        max_atr_regime_multiplier=2.50,
     ),
 )
 

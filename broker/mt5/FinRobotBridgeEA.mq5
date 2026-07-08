@@ -1,6 +1,6 @@
 #property strict
 #property description "FinRobot MT5 bridge and demo auto trader for XAUUSD."
-#property version "1.34"
+#property version "1.35"
 
 #include <Trade/Trade.mqh>
 #include "BridgeIO.mqh"
@@ -31,6 +31,12 @@ input int HighConfluenceScore = 5;
 input bool UseDailyRiskLotSizing = true;
 input double DailyRiskPerTradeFraction = 0.0010;   // 0.10% of equity per trade
 input double DailyLossLimitFraction = 0.01;        // 1.00% of equity daily cap
+input int LossStreakPauseCount = 0;                // 0 disables loss-streak pause
+input double BadDayDownshiftFraction = 0.50;       // Multiplier after broker-day closed PnL turns negative
+input double MaxRecentDrawdownFraction = 0.0;      // 0 disables earlier drawdown pause
+input bool BlackoutEnabled = false;
+input string BlackoutFile = "finrobot_blackout.csv";
+input double MaxAtrRegimeMultiplier = 0.0;         // 0 disables ATR regime pause
 input bool AutoClosePositionsWithoutStops = true;
 input bool DisableWeakStrategySignals = true;
 input int MaxAutoPositionsPerSymbol = 2;
@@ -91,6 +97,7 @@ int directionRejectCounts[];
 int pdaRejectCounts[];
 int positionRejectCounts[];
 int orderRejectCounts[];
+int recoveryRejectCounts[];
 int moneyManagementDay = 0;
 double dailyEquitySnapshot = 0.0;
 double todayClosedPnlCache = 0.0;
@@ -126,6 +133,11 @@ bool runtimeEnableAdxRegimeFilter = true;
 double runtimeAdxMinThreshold = 20.0;
 double runtimePdaLongCeiling = 0.40;
 double runtimePdaShortFloor = 0.60;
+int runtimeLossStreakPauseCount = 0;
+double runtimeBadDayDownshiftFraction = 0.50;
+double runtimeMaxRecentDrawdownFraction = 0.0;
+bool runtimeBlackoutEnabled = false;
+double runtimeMaxAtrRegimeMultiplier = 0.0;
 
 bool IsXauSymbol(string symbol) {
    string s = Upper(symbol);
@@ -190,6 +202,11 @@ void ResetRuntimeStrategyProfile() {
    runtimeAdxMinThreshold = ClampProfileDouble(AdxMinThreshold, 5.0, 45.0);
    runtimePdaLongCeiling = 0.40;
    runtimePdaShortFloor = 0.60;
+   runtimeLossStreakPauseCount = ClampProfileInt(LossStreakPauseCount, 0, 8);
+   runtimeBadDayDownshiftFraction = ClampProfileDouble(BadDayDownshiftFraction, 0.0, 1.0);
+   runtimeMaxRecentDrawdownFraction = ClampProfileDouble(MaxRecentDrawdownFraction, 0.0, 0.0500);
+   runtimeBlackoutEnabled = BlackoutEnabled;
+   runtimeMaxAtrRegimeMultiplier = ClampProfileDouble(MaxAtrRegimeMultiplier, 0.0, 8.0);
 }
 
 void ApplyRuntimeProfileKey(string keyRaw, string valueRaw) {
@@ -222,6 +239,11 @@ void ApplyRuntimeProfileKey(string keyRaw, string valueRaw) {
    else if(key == "high_confluence_lot_multiplier") runtimeHighConfluenceLotMultiplier = ClampProfileDouble(StringToDouble(value), 1.0, 5.0);
    else if(key == "high_confluence_score") runtimeHighConfluenceScore = ClampProfileInt((int)StringToInteger(value), 4, 6);
    else if(key == "max_spread_points_xauusd") runtimeMaxSpreadPointsXAUUSD = ClampProfileDouble(StringToDouble(value), 20.0, 120.0);
+   else if(key == "loss_streak_pause_count") runtimeLossStreakPauseCount = ClampProfileInt((int)StringToInteger(value), 0, 8);
+   else if(key == "bad_day_downshift_fraction") runtimeBadDayDownshiftFraction = ClampProfileDouble(StringToDouble(value), 0.0, 1.0);
+   else if(key == "max_recent_drawdown_fraction") runtimeMaxRecentDrawdownFraction = ClampProfileDouble(StringToDouble(value), 0.0, 0.0500);
+   else if(key == "blackout_enabled") runtimeBlackoutEnabled = ParseProfileBool(value, runtimeBlackoutEnabled);
+   else if(key == "max_atr_regime_multiplier") runtimeMaxAtrRegimeMultiplier = ClampProfileDouble(StringToDouble(value), 0.0, 8.0);
 }
 
 void LoadRuntimeStrategyProfile() {
@@ -271,7 +293,12 @@ string StrategyProfileJson() {
    payload += "\"min_smc_xauusd\":" + IntegerToString(runtimeMinSmcConfluenceScoreXAUUSD) + ",";
    payload += "\"pda_long_ceiling\":" + DoubleToString(runtimePdaLongCeiling, 2) + ",";
    payload += "\"pda_short_floor\":" + DoubleToString(runtimePdaShortFloor, 2) + ",";
-   payload += "\"atr_impulse_multiplier\":" + DoubleToString(runtimeAtrImpulseMultiplier, 3);
+   payload += "\"atr_impulse_multiplier\":" + DoubleToString(runtimeAtrImpulseMultiplier, 3) + ",";
+   payload += "\"loss_streak_pause_count\":" + IntegerToString(runtimeLossStreakPauseCount) + ",";
+   payload += "\"bad_day_downshift_fraction\":" + DoubleToString(runtimeBadDayDownshiftFraction, 2) + ",";
+   payload += "\"max_recent_drawdown_fraction\":" + DoubleToString(runtimeMaxRecentDrawdownFraction, 4) + ",";
+   payload += "\"blackout_enabled\":" + IntegerToString((int)runtimeBlackoutEnabled) + ",";
+   payload += "\"max_atr_regime_multiplier\":" + DoubleToString(runtimeMaxAtrRegimeMultiplier, 2);
    payload += "}";
    return payload;
 }
@@ -287,6 +314,7 @@ void ResizeSignalTelemetry(int n) {
    ArrayResize(pdaRejectCounts, n);
    ArrayResize(positionRejectCounts, n);
    ArrayResize(orderRejectCounts, n);
+   ArrayResize(recoveryRejectCounts, n);
 }
 
 void ResetSignalTelemetry() {
@@ -304,6 +332,7 @@ void ResetSignalTelemetry() {
       pdaRejectCounts[i] = 0;
       positionRejectCounts[i] = 0;
       orderRejectCounts[i] = 0;
+      recoveryRejectCounts[i] = 0;
    }
 }
 
@@ -325,6 +354,7 @@ void CountSignalTelemetry(int idx, string signal) {
    else if(StringFind(signal, "xau_pda_reject") == 0) pdaRejectCounts[idx]++;
    else if(StringFind(signal, "max_positions") == 0 || StringFind(signal, "same_side_max") == 0 || StringFind(signal, "cooldown") == 0) positionRejectCounts[idx]++;
    else if(StringFind(signal, "order_failed") == 0 || StringFind(signal, "risk_volume_zero") == 0) orderRejectCounts[idx]++;
+   else if(StringFind(signal, "loss_streak_pause") == 0 || StringFind(signal, "recent_drawdown_pause") == 0 || StringFind(signal, "blackout_reject") == 0 || StringFind(signal, "atr_regime_reject") == 0) recoveryRejectCounts[idx]++;
 }
 
 void SetLastSignal(int idx, string signal) {
@@ -525,7 +555,8 @@ string SymbolTelemetryJson(int idx) {
    payload += "\"direction_reject\":" + IntegerToString(directionRejectCounts[idx]) + ",";
    payload += "\"pda_reject\":" + IntegerToString(pdaRejectCounts[idx]) + ",";
    payload += "\"position_reject\":" + IntegerToString(positionRejectCounts[idx]) + ",";
-   payload += "\"order_reject\":" + IntegerToString(orderRejectCounts[idx]);
+   payload += "\"order_reject\":" + IntegerToString(orderRejectCounts[idx]) + ",";
+   payload += "\"recovery_reject\":" + IntegerToString(recoveryRejectCounts[idx]);
    payload += "}";
    return payload;
 }
@@ -545,6 +576,7 @@ string SymbolStatusJson(string symbol, int idx) {
    payload += "\"session_gated\":" + IntegerToString((int)UseSessionGateForSymbol(symbol)) + ",";
    payload += "\"weekday_market_hours\":" + IntegerToString((int)UseWeekdayMarketHoursForSymbol(symbol)) + ",";
    payload += "\"session_open\":" + IntegerToString((int)IsAutoSessionOpen(symbol)) + ",";
+   payload += "\"recovery_armed\":" + IntegerToString((int)(runtimeLossStreakPauseCount > 0 || runtimeMaxRecentDrawdownFraction > 0.0 || runtimeBlackoutEnabled || runtimeMaxAtrRegimeMultiplier > 0.0)) + ",";
    payload += "\"last_signal\":\"" + Clean(lastSignals[idx]) + "\",";
    payload += "\"signal_telemetry\":" + SymbolTelemetryJson(idx);
    payload += "}";
@@ -621,7 +653,8 @@ double DailyRiskVolume(string symbol, double slDistance, int confluenceScore) {
    }
    double riskMoney = dailyEquitySnapshot * runtimeDailyRiskPerTradeFraction;
    if(confluenceScore >= runtimeHighConfluenceScore) riskMoney *= MathMax(1.0, runtimeHighConfluenceLotMultiplier);
-   if(todayClosedPnlCache < 0.0) riskMoney *= 0.5;
+   if(todayClosedPnlCache < 0.0) riskMoney *= runtimeBadDayDownshiftFraction;
+   if(riskMoney <= 0.0) return 0.0;
    double riskPerLot = (slDistance / tickSize) * tickValue;
    if(riskPerLot <= 0.0) return NormalizeVolume(symbol, BaseLotForSymbol(symbol));
    double volume = riskMoney / riskPerLot;
@@ -637,6 +670,9 @@ string MoneyManagementJson() {
    payload += "\"today_closed_pnl\":" + DoubleToString(todayClosedPnlCache, 2) + ",";
    payload += "\"daily_risk_per_trade_fraction\":" + DoubleToString(runtimeDailyRiskPerTradeFraction, 6) + ",";
    payload += "\"daily_loss_limit_fraction\":" + DoubleToString(runtimeDailyLossLimitFraction, 4) + ",";
+   payload += "\"bad_day_downshift_fraction\":" + DoubleToString(runtimeBadDayDownshiftFraction, 2) + ",";
+   payload += "\"max_recent_drawdown_fraction\":" + DoubleToString(runtimeMaxRecentDrawdownFraction, 4) + ",";
+   payload += "\"loss_streak_pause_count\":" + IntegerToString(runtimeLossStreakPauseCount) + ",";
    payload += "\"loss_limit_reached\":" + IntegerToString((int)IsDailyLossLimitReached()) + ",";
    payload += "\"risk_lot_sizing\":" + IntegerToString((int)UseDailyRiskLotSizing) + ",";
    payload += "\"auto_close_no_sl_tp\":" + IntegerToString((int)AutoClosePositionsWithoutStops);
@@ -814,6 +850,76 @@ double MinStopDistanceForSymbol(string symbol, double entry) {
    return MathMax(entry * 0.00045, 2.0);
 }
 
+int RecentManagedLossStreak(string symbol) {
+   if(runtimeLossStreakPauseCount <= 0) return 0;
+   if(!HistorySelect(TimeCurrent() - 86400 * 14, TimeCurrent())) return 0;
+   int streak = 0;
+   for(int i = HistoryDealsTotal() - 1; i >= 0; i--) {
+      ulong ticket = HistoryDealGetTicket(i);
+      if(ticket == 0) continue;
+      if(HistoryDealGetString(ticket, DEAL_SYMBOL) != symbol) continue;
+      if((int)HistoryDealGetInteger(ticket, DEAL_MAGIC) != MagicNumber) continue;
+      long entry = HistoryDealGetInteger(ticket, DEAL_ENTRY);
+      if(entry != DEAL_ENTRY_OUT && entry != DEAL_ENTRY_OUT_BY) continue;
+      double pnl = HistoryDealGetDouble(ticket, DEAL_PROFIT) + HistoryDealGetDouble(ticket, DEAL_COMMISSION) + HistoryDealGetDouble(ticket, DEAL_SWAP);
+      if(pnl < 0.0) {
+         streak++;
+         continue;
+      }
+      if(pnl > 0.0) break;
+   }
+   return streak;
+}
+
+bool IsRecentDrawdownPauseActive() {
+   if(runtimeMaxRecentDrawdownFraction <= 0.0) return false;
+   UpdateMoneyManagementState();
+   double limitMoney = dailyEquitySnapshot * runtimeMaxRecentDrawdownFraction;
+   return limitMoney > 0.0 && todayClosedPnlCache <= -limitMoney;
+}
+
+bool IsRuntimeBlackoutActive(string &reason) {
+   reason = "";
+   if(!runtimeBlackoutEnabled) return false;
+   int h = FileOpen(BlackoutFile, FILE_READ|FILE_TXT|FILE_ANSI|FILE_COMMON);
+   if(h == INVALID_HANDLE) return false;
+   datetime now = TimeCurrent();
+   while(!FileIsEnding(h)) {
+      string line = Trim(FileReadString(h));
+      if(line == "" || StringFind(line, "#") == 0) continue;
+      string cols[];
+      int n = StringSplit(line, ',', cols);
+      if(n < 2) n = StringSplit(line, '\t', cols);
+      if(n < 2) continue;
+      if(Lower(Trim(cols[0])) == "start") continue;
+      datetime fromTime = StringToTime(Trim(cols[0]));
+      datetime toTime = StringToTime(Trim(cols[1]));
+      if(fromTime <= 0 || toTime <= 0) continue;
+      if(now >= fromTime && now < toTime) {
+         reason = n >= 3 ? Trim(cols[2]) : "scheduled";
+         FileClose(h);
+         return true;
+      }
+   }
+   FileClose(h);
+   return false;
+}
+
+bool AtrRegimeTooHot(double currentAtr, double &atrValues[], int copied) {
+   if(runtimeMaxAtrRegimeMultiplier <= 0.0 || currentAtr <= 0.0 || copied < 12) return false;
+   double sumAtr = 0.0;
+   int count = 0;
+   int maxItems = MathMin(copied - 1, 50);
+   for(int i = 1; i <= maxItems; i++) {
+      if(atrValues[i] <= 0.0) continue;
+      sumAtr += atrValues[i];
+      count++;
+   }
+   if(count < 10) return false;
+   double avgAtr = sumAtr / count;
+   return avgAtr > 0.0 && currentAtr > avgAtr * runtimeMaxAtrRegimeMultiplier;
+}
+
 void ManageAutoSymbol(string symbol, int idx) {
    bool isXau = IsXauSymbol(symbol);
    if(!AutoTradeMT5 || !AllowTrading) {
@@ -838,6 +944,20 @@ void ManageAutoSymbol(string symbol, int idx) {
    }
    if(!IsAutoSessionOpen(symbol)) {
       SetLastSignal(idx, AutoSessionRejectReason(symbol));
+      return;
+   }
+   if(IsRecentDrawdownPauseActive()) {
+      SetLastSignal(idx, "recent_drawdown_pause pnl=" + DoubleToString(todayClosedPnlCache, 2));
+      return;
+   }
+   int lossStreak = RecentManagedLossStreak(symbol);
+   if(runtimeLossStreakPauseCount > 0 && lossStreak >= runtimeLossStreakPauseCount) {
+      SetLastSignal(idx, "loss_streak_pause streak=" + IntegerToString(lossStreak));
+      return;
+   }
+   string blackoutReason = "";
+   if(IsRuntimeBlackoutActive(blackoutReason)) {
+      SetLastSignal(idx, "blackout_reject " + blackoutReason);
       return;
    }
 
@@ -882,13 +1002,14 @@ void ManageAutoSymbol(string symbol, int idx) {
    ArraySetAsSeries(atr, true);
    ArraySetAsSeries(adxVal, true);
 
+   int atrCopied = CopyBuffer(atrHandle, 0, 0, 60, atr);
    bool copied = CopyBuffer(emaFastHandle, 0, 0, 5, emaFast) >= 5 &&
                  CopyBuffer(emaSlowHandle, 0, 0, 5, emaSlow) >= 5 &&
                  CopyBuffer(emaTrendHandle, 0, 0, 5, emaTrend) >= 5 &&
                  CopyBuffer(rsiHandle, 0, 0, 5, rsi) >= 5 &&
                  CopyBuffer(macdHandle, 0, 0, 5, macdMain) >= 5 &&
                  CopyBuffer(macdHandle, 1, 0, 5, macdSignal) >= 5 &&
-                 CopyBuffer(atrHandle, 0, 0, 5, atr) >= 5 &&
+                 atrCopied >= 5 &&
                  CopyBuffer(adxHandle, 0, 0, 3, adxVal) >= 3;
    IndicatorRelease(emaFastHandle);
    IndicatorRelease(emaSlowHandle);
@@ -951,6 +1072,11 @@ void ManageAutoSymbol(string symbol, int idx) {
 
    if(side == 0) {
       SetLastSignal(idx, "no_signal rsi=" + DoubleToString(rsi[0], 1) + " mom3=" + DoubleToString(momentum3 * 100.0, 3) + "% pda=" + DoubleToString(pda, 2));
+      return;
+   }
+
+   if(AtrRegimeTooHot(atrValue, atr, atrCopied)) {
+      SetLastSignal(idx, "atr_regime_reject atr=" + DoubleToString(atrValue, digits));
       return;
    }
 

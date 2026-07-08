@@ -63,6 +63,10 @@ def test_xau_strategy_lab_cli_smoke(tmp_path):
         "incumbent_smc4",
         "attack_atr_m1",
     }
+    assert "recent_total_pnl" in payload["winner"]
+    assert "recent_profit_factor" in payload["winner"]
+    assert "incumbent_delta_pnl" in payload["winner"]
+    assert payload["backtest_defaults"]["min_challenger_pnl_delta"] == 250.0
     assert len(payload["candidates"]) == 2
     assert (experiment_dir / "lab-smoke-incumbent_smc4.json").exists()
 
