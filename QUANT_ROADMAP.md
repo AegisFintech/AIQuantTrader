@@ -170,8 +170,8 @@ This section is operational context, not a trading signal.
 
 - Fix DuckDB warehouse lock contention with retry/backoff, a single-writer pattern, or separate read snapshots. `[not done]`
 - Make `scripts/mt5_validate_warehouse.py` resilient when another process holds the DuckDB lock. `[not done]`
-- Add XAU bad-day/loss-streak throttle in the EA and parity layer. `[not done]`
-- Add market-event blackout configuration for XAU. `[not done]`
+- Add XAU bad-day/loss-streak throttle in the EA and parity layer. `[partial]`
+- Add market-event blackout configuration for XAU. `[partial]`
 - Enrich acks and warehouse rows with fill/reject context and risk/gate decisions. `[not done]`
 - Add CI/release gate for MetaEditor compile result and `.ex5` manifest. `[not done]`
 - Extend durable deal history beyond the EA's 14-day MT5 export window. `[partial]`

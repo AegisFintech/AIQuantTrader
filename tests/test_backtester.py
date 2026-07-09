@@ -187,6 +187,96 @@ def test_end_to_end_buy_and_hold_metrics_shape_on_100_bars():
     assert len(result.equity_curve) == 100
 
 
+def test_buy_sl_triggers_on_gap_open_below_sl():
+    """A bar that gaps entirely below SL must still exit at SL price."""
+    bars = [
+        _bar(0, close=100.0, high=101.0, low=99.0),
+        _bar(1, close=85.0, high=88.0, low=84.0),  # gap below SL of 95
+    ]
+
+    result = Backtester(_config()).run(
+        strategy=OneShotSignal(
+            Signal(action="BUY", sl_distance=5.0, tp_distance=20.0, strategy="GapSL")
+        ),
+        bars=bars,
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0]["exit_reason"] == "sl"
+
+
+def test_sell_sl_triggers_on_gap_open_above_sl():
+    """A bar that gaps entirely above SL for a SELL must still trigger SL."""
+    bars = [
+        _bar(0, close=100.0, high=101.0, low=99.0),
+        _bar(1, close=115.0, high=116.0, low=112.0),  # gap above SL of 105
+    ]
+
+    result = Backtester(_config()).run(
+        strategy=OneShotSignal(
+            Signal(action="SELL", sl_distance=5.0, tp_distance=20.0, strategy="GapSL")
+        ),
+        bars=bars,
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0]["exit_reason"] == "sl"
+
+
+def test_buy_tp_triggers_on_gap_open_above_tp():
+    """A bar that gaps entirely above TP must still trigger TP."""
+    bars = [
+        _bar(0, close=100.0, high=101.0, low=99.0),
+        _bar(1, close=125.0, high=126.0, low=122.0),  # gap above TP of 110
+    ]
+
+    result = Backtester(_config()).run(
+        strategy=OneShotSignal(
+            Signal(action="BUY", sl_distance=5.0, tp_distance=10.0, strategy="GapTP")
+        ),
+        bars=bars,
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0]["exit_reason"] == "tp"
+
+
+def test_sell_tp_triggers_on_gap_open_below_tp():
+    """A bar that gaps entirely below TP for a SELL must trigger TP."""
+    bars = [
+        _bar(0, close=100.0, high=101.0, low=99.0),
+        _bar(1, close=78.0, high=79.0, low=77.0),  # gap below TP of 90
+    ]
+
+    result = Backtester(_config()).run(
+        strategy=OneShotSignal(
+            Signal(action="SELL", sl_distance=5.0, tp_distance=10.0, strategy="GapTP")
+        ),
+        bars=bars,
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0]["exit_reason"] == "tp"
+
+
+def test_both_sl_and_tp_in_bar_exits_at_sl():
+    """When both SL and TP are within a bar's range, SL takes priority (conservative)."""
+    bars = [
+        _bar(0, close=100.0, high=101.0, low=99.0),
+        _bar(1, close=100.0, high=111.0, low=94.0),  # both SL=95 and TP=110 in range
+    ]
+
+    result = Backtester(_config()).run(
+        strategy=OneShotSignal(
+            Signal(action="BUY", sl_distance=5.0, tp_distance=10.0, strategy="Both")
+        ),
+        bars=bars,
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0]["exit_reason"] == "sl"
+
+
 class OneShotSignal(Strategy):
     name = "OneShot"
 
