@@ -68,23 +68,19 @@ def ichimoku(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def rsi_divergence(price: pd.Series, rsi: pd.Series, lookback: int = 30) -> pd.Series:
-    bullish_div = pd.Series(0, index=price.index)
-    bearish_div = pd.Series(0, index=price.index)
-    
-    for i in range(lookback, len(price)):
-        price_low = price.iloc[i-lookback:i].min()
-        rsi_low = rsi.iloc[i-lookback:i].min()
-        
-        if price.iloc[i] < price_low and rsi.iloc[i] > rsi_low:
-            bullish_div.iloc[i] = 1
-        
-        price_high = price.iloc[i-lookback:i].max()
-        rsi_high = rsi.iloc[i-lookback:i].max()
-        
-        if price.iloc[i] > price_high and rsi.iloc[i] < rsi_high:
-            bearish_div.iloc[i] = -1
-    
-    return bullish_div + bearish_div
+    # Rolling min/max of the prior `lookback` bars (shift(1) excludes the current bar)
+    price_rolling_min = price.rolling(lookback).min().shift(1)
+    price_rolling_max = price.rolling(lookback).max().shift(1)
+    rsi_rolling_min = rsi.rolling(lookback).min().shift(1)
+    rsi_rolling_max = rsi.rolling(lookback).max().shift(1)
+
+    # Bullish: price makes new low but RSI does not
+    bullish = ((price < price_rolling_min) & (rsi > rsi_rolling_min)).astype(int)
+
+    # Bearish: price makes new high but RSI does not
+    bearish = ((price > price_rolling_max) & (rsi < rsi_rolling_max)).astype(int)
+
+    return bullish - bearish
 
 
 def enrich_indicators(frame: pd.DataFrame) -> pd.DataFrame:
