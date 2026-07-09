@@ -2,10 +2,10 @@
 
 ## System Overview
 
-MT5-first autonomous demo trading system for XAUUSD and BTCUSD. MetaTrader 5 runs under Wine/Xvfb, the FinRobot EA trades inside MT5, PM2 keeps MT5 + autonomous review loop + dashboard alive. Python layer mirrors the MQL5 signal logic for backtesting and research.
+MT5-first autonomous demo trading system for XAUUSD. MetaTrader 5 runs under Wine/Xvfb, the FinRobot EA trades inside MT5, PM2 keeps MT5 + autonomous review loop + dashboard alive. Python layer mirrors the MQL5 signal logic for backtesting and provides an institutional-grade research framework (ML signals, regime detection, significance testing).
 
-**Active EA:** `broker/mt5/FinRobotBridgeEA.mq5` v1.31  
-**Symbols:** XAUUSD, BTCUSD only  
+**Active EA:** `broker/mt5/FinRobotBridgeEA.mq5` v1.35  
+**Symbols:** XAUUSD only (BTC retired)  
 **Timeframe:** M5 (AutoTimeframe=PERIOD_M5)  
 **Broker:** ICMarketsSC-Demo  
 
@@ -23,24 +23,12 @@ MT5-first autonomous demo trading system for XAUUSD and BTCUSD. MetaTrader 5 run
 
 ---
 
-### Known Bugs
+### Fixed Bugs (2026-07-09)
 
-#### Bug 1 — SL/TP exit check misses gap-opens (`engine.py:170-175`)
-**File:** `finrobot/backtest/engine.py`, `_exit_for_bar` method  
-**Current (wrong):**
-```python
-sl_hit = position.sl > 0 and low <= position.sl <= high
-tp_hit = position.tp > 0 and low <= position.tp <= high
-```
-**Problem:** If a bar gaps fully past the stop (e.g., XAUUSD opens below SL on news), `sl > high` is true and the stop never fires — position bleeds through.  
-**Correct logic:**
-
-| Side | SL trigger | TP trigger |
-|---|---|---|
-| BUY | `low <= sl` | `high >= tp` |
-| SELL | `high >= sl` | `low <= tp` |
-
-**Priority: Fix this before trusting any walk-forward results.**
+- **SL/TP gap-open exit** — `engine.py:308-325` now correctly uses `low <= sl` (BUY) / `high >= sl` (SELL). Edge-case tests added.
+- **Metrics annualization** — `metrics.py` now parameterizes `periods_per_year` by timeframe (M1/M5/H1/D1).
+- **O(n²) rsi_divergence** — `indicators.py` vectorized with `pandas.rolling()`, ~100x faster.
+- **Missing metrics** — Added: Sortino, Calmar, skewness, kurtosis, max consecutive losses, recovery factor, tail ratio, monthly P&L buckets.
 
 ---
 
@@ -103,63 +91,130 @@ Only has Sharpe. Missing: Sortino, Calmar, max drawdown duration, trade P&L dist
 
 ---
 
-### Priority Action List
+### Priority Action List (updated 2026-07-09)
 
-1. **Fix backtest exit bug** in `finrobot/backtest/engine.py:170-175` — corrupts all walk-forward results
-2. **Run walk-forward on live EA parameters** using existing framework + 100K bar dataset
-3. **Add ADX regime gate** to `FinRobotBridgeEA.mq5` and `xau_gates.py`
-4. **Tighten FVG threshold** `FvgMinAtrMultiplier` 0.15 → 0.30; **sweep** 0.10 → 0.30
-5. **Raise TP multiplier** `TakeProfitAtrMultiplier` 1.8 → 2.4 (R:R 2:1)
-6. **Add Sortino + Calmar** to `finrobot/backtest/metrics.py`
-7. **Vectorize research code** in `indicators.py` and `smart_money.py`
+1. ~~Fix backtest exit bug~~ DONE
+2. ~~Add Sortino/Calmar/skewness/kurtosis~~ DONE
+3. ~~Vectorize research indicators~~ DONE
+4. **Acquire multi-year M1 data** — current 3.5 months is too short for ML; need 2020-2026 via MT5 export
+5. **Retrain ML with multi-year data** — current AUC 0.52 is random; needs 2+ years
+6. **Tighten FVG threshold** `FvgMinAtrMultiplier` 0.15 → 0.30; **sweep** 0.10 → 0.30
+7. **Add H1 trend gate** as higher-timeframe filter for SMC structure
 8. **Fix deprecated `.fillna(method=)`** in `strategies/grid.py`
 
----
+### Research Findings (2026-07-09)
 
-### Quick Win Estimates
+Pipeline run on 100K M1 bars (Jan-May 2026):
 
-| Item | Effort | Impact |
-|---|---|---|
-| Fix SL/TP exit bug | 30 min | Fixes backtest correctness |
-| Add Sortino/Calmar metrics | 30 min | Improves reporting immediately |
-| Fix pandas deprecation in grid.py | 5 min | Eliminates FutureWarning |
-| Run walk-forward on live params | 1 hour | First honest edge validation |
-| ADX gate in EA + backtest | 1 day | Reduces false entries in ranging markets |
-| Raise FVG/sweep thresholds | 30 min | Reduces noise in signal generation |
-| Raise TP to 2.4x ATR | 10 min | Improves R:R to 2:1 |
+| Strategy | Walk-Forward Sharpe | Profit Factor | Verdict |
+|----------|-------------------|---------------|---------|
+| ATR Impulse (ungated) | -20.7 | 0.61 | FAIL |
+| ATR Impulse (SMC>=4) | -1.1 | 0.92 | FAIL |
+| ATR Impulse (SMC>=3) | -6.0 | 0.73 | FAIL |
+| Quick Momentum (ungated) | -10.9 | 0.70 | FAIL |
+
+- **No strategy has statistically significant edge** (DSR p=1.0 after 49 trials)
+- Regime model shows XAUUSD is 48% ranging, 39% volatile, 13% trending
+- ML top features: time-of-day (hour_sin/cos), h1_ema_slope, rvol_240 → seasonal patterns are lowest-hanging fruit
+- **Bottleneck is data** — 3.5 months is insufficient for ML training or robust validation
 
 ---
 
 ## Key File Map
+
+### Live Trading (MQL5)
 
 | Path | Purpose |
 |---|---|
 | `broker/mt5/FinRobotBridgeEA.mq5` | Live EA — all trading logic, risk controls, SMC gates |
 | `broker/mt5/SmartMoney.mqh` | MQL5 SMC: FVG, OB, sweep, structure, PDA scoring |
 | `broker/mt5/RiskManagement.mqh` | MQL5 daily PnL, session gate, break-even |
+
+### Backtest Engine
+
+| Path | Purpose |
+|---|---|
 | `finrobot/backtest/engine.py` | Deterministic bar-by-bar backtest engine |
 | `finrobot/backtest/fills.py` | Fill simulation: spread, slippage, commission, swap |
 | `finrobot/backtest/position.py` | Position state + `DailyRiskSizer` (mirrors EA sizing) |
-| `finrobot/backtest/metrics.py` | Sharpe, profit factor, expectancy, drawdown |
+| `finrobot/backtest/metrics.py` | Sharpe, Sortino, Calmar, skewness, kurtosis, recovery factor, monthly P&L |
 | `finrobot/backtest/walkforward.py` | Purged walk-forward with embargo windows |
 | `finrobot/backtest/strategies/xau_gates.py` | Python port of MQL5 SMC/PDA gate logic |
 | `finrobot/backtest/strategies/xau_gated.py` | XAU gate wrapper strategy |
-| `finrobot/backtest/strategies/btc_gates.py` | BTC gate helpers |
-| `finrobot/backtest/strategies/btc_gated.py` | BTC gate wrapper strategy |
-| `finrobot/indicators.py` | Research indicators (not in live EA path) |
-| `finrobot/hft.py` | HFT research module (not in live EA path) |
-| `finrobot/strategies/smart_money.py` | Research SMC (diverges from MQL5 — do not treat as authoritative) |
+| `finrobot/backtest/strategies/xau_atr_impulse.py` | ATR impulse breakout (mirrors EA) |
+| `finrobot/backtest/strategies/xau_quick_momentum.py` | EMA crossover momentum (mirrors EA) |
+| `finrobot/backtest/strategies/xau_mean_reversion.py` | Mean reversion sleeve (ranging regime) |
+| `finrobot/backtest/strategies/xau_ml_ensemble.py` | ML-driven signal sleeve |
+| `finrobot/backtest/strategies/xau_seasonal.py` | Calendar/session patterns sleeve |
+
+### Research Framework (added 2026-07-09)
+
+| Path | Purpose |
+|---|---|
+| `finrobot/research/features.py` | 24-feature engineering pipeline (price, vol, technical, MTF, seasonal) |
+| `finrobot/research/regime.py` | HMM regime detection (trending/ranging/volatile) |
+| `finrobot/research/models.py` | LightGBM walk-forward training with purge+embargo |
+| `finrobot/research/significance.py` | Deflated Sharpe Ratio, Monte Carlo permutation, bootstrap CI |
+| `finrobot/research/optimizer.py` | Optuna Bayesian parameter optimization (OOS objective) |
+| `finrobot/research/experiments.py` | Experiment record tracking |
+| `finrobot/research/comparison.py` | Challenger-vs-incumbent promotion comparison |
+| `finrobot/research/registry.py` | DuckDB experiment registry |
+
+### Risk Management
+
+| Path | Purpose |
+|---|---|
+| `finrobot/risk/kelly.py` | Fractional Kelly sizing with exponential decay |
+| `finrobot/risk/vol_target.py` | Volatility targeting (constant-vol position sizing) |
+| `finrobot/risk/limits.py` | Graduated drawdown response (reduce/halt/flatten) |
+
+### Multi-Strategy Orchestration
+
+| Path | Purpose |
+|---|---|
+| `finrobot/strategies/orchestrator.py` | Regime-aware multi-sleeve orchestrator with conflict resolution |
+| `finrobot/monitoring/alpha_decay.py` | Rolling Sharpe + CUSUM change-point detection |
+
+### Scripts
+
+| Path | Purpose |
+|---|---|
+| `scripts/run_quant_pipeline.py` | Full research pipeline: data → features → regime → ML → walk-forward → DSR |
+| `scripts/run_walkforward.py` | Walk-forward validation CLI |
+| `scripts/run_backtest.py` | Single backtest runner |
+| `scripts/autonomous_review_loop.py` | 6-hour strategy review cycle (PM2 managed) |
+
+### Data
+
+| Path | Purpose |
+|---|---|
 | `data/finrobot.duckdb` | DuckDB warehouse: status, positions, deals, acks, prices tables |
 | `data/XAUUSD1.csv` | 100K M1 XAUUSD bars, Jan-May 2026 |
+
+### Legacy/Research (not in live path)
+
+| Path | Purpose |
+|---|---|
+| `finrobot/indicators.py` | Research indicators (vectorized rsi_divergence) |
+| `finrobot/hft.py` | HFT research module |
+| `finrobot/strategies/smart_money.py` | Research SMC (diverges from MQL5) |
 
 ---
 
 ## Constraints
 
 - Demo-only unless owner explicitly says otherwise
-- Trade only XAUUSD and BTCUSD
+- Trade only XAUUSD (BTC retired from active mandate)
 - Keep PM2 as the service manager
 - Do not commit `.env`, `.runtime/`, `logs/`, or `state/`
-- Do not add more symbols before data quality, portfolio risk, and execution reconciliation are solved
+- Do not add more symbols before XAUUSD is consistently profitable with statistical significance
 - Do not run martingale/grid sizing as live alpha
 - Do not let LLM auto-edits touch production without human review
+- Do not trust in-sample Sharpe — only walk-forward OOS matters
+- Do not deploy strategies without DSR p < 0.05 significance
+
+## Python Dependencies (key packages)
+
+Core: `pandas`, `numpy`, `duckdb`, `pyarrow`, `streamlit`  
+ML/Research: `scipy`, `scikit-learn`, `lightgbm`, `hmmlearn`, `optuna`, `joblib`  
+All ARM64-native. Python 3.13 in `.venv/`.
