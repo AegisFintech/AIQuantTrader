@@ -8,7 +8,8 @@ FinRobot is now an MT5-first autonomous demo-trading repo. Trade and optimize on
 
 ## Source of truth
 
-- Active EA: `broker/mt5/FinRobotBridgeEA.mq5` (v1.35)
+- Repository navigation map: `docs/REPOSITORY_MAP.md` (read this before broad rescans)
+- Active EA: `broker/mt5/FinRobotBridgeEA.mq5` (v1.39)
 - EA Modules: `broker/mt5/RiskManagement.mqh`, `SmartMoney.mqh`, `BridgeIO.mqh`
 - Runtime process list: `ecosystem.config.js`
 - MT5 heartbeat watchdog: `scripts/mt5_watchdog.py`
@@ -50,6 +51,8 @@ The EA uses MT5 Common Files:
 - `finrobot_acks.csv` for fills/rejections/auto decisions.
 - `finrobot_commands.csv` for optional external commands.
 - `finrobot_strategy_profile.csv` for optional bounded XAU runtime profile overrides.
+- `finrobot_entry_pause.flag` for an operator-controlled new-entry pause that leaves monitoring and position management active.
+- `finrobot_export_XAUUSD_M1.tsv` for the EA's bounded periodic research-bar export.
 
 Use `python3 scripts/mt5_trade_report.py` before making strategy changes. It summarizes open MT5 positions and closed managed deal performance.
 
@@ -60,7 +63,7 @@ Use `python3 scripts/mt5_trade_report.py` before making strategy changes. It sum
 1. Reads MT5 trade report and improvement memory.
 2. On service restart, waits one full `AUTOREVIEW_INTERVAL_HOURS` period before the first review unless `AUTOREVIEW_RUN_ON_START=true`.
 3. Skips if fewer than `AUTOREVIEW_MIN_TRADES` closed deals are available.
-4. Runs `scripts/xau_strategy_lab.py` by default for bounded profile research unless `AUTOREVIEW_ENABLE_PROFILE_LAB=false`.
+4. Harvests the EA's current XAU M1 export, then runs `scripts/xau_strategy_lab.py` for bounded profile research unless the corresponding feature flags are disabled.
 5. Writes a live `finrobot_strategy_profile.csv` only when `AUTOREVIEW_ENABLE_PROMOTION_DEPLOY=true` and the lab winner clears promotion gates.
 6. Calls Opencode with the current mandate only when `AUTOREVIEW_ENABLE_LLM=true`.
 7. Runs `compileall` and `scripts/mt5_trade_report.py` after successful Opencode changes.
@@ -91,17 +94,18 @@ pm2 list
 - `broker/mt5/FinRobotBridgeEA.mq5` must keep daily risk lot sizing enabled unless the owner explicitly disables it.
 - New trades are sized from the broker-day equity snapshot, `DailyRiskPerTradeFraction`, and SL distance; do not revert to fixed `0.01` lots.
 - `scripts/mt5_trade_report.py` reports total PnL, daily PnL, strategy expectancy, and the EA `money_management` status block. Check it before strategy edits.
-- Current owner posture is XAUUSD-only recovery trading. Keep daily risk lot sizing enabled, reduced risk, stricter SMC gates, and two managed positions per symbol.
+- Current owner posture is XAUUSD-only high-risk demo trading. Keep daily risk lot sizing enabled, stricter SMC gates, and two managed positions per symbol.
+- Owner directive (2026-07-14, superseding the earlier pause and reduced-risk posture): autonomous entries are enabled on the existing IC Markets demo account at a hard maximum of 1.00% planned stop risk per position. Keep the operator pause control available and do not switch to a real-money account without explicit owner approval.
 
 ## Current strategy posture
 
 - Current owner directive: non-XAU symbols are retired completely and must not be traded, scanned, optimized, or restored without an explicit owner reversal.
 - Owner directive (2026-06-26): keep proportional compounding lot sizing enabled for the high-equity demo account. Do not restore the emergency auto-entry pause or the `0.25` XAU lot ceiling unless the owner explicitly asks.
-- `FinRobotBridgeEA.mq5` should keep `AutoSymbols="XAUUSD"`, `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=true`, `UseDailyRiskLotSizing=true`, `DisableWeakStrategySignals=true`, `EnableXauWeekdayMarketHours=true`, `MinSmcConfluenceScoreXAUUSD=4`, `MaxAutoPositionsPerSymbol=2`, and `MaxLotPerTradeXAUUSD=5.0` unless the owner changes risk again.
+- `FinRobotBridgeEA.mq5` should keep `AutoSymbols="XAUUSD"`, `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=true`, `UseDailyRiskLotSizing=true`, `DisableWeakStrategySignals=true`, `EnableXauWeekdayMarketHours=true`, `MinSmcConfluenceScoreXAUUSD=4`, `MaxAutoPositionsPerSymbol=2`, `DailyRiskPerTradeFraction=0.0100`, and `MaxLotPerTradeXAUUSD=50.0` unless the owner changes risk again.
 - Runtime profiles may override bounded XAU-only settings through `finrobot_strategy_profile.csv`; compiled defaults remain the fallback when the file is missing, empty, or disabled.
 - Runtime profiles may also arm recovery controls: loss-streak pause, bad-day risk downshift, recent drawdown pause, blackout-file windows, and ATR regime rejection.
-- Aggressive demo risk tiers are bounded at 0.50% risk per trade, 5.00% daily loss cap, 10.0 XAU max lot, and four managed XAU positions. Do not bypass these clamps without an explicit owner reversal.
-- Smart-money gate intent: trade XAU only from stricter premium/discount SMC score 4+ setups. High-confluence score 5+ entries can size up via the risk model while respecting symbol lot caps and daily loss controls. `smc_reject` and `xau_pda_reject` mean the signal was intentionally blocked.
+- Owner-approved demo bounds are 1.00% effective risk per position and 50.0 XAU lots. The compiled daily loss limit remains 1.00% and the position limit remains two; do not raise these bounds again without an explicit owner reversal.
+- Smart-money gate intent: trade XAU only from stricter premium/discount SMC score 4+ setups. High-confluence score 5+ entries may size up only until the hard 1.00% effective risk cap. `smc_reject` and `xau_pda_reject` mean the signal was intentionally blocked.
 - Session intent: XAU may scan Monday-Friday whenever the broker symbol is inside its configured trade session; it should not be limited to London/NY windows.
 - `finrobot_status.json` includes per-symbol `session_gated`, `weekday_market_hours`, `session_open`, and daily `signal_telemetry` counters. Use these counters to distinguish no-signal periods from intentional market-closed, spread/cost, SMC, direction, PDA, cooldown, or session rejections before changing strategy.
 
@@ -117,6 +121,7 @@ pm2 list
 
 - Owner-requested maximum-frequency demo defaults (2026-06-01) failed and are retired: do not restore `DisableWeakStrategySignals=false`, `MaxAutoPositionsPerSymbol=5`, `MinSecondsBetweenTrades=60`, `MaxLotPerTrade=1.00`, `DailyRiskPerTradeFraction=0.0050`, or `MinSmcConfluenceScore=1` without fresh evidence.
 - Compounding demo defaults (2026-06-26): `DisableWeakStrategySignals=true`, `MaxAutoPositionsPerSymbol=2`, `MaxLotPerTrade=5.0`, `MaxLotPerTradeXAUUSD=5.0`, `DailyRiskPerTradeFraction=0.0010` (0.10% of equity), and `DailyLossLimitFraction=0.01` (1.00% of equity).
+- High-risk demo update (2026-07-14): owner explicitly raised planned risk to `DailyRiskPerTradeFraction=0.0100` (1.00% per position). `MaxLotPerTrade` and `MaxLotPerTradeXAUUSD` are 50.0 so the risk calculation can reach its target on the high-equity demo account; high-confluence multiplication is hard-capped at 1.00% effective risk. The 1.00% realized daily loss limit and two-position limit remain unchanged.
 - SMC tightening (2026-07-01): `MinSmcConfluenceScoreXAUUSD=4` after live fills showed score-3 XAU ATR impulse entries drove the recent drawdown. Keep score 4+ unless new evidence supports loosening.
 - XAU-only update (2026-06-22): non-XAU trading is removed from active EA defaults, startup profile defaults, docs, and symbol-specific research/backtest scaffolding.
 - XAU weekday-market update (2026-06-11): `EnableXauWeekdayMarketHours=true` bypasses the old London/NY-only gate for XAU and instead checks Monday-Friday plus the broker's symbol trade sessions/trade mode. If the broker session is closed, the signal is `market_closed`, not `outside_trading_session`.

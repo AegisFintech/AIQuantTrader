@@ -320,6 +320,7 @@ with tabs[0]:
             ("Git SHA", status.get("git_sha", "-")),
             ("Terminal trading", "enabled" if status.get("trade_allowed_terminal") else "disabled"),
             ("EA trading", "enabled" if status.get("trade_allowed_ea") else "disabled"),
+            ("Entry trading", "paused" if status.get("entry_pause") else "enabled"),
             ("Last command id", status.get("last_command_id", "-")),
             ("Last signal", status.get("last_auto_signal", "-")),
         ]

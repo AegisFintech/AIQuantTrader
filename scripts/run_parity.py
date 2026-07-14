@@ -67,6 +67,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             symbol=args.symbol,
             bars=bars,
             bar_match_window=args.bar_match_window,
+            timezone_name=args.broker_time_zone,
         )
         report = run_parity_replay(bars=bars, decisions=decisions, config=config)
     except (OSError, ValueError) as exc:
@@ -123,6 +124,11 @@ def _parser() -> argparse.ArgumentParser:
         type=int,
         default=1,
         help="Maximum bar index distance for matching",
+    )
+    parser.add_argument(
+        "--broker-time-zone",
+        default="UTC",
+        help="Timezone used to encode broker-wall acknowledgement timestamps",
     )
     parser.add_argument("--run-id", default="", help="Run id for output artifact names")
     parser.add_argument("--json", action="store_true", help="Print report JSON to stdout")

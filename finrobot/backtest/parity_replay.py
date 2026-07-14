@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from finrobot.backtest.engine import Backtester, BacktestConfig
 from finrobot.backtest.parity import ParityReport, compare_decisions
@@ -51,6 +52,7 @@ def load_acked_decisions(
     symbol: str,
     bars: list[dict] | None = None,
     bar_match_window: int = 1,
+    timezone_name: str | None = None,
 ) -> list[dict]:
     """Read EA acks and return auto decisions for ``symbol`` in the date range.
 
@@ -74,6 +76,7 @@ def load_acked_decisions(
             start=start,
             end=end,
             symbol=target_symbol,
+            timezone_name=timezone_name,
         )
         if decision is not None:
             decisions.append(decision)
@@ -277,6 +280,7 @@ def _ack_row_to_decision(
     start: datetime,
     end: datetime,
     symbol: str,
+    timezone_name: str | None,
 ) -> dict | None:
     normalized = {str(key).strip().lower(): value for key, value in row.items()}
     status = str(normalized.get("status", "")).strip().upper()
@@ -304,7 +308,7 @@ def _ack_row_to_decision(
         warnings.warn(f"ack row has invalid volume and was skipped: {row}", UserWarning)
         return None
 
-    return {
+    decision = {
         "bar_idx": None,
         "action": side if status == "AUTO_FILLED" else "REJECTED",
         "side": side,
@@ -315,6 +319,11 @@ def _ack_row_to_decision(
         "source_message": str(normalized.get("message", "")).strip(),
         "source_id": str(normalized.get("id", "")).strip(),
     }
+    if timezone_name:
+        zoned = _parse_datetime(source_time, timezone_name=timezone_name)
+        if zoned is not None:
+            decision["source_epoch"] = int(zoned.timestamp())
+    return decision
 
 
 def _date_bounds(from_date: str, to_date: str) -> tuple[datetime, datetime]:
@@ -494,6 +503,9 @@ def _copy_decision(decision: dict) -> dict:
 
 
 def _source_epoch(decision: dict) -> int | None:
+    explicit = _int_or_none(decision.get("source_epoch"))
+    if explicit is not None:
+        return explicit
     source_time = decision.get("source_time")
     if source_time is None:
         return None
@@ -517,7 +529,7 @@ def _bar_epoch(bar: dict) -> int:
     return int(parsed.timestamp())
 
 
-def _parse_datetime(value: str) -> datetime | None:
+def _parse_datetime(value: str, *, timezone_name: str | None = None) -> datetime | None:
     text = value.strip()
     if not text:
         return None
@@ -527,7 +539,10 @@ def _parse_datetime(value: str) -> datetime | None:
         pass
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y.%m.%d %H:%M:%S"):
         try:
-            return datetime.strptime(text, fmt)
+            parsed = datetime.strptime(text, fmt)
+            if timezone_name:
+                parsed = parsed.replace(tzinfo=ZoneInfo(timezone_name))
+            return parsed
         except ValueError:
             continue
     return None

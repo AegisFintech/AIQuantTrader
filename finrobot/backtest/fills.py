@@ -10,6 +10,7 @@ from dataclasses import dataclass
 class FillConfig:
     """Execution assumptions for deterministic simulated fills."""
 
+    point_size: float = 1.0
     spread_points: float = 5.0
     slippage_points: float = 0.0
     commission_per_lot: float = 0.0
@@ -66,8 +67,11 @@ def simulate_fill(
     if high < low:
         raise ValueError(f"bar_high must be >= bar_low, got {high} < {low}")
 
-    half_spread = float(config.spread_points) / 2.0
-    slippage = float(config.slippage_points)
+    point_size = _finite_float("point_size", config.point_size)
+    if point_size <= 0.0:
+        raise ValueError(f"point_size must be positive, got {point_size}")
+    half_spread = float(config.spread_points) * point_size / 2.0
+    slippage = float(config.slippage_points) * point_size
     if side_normalized == "BUY":
         raw_fill = intended + half_spread + slippage
         adverse_slippage = raw_fill - intended

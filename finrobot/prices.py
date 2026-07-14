@@ -8,8 +8,10 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator
+from zoneinfo import ZoneInfo
 
 import duckdb
+import pandas as pd
 
 from finrobot.release_manifest import load_release_manifest
 
@@ -242,36 +244,26 @@ def _insert_rows(con: duckdb.DuckDBPyConnection, rows: list[tuple]) -> int:
         return 0
     before = _count(con)
     stage = f"_prices_stage_{uuid.uuid4().hex}"
-    con.execute(
-        f"""
-        CREATE TEMP TABLE {stage} (
-          symbol TEXT,
-          ts_server INTEGER,
-          ts_local INTEGER,
-          open DOUBLE,
-          high DOUBLE,
-          low DOUBLE,
-          close DOUBLE,
-          volume DOUBLE,
-          spread_price DOUBLE,
-          spread_points DOUBLE,
-          source TEXT,
-          ea_version TEXT,
-          git_sha TEXT
-        )
-        """
+    frame = pd.DataFrame.from_records(
+        rows,
+        columns=(
+            "symbol",
+            "ts_server",
+            "ts_local",
+            "open",
+            "high",
+            "low",
+            "close",
+            "volume",
+            "spread_price",
+            "spread_points",
+            "source",
+            "ea_version",
+            "git_sha",
+        ),
     )
+    con.register(stage, frame)
     try:
-        con.executemany(
-            f"""
-            INSERT INTO {stage} (
-              symbol, ts_server, ts_local, open, high, low, close, volume,
-              spread_price, spread_points, source, ea_version, git_sha
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            rows,
-        )
         con.execute(
             f"""
             INSERT INTO prices (
@@ -286,7 +278,7 @@ def _insert_rows(con: duckdb.DuckDBPyConnection, rows: list[tuple]) -> int:
             """
         )
     finally:
-        con.execute(f"DROP TABLE IF EXISTS {stage}")
+        con.unregister(stage)
     return _count(con) - before
 
 
@@ -319,10 +311,14 @@ def _release_defaults(
 
 
 def _row_ts(row: dict) -> int | None:
-    return _as_int(row.get("ts_server")) or _as_int(row.get("ts")) or _parse_time(row.get("time"))
+    return (
+        _as_int(row.get("ts_server"))
+        or _as_int(row.get("ts"))
+        or _parse_time(row.get("time"), timezone_name=_as_text(row.get("time_zone")))
+    )
 
 
-def _parse_time(value: Any) -> int | None:
+def _parse_time(value: Any, *, timezone_name: str | None = None) -> int | None:
     text = _as_text(value)
     if not text:
         return None
@@ -331,7 +327,10 @@ def _parse_time(value: Any) -> int | None:
         return parsed
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y.%m.%d %H:%M:%S"):
         try:
-            return int(datetime.strptime(text, fmt).timestamp())
+            parsed_time = datetime.strptime(text, fmt)
+            if timezone_name:
+                parsed_time = parsed_time.replace(tzinfo=ZoneInfo(timezone_name))
+            return int(parsed_time.timestamp())
         except ValueError:
             continue
     return None

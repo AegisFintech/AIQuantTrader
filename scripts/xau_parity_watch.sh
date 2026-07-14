@@ -181,11 +181,6 @@ def utc_epoch_end(value: str) -> int:
     return int(datetime.combine(date.fromisoformat(value), time.max, tzinfo=timezone.utc).timestamp())
 
 
-def server_epoch_as_local_wall_epoch(epoch: int) -> int:
-    server_wall = datetime.fromtimestamp(int(epoch), timezone.utc).replace(tzinfo=None)
-    return int(server_wall.timestamp())
-
-
 def load_bars() -> list[dict]:
     con = duckdb.connect(str(registry), read_only=True)
     try:
@@ -208,7 +203,7 @@ def load_bars() -> list[dict]:
         con.close()
     return [
         {
-            "time": server_epoch_as_local_wall_epoch(int(row[0])),
+            "time": int(row[0]),
             "open": float(row[1]),
             "high": float(row[2]),
             "low": float(row[3]),
@@ -257,6 +252,7 @@ decisions = load_acked_decisions(
     symbol=symbol,
     bars=bars,
     bar_match_window=2,
+    timezone_name="UTC",
 )
 filled = [decision for decision in decisions if decision.get("action") in FILLED_ACTIONS]
 overlap = [decision for decision in filled if decision.get("bar_idx") is not None]

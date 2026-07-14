@@ -19,6 +19,7 @@ from finrobot.backtest import (  # noqa: E402
     BacktestConfig,
     BuyAndHold,
     PositionSizer,
+    XAUUSD_ICMARKETS_DEMO,
     compute_metrics,
 )
 
@@ -44,12 +45,14 @@ def main(argv: list[str] | None = None) -> int:
         strategy = _build_strategy(args.strategy, risk_per_trade=args.risk_per_trade)
         config = BacktestConfig(
             initial_equity=args.initial_equity,
+            fill_config=XAUUSD_ICMARKETS_DEMO.fill_config(),
             sizer=PositionSizer(
                 risk_per_trade_fraction=args.risk_per_trade,
                 daily_loss_cap_fraction=0.01,
                 max_lot_per_trade=5.0,
                 max_positions_per_symbol=2,
             ),
+            point_value=XAUUSD_ICMARKETS_DEMO.price_value_per_lot,
         )
         result = Backtester(config).run(strategy=strategy, bars=bars)
         report = compute_metrics(result)

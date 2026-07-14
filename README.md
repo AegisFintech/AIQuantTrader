@@ -6,6 +6,9 @@ FinRobot is an MT5-first autonomous demo-trading repo for exactly one symbol:
 
 The active runtime is simple: MetaTrader 5 runs under Wine/Xvfb, the FinRobot EA trades inside MT5, and PM2 keeps MT5 plus the watchdog, autonomous review loop, and read-only dashboard alive.
 
+For code ownership, runtime data flow, and targeted change/test paths, start with
+[`docs/REPOSITORY_MAP.md`](docs/REPOSITORY_MAP.md).
+
 ## Install
 
 Use Debian or Ubuntu on **x86_64** for the standard MT5/Wine path.
@@ -92,15 +95,18 @@ The EA writes MT5 Common Files:
 - `finrobot_acks.csv`
 - `finrobot_commands.csv`
 - `finrobot_strategy_profile.csv` (optional generated runtime profile)
+- `finrobot_entry_pause.flag` (operator-controlled new-entry kill switch)
+- `finrobot_export_XAUUSD_M1.tsv` (periodic bounded M1 research export)
 
 Current auto-trading posture:
 
-- XAUUSD lot sizing is proportional to broker-day equity, configured risk fraction, and SL distance, with a high demo compounding ceiling.
+- XAUUSD lot sizing targets 1.00% planned stop risk per position from broker-day equity and SL distance. Score multipliers cannot exceed that hard effective-risk cap; the 50-lot demo ceiling and broker volume limits still apply.
 - XAUUSD scans Monday-Friday whenever the broker symbol is inside its configured trade session, while requiring premium/discount smart-money score 4+ entries.
 - Entries require spread, smart-money, position-count, and daily-risk checks before any order is sent.
 - Auto trades and command-file market trades require broker-side SL and TP values before the EA sends the order.
 - When present, `finrobot_strategy_profile.csv` may override bounded XAU-only strategy/risk settings such as ATR impulse threshold, PDA/SMC gates, cooldown, risk tier, XAU lot cap, and recovery controls. Missing or invalid profile data falls back to compiled defaults.
 - Recovery controls can downshift bad-day risk, pause after a loss streak or recent drawdown threshold, reject abnormal ATR regimes, and honor scheduled blackout windows from `finrobot_blackout.csv` when enabled.
+- While `finrobot_entry_pause.flag` exists, the EA keeps heartbeat, reporting, position risk management, and close commands active but rejects automatic entries and command-file `MARKET` actions. Use `python3 scripts/mt5_entry_pause.py pause|resume|status`.
 - `finrobot_status.json` exposes per-symbol `session_gated`, `weekday_market_hours`, `session_open`, and daily `signal_telemetry` counters for filled trades and major rejection reasons.
 
 `scripts/start_mt5.sh` rewrites `Config\finrobot-login.ini` from `.env` before each PM2-managed terminal start. `scripts/mt5_configure_profile.py` then updates the Default chart profile and startup config file so MT5 runs `MQL5\Experts\FinRobot\FinRobotBridgeEA.ex5` on the `FINROBOT_ATTACH_SYMBOL` chart at launch. By default it keeps one chart in the profile and does not ask MT5 to open an extra startup chart; set `FINROBOT_SINGLE_CHART_PROFILE=false` or `FINROBOT_STARTUP_OPEN_CHART=true` only when you intentionally want that behavior.
@@ -116,6 +122,10 @@ pm2 restart mt5-terminal --update-env
 ## Strategy Lab
 
 `scripts/xau_strategy_lab.py` evaluates bounded aggressive XAUUSD profiles with the deterministic walk-forward backtester and writes reports under `state/research/profile_lab/`.
+
+The EA refreshes a bounded, epoch-timestamped XAUUSD M1 export every six hours. The autonomous
+review harvests it by default, and the lab rejects data older than 72 hours.
+Profile deployment remains separately disabled by default.
 
 ```bash
 python3 scripts/xau_strategy_lab.py

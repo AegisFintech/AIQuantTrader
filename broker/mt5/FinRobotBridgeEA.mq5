@@ -1,6 +1,6 @@
 #property strict
 #property description "FinRobot MT5 bridge and demo auto trader for XAUUSD."
-#property version "1.35"
+#property version "1.39"
 
 #include <Trade/Trade.mqh>
 #include "BridgeIO.mqh"
@@ -13,6 +13,10 @@ input string StatusFile = "finrobot_status.json";
 input string PositionsFile = "finrobot_positions.csv";
 input string DealsFile = "finrobot_deals.csv";
 input string StrategyProfileFile = "finrobot_strategy_profile.csv";
+input string EntryPauseFile = "finrobot_entry_pause.flag";
+input string ResearchBarsFile = "finrobot_export_XAUUSD_M1.tsv";
+input int ResearchBarsCount = 100000;
+input int ResearchBarsExportIntervalSeconds = 21600;
 input bool EnableRuntimeStrategyProfile = true;
 input int PollSeconds = 1;
 input int MagicNumber = 20260522;
@@ -22,14 +26,14 @@ input bool AutoTradeMT5 = true;
 input string AutoSymbols = "XAUUSD";
 input ENUM_TIMEFRAMES AutoTimeframe = PERIOD_M5;
 input double XauBaseLot = 0.05;                // Fallback only when daily risk sizing is disabled
-input double MaxLotPerTrade = 5.0;             // Proportional compounding ceiling; daily risk sizing remains primary
-input double MaxLotPerTradeXAUUSD = 5.0;       // XAU ceiling for 1M+ demo equity compounding
+input double MaxLotPerTrade = 50.0;            // Demo ceiling; the 1% stop-risk cap remains primary
+input double MaxLotPerTradeXAUUSD = 50.0;      // Allows 1% risk sizing on the high-equity XAU demo account
 input double HighConfluenceLotMultiplier = 3.0;
 input int MinSmcConfluenceScore = 3;
 input int MinSmcConfluenceScoreXAUUSD = 4;
 input int HighConfluenceScore = 5;
 input bool UseDailyRiskLotSizing = true;
-input double DailyRiskPerTradeFraction = 0.0010;   // 0.10% of equity per trade
+input double DailyRiskPerTradeFraction = 0.0100;   // 1.00% of equity per trade
 input double DailyLossLimitFraction = 0.01;        // 1.00% of equity daily cap
 input int LossStreakPauseCount = 0;                // 0 disables loss-streak pause
 input double BadDayDownshiftFraction = 0.50;       // Multiplier after broker-day closed PnL turns negative
@@ -80,6 +84,7 @@ string EaVersion = "unknown";
 string EaGitSha = "";
 
 CTrade trade;
+const double MAX_EFFECTIVE_RISK_PER_TRADE_FRACTION = 0.0100;
 int lastCommandId = 0;
 int commandFileErrLogged = 0;
 int timerTicks = 0;
@@ -110,11 +115,11 @@ int runtimeProfileLoaded = 0;
 string runtimeProfileMessage = "compiled defaults";
 ENUM_TIMEFRAMES runtimeAutoTimeframe = PERIOD_M5;
 double runtimeAtrImpulseMultiplier = 0.12;
-double runtimeMaxLotPerTradeXAUUSD = 5.0;
+double runtimeMaxLotPerTradeXAUUSD = 50.0;
 double runtimeHighConfluenceLotMultiplier = 3.0;
 int runtimeMinSmcConfluenceScoreXAUUSD = 4;
 int runtimeHighConfluenceScore = 5;
-double runtimeDailyRiskPerTradeFraction = 0.0010;
+double runtimeDailyRiskPerTradeFraction = 0.0100;
 double runtimeDailyLossLimitFraction = 0.01;
 int runtimeMaxAutoPositionsXAUUSD = 2;
 int runtimeMaxSameDirectionPositionsPerSymbol = 2;
@@ -138,10 +143,74 @@ double runtimeBadDayDownshiftFraction = 0.50;
 double runtimeMaxRecentDrawdownFraction = 0.0;
 bool runtimeBlackoutEnabled = false;
 double runtimeMaxAtrRegimeMultiplier = 0.0;
+datetime lastResearchBarsExport = 0;
+datetime lastResearchBarsExportAttempt = 0;
+int lastResearchBarsCount = 0;
 
 bool IsXauSymbol(string symbol) {
    string s = Upper(symbol);
    return StringFind(s, "XAU") >= 0 || StringFind(s, "GOLD") >= 0;
+}
+
+bool IsEntryPauseActive() {
+   return FileIsExist(EntryPauseFile, FILE_COMMON);
+}
+
+string FormatResearchMinute(datetime value) {
+   MqlDateTime dt;
+   TimeToStruct(value, dt);
+   return StringFormat(
+      "%04d-%02d-%02d %02d:%02d",
+      dt.year,
+      dt.mon,
+      dt.day,
+      dt.hour,
+      dt.min
+   );
+}
+
+bool WriteResearchBars() {
+   if(ResearchBarsCount <= 0 || ResearchBarsExportIntervalSeconds <= 0) return false;
+   datetime now = TimeCurrent();
+   if(lastResearchBarsExport > 0 && now - lastResearchBarsExport < ResearchBarsExportIntervalSeconds) return false;
+   if(lastResearchBarsExportAttempt > 0 && now - lastResearchBarsExportAttempt < 300) return false;
+   lastResearchBarsExportAttempt = now;
+
+   string symbol = "XAUUSD";
+   MqlRates rates[];
+   ArraySetAsSeries(rates, false);
+   ResetLastError();
+   int copied = CopyRates(symbol, PERIOD_M1, 0, ResearchBarsCount, rates);
+   if(copied <= 0) {
+      Print("FinRobot research export: CopyRates failed symbol=", symbol, " err=", GetLastError());
+      return false;
+   }
+
+   int h = FileOpen(ResearchBarsFile, FILE_WRITE|FILE_TXT|FILE_ANSI|FILE_COMMON);
+   if(h == INVALID_HANDLE) {
+      Print("FinRobot research export: FileOpen failed file=", ResearchBarsFile, " err=", GetLastError());
+      return false;
+   }
+   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   for(int i = 0; i < copied; i++) {
+      string line = IntegerToString((int)rates[i].time) + "\t" +
+         DoubleToString(rates[i].open, digits) + "\t" +
+         DoubleToString(rates[i].high, digits) + "\t" +
+         DoubleToString(rates[i].low, digits) + "\t" +
+         DoubleToString(rates[i].close, digits) + "\t" +
+         IntegerToString((int)rates[i].tick_volume) + "\r\n";
+      if(FileWriteString(h, line) <= 0) {
+         int err = GetLastError();
+         FileClose(h);
+         Print("FinRobot research export: write failed file=", ResearchBarsFile, " err=", err);
+         return false;
+      }
+   }
+   FileClose(h);
+   lastResearchBarsExport = now;
+   lastResearchBarsCount = copied;
+   Print("FinRobot research export: symbol=", symbol, " bars=", copied, " file=", ResearchBarsFile);
+   return true;
 }
 
 string Lower(string s) {
@@ -179,11 +248,11 @@ void ResetRuntimeStrategyProfile() {
    runtimeProfileMessage = "compiled defaults";
    runtimeAutoTimeframe = AutoTimeframe;
    runtimeAtrImpulseMultiplier = ClampProfileDouble(AtrImpulseMultiplier, 0.04, 0.30);
-   runtimeMaxLotPerTradeXAUUSD = ClampProfileDouble(MaxLotPerTradeXAUUSD, 0.01, 10.0);
+   runtimeMaxLotPerTradeXAUUSD = ClampProfileDouble(MaxLotPerTradeXAUUSD, 0.01, 50.0);
    runtimeHighConfluenceLotMultiplier = ClampProfileDouble(HighConfluenceLotMultiplier, 1.0, 5.0);
    runtimeMinSmcConfluenceScoreXAUUSD = ClampProfileInt(MinSmcConfluenceScoreXAUUSD, 1, 6);
    runtimeHighConfluenceScore = ClampProfileInt(HighConfluenceScore, 4, 6);
-   runtimeDailyRiskPerTradeFraction = ClampProfileDouble(DailyRiskPerTradeFraction, 0.0001, 0.0050);
+   runtimeDailyRiskPerTradeFraction = ClampProfileDouble(DailyRiskPerTradeFraction, 0.0001, MAX_EFFECTIVE_RISK_PER_TRADE_FRACTION);
    runtimeDailyLossLimitFraction = ClampProfileDouble(DailyLossLimitFraction, 0.0025, 0.0500);
    runtimeMaxAutoPositionsXAUUSD = ClampProfileInt(MaxAutoPositionsXAUUSD, 1, 4);
    runtimeMaxSameDirectionPositionsPerSymbol = ClampProfileInt(MaxSameDirectionPositionsPerSymbol, 1, 4);
@@ -227,9 +296,9 @@ void ApplyRuntimeProfileKey(string keyRaw, string valueRaw) {
    else if(key == "premium_threshold") runtimePremiumThreshold = ClampProfileDouble(StringToDouble(value), 0.50, 0.90);
    else if(key == "fvg_min_atr_multiplier") runtimeFvgMinAtrMultiplier = ClampProfileDouble(StringToDouble(value), 0.05, 1.50);
    else if(key == "liquidity_sweep_atr_multiplier") runtimeLiquiditySweepAtrMultiplier = ClampProfileDouble(StringToDouble(value), 0.05, 1.50);
-   else if(key == "daily_risk_per_trade_fraction") runtimeDailyRiskPerTradeFraction = ClampProfileDouble(StringToDouble(value), 0.0001, 0.0050);
+   else if(key == "daily_risk_per_trade_fraction") runtimeDailyRiskPerTradeFraction = ClampProfileDouble(StringToDouble(value), 0.0001, MAX_EFFECTIVE_RISK_PER_TRADE_FRACTION);
    else if(key == "daily_loss_limit_fraction") runtimeDailyLossLimitFraction = ClampProfileDouble(StringToDouble(value), 0.0025, 0.0500);
-   else if(key == "max_lot_per_trade_xauusd") runtimeMaxLotPerTradeXAUUSD = ClampProfileDouble(StringToDouble(value), 0.01, 10.0);
+   else if(key == "max_lot_per_trade_xauusd") runtimeMaxLotPerTradeXAUUSD = ClampProfileDouble(StringToDouble(value), 0.01, 50.0);
    else if(key == "max_auto_positions_xauusd") runtimeMaxAutoPositionsXAUUSD = ClampProfileInt((int)StringToInteger(value), 1, 4);
    else if(key == "max_same_direction_positions_per_symbol") runtimeMaxSameDirectionPositionsPerSymbol = ClampProfileInt((int)StringToInteger(value), 1, 4);
    else if(key == "min_seconds_between_trades_xauusd") runtimeMinSecondsBetweenTradesXAUUSD = ClampProfileInt((int)StringToInteger(value), 30, 900);
@@ -287,6 +356,7 @@ string StrategyProfileJson() {
    payload += "\"message\":\"" + Clean(runtimeProfileMessage) + "\",";
    payload += "\"timeframe\":\"" + Clean(EnumToString(runtimeAutoTimeframe)) + "\",";
    payload += "\"risk_per_trade\":" + DoubleToString(runtimeDailyRiskPerTradeFraction, 6) + ",";
+   payload += "\"max_effective_risk_per_trade\":" + DoubleToString(MAX_EFFECTIVE_RISK_PER_TRADE_FRACTION, 6) + ",";
    payload += "\"daily_loss_limit\":" + DoubleToString(runtimeDailyLossLimitFraction, 4) + ",";
    payload += "\"max_lot_xauusd\":" + DoubleToString(runtimeMaxLotPerTradeXAUUSD, 2) + ",";
    payload += "\"max_positions_xauusd\":" + IntegerToString(runtimeMaxAutoPositionsXAUUSD) + ",";
@@ -598,6 +668,9 @@ void WriteStatus() {
    payload += "\"trade_allowed_terminal\":" + IntegerToString((int)TerminalInfoInteger(TERMINAL_TRADE_ALLOWED)) + ",";
    payload += "\"trade_allowed_ea\":" + IntegerToString((int)MQLInfoInteger(MQL_TRADE_ALLOWED)) + ",";
    payload += "\"auto_trade_mt5\":" + IntegerToString((int)AutoTradeMT5) + ",";
+   payload += "\"entry_pause\":" + IntegerToString((int)IsEntryPauseActive()) + ",";
+   payload += "\"research_bars_last_export\":" + IntegerToString((int)lastResearchBarsExport) + ",";
+   payload += "\"research_bars_count\":" + IntegerToString(lastResearchBarsCount) + ",";
    payload += "\"ea_version\":\"" + Clean(EaVersion) + "\",";
    payload += "\"git_sha\":\"" + Clean(EaGitSha) + "\",";
    payload += "\"symbol\":\"" + Clean(AutoSymbols) + "\",";
@@ -653,6 +726,7 @@ double DailyRiskVolume(string symbol, double slDistance, int confluenceScore) {
    }
    double riskMoney = dailyEquitySnapshot * runtimeDailyRiskPerTradeFraction;
    if(confluenceScore >= runtimeHighConfluenceScore) riskMoney *= MathMax(1.0, runtimeHighConfluenceLotMultiplier);
+   riskMoney = MathMin(riskMoney, dailyEquitySnapshot * MAX_EFFECTIVE_RISK_PER_TRADE_FRACTION);
    if(todayClosedPnlCache < 0.0) riskMoney *= runtimeBadDayDownshiftFraction;
    if(riskMoney <= 0.0) return 0.0;
    double riskPerLot = (slDistance / tickSize) * tickValue;
@@ -669,6 +743,7 @@ string MoneyManagementJson() {
    payload += "\"daily_equity_snapshot\":" + DoubleToString(dailyEquitySnapshot, 2) + ",";
    payload += "\"today_closed_pnl\":" + DoubleToString(todayClosedPnlCache, 2) + ",";
    payload += "\"daily_risk_per_trade_fraction\":" + DoubleToString(runtimeDailyRiskPerTradeFraction, 6) + ",";
+   payload += "\"max_effective_risk_per_trade_fraction\":" + DoubleToString(MAX_EFFECTIVE_RISK_PER_TRADE_FRACTION, 6) + ",";
    payload += "\"daily_loss_limit_fraction\":" + DoubleToString(runtimeDailyLossLimitFraction, 4) + ",";
    payload += "\"bad_day_downshift_fraction\":" + DoubleToString(runtimeBadDayDownshiftFraction, 2) + ",";
    payload += "\"max_recent_drawdown_fraction\":" + DoubleToString(runtimeMaxRecentDrawdownFraction, 4) + ",";
@@ -748,6 +823,10 @@ void ExecuteCommand(int id, string action, string symbol, string side, double vo
    }
    if(!TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) || !MQLInfoInteger(MQL_TRADE_ALLOWED)) {
       AppendAck(AckFile, id, "REJECTED", "AutoTrading not allowed in terminal or EA", symbol, side, volume, 0.0);
+      return;
+   }
+   if(action == "MARKET" && IsEntryPauseActive()) {
+      AppendAck(AckFile, id, "REJECTED", "Entry pause is active", symbol, side, volume, 0.0);
       return;
    }
    if(!EnsureSymbol(symbol)) {
@@ -924,6 +1003,10 @@ void ManageAutoSymbol(string symbol, int idx) {
    bool isXau = IsXauSymbol(symbol);
    if(!AutoTradeMT5 || !AllowTrading) {
       SetLastSignal(idx, "auto_trading_disabled");
+      return;
+   }
+   if(IsEntryPauseActive()) {
+      SetLastSignal(idx, "entry_pause");
       return;
    }
    if(AccountInfoInteger(ACCOUNT_TRADE_ALLOWED) == 0 || MQLInfoInteger(MQL_TRADE_ALLOWED) == 0) {
@@ -1227,7 +1310,7 @@ int OnInit() {
    LoadManagedSymbols();
    LoadRuntimeStrategyProfile();
    UpdateMoneyManagementState();
-   Print("FinRobotBridgeEA 1.34 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(runtimeAutoTimeframe), " profile=", activeProfileName, " profile_loaded=", runtimeProfileLoaded);
+   Print("FinRobotBridgeEA 1.39 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(runtimeAutoTimeframe), " profile=", activeProfileName, " profile_loaded=", runtimeProfileLoaded, " entry_pause=", IsEntryPauseActive());
    WriteStatus();
    WritePositions();
    WriteDealsHistory();
@@ -1250,6 +1333,7 @@ void OnTimer() {
    for(int i = 0; i < ArraySize(managedSymbols); i++) {
       ManageAutoSymbol(managedSymbols[i], i);
    }
+   WriteResearchBars();
    WriteStatus();
    WritePositions();
    if(timerTicks % 10 == 0) WriteDealsHistory();

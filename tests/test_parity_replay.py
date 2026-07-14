@@ -74,6 +74,26 @@ def test_load_acked_decisions_filters_by_date_range(tmp_path: Path):
     assert decisions[0]["action"] == "SELL"
 
 
+def test_load_acked_decisions_can_attach_broker_timezone_epoch(tmp_path: Path):
+    acks = _acks_file(
+        tmp_path,
+        [
+            "id,time,status,message,symbol,side,volume,price",
+            "1,2026-07-14 12:20:00,AUTO_FILLED,filled,XAUUSD,BUY,0.10,4000.0",
+        ],
+    )
+
+    decisions = load_acked_decisions(
+        acks,
+        from_date="2026-07-14",
+        to_date="2026-07-14",
+        symbol="XAUUSD",
+        timezone_name="UTC",
+    )
+
+    assert decisions[0]["source_epoch"] == 1784031600
+
+
 def test_load_acked_decisions_keeps_auto_rejected_rows(tmp_path: Path):
     acks = _acks_file(
         tmp_path,

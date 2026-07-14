@@ -30,9 +30,9 @@ class XauStrategyProfile:
     premium_threshold: float = 0.62
     fvg_min_atr_multiplier: float = 0.30
     liquidity_sweep_atr_multiplier: float = 0.30
-    daily_risk_per_trade_fraction: float = 0.0010
+    daily_risk_per_trade_fraction: float = 0.0100
     daily_loss_limit_fraction: float = 0.0100
-    max_lot_per_trade_xauusd: float = 5.0
+    max_lot_per_trade_xauusd: float = 50.0
     max_auto_positions_xauusd: int = 2
     max_same_direction_positions_per_symbol: int = 2
     min_seconds_between_trades_xauusd: int = 180
@@ -49,7 +49,7 @@ class XauStrategyProfile:
     max_atr_regime_multiplier: float = 0.0
 
     def bounded(self) -> "XauStrategyProfile":
-        """Return a profile clamped to demo-safe XAUUSD bounds."""
+        """Return a profile clamped to owner-approved demo XAUUSD bounds."""
 
         return replace(
             self,
@@ -81,7 +81,7 @@ class XauStrategyProfile:
             daily_risk_per_trade_fraction=_clamp_float(
                 self.daily_risk_per_trade_fraction,
                 0.0001,
-                0.0050,
+                0.0100,
             ),
             daily_loss_limit_fraction=_clamp_float(
                 self.daily_loss_limit_fraction,
@@ -91,7 +91,7 @@ class XauStrategyProfile:
             max_lot_per_trade_xauusd=_clamp_float(
                 self.max_lot_per_trade_xauusd,
                 0.01,
-                10.0,
+                50.0,
             ),
             max_auto_positions_xauusd=_clamp_int(
                 self.max_auto_positions_xauusd,

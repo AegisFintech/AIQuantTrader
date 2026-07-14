@@ -41,6 +41,7 @@ from finrobot.backtest import (  # noqa: E402
     FillConfig,
     PositionSizer,
     WalkForwardConfig,
+    XAUUSD_ICMARKETS_DEMO,
     run_walkforward,
 )
 from finrobot.data_store import connect  # noqa: E402
@@ -225,13 +226,14 @@ def _run_fresh_walkforward(
     )
     backtest_config = BacktestConfig(
         symbol=symbol,
-        fill_config=FillConfig(),
+        fill_config=XAUUSD_ICMARKETS_DEMO.fill_config(),
         sizer=PositionSizer(
             risk_per_trade_fraction=0.001,
             daily_loss_cap_fraction=0.01,
             max_lot_per_trade=0.10,
             max_positions_per_symbol=2,
         ),
+        point_value=XAUUSD_ICMARKETS_DEMO.price_value_per_lot,
     )
     result = run_walkforward(
         bars,

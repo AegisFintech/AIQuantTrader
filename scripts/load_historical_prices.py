@@ -23,6 +23,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--data-dir", type=Path, default=_default_data_dir())
     parser.add_argument("--symbols", default=DEFAULT_SYMBOLS)
     parser.add_argument("--warehouse", type=Path, default=_default_warehouse())
+    parser.add_argument(
+        "--time-zone",
+        default="UTC",
+        help="Timezone used to encode non-epoch MT5 broker-wall timestamps",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
 
@@ -41,6 +46,8 @@ def main(argv: list[str] | None = None) -> int:
                 for path in paths:
                     parsed_symbol = parse_symbol(path)
                     bars = list(prices.load_tsv_bars(path))
+                    for bar in bars:
+                        bar["time_zone"] = args.time_zone
                     if args.dry_run:
                         inserted = 0
                     else:

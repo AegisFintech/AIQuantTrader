@@ -10,6 +10,7 @@ def test_profile_csv_round_trip_and_bounds(tmp_path):
         risk_tier=9,
         daily_risk_per_trade_fraction=0.99,
         daily_loss_limit_fraction=0.99,
+        max_lot_per_trade_xauusd=999.0,
         max_auto_positions_xauusd=99,
         min_seconds_between_trades_xauusd=1,
         loss_streak_pause_count=99,
@@ -23,8 +24,9 @@ def test_profile_csv_round_trip_and_bounds(tmp_path):
 
     assert rows["profile_name"] == "too_hot"
     assert rows["risk_tier"] == "2"
-    assert rows["daily_risk_per_trade_fraction"] == "0.005"
+    assert rows["daily_risk_per_trade_fraction"] == "0.01"
     assert rows["daily_loss_limit_fraction"] == "0.05"
+    assert rows["max_lot_per_trade_xauusd"] == "50"
     assert rows["max_auto_positions_xauusd"] == "4"
     assert rows["min_seconds_between_trades_xauusd"] == "30"
     assert rows["loss_streak_pause_count"] == "8"

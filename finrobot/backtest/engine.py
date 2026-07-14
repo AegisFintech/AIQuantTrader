@@ -36,7 +36,7 @@ class BacktestConfig:
     )
     initial_equity: float = 10000.0
     magic: int = 20260522
-    point_value: float = 1.0
+    point_value: float = 1.0  # Cash value of a one-unit price move at one lot.
     min_seconds_between_trades: int = 0
     loss_streak_pause_count: int = 0
     max_recent_drawdown_fraction: float = 0.0

@@ -34,7 +34,7 @@ _ensure_runtime_deps()
 
 from finrobot.backtest import (  # noqa: E402
     BacktestConfig,
-    FillConfig,
+    XAUUSD_ICMARKETS_DEMO,
     PositionSizer,
     WalkForwardConfig,
     XauAtrImpulseParams,
@@ -87,13 +87,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         backtest_config = BacktestConfig(
             symbol=args.symbol,
-            fill_config=FillConfig(),
+            fill_config=XAUUSD_ICMARKETS_DEMO.fill_config(),
             sizer=PositionSizer(
                 risk_per_trade_fraction=args.risk_per_trade_fraction,
                 daily_loss_cap_fraction=args.daily_loss_cap_fraction,
                 max_lot_per_trade=args.max_lot_per_trade,
                 max_positions_per_symbol=2,
             ),
+            point_value=XAUUSD_ICMARKETS_DEMO.price_value_per_lot,
         )
 
         result = run_walkforward(

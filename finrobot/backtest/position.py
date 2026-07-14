@@ -154,6 +154,7 @@ class DailyRiskSizer(PositionSizer):
         max_lot_per_symbol: dict[str, float] | None = None,
         high_confluence_lot_multiplier: float = 3.0,
         high_confluence_score: int = 5,
+        max_effective_risk_fraction: float = 0.01,
         bad_day_downshift_fraction: float = 1.0,
         lot_digits: int = 2,
     ):
@@ -169,6 +170,10 @@ class DailyRiskSizer(PositionSizer):
         }
         self.high_confluence_lot_multiplier = float(high_confluence_lot_multiplier)
         self.high_confluence_score = int(high_confluence_score)
+        self.max_effective_risk_fraction = max(
+            0.0,
+            float(max_effective_risk_fraction),
+        )
         self.bad_day_downshift_fraction = max(
             0.0,
             min(1.0, float(bad_day_downshift_fraction)),
@@ -203,14 +208,18 @@ class DailyRiskSizer(PositionSizer):
         risk_dollars = self.risk_per_trade_fraction * equity_value
         if risk_dollars <= 0:
             return 0.0
+        if int(smc_score) >= self.high_confluence_score:
+            risk_dollars *= self.high_confluence_lot_multiplier
+        risk_dollars = min(
+            risk_dollars,
+            self.max_effective_risk_fraction * equity_value,
+        )
         if float(today_closed_pnl) < 0.0:
             risk_dollars *= self.bad_day_downshift_fraction
         if risk_dollars <= 0:
             return 0.0
 
         volume = risk_dollars / distance
-        if int(smc_score) >= self.high_confluence_score:
-            volume *= self.high_confluence_lot_multiplier
 
         max_lot = self.max_lot_per_symbol.get(
             str(symbol).upper(),
@@ -229,6 +238,8 @@ class DailyRiskSizer(PositionSizer):
             and self.high_confluence_lot_multiplier
             == other.high_confluence_lot_multiplier
             and self.high_confluence_score == other.high_confluence_score
+            and self.max_effective_risk_fraction
+            == other.max_effective_risk_fraction
             and self.bad_day_downshift_fraction == other.bad_day_downshift_fraction
             and self.lot_digits == other.lot_digits
         )
@@ -245,6 +256,8 @@ class DailyRiskSizer(PositionSizer):
             f"high_confluence_lot_multiplier="
             f"{self.high_confluence_lot_multiplier!r}, "
             f"high_confluence_score={self.high_confluence_score!r}, "
+            f"max_effective_risk_fraction="
+            f"{self.max_effective_risk_fraction!r}, "
             f"bad_day_downshift_fraction={self.bad_day_downshift_fraction!r}, "
             f"lot_digits={self.lot_digits!r})"
         )

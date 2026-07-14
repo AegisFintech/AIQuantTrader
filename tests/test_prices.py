@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -136,6 +137,23 @@ def test_ingest_bars_is_idempotent(con):
 
     assert prices.ingest_bars(con, "XAUUSD", bars) == 10
     assert prices.ingest_bars(con, "XAUUSD", bars) == 0
+
+
+@pytest.mark.parametrize(
+    ("broker_time", "expected_utc"),
+    [
+        ("2026-01-19 18:51", datetime(2026, 1, 19, 18, 51, tzinfo=timezone.utc)),
+        ("2026-07-14 12:20", datetime(2026, 7, 14, 12, 20, tzinfo=timezone.utc)),
+    ],
+)
+def test_ingest_bars_preserves_broker_wall_time(con, broker_time, expected_utc):
+    bar = _bar(broker_time)
+    bar["time_zone"] = "UTC"
+
+    assert prices.ingest_bars(con, "XAUUSD", [bar]) == 1
+    stored = con.execute("SELECT ts_server FROM prices").fetchone()[0]
+
+    assert stored == int(expected_utc.timestamp())
 
 
 def test_ingest_bidask_snapshots_with_two_snapshots_returns_two(con):

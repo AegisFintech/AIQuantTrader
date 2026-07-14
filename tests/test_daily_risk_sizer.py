@@ -34,6 +34,29 @@ def test_daily_risk_sizer_high_confluence_multiplier():
     assert volume == 1.50
 
 
+def test_daily_risk_sizer_caps_effective_risk_at_one_percent():
+    sizer = DailyRiskSizer(
+        risk_per_trade_fraction=0.01,
+        daily_loss_cap_fraction=0.01,
+        max_lot_per_trade=100.0,
+        max_positions_per_symbol=2,
+        high_confluence_lot_multiplier=3.0,
+        high_confluence_score=5,
+        max_effective_risk_fraction=0.01,
+    )
+
+    volume = sizer.size(
+        symbol="XAUUSD",
+        equity=1_000_000.0,
+        sl_distance=400.0,
+        open_positions=[],
+        today_closed_pnl=0.0,
+        smc_score=5,
+    )
+
+    assert volume == 25.0
+
+
 def test_daily_risk_sizer_below_threshold_no_multiplier():
     sizer = _sizer(max_lot_per_trade=2.0)
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from datetime import date, datetime, time
 from pathlib import Path
+from datetime import timezone
 
 from finrobot.backtest import (
     BacktestConfig,
@@ -118,7 +119,7 @@ def decisions_from_trades(trades: list[dict]) -> list[dict]:
 
 def _broker_wall_epoch_start(value: str) -> int:
     day = date.fromisoformat(value)
-    return int(datetime.combine(day, time.min).timestamp())
+    return int(datetime.combine(day, time.min, tzinfo=timezone.utc).timestamp())
 
 
 def _duckdb_path() -> Path:
@@ -131,4 +132,4 @@ def _duckdb_path() -> Path:
 
 def _broker_wall_epoch_end(value: str) -> int:
     day = date.fromisoformat(value)
-    return int(datetime.combine(day, time.max).timestamp())
+    return int(datetime.combine(day, time.max, tzinfo=timezone.utc).timestamp())

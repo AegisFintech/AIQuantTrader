@@ -42,6 +42,7 @@ def test_xau_parity_live():
         symbol=XAU_SYMBOL,
         bars=bars,
         bar_match_window=BAR_MATCH_WINDOW,
+        timezone_name="UTC",
     )
     overlap_decisions = [
         decision for decision in decisions if decision.get("bar_idx") is not None

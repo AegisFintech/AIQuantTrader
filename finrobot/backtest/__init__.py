@@ -14,6 +14,7 @@ from finrobot.backtest.engine import (
     BreakEvenConfig,
 )
 from finrobot.backtest.fills import FillConfig, FillModel, simulate_fill
+from finrobot.backtest.instruments import InstrumentSpec, XAUUSD_ICMARKETS_DEMO
 from finrobot.backtest.metrics import (
     MetricsReport,
     compute_metrics,
@@ -82,6 +83,7 @@ __all__ = [
     "DrawdownWindow",
     "FillConfig",
     "FillModel",
+    "InstrumentSpec",
     "MetricsReport",
     "ParityReport",
     "Position",
@@ -105,6 +107,7 @@ __all__ = [
     "XauGatedStrategy",
     "XauQuickMomentumParams",
     "XauQuickMomentumStrategy",
+    "XAUUSD_ICMARKETS_DEMO",
     "aggregate_fold_metrics",
     "compare_decisions",
     "build_folds",

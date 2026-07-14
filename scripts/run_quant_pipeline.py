@@ -100,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
     from finrobot.backtest.engine import BacktestConfig, Backtester
     from finrobot.backtest.strategies.xau_atr_impulse import XauAtrImpulseStrategy, XauAtrImpulseParams
     from finrobot.backtest.metrics import compute_metrics
-    from finrobot.backtest import FillConfig, PositionSizer, WalkForwardConfig, run_walkforward
+    from finrobot.backtest import PositionSizer, WalkForwardConfig, XAUUSD_ICMARKETS_DEMO, run_walkforward
 
     bars_list = df.to_dict("records")
 
@@ -116,13 +116,14 @@ def main(argv: list[str] | None = None) -> int:
         min_test_bars=max(100, int(len(bars_list) * 0.05)),
     )
     bt_config = BacktestConfig(
-        fill_config=FillConfig(),
+        fill_config=XAUUSD_ICMARKETS_DEMO.fill_config(),
         sizer=PositionSizer(
             risk_per_trade_fraction=0.001,
             daily_loss_cap_fraction=0.01,
             max_lot_per_trade=0.10,
             max_positions_per_symbol=2,
         ),
+        point_value=XAUUSD_ICMARKETS_DEMO.price_value_per_lot,
     )
 
     try:

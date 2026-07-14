@@ -38,6 +38,8 @@ if [ -f "$EXPORT_SRC" ]; then
 fi
 
 # Refresh the release manifest so the EA can read version + git_sha on init.
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+"$PYTHON_BIN" "$ROOT/scripts/release_manifest.py"
 if MANIFEST_SRC="$ROOT/state/mt5/EA_MANIFEST.txt"; [ -f "$MANIFEST_SRC" ]; then
     cp "$MANIFEST_SRC" "$EXPERT_DIR/EA_MANIFEST.txt"
     if [ -n "${FINROBOT_COMMON_DIR:-}" ] && [ -d "$FINROBOT_COMMON_DIR" ]; then

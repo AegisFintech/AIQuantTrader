@@ -164,6 +164,7 @@ def _fill_config_from_payload(payload: Any) -> FillConfig:
     if not isinstance(payload, dict):
         return FillConfig()
     return FillConfig(
+        point_size=float(payload.get("point_size", 1.0) or 1.0),
         spread_points=float(payload.get("spread_points", 5.0) or 0.0),
         slippage_points=float(payload.get("slippage_points", 0.0) or 0.0),
         commission_per_lot=float(payload.get("commission_per_lot", 0.0) or 0.0),

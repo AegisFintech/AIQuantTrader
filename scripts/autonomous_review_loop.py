@@ -102,7 +102,7 @@ def strategy_lab_review(deploy_profile: bool) -> dict:
     if os.getenv('AUTOREVIEW_ENABLE_PROFILE_LAB', 'true').strip().lower() not in ('1', 'true', 'yes', 'on'):
         return {'enabled': False, 'skipped': True, 'reason': 'profile_lab_disabled'}
     cmd = [sys.executable, 'scripts/xau_strategy_lab.py']
-    if os.getenv('AUTOREVIEW_HARVEST_FIRST', '').strip().lower() in ('1', 'true', 'yes', 'on'):
+    if os.getenv('AUTOREVIEW_HARVEST_FIRST', 'true').strip().lower() in ('1', 'true', 'yes', 'on'):
         cmd.append('--harvest-first')
     max_bars = os.getenv('AUTOREVIEW_PROFILE_LAB_MAX_BARS', '').strip()
     if max_bars:
