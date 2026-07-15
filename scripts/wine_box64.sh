@@ -2,12 +2,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUNTIME_DIR="${FINROBOT_RUNTIME_DIR:-$ROOT/.runtime}"
-WINE_HOME="${FINROBOT_X86_WINE_HOME:-$RUNTIME_DIR/wine-x86_64/wine-11.10-amd64-wow64}"
+RUNTIME_DIR="${AIQUANTTRADER_RUNTIME_DIR:-$ROOT/.runtime}"
+WINE_HOME="${AIQUANTTRADER_X86_WINE_HOME:-$RUNTIME_DIR/wine-x86_64/wine-11.10-amd64-wow64}"
 
 if [ ! -x "$WINE_HOME/bin/wine" ]; then
   echo "x86_64 Wine not found at $WINE_HOME/bin/wine" >&2
-  echo "Install or extract an x86_64 Wine build under $WINE_HOME, or set FINROBOT_X86_WINE_HOME." >&2
+  echo "Install or extract an x86_64 Wine build under $WINE_HOME, or set AIQUANTTRADER_X86_WINE_HOME." >&2
   exit 1
 fi
 

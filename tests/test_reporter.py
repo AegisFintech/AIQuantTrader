@@ -5,9 +5,9 @@ from datetime import datetime
 
 import pytest
 
-from finrobot.backtest.engine import BacktestConfig, BacktestResult
-from finrobot.backtest.metrics import MetricsReport
-from finrobot.backtest.reporter import (
+from aiquanttrader.backtest.engine import BacktestConfig, BacktestResult
+from aiquanttrader.backtest.metrics import MetricsReport
+from aiquanttrader.backtest.reporter import (
     ReportMetadata,
     generate_report,
     render_markdown,

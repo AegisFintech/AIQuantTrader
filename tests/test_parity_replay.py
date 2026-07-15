@@ -6,16 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from finrobot.backtest.engine import BacktestConfig
-from finrobot.backtest.fills import FillConfig
-from finrobot.backtest.position import PositionSizer
-from finrobot.backtest.parity_replay import (
+from aiquanttrader.backtest.engine import BacktestConfig
+from aiquanttrader.backtest.fills import FillConfig
+from aiquanttrader.backtest.position import PositionSizer
+from aiquanttrader.backtest.parity_replay import (
     ParityReplayConfig,
     load_acked_decisions,
     run_parity_replay,
 )
-from finrobot.backtest.strategies.base import Signal, Strategy
-from finrobot.backtest.strategies.stub_replay import StubReplayStrategy
+from aiquanttrader.backtest.strategies.base import Signal, Strategy
+from aiquanttrader.backtest.strategies.stub_replay import StubReplayStrategy
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,6 +72,26 @@ def test_load_acked_decisions_filters_by_date_range(tmp_path: Path):
     assert len(decisions) == 1
     assert decisions[0]["source_id"] == "2"
     assert decisions[0]["action"] == "SELL"
+
+
+def test_load_acked_decisions_can_attach_broker_timezone_epoch(tmp_path: Path):
+    acks = _acks_file(
+        tmp_path,
+        [
+            "id,time,status,message,symbol,side,volume,price",
+            "1,2026-07-14 12:20:00,AUTO_FILLED,filled,XAUUSD,BUY,0.10,4000.0",
+        ],
+    )
+
+    decisions = load_acked_decisions(
+        acks,
+        from_date="2026-07-14",
+        to_date="2026-07-14",
+        symbol="XAUUSD",
+        timezone_name="UTC",
+    )
+
+    assert decisions[0]["source_epoch"] == 1784031600
 
 
 def test_load_acked_decisions_keeps_auto_rejected_rows(tmp_path: Path):

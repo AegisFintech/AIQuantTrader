@@ -40,11 +40,11 @@ Add the cron entry from the operator account when ready:
 
 ```cron
 # Nightly XAU parity retest at 02:00 SGT (18:00 UTC)
-0 18 * * * /root/FinRobot/scripts/xau_parity_watch.sh --data-source mt5-export >>/root/FinRobot/logs/xau_parity_cron.log 2>&1
+0 18 * * * /root/AIQuantTrader/scripts/xau_parity_watch.sh --data-source mt5-export >>/root/AIQuantTrader/logs/xau_parity_cron.log 2>&1
 ```
 
 No `state/research/cron_jobs.json` manifest exists in the current checkout.
-The repository does have `config/finrobot.cron`, but it is an `/etc/cron.d`
+The repository does have `config/aiquanttrader.cron`, but it is an `/etc/cron.d`
 policy with a different schema, so this retest job is documented here only.
 Do not add it to the host crontab until the schedule is approved operationally.
 

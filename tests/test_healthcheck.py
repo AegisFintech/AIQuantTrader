@@ -11,9 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from healthcheck import (  # noqa: E402
+    check_disk_usage,
     check_heartbeat,
     check_loss_limit,
     check_pm2,
+    check_research_freshness,
     check_unprotected_positions,
 )
 
@@ -30,7 +32,7 @@ def _write_status(common: Path, **mm_overrides) -> None:
         "auto_close_no_sl_tp": 1,
     }
     mm.update(mm_overrides)
-    (common / "finrobot_status.json").write_text(
+    (common / "aiquanttrader_status.json").write_text(
         json.dumps(
             {
                 "ts": int(time.time()),
@@ -43,7 +45,7 @@ def _write_status(common: Path, **mm_overrides) -> None:
 
 
 def _write_positions(common: Path, positions: list[dict]) -> None:
-    path = common / "finrobot_positions.csv"
+    path = common / "aiquanttrader_positions.csv"
     with path.open("w", newline="") as fh:
         writer = csv.DictWriter(
             fh,
@@ -73,14 +75,14 @@ def test_check_heartbeat_missing_file(tmp_path):
 
 
 def test_check_heartbeat_fresh(tmp_path):
-    (tmp_path / "finrobot_status.json").write_text("{}")
+    (tmp_path / "aiquanttrader_status.json").write_text("{}")
     result = check_heartbeat(tmp_path, stale_seconds=60)
     assert result.ok
     assert "age" in result.detail
 
 
 def test_check_heartbeat_stale(tmp_path):
-    p = tmp_path / "finrobot_status.json"
+    p = tmp_path / "aiquanttrader_status.json"
     p.write_text("{}")
     import os
 
@@ -132,7 +134,7 @@ def test_check_unprotected_positions_all_protected(tmp_path):
                 "profit": "10.0",
                 "sl": "1990.0",
                 "tp": "2020.0",
-                "comment": "FinRobot_XAUUSD_MACD_trend",
+                "comment": "AIQuantTrader_XAUUSD_MACD_trend",
             },
         ],
     )
@@ -199,3 +201,82 @@ def test_check_pm2_returns_check_result():
     assert hasattr(result, "ok")
     assert hasattr(result, "name")
     assert hasattr(result, "detail")
+
+
+def test_check_disk_usage_fails_at_configured_ceiling(tmp_path, monkeypatch):
+    usage = type("Usage", (), {"total": 100, "used": 90, "free": 10})()
+    monkeypatch.setattr("healthcheck.shutil.disk_usage", lambda path: usage)
+
+    result = check_disk_usage(tmp_path, max_used_percent=85.0)
+
+    assert not result.ok
+    assert result.extra["used_percent"] == 90.0
+
+
+def test_check_research_freshness_allows_pending_first_run(tmp_path):
+    result = check_research_freshness(tmp_path / "missing.jsonl", max_age_hours=14)
+
+    assert result.ok
+    assert result.name == "research_cycle_pending"
+
+
+def test_check_research_freshness_accepts_recent_success(tmp_path):
+    journal = tmp_path / "journal.jsonl"
+    journal.write_text(
+        json.dumps(
+            {
+                "ts": time.time(),
+                "event": "autonomous_strategy_lab",
+                "result": {"enabled": True, "returncode": 0, "timed_out": False},
+            }
+        )
+        + "\n"
+    )
+
+    result = check_research_freshness(journal, max_age_hours=14)
+
+    assert result.ok
+    assert "succeeded" in result.detail
+
+
+def test_check_research_freshness_rejects_timeout(tmp_path):
+    journal = tmp_path / "journal.jsonl"
+    journal.write_text(
+        json.dumps(
+            {
+                "ts": time.time(),
+                "event": "autonomous_strategy_lab",
+                "result": {
+                    "enabled": True,
+                    "returncode": 124,
+                    "timed_out": True,
+                    "duration_seconds": 1800,
+                },
+            }
+        )
+        + "\n"
+    )
+
+    result = check_research_freshness(journal, max_age_hours=14)
+
+    assert not result.ok
+    assert "timed out" in result.detail
+
+
+def test_check_research_freshness_rejects_stale_success(tmp_path):
+    journal = tmp_path / "journal.jsonl"
+    journal.write_text(
+        json.dumps(
+            {
+                "ts": time.time() - 15 * 3600,
+                "event": "autonomous_strategy_lab",
+                "result": {"enabled": True, "returncode": 0},
+            }
+        )
+        + "\n"
+    )
+
+    result = check_research_freshness(journal, max_age_hours=14)
+
+    assert not result.ok
+    assert "old" in result.detail

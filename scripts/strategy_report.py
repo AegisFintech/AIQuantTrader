@@ -12,8 +12,8 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from finrobot.hft import HFTConfig, backtest_hft
-from finrobot.backtesting import BacktestConfig, backtest_trend_martingale
+from aiquanttrader.hft import HFTConfig, backtest_hft
+from aiquanttrader.backtesting import BacktestConfig, backtest_trend_martingale
 
 
 def json_default(value: Any) -> Any:

@@ -6,7 +6,7 @@ from pathlib import Path
 import duckdb
 import pytest
 
-from finrobot.prices import load_tsv_bars
+from aiquanttrader.prices import load_tsv_bars
 import harvest_mt5_export as harvest
 
 
@@ -14,11 +14,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_parse_export_filename_xauusd():
-    assert harvest.parse_export_filename("finrobot_export_XAUUSD_M1.tsv") == ("XAUUSD",)
+    assert harvest.parse_export_filename("aiquanttrader_export_XAUUSD_M1.tsv") == ("XAUUSD",)
 
 
 def test_parse_export_filename_xauusd():
-    assert harvest.parse_export_filename("finrobot_export_XAUUSD_M1.tsv") == ("XAUUSD",)
+    assert harvest.parse_export_filename("aiquanttrader_export_XAUUSD_M1.tsv") == ("XAUUSD",)
 
 
 def test_parse_export_filename_rejects_garbage():
@@ -142,8 +142,8 @@ def test_harvest_all_filters_symbols_like_cli_option(tmp_path):
 def test_harvest_all_skips_empty_and_unparseable_exports(tmp_path):
     common_dir = tmp_path / "common"
     common_dir.mkdir()
-    (common_dir / "finrobot_export_XAUUSD_M1.tsv").write_text("")
-    (common_dir / "finrobot_export_XAUUSD_M1.tsv").write_text("time\topen\thigh\tlow\tclose\tvolume\n")
+    (common_dir / "aiquanttrader_export_XAUUSD_M1.tsv").write_text("")
+    (common_dir / "aiquanttrader_export_XAUUSD_M1.tsv").write_text("time\topen\thigh\tlow\tclose\tvolume\n")
 
     results = harvest.harvest_all(common_dir, tmp_path / "data", dry_run=True)
 
@@ -151,7 +151,7 @@ def test_harvest_all_skips_empty_and_unparseable_exports(tmp_path):
 
 
 def _write_export(tmp_path: Path, symbol: str, rows: list[str] | None = None) -> Path:
-    path = tmp_path / f"finrobot_export_{symbol}_M1.tsv"
+    path = tmp_path / f"aiquanttrader_export_{symbol}_M1.tsv"
     path.write_text("\n".join(rows or _rows("2026-06-10 12:00")) + "\n")
     return path
 

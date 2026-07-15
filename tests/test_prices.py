@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -13,8 +14,8 @@ pytest.importorskip("duckdb", reason="duckdb package is required for warehouse t
 
 ROOT = Path(__file__).resolve().parents[1]
 
-from finrobot import data_store, prices  # noqa: E402
-from finrobot.validators import (  # noqa: E402
+from aiquanttrader import data_store, prices  # noqa: E402
+from aiquanttrader.validators import (  # noqa: E402
     Severity,
     reconcile_prices_against_positions,
     validate_price,
@@ -81,7 +82,7 @@ def test_load_status_bidask_returns_empty_on_missing_file(tmp_path):
 
 
 def test_load_status_bidask_returns_one_snapshot_per_symbol(tmp_path):
-    (tmp_path / "finrobot_status.json").write_text(
+    (tmp_path / "aiquanttrader_status.json").write_text(
         json.dumps(
             {
                 "ts": 1780000000,
@@ -136,6 +137,23 @@ def test_ingest_bars_is_idempotent(con):
 
     assert prices.ingest_bars(con, "XAUUSD", bars) == 10
     assert prices.ingest_bars(con, "XAUUSD", bars) == 0
+
+
+@pytest.mark.parametrize(
+    ("broker_time", "expected_utc"),
+    [
+        ("2026-01-19 18:51", datetime(2026, 1, 19, 18, 51, tzinfo=timezone.utc)),
+        ("2026-07-14 12:20", datetime(2026, 7, 14, 12, 20, tzinfo=timezone.utc)),
+    ],
+)
+def test_ingest_bars_preserves_broker_wall_time(con, broker_time, expected_utc):
+    bar = _bar(broker_time)
+    bar["time_zone"] = "UTC"
+
+    assert prices.ingest_bars(con, "XAUUSD", [bar]) == 1
+    stored = con.execute("SELECT ts_server FROM prices").fetchone()[0]
+
+    assert stored == int(expected_utc.timestamp())
 
 
 def test_ingest_bidask_snapshots_with_two_snapshots_returns_two(con):
@@ -247,8 +265,8 @@ def test_cli_load_historical_prices_inserts_then_second_run_inserts_zero(tmp_pat
         "2026-01-01 00:00\t1\t2\t0.5\t1.5\t10\n"
         "2026-01-01 00:01\t1.5\t2\t1.4\t1.8\t11\n"
     )
-    env["FINROBOT_DATA_DIR"] = str(data_dir)
-    env["FINROBOT_WAREHOUSE"] = str(tmp_path / "prices.duckdb")
+    env["AIQUANTTRADER_DATA_DIR"] = str(data_dir)
+    env["AIQUANTTRADER_WAREHOUSE"] = str(tmp_path / "prices.duckdb")
 
     first = subprocess.run(
         [sys.executable, "scripts/load_historical_prices.py"],

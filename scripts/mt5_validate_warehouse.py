@@ -14,8 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from finrobot import data_store  # noqa: E402
-from finrobot.validators import Issue, Severity, validate_warehouse  # noqa: E402
+from aiquanttrader import data_store  # noqa: E402
+from aiquanttrader.validators import Issue, Severity, validate_warehouse  # noqa: E402
 
 
 def issue_dict(issue: Issue) -> dict:
@@ -49,7 +49,7 @@ def print_human(issues: list[Issue], warehouse: Path) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Validate the FinRobot DuckDB warehouse.")
+    parser = argparse.ArgumentParser(description="Validate the AIQuantTrader DuckDB warehouse.")
     parser.add_argument("--warehouse", type=Path, default=data_store.DEFAULT_WAREHOUSE)
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)

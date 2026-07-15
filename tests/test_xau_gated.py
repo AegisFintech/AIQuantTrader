@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from finrobot.backtest import (
+from aiquanttrader.backtest import (
     Backtester,
     BacktestConfig,
     FillConfig,
@@ -132,6 +132,26 @@ def test_xau_gated_disable_adx_gate():
         _signal_idx(),
     )
     assert signal.action == "BUY"
+
+
+def test_xau_gated_macd_alignment_blocks_countermomentum_buy():
+    bars = [_m1_bar(idx, close=200.0 - idx) for idx in range(60)]
+    signal = _run_strategy_to_bar(
+        XauGatedStrategy(
+            _SignalAtBar(59, "BUY"),
+            XauGatedParams(
+                enable_pda_gate=False,
+                enable_smc_gate=False,
+                enable_adx_gate=False,
+                enable_macd_histogram_alignment=True,
+            ),
+        ),
+        bars,
+        59,
+    )
+
+    assert signal.action == "HOLD"
+    assert signal.comment == "direction_reject"
 
 
 def test_xau_gated_blackout_hook_blocks_signal():

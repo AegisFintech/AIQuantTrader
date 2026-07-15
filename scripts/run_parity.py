@@ -17,8 +17,8 @@ if str(ROOT) not in sys.path:
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 
-from finrobot.backtest.parity import ParityReport
-from finrobot.backtest.parity_replay import (
+from aiquanttrader.backtest.parity import ParityReport
+from aiquanttrader.backtest.parity_replay import (
     ParityReplayConfig,
     load_acked_decisions,
     run_parity_replay,
@@ -45,7 +45,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
 
     try:
-        from finrobot.prices import load_tsv_bars
+        from aiquanttrader.prices import load_tsv_bars
 
         bars = list(load_tsv_bars(data_path))
         if not bars:
@@ -67,6 +67,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             symbol=args.symbol,
             bars=bars,
             bar_match_window=args.bar_match_window,
+            timezone_name=args.broker_time_zone,
         )
         report = run_parity_replay(bars=bars, decisions=decisions, config=config)
     except (OSError, ValueError) as exc:
@@ -105,7 +106,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--acks-path",
         default=None,
-        help="finrobot_acks.csv path (default: MT5 Common Files/finrobot_acks.csv)",
+        help="aiquanttrader_acks.csv path (default: MT5 Common Files/aiquanttrader_acks.csv)",
     )
     parser.add_argument(
         "--output-dir",
@@ -124,6 +125,11 @@ def _parser() -> argparse.ArgumentParser:
         default=1,
         help="Maximum bar index distance for matching",
     )
+    parser.add_argument(
+        "--broker-time-zone",
+        default="UTC",
+        help="Timezone used to encode broker-wall acknowledgement timestamps",
+    )
     parser.add_argument("--run-id", default="", help="Run id for output artifact names")
     parser.add_argument("--json", action="store_true", help="Print report JSON to stdout")
     return parser
@@ -135,7 +141,7 @@ def _resolve_acks_path(value: str | None) -> Path | None:
     directory = common_dir()
     if directory is None:
         return None
-    return directory / "finrobot_acks.csv"
+    return directory / "aiquanttrader_acks.csv"
 
 
 def _timestamp_run_id() -> str:

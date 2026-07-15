@@ -1,6 +1,6 @@
 #property strict
 
-// Smart Money Concepts for FinRobot
+// Smart Money Concepts for AIQuantTrader
 
 double ClampDouble(double value, double lo, double hi) {
    return MathMax(lo, MathMin(hi, value));

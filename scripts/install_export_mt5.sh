@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the FinRobot MT5 M1 history exporter script.
+# Install the AIQuantTrader MT5 M1 history exporter script.
 #
 # Copies broker/mt5/scripts/ExportM1Bars.mq5 into the terminal Experts
 # directory so MetaEditor/MT5 can compile and run it manually.
@@ -16,8 +16,8 @@ if [ -f "$ROOT/.env" ]; then
   set +a
 fi
 
-RUNTIME_DIR="${FINROBOT_RUNTIME_DIR:-$ROOT/.runtime}"
-MT5_DIR="${FINROBOT_MT5_DIR:-$RUNTIME_DIR/mt5}"
+RUNTIME_DIR="${AIQUANTTRADER_RUNTIME_DIR:-$ROOT/.runtime}"
+MT5_DIR="${AIQUANTTRADER_MT5_DIR:-$RUNTIME_DIR/mt5}"
 TERMINAL_DIR="$MT5_DIR/terminal/current"
 SRC="$ROOT/broker/mt5/scripts/ExportM1Bars.mq5"
 DEST="$TERMINAL_DIR/MQL5/Experts/ExportM1Bars.mq5"

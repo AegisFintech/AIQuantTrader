@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from finrobot.research.comparison import PromotionDecision, compare, render_markdown
-from finrobot.research.experiments import ExperimentRecord
+from aiquanttrader.research.comparison import PromotionDecision, compare, render_markdown
+from aiquanttrader.research.experiments import ExperimentRecord
 
 
 def test_compare_accept_when_challenger_dominates():

@@ -16,7 +16,7 @@ def test_status_age_seconds_missing_status_returns_none(tmp_path):
 
 
 def test_status_age_seconds_reads_mtime(tmp_path):
-    status = tmp_path / "finrobot_status.json"
+    status = tmp_path / "aiquanttrader_status.json"
     status.write_text("{}")
     now = time.time()
     old = now - 45

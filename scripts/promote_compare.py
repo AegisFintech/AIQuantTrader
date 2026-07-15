@@ -36,23 +36,24 @@ def _ensure_runtime_deps() -> None:
 
 _ensure_runtime_deps()
 
-from finrobot.backtest import (  # noqa: E402
+from aiquanttrader.backtest import (  # noqa: E402
     BacktestConfig,
     FillConfig,
     PositionSizer,
     WalkForwardConfig,
+    XAUUSD_ICMARKETS_DEMO,
     run_walkforward,
 )
-from finrobot.data_store import connect  # noqa: E402
-from finrobot.prices import load_tsv_bars  # noqa: E402
-from finrobot.research.comparison import compare, render_markdown  # noqa: E402
-from finrobot.research.experiments import (  # noqa: E402
+from aiquanttrader.data_store import connect  # noqa: E402
+from aiquanttrader.prices import load_tsv_bars  # noqa: E402
+from aiquanttrader.research.comparison import compare, render_markdown  # noqa: E402
+from aiquanttrader.research.experiments import (  # noqa: E402
     ExperimentRecord,
     experiment_path,
     git_sha,
     utc_now_iso,
 )
-from finrobot.research.registry import (  # noqa: E402
+from aiquanttrader.research.registry import (  # noqa: E402
     index_promotion_report,
     init_registry,
 )
@@ -136,7 +137,7 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=ROOT / "state" / "research" / "reports",
     )
-    parser.add_argument("--registry", type=Path, default=ROOT / "data" / "finrobot.duckdb")
+    parser.add_argument("--registry", type=Path, default=ROOT / "data" / "aiquanttrader.duckdb")
     parser.add_argument("--notes", default="")
     parser.add_argument(
         "--data-source",
@@ -225,13 +226,14 @@ def _run_fresh_walkforward(
     )
     backtest_config = BacktestConfig(
         symbol=symbol,
-        fill_config=FillConfig(),
+        fill_config=XAUUSD_ICMARKETS_DEMO.fill_config(),
         sizer=PositionSizer(
             risk_per_trade_fraction=0.001,
             daily_loss_cap_fraction=0.01,
             max_lot_per_trade=0.10,
             max_positions_per_symbol=2,
         ),
+        point_value=XAUUSD_ICMARKETS_DEMO.price_value_per_lot,
     )
     result = run_walkforward(
         bars,
@@ -262,7 +264,7 @@ def _load_bars_with_fallback(*, args: argparse.Namespace, symbol: str) -> list[d
     data_sources = (
         [Path(args.data_source)]
         if args.data_source is not None
-        else [Path(args.registry), ROOT / "data" / "finrobot.duckdb"]
+        else [Path(args.registry), ROOT / "data" / "aiquanttrader.duckdb"]
     )
     for data_source in data_sources:
         try:
@@ -307,9 +309,9 @@ def _json_safe(value: Any) -> Any:
         return [_json_safe(item) for item in value]
     if isinstance(value, Path):
         return str(value)
-    if hasattr(value, "value") and value.__class__.__module__.startswith("finrobot."):
+    if hasattr(value, "value") and value.__class__.__module__.startswith("aiquanttrader."):
         return value.value
-    if hasattr(value, "__dict__") and value.__class__.__module__.startswith("finrobot."):
+    if hasattr(value, "__dict__") and value.__class__.__module__.startswith("aiquanttrader."):
         return _json_safe(vars(value))
     return value
 

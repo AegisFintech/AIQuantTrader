@@ -16,7 +16,7 @@ FROM_DATE="2026-06-11"
 TO_DATE="$(date -u +%F)"
 SYMBOL="XAUUSD"
 REPORT_DIR="$ROOT/state/research/reports"
-REGISTRY="$ROOT/data/finrobot.duckdb"
+REGISTRY="$ROOT/data/aiquanttrader.duckdb"
 VERBOSE="false"
 
 usage() {
@@ -29,7 +29,7 @@ Options:
   --to-date TEXT                       End date for report counts (default: today UTC)
   --symbol TEXT                        Symbol to count in reports (default: XAUUSD)
   --report-dir PATH                    Report output directory (default: state/research/reports)
-  --registry TEXT                      DuckDB warehouse path (default: data/finrobot.duckdb)
+  --registry TEXT                      DuckDB warehouse path (default: data/aiquanttrader.duckdb)
   --verbose                            Print command progress
   -h, --help                           Show this help
 USAGE
@@ -108,7 +108,7 @@ REGISTRY="$(resolve_path "$REGISTRY")"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 LOG_PATH="$REPORT_DIR/xau_parity_${TIMESTAMP}.log"
 JSON_PATH="$REPORT_DIR/xau_parity_${TIMESTAMP}.json"
-PYTEST_TARGET="${FINROBOT_XAU_PARITY_PYTEST_TARGET:-tests/test_xau_parity_live.py}"
+PYTEST_TARGET="${AIQUANTTRADER_XAU_PARITY_PYTEST_TARGET:-tests/test_xau_parity_live.py}"
 
 mkdir -p "$REPORT_DIR"
 
@@ -127,7 +127,7 @@ fi
 
 [[ -f "$REGISTRY" ]] || die "DuckDB warehouse not found: $REGISTRY"
 
-export FINROBOT_WAREHOUSE="$REGISTRY"
+export AIQUANTTRADER_WAREHOUSE="$REGISTRY"
 
 if [[ "$VERBOSE" == "true" ]]; then
   echo "[INFO] collecting $PYTEST_TARGET"
@@ -169,7 +169,7 @@ except Exception as exc:  # pragma: no cover - exercised by operator environment
     print(f"[ERR] duckdb package is required: {exc}", file=sys.stderr)
     raise SystemExit(1)
 
-from finrobot.backtest.parity_replay import FILLED_ACTIONS, load_acked_decisions
+from aiquanttrader.backtest.parity_replay import FILLED_ACTIONS, load_acked_decisions
 from scripts.runtime_paths import common_dir
 
 
@@ -179,11 +179,6 @@ def utc_epoch_start(value: str) -> int:
 
 def utc_epoch_end(value: str) -> int:
     return int(datetime.combine(date.fromisoformat(value), time.max, tzinfo=timezone.utc).timestamp())
-
-
-def server_epoch_as_local_wall_epoch(epoch: int) -> int:
-    server_wall = datetime.fromtimestamp(int(epoch), timezone.utc).replace(tzinfo=None)
-    return int(server_wall.timestamp())
 
 
 def load_bars() -> list[dict]:
@@ -208,7 +203,7 @@ def load_bars() -> list[dict]:
         con.close()
     return [
         {
-            "time": server_epoch_as_local_wall_epoch(int(row[0])),
+            "time": int(row[0]),
             "open": float(row[1]),
             "high": float(row[2]),
             "low": float(row[3]),
@@ -249,7 +244,7 @@ except Exception as exc:
     raise SystemExit(1)
 
 directory = common_dir()
-acks_path = directory / "finrobot_acks.csv" if directory is not None else root / "__missing_finrobot_acks.csv"
+acks_path = directory / "aiquanttrader_acks.csv" if directory is not None else root / "__missing_aiquanttrader_acks.csv"
 decisions = load_acked_decisions(
     acks_path,
     from_date=from_date,
@@ -257,6 +252,7 @@ decisions = load_acked_decisions(
     symbol=symbol,
     bars=bars,
     bar_match_window=2,
+    timezone_name="UTC",
 )
 filled = [decision for decision in decisions if decision.get("action") in FILLED_ACTIONS]
 overlap = [decision for decision in filled if decision.get("bar_idx") is not None]

@@ -5,10 +5,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from finrobot.data_store import connect
-from finrobot.prices import ingest_bars
-from finrobot.research.experiments import ExperimentRecord, save_experiment
-from finrobot.research.registry import index_experiment, init_registry
+from aiquanttrader.data_store import connect
+from aiquanttrader.prices import ingest_bars
+from aiquanttrader.research.experiments import ExperimentRecord, save_experiment
+from aiquanttrader.research.registry import index_experiment, init_registry
 
 
 ROOT = Path(__file__).resolve().parents[1]

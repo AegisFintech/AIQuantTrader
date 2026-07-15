@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""6-hour autonomous FinRobot review loop.
+"""6-hour autonomous AIQuantTrader review loop.
 
 Policy:
 - Review MT5 XAUUSD performance and strategy memory every 6 hours.
@@ -26,6 +26,9 @@ except Exception:
     pass
 STATE = ROOT / 'state' / 'mt5'
 MODEL = os.getenv('OPENCODE_REVIEW_MODEL', 'openai/gpt-5.5')
+DEFAULT_PROFILE_LAB_MAX_BARS = 50_000
+DEFAULT_PROFILE_LAB_TIMEOUT_SECONDS = 1_800
+DEFAULT_PROFILE_LAB_NICE_LEVEL = 10
 
 
 def log(msg: str) -> None:
@@ -86,8 +89,31 @@ def opencode_bin() -> str:
     return 'opencode'
 
 
-def run(cmd: list[str], timeout: int = 1200) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True, timeout=timeout, env={**os.environ, 'PATH': '/home/openclaw/.npm-global/bin:/home/openclaw/.npm-global/lib/node_modules/pm2/bin:' + os.environ.get('PATH', '')})
+def run(
+    cmd: list[str],
+    timeout: int = 1200,
+    *,
+    nice_level: int | None = None,
+) -> subprocess.CompletedProcess:
+    actual_cmd = list(cmd)
+    nice_bin = shutil.which('nice')
+    if nice_level is not None and nice_bin:
+        actual_cmd = [nice_bin, '-n', str(nice_level), *actual_cmd]
+    return subprocess.run(
+        actual_cmd,
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        timeout=timeout,
+        env={
+            **os.environ,
+            'PATH': (
+                '/home/openclaw/.npm-global/bin:'
+                '/home/openclaw/.npm-global/lib/node_modules/pm2/bin:'
+                + os.environ.get('PATH', '')
+            ),
+        },
+    )
 
 
 def mt5_report_text() -> str:
@@ -102,28 +128,87 @@ def strategy_lab_review(deploy_profile: bool) -> dict:
     if os.getenv('AUTOREVIEW_ENABLE_PROFILE_LAB', 'true').strip().lower() not in ('1', 'true', 'yes', 'on'):
         return {'enabled': False, 'skipped': True, 'reason': 'profile_lab_disabled'}
     cmd = [sys.executable, 'scripts/xau_strategy_lab.py']
-    if os.getenv('AUTOREVIEW_HARVEST_FIRST', '').strip().lower() in ('1', 'true', 'yes', 'on'):
+    if os.getenv('AUTOREVIEW_HARVEST_FIRST', 'true').strip().lower() in ('1', 'true', 'yes', 'on'):
         cmd.append('--harvest-first')
-    max_bars = os.getenv('AUTOREVIEW_PROFILE_LAB_MAX_BARS', '').strip()
-    if max_bars:
-        cmd.extend(['--max-bars', max_bars])
+    max_bars = _env_int(
+        'AUTOREVIEW_PROFILE_LAB_MAX_BARS',
+        DEFAULT_PROFILE_LAB_MAX_BARS,
+        minimum=1_000,
+    )
+    cmd.extend(['--max-bars', str(max_bars)])
     if deploy_profile:
         cmd.append('--write-profile')
         if os.getenv('AUTOREVIEW_FORCE_PROFILE_DEPLOY', '').strip().lower() in ('1', 'true', 'yes', 'on'):
             cmd.append('--force-profile')
-    cp = run(cmd, timeout=int(os.getenv('AUTOREVIEW_PROFILE_LAB_TIMEOUT', '1800')))
+    timeout = _env_int(
+        'AUTOREVIEW_PROFILE_LAB_TIMEOUT',
+        DEFAULT_PROFILE_LAB_TIMEOUT_SECONDS,
+        minimum=60,
+    )
+    nice_level = _env_int(
+        'AUTOREVIEW_PROFILE_LAB_NICE_LEVEL',
+        DEFAULT_PROFILE_LAB_NICE_LEVEL,
+        minimum=0,
+        maximum=19,
+    )
+    started = time.monotonic()
+    try:
+        cp = run(cmd, timeout=timeout, nice_level=nice_level)
+    except subprocess.TimeoutExpired as exc:
+        return {
+            'enabled': True,
+            'deploy_profile': deploy_profile,
+            'returncode': 124,
+            'timed_out': True,
+            'timeout_seconds': timeout,
+            'duration_seconds': round(time.monotonic() - started, 3),
+            'max_bars': max_bars,
+            'nice_level': nice_level,
+            'stdout': _tail_text(exc.stdout),
+            'stderr': _tail_text(exc.stderr),
+        }
     return {
         'enabled': True,
         'deploy_profile': deploy_profile,
         'returncode': cp.returncode,
+        'timed_out': False,
+        'duration_seconds': round(time.monotonic() - started, 3),
+        'max_bars': max_bars,
+        'nice_level': nice_level,
         'stdout': cp.stdout[-12000:],
         'stderr': cp.stderr[-12000:],
     }
 
 
+def _env_int(
+    name: str,
+    default: int,
+    *,
+    minimum: int | None = None,
+    maximum: int | None = None,
+) -> int:
+    try:
+        value = int(os.getenv(name, str(default)).strip())
+    except (TypeError, ValueError):
+        value = int(default)
+    if minimum is not None:
+        value = max(minimum, value)
+    if maximum is not None:
+        value = min(maximum, value)
+    return value
+
+
+def _tail_text(value: str | bytes | None, limit: int = 12_000) -> str:
+    if isinstance(value, bytes):
+        text = value.decode('utf-8', errors='replace')
+    else:
+        text = str(value or '')
+    return text[-limit:]
+
+
 def opencode_review(memory: list[dict], mt5_report: str, strategy_lab: dict, dry_run: bool) -> dict:
     prompt = f"""
-You are a senior HFT/quant trading engineer reviewing FinRobot.
+You are a senior HFT/quant trading engineer reviewing AIQuantTrader.
 
 Current mandate:
 - Trade only broker/demo MT5 symbol: XAUUSD.
@@ -181,7 +266,7 @@ def cycle(args: argparse.Namespace) -> dict:
             'rationale': rec['reason'],
             'decision': 'rejected',
             'reason': rec['reason'],
-            'model': 'autonomous-review',
+            'model': 'aiquanttrader-review',
         })
         return {'applied': False, 'skipped': True, 'reason': rec['reason']}
 
@@ -189,7 +274,12 @@ def cycle(args: argparse.Namespace) -> dict:
     lab_result = strategy_lab_review(deploy_profile)
     append_journal(STATE / 'improver_journal.jsonl', {'ts': time.time(), 'event': 'autonomous_strategy_lab', 'result': lab_result})
     if lab_result.get('enabled'):
-        log(f"profile_lab_returncode={lab_result.get('returncode')} deploy_profile={deploy_profile}")
+        log(
+            f"profile_lab_returncode={lab_result.get('returncode')} "
+            f"timed_out={int(bool(lab_result.get('timed_out')))} "
+            f"duration_seconds={lab_result.get('duration_seconds')} "
+            f"deploy_profile={deploy_profile}"
+        )
 
     if os.getenv('AUTOREVIEW_ENABLE_LLM', '').strip().lower() not in ('1', 'true', 'yes', 'on'):
         log(f"llm_editing_disabled=1 closed_deals={n} (analysis-only; set AUTOREVIEW_ENABLE_LLM=true to allow edits)")
@@ -202,7 +292,7 @@ def cycle(args: argparse.Namespace) -> dict:
             'rationale': 'LLM editing disabled by AUTOREVIEW_ENABLE_LLM; recorded analysis only',
             'decision': 'rejected',
             'reason': 'llm_editing_disabled',
-            'model': 'autonomous-review',
+            'model': 'aiquanttrader-review',
         })
         return {'applied': False, 'analysis_only': True, 'closed_deals': n, 'strategy_lab': lab_result}
 
@@ -220,14 +310,14 @@ def cycle(args: argparse.Namespace) -> dict:
     log(f"opencode_returncode={result['returncode']}")
     if result['returncode'] == 0 and not args.dry_run:
         checks = [
-            run([sys.executable, '-m', 'compileall', '-q', 'finrobot', 'scripts'], timeout=300),
+            run([sys.executable, '-m', 'compileall', '-q', 'aiquanttrader', 'scripts'], timeout=300),
             run([sys.executable, 'scripts/mt5_trade_report.py'], timeout=120),
         ]
         ok = all(c.returncode == 0 for c in checks)
         log(f"post_checks_ok={ok}")
         if ok:
             pm2_bin = shutil.which('pm2') or 'pm2'
-            run([pm2_bin, 'restart', 'mt5-terminal', 'autonomous-review', '--update-env'], timeout=300)
+            run([pm2_bin, 'restart', 'aiquanttrader-mt5', 'aiquanttrader-review', '--update-env'], timeout=300)
         return {'applied': ok, 'opencode': result}
     return {'applied': False, 'opencode': result}
 

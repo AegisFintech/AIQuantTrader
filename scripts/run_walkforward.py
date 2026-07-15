@@ -32,9 +32,9 @@ def _ensure_runtime_deps() -> None:
 
 _ensure_runtime_deps()
 
-from finrobot.backtest import (  # noqa: E402
+from aiquanttrader.backtest import (  # noqa: E402
     BacktestConfig,
-    FillConfig,
+    XAUUSD_ICMARKETS_DEMO,
     PositionSizer,
     WalkForwardConfig,
     XauAtrImpulseParams,
@@ -45,15 +45,15 @@ from finrobot.backtest import (  # noqa: E402
     XauQuickMomentumStrategy,
     run_walkforward,
 )
-from finrobot.backtest.strategies.base import Strategy  # noqa: E402
-from finrobot.data_store import connect  # noqa: E402
-from finrobot.research.experiments import (  # noqa: E402
+from aiquanttrader.backtest.strategies.base import Strategy  # noqa: E402
+from aiquanttrader.data_store import connect  # noqa: E402
+from aiquanttrader.research.experiments import (  # noqa: E402
     ExperimentRecord,
     git_sha,
     save_experiment,
     utc_now_iso,
 )
-from finrobot.research.registry import init_registry, index_experiment  # noqa: E402
+from aiquanttrader.research.registry import init_registry, index_experiment  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -87,13 +87,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         backtest_config = BacktestConfig(
             symbol=args.symbol,
-            fill_config=FillConfig(),
+            fill_config=XAUUSD_ICMARKETS_DEMO.fill_config(),
             sizer=PositionSizer(
                 risk_per_trade_fraction=args.risk_per_trade_fraction,
                 daily_loss_cap_fraction=args.daily_loss_cap_fraction,
                 max_lot_per_trade=args.max_lot_per_trade,
                 max_positions_per_symbol=2,
             ),
+            point_value=XAUUSD_ICMARKETS_DEMO.price_value_per_lot,
         )
 
         result = run_walkforward(
@@ -143,7 +144,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--train-size-bars", type=int, default=None)
     parser.add_argument("--min-train-bars", type=int, default=1000)
     parser.add_argument("--min-test-bars", type=int, default=100)
-    parser.add_argument("--data-source", type=Path, default=ROOT / "data" / "finrobot.duckdb")
+    parser.add_argument("--data-source", type=Path, default=ROOT / "data" / "aiquanttrader.duckdb")
     parser.add_argument("--from-date", default="")
     parser.add_argument("--to-date", default="")
     parser.add_argument("--run-id", default="")
@@ -153,7 +154,7 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         default=ROOT / "state" / "research" / "experiments",
     )
-    parser.add_argument("--registry", type=Path, default=ROOT / "data" / "finrobot.duckdb")
+    parser.add_argument("--registry", type=Path, default=ROOT / "data" / "aiquanttrader.duckdb")
     parser.add_argument("--strategy-params", default="{}")
     parser.add_argument("--max-lot-per-trade", type=float, default=0.10)
     parser.add_argument("--risk-per-trade-fraction", type=float, default=0.001)
@@ -395,7 +396,7 @@ def _json_safe(value: Any) -> Any:
         return [_json_safe(item) for item in value]
     if isinstance(value, Path):
         return str(value)
-    if hasattr(value, "__dict__") and value.__class__.__module__.startswith("finrobot."):
+    if hasattr(value, "__dict__") and value.__class__.__module__.startswith("aiquanttrader."):
         return _json_safe(vars(value))
     return value
 

@@ -7,7 +7,7 @@ current strategies have real edge.
 
 Usage:
     .venv/bin/python scripts/run_quant_pipeline.py
-    .venv/bin/python scripts/run_quant_pipeline.py --bars 50000 --timeframe M5
+    .venv/bin/python scripts/run_quant_pipeline.py --bars 50000 --timeframe M1
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     print("=" * 70)
-    print("FINROBOT QUANTITATIVE RESEARCH PIPELINE")
+    print("AIQUANTTRADER QUANTITATIVE RESEARCH PIPELINE")
     print("=" * 70)
     t0 = time.time()
 
@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- Step 2: Compute features ---
     print("\n[2/7] Computing features...")
-    from finrobot.research.features import compute_features, compute_target
+    from aiquanttrader.research.features import compute_features, compute_target
     features = compute_features(df, timeframe=args.timeframe)
     target = compute_target(df, horizon=5)
     valid = features.notna().all(axis=1) & target.notna()
@@ -60,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- Step 3: Fit regime model ---
     print("\n[3/7] Fitting regime model (HMM, 3 states)...")
-    from finrobot.research.regime import fit_regime_model, predict_regime, regime_stability_score
+    from aiquanttrader.research.regime import fit_regime_model, predict_regime, regime_stability_score
     train_cutoff = int(len(df) * 0.7)
     regime_model = fit_regime_model(df.iloc[:train_cutoff], n_states=3)
     regimes = predict_regime(regime_model, df)
@@ -73,7 +73,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- Step 4: Train ML model ---
     print("\n[4/7] Training ML model (LightGBM walk-forward)...")
-    from finrobot.research.models import train_walkforward
+    from aiquanttrader.research.models import train_walkforward
     try:
         ml_result = train_walkforward(
             features, target,
@@ -97,10 +97,10 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- Step 5: Walk-forward backtest with regime gating ---
     print("\n[5/7] Running regime-gated walk-forward backtest...")
-    from finrobot.backtest.engine import BacktestConfig, Backtester
-    from finrobot.backtest.strategies.xau_atr_impulse import XauAtrImpulseStrategy, XauAtrImpulseParams
-    from finrobot.backtest.metrics import compute_metrics
-    from finrobot.backtest import FillConfig, PositionSizer, WalkForwardConfig, run_walkforward
+    from aiquanttrader.backtest.engine import BacktestConfig, Backtester
+    from aiquanttrader.backtest.strategies.xau_atr_impulse import XauAtrImpulseStrategy, XauAtrImpulseParams
+    from aiquanttrader.backtest.metrics import compute_metrics
+    from aiquanttrader.backtest import PositionSizer, WalkForwardConfig, XAUUSD_ICMARKETS_DEMO, run_walkforward
 
     bars_list = df.to_dict("records")
 
@@ -116,13 +116,14 @@ def main(argv: list[str] | None = None) -> int:
         min_test_bars=max(100, int(len(bars_list) * 0.05)),
     )
     bt_config = BacktestConfig(
-        fill_config=FillConfig(),
+        fill_config=XAUUSD_ICMARKETS_DEMO.fill_config(),
         sizer=PositionSizer(
             risk_per_trade_fraction=0.001,
             daily_loss_cap_fraction=0.01,
             max_lot_per_trade=0.10,
             max_positions_per_symbol=2,
         ),
+        point_value=XAUUSD_ICMARKETS_DEMO.price_value_per_lot,
     )
 
     try:
@@ -151,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # --- Step 6: Significance testing ---
     print("\n[6/7] Statistical significance testing...")
-    from finrobot.research.significance import (
+    from aiquanttrader.research.significance import (
         deflated_sharpe_ratio,
         minimum_backtest_length,
         bootstrap_metric,
@@ -180,7 +181,7 @@ def main(argv: list[str] | None = None) -> int:
     opt_result = None
     if args.optimize:
         print(f"\n[7/7] Running Optuna optimization ({args.opt_trials} trials)...")
-        from finrobot.research.optimizer import optimize_strategy
+        from aiquanttrader.research.optimizer import optimize_strategy
 
         split_idx = int(len(bars_list) * 0.6)
         train_bars = bars_list[:split_idx]

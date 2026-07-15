@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.backtest import Backtester
-from finrobot.backtest.parity_replay import ParityReplayConfig, run_parity_replay
+from aiquanttrader.backtest import Backtester
+from aiquanttrader.backtest.parity_replay import ParityReplayConfig, run_parity_replay
 from tests._xau_parity_support import (
     XAU_SYMBOL,
     build_xau_backtest_config,
@@ -20,7 +20,7 @@ def test_xau_parity_may_self_test():
 
     bars = load_xau_bars("2026-05-01", "2026-05-01")
     if not bars:
-        pytest.skip("May 2026 XAU bars are unavailable in data/finrobot.duckdb")
+        pytest.skip("May 2026 XAU bars are unavailable in data/aiquanttrader.duckdb")
 
     config = build_xau_backtest_config()
     source_result = Backtester(config).run(

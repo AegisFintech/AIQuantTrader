@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from finrobot import alert_delivery
+from aiquanttrader import alert_delivery
 
 
 def test_load_metrics_returns_empty_dict_on_missing_file(tmp_path):
@@ -122,6 +122,20 @@ def test_format_telegram_message_includes_alert_name_severity_and_detail():
     assert "warning" in text
     assert "broker clock skew is greater than one hour" in text
     assert "10799" in text
+
+
+def test_format_telegram_message_escapes_markdown_in_detail():
+    transition = {
+        "kind": "fired",
+        "alert": _alert(
+            "strategy_candidate_rejected",
+            detail="macd_continuation_m1 [rejected]",
+        ),
+    }
+
+    text, _ = alert_delivery.format_telegram_message(transition, _snapshot())
+
+    assert "macd\\_continuation\\_m1 \\[rejected]" in text
 
 
 def test_telegram_send_dry_run_does_not_make_http_call(monkeypatch, capsys):

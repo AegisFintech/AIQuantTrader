@@ -4,7 +4,7 @@ from pathlib import Path
 
 import duckdb
 
-from finrobot.research.experiments import (
+from aiquanttrader.research.experiments import (
     ExperimentRecord,
     experiment_path,
     file_hash,
@@ -13,7 +13,7 @@ from finrobot.research.experiments import (
     load_experiment,
     save_experiment,
 )
-from finrobot.research.registry import (
+from aiquanttrader.research.registry import (
     index_experiment,
     init_registry,
     latest_experiment,

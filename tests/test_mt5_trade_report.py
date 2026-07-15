@@ -72,9 +72,9 @@ def test_read_csv_missing_or_empty(tmp_path):
 def test_summarize_deals_pairs_entries_with_exits():
     # ENTRY_IN (entry=0) opens a position, profit=0; ENTRY_OUT (entry=1) closes it with realized PnL.
     rows = [
-        _deal("XAUUSD", 1, entry=0, profit=0.0, comment="FinRobot_XAUUSD_MACD_trend", time="2026-06-10 10:00:00"),
+        _deal("XAUUSD", 1, entry=0, profit=0.0, comment="AIQuantTrader_XAUUSD_MACD_trend", time="2026-06-10 10:00:00"),
         _deal("XAUUSD", 1, entry=1, profit=10.0, time="2026-06-10 11:00:00"),
-        _deal("XAUUSD", 2, entry=0, profit=0.0, comment="FinRobot_XAUUSD_QuickMomentum_EMA_cross", time="2026-06-10 12:00:00"),
+        _deal("XAUUSD", 2, entry=0, profit=0.0, comment="AIQuantTrader_XAUUSD_QuickMomentum_EMA_cross", time="2026-06-10 12:00:00"),
         _deal("XAUUSD", 2, entry=1, profit=-5.0, time="2026-06-10 13:00:00"),
     ]
     summary = summarize_deals(rows)
@@ -85,9 +85,9 @@ def test_summarize_deals_pairs_entries_with_exits():
     assert by_sym["XAUUSD"]["pnl"] == 5.0
     assert by_sym["XAUUSD"]["win_rate"] == 0.5
     by_strat = summary["by_strategy"]
-    # The report keys strategies by the full entry comment (e.g. "FinRobot_XAUUSD_MACD_trend").
-    assert "XAUUSD:FinRobot_XAUUSD_MACD_trend" in by_strat
-    assert "XAUUSD:FinRobot_XAUUSD_QuickMomentum_EMA_cross" in by_strat
+    # The report keys strategies by the full entry comment (e.g. "AIQuantTrader_XAUUSD_MACD_trend").
+    assert "XAUUSD:AIQuantTrader_XAUUSD_MACD_trend" in by_strat
+    assert "XAUUSD:AIQuantTrader_XAUUSD_QuickMomentum_EMA_cross" in by_strat
     by_day = summary["by_day"]
     assert by_day.get("2026-06-10")["n"] == 2
 
@@ -100,7 +100,7 @@ def test_summarize_deals_includes_entry_and_exit_commission():
             entry=0,
             profit=0.0,
             commission="-0.35",
-            comment="FinRobot_XAUUSD_ATR_impulse",
+            comment="AIQuantTrader_XAUUSD_ATR_impulse",
             time="2026-06-10 10:00:00",
         ),
         _deal("XAUUSD", 1, entry=1, profit=10.0, commission="-0.35", time="2026-06-10 11:00:00"),

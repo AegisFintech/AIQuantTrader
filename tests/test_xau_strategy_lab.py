@@ -5,8 +5,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from finrobot.data_store import connect
-from finrobot.prices import ingest_bars
+import pytest
+
+from aiquanttrader.data_store import connect
+from aiquanttrader.prices import ingest_bars
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -48,6 +50,8 @@ def test_xau_strategy_lab_cli_smoke(tmp_path):
             str(experiment_dir),
             "--run-id",
             "lab-smoke",
+            "--max-data-age-hours",
+            "0",
         ],
         cwd=ROOT,
         capture_output=True,
@@ -67,8 +71,25 @@ def test_xau_strategy_lab_cli_smoke(tmp_path):
     assert "recent_profit_factor" in payload["winner"]
     assert "incumbent_delta_pnl" in payload["winner"]
     assert payload["backtest_defaults"]["min_challenger_pnl_delta"] == 250.0
+    candidate_config = payload["candidates"][0]
+    experiment = json.loads(Path(candidate_config["experiment_json"]).read_text(encoding="utf-8"))
+    assert experiment["backtest_config"]["point_value"] == 100.0
+    assert experiment["backtest_config"]["fill_config"]["point_size"] == 0.01
+    assert experiment["backtest_config"]["fill_config"]["commission_per_lot"] == 3.5
     assert len(payload["candidates"]) == 2
     assert (experiment_dir / "lab-smoke-incumbent_smc4.json").exists()
+
+
+def test_xau_strategy_lab_rejects_stale_data():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from xau_strategy_lab import _validate_data_freshness
+
+    with pytest.raises(ValueError, match="research data is stale"):
+        _validate_data_freshness(
+            [{"time": 1_000}],
+            max_age_hours=1.0,
+            now_epoch=10_000.0,
+        )
 
 
 def _bars(count: int) -> list[dict]:

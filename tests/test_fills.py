@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.backtest.fills import FillConfig, simulate_fill
+from aiquanttrader.backtest.fills import FillConfig, simulate_fill
 
 
 def test_buy_fill_adds_spread_and_slippage():
@@ -43,6 +43,30 @@ def test_zero_spread_zero_slippage_returns_intended_price():
     assert fill_price == pytest.approx(2000.00)
     assert slippage == pytest.approx(0.0)
     assert commission == pytest.approx(0.0)
+
+
+def test_point_size_converts_spread_points_to_price_units():
+    fill_price, slippage, _ = simulate_fill(
+        side="BUY",
+        intended_price=4000.00,
+        bar_high=4001.00,
+        bar_low=3999.00,
+        config=FillConfig(point_size=0.01, spread_points=5.0),
+    )
+
+    assert fill_price == pytest.approx(4000.025)
+    assert slippage == pytest.approx(0.025)
+
+
+def test_point_size_must_be_positive():
+    with pytest.raises(ValueError, match="point_size must be positive"):
+        simulate_fill(
+            side="BUY",
+            intended_price=4000.00,
+            bar_high=4001.00,
+            bar_low=3999.00,
+            config=FillConfig(point_size=0.0),
+        )
 
 
 def test_fill_clamps_to_bar_high_when_raw_fill_is_above_high():

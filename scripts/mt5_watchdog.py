@@ -22,7 +22,7 @@ def status_age_seconds(now: float | None = None, common: Path | None = None) -> 
     directory = common if common is not None else common_dir()
     if directory is None:
         return None
-    status_path = directory / "finrobot_status.json"
+    status_path = directory / "aiquanttrader_status.json"
     if not status_path.exists():
         return None
     return (time.time() if now is None else now) - status_path.stat().st_mtime
@@ -61,7 +61,7 @@ def restart_mt5(process_name: str) -> int:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--process-name", default="mt5-terminal")
+    parser.add_argument("--process-name", default="aiquanttrader-mt5")
     parser.add_argument(
         "--check-interval-seconds",
         type=int,

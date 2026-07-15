@@ -3,8 +3,9 @@ from __future__ import annotations
 import os
 from datetime import date, datetime, time
 from pathlib import Path
+from datetime import timezone
 
-from finrobot.backtest import (
+from aiquanttrader.backtest import (
     BacktestConfig,
     DailyRiskSizer,
     FillConfig,
@@ -16,7 +17,7 @@ from finrobot.backtest import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DUCKDB_PATH = ROOT / "data" / "finrobot.duckdb"
+DUCKDB_PATH = ROOT / "data" / "aiquanttrader.duckdb"
 XAU_SYMBOL = "XAUUSD"
 
 
@@ -118,11 +119,11 @@ def decisions_from_trades(trades: list[dict]) -> list[dict]:
 
 def _broker_wall_epoch_start(value: str) -> int:
     day = date.fromisoformat(value)
-    return int(datetime.combine(day, time.min).timestamp())
+    return int(datetime.combine(day, time.min, tzinfo=timezone.utc).timestamp())
 
 
 def _duckdb_path() -> Path:
-    value = os.getenv("FINROBOT_WAREHOUSE")
+    value = os.getenv("AIQUANTTRADER_WAREHOUSE")
     if not value:
         return DUCKDB_PATH
     path = Path(value).expanduser()
@@ -131,4 +132,4 @@ def _duckdb_path() -> Path:
 
 def _broker_wall_epoch_end(value: str) -> int:
     day = date.fromisoformat(value)
-    return int(datetime.combine(day, time.max).timestamp())
+    return int(datetime.combine(day, time.max, tzinfo=timezone.utc).timestamp())

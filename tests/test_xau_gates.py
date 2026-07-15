@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.backtest import XauGateParams, XauQuickMomentumParams, pda
-from finrobot.backtest.strategies._xau_state import XauRollingFeatureState
-from finrobot.backtest.strategies.xau_gates import (
+from aiquanttrader.backtest import XauGateParams, XauQuickMomentumParams, pda
+from aiquanttrader.backtest.strategies._xau_state import XauRollingFeatureState
+from aiquanttrader.backtest.strategies.xau_gates import (
     smc_long_components,
     smc_long_score,
     smc_short_components,

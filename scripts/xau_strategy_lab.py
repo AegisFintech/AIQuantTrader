@@ -10,6 +10,7 @@ import math
 import os
 import subprocess
 import sys
+import time
 from dataclasses import asdict, dataclass, is_dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,29 +23,44 @@ SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from finrobot.backtest import (  # noqa: E402
+
+def _ensure_runtime_deps() -> None:
+    try:
+        import duckdb  # noqa: F401
+    except ModuleNotFoundError:
+        venv_python = ROOT / ".venv" / "bin" / "python"
+        venv_root = ROOT / ".venv"
+        if venv_python.exists() and Path(sys.prefix).resolve() != venv_root.resolve():
+            os.execv(str(venv_python), [str(venv_python), str(Path(__file__)), *sys.argv[1:]])
+        raise
+
+
+_ensure_runtime_deps()
+
+
+from aiquanttrader.backtest import (  # noqa: E402
     BacktestConfig,
     Backtester,
     BreakEvenConfig,
     DailyRiskSizer,
-    FillConfig,
     compute_metrics,
     WalkForwardConfig,
+    XAUUSD_ICMARKETS_DEMO,
     XauAtrImpulseParams,
     XauAtrImpulseStrategy,
     XauGatedParams,
     XauGatedStrategy,
     run_walkforward,
 )
-from finrobot.data_store import connect  # noqa: E402
-from finrobot.research.experiments import (  # noqa: E402
+from aiquanttrader.data_store import connect  # noqa: E402
+from aiquanttrader.research.experiments import (  # noqa: E402
     ExperimentRecord,
     git_sha,
     save_experiment,
     utc_now_iso,
 )
-from finrobot.research.registry import init_registry, index_experiment  # noqa: E402
-from finrobot.xau_profiles import (  # noqa: E402
+from aiquanttrader.research.registry import init_registry, index_experiment  # noqa: E402
+from aiquanttrader.xau_profiles import (  # noqa: E402
     DEFAULT_PROFILE,
     PROFILE_CANDIDATES,
     PROFILE_FILENAME,
@@ -92,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         if not bars:
             raise ValueError(f"no bars found for {args.symbol}")
+        _validate_data_freshness(bars, max_age_hours=args.max_data_age_hours)
 
         run_id = args.run_id or _default_run_id()
         output_dir = Path(args.output_dir)
@@ -143,6 +160,7 @@ def main(argv: list[str] | None = None) -> int:
                 "min_recent_profit_factor": args.min_recent_profit_factor,
                 "min_challenger_pnl_delta": args.min_challenger_pnl_delta,
                 "min_challenger_pf_delta": args.min_challenger_pf_delta,
+                "max_data_age_hours": args.max_data_age_hours,
             },
             "winner": _json_safe(winner),
             "deployed_profile_path": profile_path,
@@ -178,11 +196,17 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--from-date", default="")
     parser.add_argument("--to-date", default="")
     parser.add_argument("--max-bars", type=int, default=0)
+    parser.add_argument(
+        "--max-data-age-hours",
+        type=float,
+        default=72.0,
+        help="Reject stale research bars; use 0 only for controlled historical tests",
+    )
     parser.add_argument("--initial-equity", type=float, default=1_000_000.0)
     parser.add_argument("--min-trades", type=float, default=8.0)
     parser.add_argument("--min-consistency", type=float, default=0.60)
-    parser.add_argument("--data-source", type=Path, default=ROOT / "data" / "finrobot.duckdb")
-    parser.add_argument("--registry", type=Path, default=ROOT / "data" / "finrobot.duckdb")
+    parser.add_argument("--data-source", type=Path, default=ROOT / "data" / "aiquanttrader.duckdb")
+    parser.add_argument("--registry", type=Path, default=ROOT / "data" / "aiquanttrader.duckdb")
     parser.add_argument("--output-dir", type=Path, default=ROOT / "state" / "research" / "profile_lab")
     parser.add_argument("--experiment-dir", type=Path, default=ROOT / "state" / "research" / "experiments")
     parser.add_argument("--run-id", default="")
@@ -302,7 +326,8 @@ def _strategy(profile: XauStrategyProfile) -> XauGatedStrategy:
             impulse_atr_mult=profile.impulse_atr_multiplier,
             stop_atr_mult=profile.stop_atr_multiplier,
             tp_atr_mult=profile.take_profit_atr_multiplier,
-        )
+        ),
+        timeframe=profile.auto_timeframe,
     )
     return XauGatedStrategy(
         inner,
@@ -313,6 +338,7 @@ def _strategy(profile: XauStrategyProfile) -> XauGatedStrategy:
             enable_smc_gate=profile.enable_smart_money_gates,
             enable_pda_gate=True,
             enable_adx_gate=profile.enable_adx_regime_filter,
+            enable_macd_histogram_alignment=profile.enable_macd_histogram_alignment,
             adx_min_threshold=profile.adx_min_threshold,
             min_seconds_between_trades=profile.min_seconds_between_trades_xauusd,
             blackout_enabled=profile.blackout_enabled,
@@ -338,7 +364,7 @@ def _backtest_config(
 ) -> BacktestConfig:
     return BacktestConfig(
         symbol=args.symbol,
-        fill_config=FillConfig(),
+        fill_config=XAUUSD_ICMARKETS_DEMO.fill_config(),
         sizer=DailyRiskSizer(
             risk_per_trade_fraction=profile.daily_risk_per_trade_fraction,
             daily_loss_cap_fraction=profile.daily_loss_limit_fraction,
@@ -350,6 +376,7 @@ def _backtest_config(
             bad_day_downshift_fraction=profile.bad_day_downshift_fraction,
         ),
         initial_equity=args.initial_equity,
+        point_value=XAUUSD_ICMARKETS_DEMO.price_value_per_lot,
         min_seconds_between_trades=profile.min_seconds_between_trades_xauusd,
         loss_streak_pause_count=profile.loss_streak_pause_count,
         max_recent_drawdown_fraction=profile.max_recent_drawdown_fraction,
@@ -422,6 +449,25 @@ def _load_bars(
         }
         for row in rows
     ]
+
+
+def _validate_data_freshness(
+    bars: list[dict],
+    *,
+    max_age_hours: float,
+    now_epoch: float | None = None,
+) -> None:
+    if max_age_hours <= 0.0 or not bars:
+        return
+    latest = int(bars[-1]["time"])
+    now = time.time() if now_epoch is None else float(now_epoch)
+    age_hours = max(0.0, now - latest) / 3600.0
+    if age_hours > max_age_hours:
+        raise ValueError(
+            "research data is stale: "
+            f"latest={_epoch_to_iso(latest)} age_hours={age_hours:.1f} "
+            f"limit_hours={max_age_hours:.1f}; harvest fresh XAUUSD bars first"
+        )
 
 
 def _winner(results: list[CandidateResult]) -> CandidateResult:
@@ -617,7 +663,7 @@ def _json_safe(value: Any) -> Any:
         return [_json_safe(item) for item in value]
     if isinstance(value, Path):
         return str(value)
-    if hasattr(value, "__dict__") and value.__class__.__module__.startswith("finrobot."):
+    if hasattr(value, "__dict__") and value.__class__.__module__.startswith("aiquanttrader."):
         return _json_safe(vars(value))
     if isinstance(value, float) and math.isinf(value):
         return "inf" if value > 0 else "-inf"

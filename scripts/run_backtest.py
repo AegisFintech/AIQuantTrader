@@ -14,17 +14,18 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from finrobot.backtest import (  # noqa: E402
+from aiquanttrader.backtest import (  # noqa: E402
     Backtester,
     BacktestConfig,
     BuyAndHold,
     PositionSizer,
+    XAUUSD_ICMARKETS_DEMO,
     compute_metrics,
 )
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run a deterministic FinRobot backtest.")
+    parser = argparse.ArgumentParser(description="Run a deterministic AIQuantTrader backtest.")
     parser.add_argument("--strategy", choices=("BuyAndHold",), default="BuyAndHold")
     parser.add_argument("--data-path", type=Path, default=ROOT / "data" / "XAUUSD1.csv")
     parser.add_argument("--initial-equity", type=float, default=10000.0)
@@ -38,18 +39,20 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        from finrobot.prices import load_tsv_bars
+        from aiquanttrader.prices import load_tsv_bars
 
         bars = list(load_tsv_bars(args.data_path))
         strategy = _build_strategy(args.strategy, risk_per_trade=args.risk_per_trade)
         config = BacktestConfig(
             initial_equity=args.initial_equity,
+            fill_config=XAUUSD_ICMARKETS_DEMO.fill_config(),
             sizer=PositionSizer(
                 risk_per_trade_fraction=args.risk_per_trade,
                 daily_loss_cap_fraction=0.01,
                 max_lot_per_trade=5.0,
                 max_positions_per_symbol=2,
             ),
+            point_value=XAUUSD_ICMARKETS_DEMO.price_value_per_lot,
         )
         result = Backtester(config).run(strategy=strategy, bars=bars)
         report = compute_metrics(result)

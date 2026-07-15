@@ -1,6 +1,6 @@
 import pandas as pd
 
-from finrobot.hft import (
+from aiquanttrader.hft import (
     HFTConfig,
     TrendMartingaleConfig,
     backtest_hft,

@@ -2,10 +2,10 @@
 """Archive the MT5 Common Files snapshot to state/mt5/archive/YYYY-MM-DD/HHMMSS/.
 
 Each run copies:
-  - finrobot_status.json
-  - finrobot_positions.csv
-  - finrobot_deals.csv
-  - finrobot_acks.csv
+  - aiquanttrader_status.json
+  - aiquanttrader_positions.csv
+  - aiquanttrader_deals.csv
+  - aiquanttrader_acks.csv
 
 from the live Common Files directory into a timestamped sub-directory under
 `state/mt5/archive/`. Files that do not exist (or are empty) are skipped
@@ -16,7 +16,7 @@ Exit code:
   2  - could not locate Common Files directory
 
 Cron recommendation (run once per day, e.g. 23:55 local):
-  55 23 * * *  cd /root/FinRobot && .venv/bin/python scripts/archive_common_files.py
+  55 23 * * *  cd /root/AIQuantTrader && .venv/bin/python scripts/archive_common_files.py
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from runtime_paths import common_dir  # noqa: E402
 
 STATE_DIR = ROOT / "state" / "mt5" / "archive"
-FILES = ("finrobot_status.json", "finrobot_positions.csv", "finrobot_deals.csv", "finrobot_acks.csv")
+FILES = ("aiquanttrader_status.json", "aiquanttrader_positions.csv", "aiquanttrader_deals.csv", "aiquanttrader_acks.csv")
 
 
 def archive_now(common: Path | None = None) -> Path:

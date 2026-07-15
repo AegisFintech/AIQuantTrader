@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Install the FinRobot cron policy.
+# Install the AIQuantTrader cron policy.
 #
-# Copies config/finrobot.cron into /etc/cron.d/finrobot and validates the file
+# Copies config/aiquanttrader.cron into /etc/cron.d/aiquanttrader and validates the file
 # with the local crontab dry-run syntax checker.
 #
 # Idempotent: safe to re-run; it overwrites the destination.
@@ -9,8 +9,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC="$ROOT/config/finrobot.cron"
-DEST="/etc/cron.d/finrobot"
+SRC="$ROOT/config/aiquanttrader.cron"
+DEST="/etc/cron.d/aiquanttrader"
 
 if [ ! -f "$SRC" ]; then
     echo "Source cron file not found: $SRC" >&2
@@ -46,4 +46,4 @@ crontab "$syntax_flag" "$DEST" >/dev/null
 echo "[OK] installed $DEST"
 echo "Cron syntax check: OK (crontab $syntax_flag $DEST)"
 echo "Uninstall with:"
-echo "  sudo rm /etc/cron.d/finrobot"
+echo "  sudo rm /etc/cron.d/aiquanttrader"

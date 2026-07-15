@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from finrobot import release_manifest  # noqa: E402
+from aiquanttrader import release_manifest  # noqa: E402
 
 
 def display_path(path: Path) -> str:
@@ -22,7 +22,7 @@ def display_path(path: Path) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Build FinRobot release manifests.")
+    parser = argparse.ArgumentParser(description="Build AIQuantTrader release manifests.")
     parser.add_argument("--no-ea-manifest", action="store_true")
     parser.add_argument("--out", type=Path)
     parser.add_argument("--ea-out", type=Path)

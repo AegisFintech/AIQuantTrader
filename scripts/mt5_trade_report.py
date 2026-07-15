@@ -116,10 +116,10 @@ def main() -> None:
     print(f'MT5 common dir: {d or "not found"}')
     if not d:
         return
-    status_path = d / 'finrobot_status.json'
-    positions_path = d / 'finrobot_positions.csv'
-    deals_path = d / 'finrobot_deals.csv'
-    acks_path = d / 'finrobot_acks.csv'
+    status_path = d / 'aiquanttrader_status.json'
+    positions_path = d / 'aiquanttrader_positions.csv'
+    deals_path = d / 'aiquanttrader_deals.csv'
+    acks_path = d / 'aiquanttrader_acks.csv'
 
     status = read_json(status_path)
     if status:
