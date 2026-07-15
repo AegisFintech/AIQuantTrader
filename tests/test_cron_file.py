@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CRON_PATH = ROOT / "config" / "finrobot.cron"
+CRON_PATH = ROOT / "config" / "aiquanttrader.cron"
 EXPECTED_SCRIPTS = {
     "scripts/mt5_minute_cycle.py",
     "scripts/mt5_validate_warehouse.py",
@@ -12,7 +12,7 @@ EXPECTED_SCRIPTS = {
     "scripts/alert_delivery.py",
     "scripts/healthcheck.py",
 }
-LOG_REDIRECT = ">> /root/FinRobot/logs/cron.log 2>&1"
+LOG_REDIRECT = ">> /root/AIQuantTrader/logs/cron.log 2>&1"
 
 
 def test_cron_file_has_top_level_operator_comments():
@@ -71,7 +71,7 @@ def test_duckdb_jobs_use_shared_lock():
     for line in _cron_lines():
         if _script_for(line) in locked_scripts:
             assert "/usr/bin/flock" in line.split()
-            assert "/tmp/finrobot-duckdb.lock" in line.split()
+            assert "/tmp/aiquanttrader-duckdb.lock" in line.split()
 
 
 def _cron_lines() -> list[str]:

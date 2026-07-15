@@ -1,13 +1,13 @@
-# FinRobot — Quant Analysis & Development Guide
+# AIQuantTrader — Quant Analysis & Development Guide
 
 ## System Overview
 
-MT5-first autonomous demo trading system for XAUUSD. MetaTrader 5 runs under Wine/Xvfb, the FinRobot EA trades inside MT5, PM2 keeps MT5 + autonomous review loop + dashboard alive. Python layer mirrors the MQL5 signal logic for backtesting and provides an institutional-grade research framework (ML signals, regime detection, significance testing).
+MT5-first autonomous demo trading system for XAUUSD. MetaTrader 5 runs under Wine/Xvfb, the AIQuantTrader EA trades inside MT5, PM2 keeps MT5 + autonomous review loop + dashboard alive. Python layer mirrors the MQL5 signal logic for backtesting and provides an institutional-grade research framework (ML signals, regime detection, significance testing).
 
-**Active EA:** `broker/mt5/FinRobotBridgeEA.mq5` v1.35  
-**Symbols:** XAUUSD only (BTC retired)  
-**Timeframe:** M5 (AutoTimeframe=PERIOD_M5)  
-**Broker:** ICMarketsSC-Demo  
+**Active EA:** `broker/mt5/AIQuantTraderBridgeEA.mq5` v2.00
+**Symbols:** XAUUSD only (BTC retired)
+**Timeframe:** M1 (`AutoTimeframe=PERIOD_M1`)
+**Broker:** ICMarketsSC-Demo
 
 ---
 
@@ -15,8 +15,8 @@ MT5-first autonomous demo trading system for XAUUSD. MetaTrader 5 runs under Win
 
 ### What's Working Well
 
-- **Risk sizing is correct.** `DailyRiskPerTradeFraction=0.001` (0.10% equity/trade), `DailyLossLimitFraction=0.01` (1% daily cap). `PositionSizer` and `DailyRiskSizer` in Python mirror the EA path — the parity is real and valuable.
-- **Walk-forward framework is properly built.** Purge + embargo windows in `finrobot/backtest/walkforward.py` guard against leakage. Most hobby quant projects skip this.
+- **Risk sizing is correct.** `DailyRiskPerTradeFraction=0.0100` (1.00% equity/trade hard cap), `DailyLossLimitFraction=0.01` (1% daily cap). `PositionSizer` and `DailyRiskSizer` in Python mirror the EA path.
+- **Walk-forward framework is properly built.** Purge + embargo windows in `aiquanttrader/backtest/walkforward.py` guard against leakage. Most hobby quant projects skip this.
 - **Backtest engine is deterministic and EA-faithful.** `engine.py` is event-driven, `fills.py` models spread/slippage/commission/swap. EMA/RSI/MACD/ATR all use Wilder-style smoothing matching MT5's calculation. `xau_gates.py` and `btc_gates.py` directly mirror the MQL5 signal paths.
 - **SMC implementation is coherent.** FVG, order blocks, liquidity sweeps, structure shifts, and PDA scoring in both MQL5 and Python are consistent and correctly gated (SMC score ≥ 3 for XAU, ≥ 2 for BTC).
 - **Multi-layered risk controls.** Spread cap, session gate, max positions, same-direction cap, cooldown, daily loss limit, dynamic break-even — each layer is meaningful.
@@ -44,7 +44,7 @@ MT5-first autonomous demo trading system for XAUUSD. MetaTrader 5 runs under Win
 
 #### 3. No regime detection in the live EA
 EA fires on any bar passing SMC score + session gate. In ranging/choppy conditions (~40-50% of XAUUSD time), EMA crosses are noisy. ADX already computed in `indicators.py` but not in the EA.  
-**Fix:** Add ADX(14) > 20 gate to `FinRobotBridgeEA.mq5`.
+**Fix:** Add ADX(14) > 20 gate to `AIQuantTraderBridgeEA.mq5`.
 
 #### 4. SMC structure is M5-only — too shallow
 `smc_lookback=48` M5 bars = 4 hours of structure. Real SMC uses H4 for major swings, H1 for intermediate, M5 for entry. Micro-structure shifts on M5-only get invalidated frequently.  
@@ -60,7 +60,7 @@ EA fires on any bar passing SMC score + session gate. In ranging/choppy conditio
 
 #### 7. Python research code disconnected from live EA path
 `hft.py`, `strategies/grid.py`, `strategies/harmonics.py`, and `indicators.py` contain SMC logic that differs from `SmartMoney.mqh`. These do not feed the parity backtester. Creates false sense of research activity.  
-**Fix:** Either integrate into the `finrobot/backtest/` path or remove.
+**Fix:** Either integrate into the `aiquanttrader/backtest/` path or remove.
 
 #### 8. O(n²) loops in research indicators
 `indicators.py` and `smart_money.py` use `.iloc[i]` inside for loops. On 100K bars ≈ 10 seconds per call.  
@@ -126,7 +126,7 @@ Pipeline run on 100K M1 bars (Jan-May 2026):
 
 | Path | Purpose |
 |---|---|
-| `broker/mt5/FinRobotBridgeEA.mq5` | Live EA — all trading logic, risk controls, SMC gates |
+| `broker/mt5/AIQuantTraderBridgeEA.mq5` | Live EA — all trading logic, risk controls, SMC gates |
 | `broker/mt5/SmartMoney.mqh` | MQL5 SMC: FVG, OB, sweep, structure, PDA scoring |
 | `broker/mt5/RiskManagement.mqh` | MQL5 daily PnL, session gate, break-even |
 
@@ -134,46 +134,46 @@ Pipeline run on 100K M1 bars (Jan-May 2026):
 
 | Path | Purpose |
 |---|---|
-| `finrobot/backtest/engine.py` | Deterministic bar-by-bar backtest engine |
-| `finrobot/backtest/fills.py` | Fill simulation: spread, slippage, commission, swap |
-| `finrobot/backtest/position.py` | Position state + `DailyRiskSizer` (mirrors EA sizing) |
-| `finrobot/backtest/metrics.py` | Sharpe, Sortino, Calmar, skewness, kurtosis, recovery factor, monthly P&L |
-| `finrobot/backtest/walkforward.py` | Purged walk-forward with embargo windows |
-| `finrobot/backtest/strategies/xau_gates.py` | Python port of MQL5 SMC/PDA gate logic |
-| `finrobot/backtest/strategies/xau_gated.py` | XAU gate wrapper strategy |
-| `finrobot/backtest/strategies/xau_atr_impulse.py` | ATR impulse breakout (mirrors EA) |
-| `finrobot/backtest/strategies/xau_quick_momentum.py` | EMA crossover momentum (mirrors EA) |
-| `finrobot/backtest/strategies/xau_mean_reversion.py` | Mean reversion sleeve (ranging regime) |
-| `finrobot/backtest/strategies/xau_ml_ensemble.py` | ML-driven signal sleeve |
-| `finrobot/backtest/strategies/xau_seasonal.py` | Calendar/session patterns sleeve |
+| `aiquanttrader/backtest/engine.py` | Deterministic bar-by-bar backtest engine |
+| `aiquanttrader/backtest/fills.py` | Fill simulation: spread, slippage, commission, swap |
+| `aiquanttrader/backtest/position.py` | Position state + `DailyRiskSizer` (mirrors EA sizing) |
+| `aiquanttrader/backtest/metrics.py` | Sharpe, Sortino, Calmar, skewness, kurtosis, recovery factor, monthly P&L |
+| `aiquanttrader/backtest/walkforward.py` | Purged walk-forward with embargo windows |
+| `aiquanttrader/backtest/strategies/xau_gates.py` | Python port of MQL5 SMC/PDA gate logic |
+| `aiquanttrader/backtest/strategies/xau_gated.py` | XAU gate wrapper strategy |
+| `aiquanttrader/backtest/strategies/xau_atr_impulse.py` | ATR impulse breakout (mirrors EA) |
+| `aiquanttrader/backtest/strategies/xau_quick_momentum.py` | EMA crossover momentum (mirrors EA) |
+| `aiquanttrader/backtest/strategies/xau_mean_reversion.py` | Mean reversion sleeve (ranging regime) |
+| `aiquanttrader/backtest/strategies/xau_ml_ensemble.py` | ML-driven signal sleeve |
+| `aiquanttrader/backtest/strategies/xau_seasonal.py` | Calendar/session patterns sleeve |
 
 ### Research Framework (added 2026-07-09)
 
 | Path | Purpose |
 |---|---|
-| `finrobot/research/features.py` | 24-feature engineering pipeline (price, vol, technical, MTF, seasonal) |
-| `finrobot/research/regime.py` | HMM regime detection (trending/ranging/volatile) |
-| `finrobot/research/models.py` | LightGBM walk-forward training with purge+embargo |
-| `finrobot/research/significance.py` | Deflated Sharpe Ratio, Monte Carlo permutation, bootstrap CI |
-| `finrobot/research/optimizer.py` | Optuna Bayesian parameter optimization (OOS objective) |
-| `finrobot/research/experiments.py` | Experiment record tracking |
-| `finrobot/research/comparison.py` | Challenger-vs-incumbent promotion comparison |
-| `finrobot/research/registry.py` | DuckDB experiment registry |
+| `aiquanttrader/research/features.py` | 24-feature engineering pipeline (price, vol, technical, MTF, seasonal) |
+| `aiquanttrader/research/regime.py` | HMM regime detection (trending/ranging/volatile) |
+| `aiquanttrader/research/models.py` | LightGBM walk-forward training with purge+embargo |
+| `aiquanttrader/research/significance.py` | Deflated Sharpe Ratio, Monte Carlo permutation, bootstrap CI |
+| `aiquanttrader/research/optimizer.py` | Optuna Bayesian parameter optimization (OOS objective) |
+| `aiquanttrader/research/experiments.py` | Experiment record tracking |
+| `aiquanttrader/research/comparison.py` | Challenger-vs-incumbent promotion comparison |
+| `aiquanttrader/research/registry.py` | DuckDB experiment registry |
 
 ### Risk Management
 
 | Path | Purpose |
 |---|---|
-| `finrobot/risk/kelly.py` | Fractional Kelly sizing with exponential decay |
-| `finrobot/risk/vol_target.py` | Volatility targeting (constant-vol position sizing) |
-| `finrobot/risk/limits.py` | Graduated drawdown response (reduce/halt/flatten) |
+| `aiquanttrader/risk/kelly.py` | Fractional Kelly sizing with exponential decay |
+| `aiquanttrader/risk/vol_target.py` | Volatility targeting (constant-vol position sizing) |
+| `aiquanttrader/risk/limits.py` | Graduated drawdown response (reduce/halt/flatten) |
 
 ### Multi-Strategy Orchestration
 
 | Path | Purpose |
 |---|---|
-| `finrobot/strategies/orchestrator.py` | Regime-aware multi-sleeve orchestrator with conflict resolution |
-| `finrobot/monitoring/alpha_decay.py` | Rolling Sharpe + CUSUM change-point detection |
+| `aiquanttrader/strategies/orchestrator.py` | Regime-aware multi-sleeve orchestrator with conflict resolution |
+| `aiquanttrader/monitoring/alpha_decay.py` | Rolling Sharpe + CUSUM change-point detection |
 
 ### Scripts
 
@@ -188,16 +188,16 @@ Pipeline run on 100K M1 bars (Jan-May 2026):
 
 | Path | Purpose |
 |---|---|
-| `data/finrobot.duckdb` | DuckDB warehouse: status, positions, deals, acks, prices tables |
+| `data/aiquanttrader.duckdb` | DuckDB warehouse: status, positions, deals, acks, prices tables |
 | `data/XAUUSD1.csv` | 100K M1 XAUUSD bars, Jan-May 2026 |
 
 ### Legacy/Research (not in live path)
 
 | Path | Purpose |
 |---|---|
-| `finrobot/indicators.py` | Research indicators (vectorized rsi_divergence) |
-| `finrobot/hft.py` | HFT research module |
-| `finrobot/strategies/smart_money.py` | Research SMC (diverges from MQL5) |
+| `aiquanttrader/indicators.py` | Research indicators (vectorized rsi_divergence) |
+| `aiquanttrader/hft.py` | HFT research module |
+| `aiquanttrader/strategies/smart_money.py` | Research SMC (diverges from MQL5) |
 
 ---
 

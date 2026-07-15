@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.backtest import DailyRiskSizer
+from aiquanttrader.backtest import DailyRiskSizer
 
 
 def test_daily_risk_sizer_basic():

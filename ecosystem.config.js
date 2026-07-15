@@ -1,5 +1,5 @@
-// PM2 ecosystem for FinRobot.
-// Active trading is MT5 demo via FinRobotBridgeEA on XAUUSD.
+// PM2 ecosystem for AIQuantTrader.
+// Active trading is MT5 demo via AIQuantTraderBridgeEA on XAUUSD.
 // All PM2 service output is intentionally consolidated into logs/combined.log.
 
 const path = require("path");
@@ -10,7 +10,7 @@ const COMBINED_LOG = path.join(ROOT, "logs", "combined.log");
 module.exports = {
   apps: [
     {
-      name: "mt5-terminal",
+      name: "aiquanttrader-mt5",
       cwd: ROOT,
       script: "scripts/start_mt5.sh",
       interpreter: "bash",
@@ -23,7 +23,7 @@ module.exports = {
       time: true,
     },
     {
-      name: "autonomous-review",
+      name: "aiquanttrader-review",
       cwd: ROOT,
       script: "scripts/autonomous_review_loop.py",
       interpreter: path.join(ROOT, ".venv", "bin", "python"),
@@ -36,7 +36,7 @@ module.exports = {
       time: true,
     },
     {
-      name: "mt5-watchdog",
+      name: "aiquanttrader-watchdog",
       cwd: ROOT,
       script: "scripts/mt5_watchdog.py",
       interpreter: path.join(ROOT, ".venv", "bin", "python"),
@@ -49,7 +49,7 @@ module.exports = {
       time: true,
     },
     {
-      name: "finrobot-dashboard",
+      name: "aiquanttrader-dashboard",
       cwd: ROOT,
       script: path.join(ROOT, ".venv", "bin", "streamlit"),
       args: "run dashboard/app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true --browser.gatherUsageStats false --server.enableCORS false --server.enableXsrfProtection false",

@@ -2,9 +2,9 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-RUNTIME_DIR="${FINROBOT_RUNTIME_DIR:-$ROOT/.runtime}"
-WINEPREFIX_DIR="${FINROBOT_WINEPREFIX:-$RUNTIME_DIR/wineprefix}"
-MT5_DIR="${FINROBOT_MT5_DIR:-$RUNTIME_DIR/mt5}"
+RUNTIME_DIR="${AIQUANTTRADER_RUNTIME_DIR:-$ROOT/.runtime}"
+WINEPREFIX_DIR="${AIQUANTTRADER_WINEPREFIX:-$RUNTIME_DIR/wineprefix}"
+MT5_DIR="${AIQUANTTRADER_MT5_DIR:-$RUNTIME_DIR/mt5}"
 DOWNLOAD_DIR="$RUNTIME_DIR/downloads"
 INSTALLER="$DOWNLOAD_DIR/mt5setup.exe"
 TERMINAL_ROOT="$MT5_DIR/terminal"
@@ -18,11 +18,11 @@ if [ -f "$ROOT/.env" ]; then
   set +a
 fi
 
-SKIP_MT5="${FINROBOT_SKIP_MT5_INSTALL:-false}"
-ALLOW_EMULATED="${FINROBOT_ALLOW_EMULATED_MT5:-false}"
-WINE_CMD="${FINROBOT_WINE_CMD:-wine}"
-WINEBOOT_TIMEOUT="${FINROBOT_WINEBOOT_TIMEOUT:-60s}"
-MT5_INSTALL_TIMEOUT="${FINROBOT_MT5_INSTALL_TIMEOUT:-10m}"
+SKIP_MT5="${AIQUANTTRADER_SKIP_MT5_INSTALL:-false}"
+ALLOW_EMULATED="${AIQUANTTRADER_ALLOW_EMULATED_MT5:-false}"
+WINE_CMD="${AIQUANTTRADER_WINE_CMD:-wine}"
+WINEBOOT_TIMEOUT="${AIQUANTTRADER_WINEBOOT_TIMEOUT:-60s}"
+MT5_INSTALL_TIMEOUT="${AIQUANTTRADER_MT5_INSTALL_TIMEOUT:-10m}"
 
 if [ ! -f /etc/os-release ]; then
   echo "Unsupported OS: /etc/os-release not found" >&2
@@ -50,7 +50,7 @@ fi
 
 ARCH=$(uname -m)
 
-if [ "$ALLOW_EMULATED" = "true" ] && [ "$ARCH" != "x86_64" ] && [ "$ARCH" != "amd64" ] && [ -z "${FINROBOT_WINE_CMD:-}" ]; then
+if [ "$ALLOW_EMULATED" = "true" ] && [ "$ARCH" != "x86_64" ] && [ "$ARCH" != "amd64" ] && [ -z "${AIQUANTTRADER_WINE_CMD:-}" ]; then
   if command -v wine >/dev/null 2>&1 && wine --version 2>/dev/null | grep -qi 'hangover'; then
     WINE_CMD="wine"
   else
@@ -67,8 +67,8 @@ run_wine() {
 build_wineboot_cmd() {
   local last_index wine_bin wineboot_bin
 
-  if [ -n "${FINROBOT_WINEBOOT_CMD:-}" ]; then
-    read -r -a WINEBOOT_CMD_ARR <<< "$FINROBOT_WINEBOOT_CMD"
+  if [ -n "${AIQUANTTRADER_WINEBOOT_CMD:-}" ]; then
+    read -r -a WINEBOOT_CMD_ARR <<< "$AIQUANTTRADER_WINEBOOT_CMD"
     WINEBOOT_CMD_ARR+=(-u)
     return
   fi
@@ -141,8 +141,8 @@ python3 -m venv "$ROOT/.venv"
 # --- MT5 / Wine installation ---
 if ! $MT5_CAPABLE; then
   echo ""
-  echo "Skipping MT5 installation ($ARCH is not x86_64, or FINROBOT_SKIP_MT5_INSTALL=true)."
-  echo "Set FINROBOT_ALLOW_EMULATED_MT5=true and FINROBOT_WINE_CMD to use Wine via emulation."
+  echo "Skipping MT5 installation ($ARCH is not x86_64, or AIQUANTTRADER_SKIP_MT5_INSTALL=true)."
+  echo "Set AIQUANTTRADER_ALLOW_EMULATED_MT5=true and AIQUANTTRADER_WINE_CMD to use Wine via emulation."
   echo "Python venv, PM2, and non-MT5 tooling are ready anyway."
 else
   mkdir -p "$DOWNLOAD_DIR" "$TERMINAL_ROOT" "$LOG_DIR"
@@ -161,11 +161,11 @@ else
   timeout "$WINEBOOT_TIMEOUT" xvfb-run -a "${WINEBOOT_CMD_ARR[@]}" >/dev/null 2>&1 || true
 
   echo "Installing MT5 into repo-local runtime..."
-  timeout "$MT5_INSTALL_TIMEOUT" xvfb-run -a "${WINE_CMD_ARR[@]}" "$INSTALLER" /auto "/path:C:\\FinRobotMT5" > "$LOG_DIR/mt5_install.log" 2>&1 || true
+  timeout "$MT5_INSTALL_TIMEOUT" xvfb-run -a "${WINE_CMD_ARR[@]}" "$INSTALLER" /auto "/path:C:\\AIQuantTraderMT5" > "$LOG_DIR/mt5_install.log" 2>&1 || true
 
   FOUND=""
   for candidate in \
-    "$WINEPREFIX_DIR/drive_c/FinRobotMT5/terminal64.exe" \
+    "$WINEPREFIX_DIR/drive_c/AIQuantTraderMT5/terminal64.exe" \
     "$WINEPREFIX_DIR/drive_c/Program Files/MetaTrader 5/terminal64.exe" \
     "$WINEPREFIX_DIR/drive_c/Program Files (x86)/MetaTrader 5/terminal64.exe"; do
     if [ -f "$candidate" ]; then
@@ -185,11 +185,11 @@ else
 
   ln -sfn "$(dirname "$FOUND")" "$TERMINAL_LINK"
 
-  echo "Syncing FinRobot EA..."
+  echo "Syncing AIQuantTrader EA..."
   "$ROOT/scripts/sync_mt5_ea.sh"
 
   mkdir -p "$TERMINAL_LINK/Config"
-  cat > "$TERMINAL_LINK/Config/finrobot-login.ini" <<INI
+  cat > "$TERMINAL_LINK/Config/aiquanttrader-login.ini" <<INI
 [Common]
 Login=${MT5_LOGIN:-}
 Password=${MT5_PASSWORD:-}
@@ -198,7 +198,7 @@ ProxyEnable=0
 NewsEnable=0
 CertInstall=0
 INI
-  chmod 600 "$TERMINAL_LINK/Config/finrobot-login.ini"
+  chmod 600 "$TERMINAL_LINK/Config/aiquanttrader-login.ini"
   "$ROOT/.venv/bin/python" "$ROOT/scripts/mt5_configure_profile.py"
 fi
 

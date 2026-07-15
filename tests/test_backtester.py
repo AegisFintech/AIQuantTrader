@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.backtest import (
+from aiquanttrader.backtest import (
     Backtester,
     BacktestConfig,
     BuyAndHold,

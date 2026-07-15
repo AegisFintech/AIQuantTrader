@@ -1,6 +1,6 @@
 import pandas as pd
 
-from finrobot.backtesting import BacktestConfig, backtest_trend_martingale, build_trend_signals_from_m1
+from aiquanttrader.backtesting import BacktestConfig, backtest_trend_martingale, build_trend_signals_from_m1
 
 
 def _sample_m1(rows: int = 300):

@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""FinRobot healthcheck: surface stale heartbeats, missing files, and risk breaches.
+"""AIQuantTrader healthcheck: surface stale heartbeats, missing files, and risk breaches.
 
 Exits non-zero if any check fails so it can be wired into cron/systemd timers
 or a simple alert. Designed to be importable so tests can call `check()` directly
 without going through the CLI.
 
 Checks (all read-only):
-  1. Common Files directory exists and contains a fresh finrobot_status.json.
-  2. finrobot_positions.csv exists; no managed position is missing both SL and TP
+  1. Common Files directory exists and contains a fresh aiquanttrader_status.json.
+  2. aiquanttrader_positions.csv exists; no managed position is missing both SL and TP
      unless the EA's auto-close-no-sl-tp safety is enabled.
-  3. money_management.loss_limit_reached is 0 in finrobot_status.json.
+  3. money_management.loss_limit_reached is 0 in aiquanttrader_status.json.
   4. Repository disk usage stays below the configured ceiling.
   5. Autonomous research has a recent successful strategy-lab record.
   6. All active PM2 services are online and below the restart threshold.
@@ -41,10 +41,10 @@ DEFAULT_PM2_STALE_RESTARTS = 20  # mirror ecosystem.config.js max_restarts
 DEFAULT_DISK_MAX_USED_PERCENT = 85.0
 DEFAULT_RESEARCH_MAX_AGE_HOURS = 14.0
 DEFAULT_PM2_PROCESSES = (
-    "mt5-terminal",
-    "mt5-watchdog",
-    "autonomous-review",
-    "finrobot-dashboard",
+    "aiquanttrader-mt5",
+    "aiquanttrader-watchdog",
+    "aiquanttrader-review",
+    "aiquanttrader-dashboard",
 )
 DEFAULT_RESEARCH_JOURNAL = ROOT / "state" / "mt5" / "improver_journal.jsonl"
 
@@ -58,7 +58,7 @@ class CheckResult:
 
 
 def _read_status(common: Path) -> dict:
-    path = common / "finrobot_status.json"
+    path = common / "aiquanttrader_status.json"
     if not path.exists() or not path.stat().st_size:
         return {}
     try:
@@ -68,7 +68,7 @@ def _read_status(common: Path) -> dict:
 
 
 def _read_positions(common: Path) -> list[dict]:
-    path = common / "finrobot_positions.csv"
+    path = common / "aiquanttrader_positions.csv"
     if not path.exists() or not path.stat().st_size:
         return []
     import csv
@@ -78,25 +78,25 @@ def _read_positions(common: Path) -> list[dict]:
 
 
 def check_heartbeat(common: Path, stale_seconds: int) -> CheckResult:
-    status_path = common / "finrobot_status.json"
+    status_path = common / "aiquanttrader_status.json"
     if not status_path.exists():
         return CheckResult(
             name="heartbeat_present",
             ok=False,
-            detail=f"finrobot_status.json missing at {status_path}",
+            detail=f"aiquanttrader_status.json missing at {status_path}",
         )
     age = time.time() - status_path.stat().st_mtime
     if age > stale_seconds:
         return CheckResult(
             name="heartbeat_fresh",
             ok=False,
-            detail=f"finrobot_status.json is {age:.1f}s old (>{stale_seconds}s)",
+            detail=f"aiquanttrader_status.json is {age:.1f}s old (>{stale_seconds}s)",
             extra={"age_seconds": round(age, 1)},
         )
     return CheckResult(
         name="heartbeat_fresh",
         ok=True,
-        detail=f"finrobot_status.json age {age:.1f}s",
+        detail=f"aiquanttrader_status.json age {age:.1f}s",
         extra={"age_seconds": round(age, 1)},
     )
 
@@ -259,7 +259,7 @@ def check_research_freshness(
     )
 
 
-def check_pm2(process_name: str = "mt5-terminal") -> CheckResult:
+def check_pm2(process_name: str = "aiquanttrader-mt5") -> CheckResult:
     try:
         proc = subprocess.run(
             ["pm2", "jlist"],
@@ -369,12 +369,12 @@ def main() -> int:
         "--heartbeat-stale-seconds",
         type=int,
         default=DEFAULT_HEARTBEAT_STALE_SECONDS,
-        help="Max age in seconds for finrobot_status.json to be considered fresh",
+        help="Max age in seconds for aiquanttrader_status.json to be considered fresh",
     )
     parser.add_argument(
         "--pm2-process",
         default="",
-        help="Check only this PM2 process instead of all active FinRobot services",
+        help="Check only this PM2 process instead of all active AIQuantTrader services",
     )
     parser.add_argument(
         "--disk-max-used-percent",

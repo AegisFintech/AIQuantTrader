@@ -38,7 +38,7 @@ def _ensure_runtime_deps() -> None:
 _ensure_runtime_deps()
 
 
-from finrobot.backtest import (  # noqa: E402
+from aiquanttrader.backtest import (  # noqa: E402
     BacktestConfig,
     Backtester,
     BreakEvenConfig,
@@ -52,15 +52,15 @@ from finrobot.backtest import (  # noqa: E402
     XauGatedStrategy,
     run_walkforward,
 )
-from finrobot.data_store import connect  # noqa: E402
-from finrobot.research.experiments import (  # noqa: E402
+from aiquanttrader.data_store import connect  # noqa: E402
+from aiquanttrader.research.experiments import (  # noqa: E402
     ExperimentRecord,
     git_sha,
     save_experiment,
     utc_now_iso,
 )
-from finrobot.research.registry import init_registry, index_experiment  # noqa: E402
-from finrobot.xau_profiles import (  # noqa: E402
+from aiquanttrader.research.registry import init_registry, index_experiment  # noqa: E402
+from aiquanttrader.xau_profiles import (  # noqa: E402
     DEFAULT_PROFILE,
     PROFILE_CANDIDATES,
     PROFILE_FILENAME,
@@ -205,8 +205,8 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--initial-equity", type=float, default=1_000_000.0)
     parser.add_argument("--min-trades", type=float, default=8.0)
     parser.add_argument("--min-consistency", type=float, default=0.60)
-    parser.add_argument("--data-source", type=Path, default=ROOT / "data" / "finrobot.duckdb")
-    parser.add_argument("--registry", type=Path, default=ROOT / "data" / "finrobot.duckdb")
+    parser.add_argument("--data-source", type=Path, default=ROOT / "data" / "aiquanttrader.duckdb")
+    parser.add_argument("--registry", type=Path, default=ROOT / "data" / "aiquanttrader.duckdb")
     parser.add_argument("--output-dir", type=Path, default=ROOT / "state" / "research" / "profile_lab")
     parser.add_argument("--experiment-dir", type=Path, default=ROOT / "state" / "research" / "experiments")
     parser.add_argument("--run-id", default="")
@@ -663,7 +663,7 @@ def _json_safe(value: Any) -> Any:
         return [_json_safe(item) for item in value]
     if isinstance(value, Path):
         return str(value)
-    if hasattr(value, "__dict__") and value.__class__.__module__.startswith("finrobot."):
+    if hasattr(value, "__dict__") and value.__class__.__module__.startswith("aiquanttrader."):
         return _json_safe(vars(value))
     if isinstance(value, float) and math.isinf(value):
         return "inf" if value > 0 else "-inf"

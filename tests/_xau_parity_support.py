@@ -5,7 +5,7 @@ from datetime import date, datetime, time
 from pathlib import Path
 from datetime import timezone
 
-from finrobot.backtest import (
+from aiquanttrader.backtest import (
     BacktestConfig,
     DailyRiskSizer,
     FillConfig,
@@ -17,7 +17,7 @@ from finrobot.backtest import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DUCKDB_PATH = ROOT / "data" / "finrobot.duckdb"
+DUCKDB_PATH = ROOT / "data" / "aiquanttrader.duckdb"
 XAU_SYMBOL = "XAUUSD"
 
 
@@ -123,7 +123,7 @@ def _broker_wall_epoch_start(value: str) -> int:
 
 
 def _duckdb_path() -> Path:
-    value = os.getenv("FINROBOT_WAREHOUSE")
+    value = os.getenv("AIQUANTTRADER_WAREHOUSE")
     if not value:
         return DUCKDB_PATH
     path = Path(value).expanduser()

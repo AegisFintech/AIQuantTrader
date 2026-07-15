@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.backtest.parity_replay import (
+from aiquanttrader.backtest.parity_replay import (
     ParityReplayConfig,
     load_acked_decisions,
     run_parity_replay,
@@ -36,7 +36,7 @@ def test_xau_parity_live():
         pytest.xfail("MT5 Common Files directory is unavailable")
 
     decisions = load_acked_decisions(
-        directory / "finrobot_acks.csv",
+        directory / "aiquanttrader_acks.csv",
         from_date=FROM,
         to_date=TO,
         symbol=XAU_SYMBOL,

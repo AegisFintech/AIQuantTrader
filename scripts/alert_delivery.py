@@ -26,7 +26,7 @@ def _load_repo_dotenv(path: Path = ROOT / ".env") -> None:
 
 _load_repo_dotenv()
 
-from finrobot.alert_delivery import (  # noqa: E402
+from aiquanttrader.alert_delivery import (  # noqa: E402
     diff_alerts,
     last_state_path,
     load_metrics,
@@ -41,7 +41,7 @@ DEFAULT_LOG = ROOT / "logs" / "alerts.log"
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Deliver FinRobot metrics alert transitions to Telegram."""
+    """Deliver AIQuantTrader metrics alert transitions to Telegram."""
     args = _parse_args(argv)
     metrics = load_metrics(args.metrics)
     if not metrics:
@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Deliver FinRobot metrics alerts.")
+    parser = argparse.ArgumentParser(description="Deliver AIQuantTrader metrics alerts.")
     parser.add_argument("--metrics", type=Path, default=DEFAULT_METRICS)
     parser.add_argument("--state", type=Path, default=last_state_path())
     parser.add_argument("--log", type=Path, default=DEFAULT_LOG)

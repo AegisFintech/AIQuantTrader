@@ -14,11 +14,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from finrobot.prices import load_tsv_bars  # noqa: E402
+from aiquanttrader.prices import load_tsv_bars  # noqa: E402
 from runtime_paths import common_dir as default_common_dir  # noqa: E402
 
 
-EXPORT_FILE_RE = re.compile(r"^finrobot_export_([A-Za-z0-9]+)_M1\.tsv$")
+EXPORT_FILE_RE = re.compile(r"^aiquanttrader_export_([A-Za-z0-9]+)_M1\.tsv$")
 LOAD_OK_RE = re.compile(
     r"^\[OK\]\s+(?P<path>.+?):\s+parsed=(?P<parsed>\d+)\s+"
     r"inserted=(?P<inserted>\d+)\s+skipped=(?P<skipped>\d+)"
@@ -46,7 +46,7 @@ class HarvestResult:
 
 
 def parse_export_filename(filename: str | Path) -> tuple[str]:
-    """Parse `finrobot_export_<SYMBOL>_M1.tsv` and return the upper-case symbol."""
+    """Parse `aiquanttrader_export_<SYMBOL>_M1.tsv` and return the upper-case symbol."""
     match = EXPORT_FILE_RE.match(Path(filename).name)
     if not match:
         raise ExportFilenameError(f"unsupported MT5 export filename: {Path(filename).name}")
@@ -66,7 +66,7 @@ def discover_exports(
 
     wanted = normalize_symbols(symbols)
     exports: list[tuple[str, Path]] = []
-    for path in sorted(common_files_dir.glob("finrobot_export_*_M1.tsv")):
+    for path in sorted(common_files_dir.glob("aiquanttrader_export_*_M1.tsv")):
         try:
             (symbol,) = parse_export_filename(path.name)
         except ExportFilenameError:
@@ -157,7 +157,7 @@ def display_path(path: Path) -> str:
 
 def main(argv: Sequence[str] | None = None) -> int:
     """CLI entry point."""
-    parser = argparse.ArgumentParser(description="Harvest MT5 M1 history exports into FinRobot data.")
+    parser = argparse.ArgumentParser(description="Harvest MT5 M1 history exports into AIQuantTrader data.")
     parser.add_argument("--common-dir", type=Path, default=None, help="Override MT5 Common Files discovery.")
     parser.add_argument("--data-dir", type=Path, default=ROOT / "data")
     parser.add_argument("--warehouse", type=Path, default=None)

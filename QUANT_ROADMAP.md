@@ -1,4 +1,4 @@
-# FinRobot Quant Roadmap - XAUUSD-Only Status
+# AIQuantTrader Quant Roadmap - XAUUSD-Only Status
 
 Last updated: 2026-06-22
 
@@ -12,11 +12,11 @@ Status legend:
 ## 1. Current Standing
 
 - Active trading mandate is `XAUUSD` only. BTC and all non-XAU symbols are retired from active trading, scanning, optimization, and roadmap scope unless the owner explicitly reverses the mandate. `[done]`
-- Active EA is `broker/mt5/FinRobotBridgeEA.mq5`, version `1.35`, with `AutoSymbols="XAUUSD"` and `AutoTimeframe=PERIOD_M5`. `[done]`
+- Active EA is `broker/mt5/AIQuantTraderBridgeEA.mq5`, version `1.35`, with `AutoSymbols="XAUUSD"` and `AutoTimeframe=PERIOD_M5`. `[done]`
 - Daily risk lot sizing is enabled with `DailyRiskPerTradeFraction=0.0010` and `DailyLossLimitFraction=0.01`. `[done]`
 - Current recovery defaults are conservative: weak signals disabled, XAU auto-trading enabled, SMC/PDA gates enabled, ADX regime filter enabled, max two managed XAU positions. `[done]`
-- PM2 active runtime is `mt5-terminal`, `mt5-watchdog`, `autonomous-review`, and `finrobot-dashboard`, all writing to `logs/combined.log`. `[done]`
-- MT5 healthcheck currently passes: Common Files present, heartbeat fresh, no daily loss breach, no open unprotected managed positions, `mt5-terminal` online. `[done]`
+- PM2 active runtime is `aiquanttrader-mt5`, `aiquanttrader-watchdog`, `aiquanttrader-review`, and `aiquanttrader-dashboard`, all writing to `logs/combined.log`. `[done]`
+- MT5 healthcheck currently passes: Common Files present, heartbeat fresh, no daily loss breach, no open unprotected managed positions, `aiquanttrader-mt5` online. `[done]`
 - Live trade report currently shows zero open managed positions and positive total managed XAU closed PnL over the available 14-day MT5 deal export. `[done]`
 - Full Python test suite passed with `.venv/bin/python -m pytest -q -p no:cacheprovider`: `324 passed`. `[done]`
 - `QUANT_ROADMAP.md` was stale before this update: it referenced EA v1.29, `XAUUSD,BTCUSD`, six smoke tests, and several blockers that have since been fixed. `[done]`
@@ -64,7 +64,7 @@ Exit criteria:
 
 Tasks:
 
-- Build `scripts/mt5_ingest_common_files.py` and `finrobot/data_store.py`. `[done]`
+- Build `scripts/mt5_ingest_common_files.py` and `aiquanttrader/data_store.py`. `[done]`
 - Store raw status, positions, deals, and acks with ingestion time, broker time, EA version, git SHA, symbol, and core risk fields. `[partial]`
 - Store XAU bid/ask/spread snapshots from live status into the warehouse. `[done]`
 - Add Parquet export/partitioning for long-term research portability. `[not done]`
@@ -73,7 +73,7 @@ Tasks:
 - Deliver alert transitions to Telegram or equivalent operator channel. `[partial]`
 - Add JSON structured logs for active services. `[not done]`
 - Add log rotation for `logs/combined.log`. `[done]`
-- Run FinRobot in a dedicated PM2 namespace or dedicated host. `[partial]`
+- Run AIQuantTrader in a dedicated PM2 namespace or dedicated host. `[partial]`
 - Add watchdog restart recovery for stale MT5 heartbeat. `[done]`
 - Release `.mq5`, `.mqh`, `.ex5`, config, release manifest, and git SHA together. `[partial]`
 - Fix DuckDB lock contention between ingestion, metrics, validation, and research readers. `[not done]`
@@ -162,7 +162,7 @@ This section is operational context, not a trading signal.
 - Do not loosen SMC/PDA/ADX gates just because today recovered. `[done]`
 - Add a bad-day throttle: reduce risk or pause new entries after a configured daily loss, loss streak, or two losing broker days in a rolling window. `[partial]`
 - Add a high-volatility/news blackout for Fed decisions, CPI/PCE, NFP, major geopolitical shock windows, and abnormal XAU spread/ATR regimes. `[partial]`
-- Use deals, acks, and the warehouse as performance truth; use `finrobot_status.json` telemetry only as a live diagnostic. `[partial]`
+- Use deals, acks, and the warehouse as performance truth; use `aiquanttrader_status.json` telemetry only as a live diagnostic. `[partial]`
 
 ## 8. Prioritized Backlog
 
@@ -190,7 +190,7 @@ This section is operational context, not a trading signal.
 - Move secrets out of local `.env` before live capital. `[not done]`
 - Add signed release artifacts. `[not done]`
 - Add restore-tested backup and disaster recovery plan. `[not done]`
-- Run FinRobot in a dedicated host or isolated PM2 namespace. `[partial]`
+- Run AIQuantTrader in a dedicated host or isolated PM2 namespace. `[partial]`
 - Write incident playbooks for stale heartbeat, broker outage, spread spike, drawdown breach, bad fill, and restart loop. `[partial]`
 
 ## 9. Anti-Recommendations

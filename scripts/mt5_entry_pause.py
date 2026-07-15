@@ -10,7 +10,7 @@ from pathlib import Path
 from runtime_paths import common_dir as resolve_common_dir
 
 
-FLAG_NAME = "finrobot_entry_pause.flag"
+FLAG_NAME = "aiquanttrader_entry_pause.flag"
 
 
 def flag_path(common: Path) -> Path:

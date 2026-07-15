@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.backtest import BacktestConfig, BacktestResult, compare_decisions
+from aiquanttrader.backtest import BacktestConfig, BacktestResult, compare_decisions
 
 
 def test_compare_decisions_empty_inputs_returns_zero_decisions():

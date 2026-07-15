@@ -32,7 +32,7 @@ def _write_status(common: Path, **mm_overrides) -> None:
         "auto_close_no_sl_tp": 1,
     }
     mm.update(mm_overrides)
-    (common / "finrobot_status.json").write_text(
+    (common / "aiquanttrader_status.json").write_text(
         json.dumps(
             {
                 "ts": int(time.time()),
@@ -45,7 +45,7 @@ def _write_status(common: Path, **mm_overrides) -> None:
 
 
 def _write_positions(common: Path, positions: list[dict]) -> None:
-    path = common / "finrobot_positions.csv"
+    path = common / "aiquanttrader_positions.csv"
     with path.open("w", newline="") as fh:
         writer = csv.DictWriter(
             fh,
@@ -75,14 +75,14 @@ def test_check_heartbeat_missing_file(tmp_path):
 
 
 def test_check_heartbeat_fresh(tmp_path):
-    (tmp_path / "finrobot_status.json").write_text("{}")
+    (tmp_path / "aiquanttrader_status.json").write_text("{}")
     result = check_heartbeat(tmp_path, stale_seconds=60)
     assert result.ok
     assert "age" in result.detail
 
 
 def test_check_heartbeat_stale(tmp_path):
-    p = tmp_path / "finrobot_status.json"
+    p = tmp_path / "aiquanttrader_status.json"
     p.write_text("{}")
     import os
 
@@ -134,7 +134,7 @@ def test_check_unprotected_positions_all_protected(tmp_path):
                 "profit": "10.0",
                 "sl": "1990.0",
                 "tp": "2020.0",
-                "comment": "FinRobot_XAUUSD_MACD_trend",
+                "comment": "AIQuantTrader_XAUUSD_MACD_trend",
             },
         ],
     )

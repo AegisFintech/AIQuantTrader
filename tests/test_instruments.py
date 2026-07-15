@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.backtest import XAUUSD_ICMARKETS_DEMO
+from aiquanttrader.backtest import XAUUSD_ICMARKETS_DEMO
 
 
 def test_xauusd_icmarkets_demo_contract_economics():

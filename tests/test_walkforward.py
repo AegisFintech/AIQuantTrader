@@ -4,7 +4,7 @@ from dataclasses import replace
 
 import pytest
 
-from finrobot.backtest import (
+from aiquanttrader.backtest import (
     BacktestConfig,
     BacktestResult,
     FillConfig,
@@ -223,12 +223,12 @@ class OneShotStrategy(Strategy):
 
 
 def _walkforward_result_for_metrics(metrics: list[MetricsReport]):
-    from finrobot.backtest.walkforward import (
+    from aiquanttrader.backtest.walkforward import (
         WalkForwardResult,
         aggregate_fold_metrics,
         compute_stability,
     )
-    from finrobot.backtest.walkforward import _walk_forward_verdict
+    from aiquanttrader.backtest.walkforward import _walk_forward_verdict
 
     folds = [
         _fold_result(idx, metric.total_pnl, metrics=metric)

@@ -5,8 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from finrobot.data_store import connect
-from finrobot.prices import ingest_bars
+from aiquanttrader.data_store import connect
+from aiquanttrader.prices import ingest_bars
 
 
 ROOT = Path(__file__).resolve().parents[1]

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Install the FinRobot logrotate policy.
+# Install the AIQuantTrader logrotate policy.
 #
-# Copies config/logrotate-finrobot into /etc/logrotate.d/finrobot, validates
+# Copies config/logrotate-aiquanttrader into /etc/logrotate.d/aiquanttrader, validates
 # the file with `logrotate --debug`, and prints a one-line cron hint.
 #
 # Idempotent: safe to re-run; it overwrites the destination.
@@ -9,8 +9,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SRC="$ROOT/config/logrotate-finrobot"
-DEST="/etc/logrotate.d/finrobot"
+SRC="$ROOT/config/logrotate-aiquanttrader"
+DEST="/etc/logrotate.d/aiquanttrader"
 
 if [ ! -f "$SRC" ]; then
     echo "Source policy not found: $SRC" >&2

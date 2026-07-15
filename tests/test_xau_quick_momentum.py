@@ -4,19 +4,19 @@ import math
 
 import pytest
 
-from finrobot.backtest import (
+from aiquanttrader.backtest import (
     Backtester,
     BacktestConfig,
     FillConfig,
     PositionSizer,
     XauQuickMomentumStrategy,
 )
-from finrobot.backtest.parity_replay import (
+from aiquanttrader.backtest.parity_replay import (
     ParityReplayConfig,
     _ReplayVolumeSizer,
     run_parity_replay,
 )
-from finrobot.backtest.strategies.xau_gates import (
+from aiquanttrader.backtest.strategies.xau_gates import (
     atr_series,
     compute_xau_features,
     ema,

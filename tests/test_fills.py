@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.backtest.fills import FillConfig, simulate_fill
+from aiquanttrader.backtest.fills import FillConfig, simulate_fill
 
 
 def test_buy_fill_adds_spread_and_slippage():

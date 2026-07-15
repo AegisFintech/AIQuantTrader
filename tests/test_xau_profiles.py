@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from finrobot.xau_profiles import (
+from aiquanttrader.xau_profiles import (
     DEFAULT_PROFILE,
     XauStrategyProfile,
     read_profile_csv,
@@ -9,7 +9,7 @@ from finrobot.xau_profiles import (
 
 
 def test_profile_csv_round_trip_and_bounds(tmp_path):
-    path = tmp_path / "finrobot_strategy_profile.csv"
+    path = tmp_path / "aiquanttrader_strategy_profile.csv"
     profile = XauStrategyProfile(
         profile_name="too_hot",
         risk_tier=9,

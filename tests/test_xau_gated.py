@@ -4,7 +4,7 @@ import math
 
 import pytest
 
-from finrobot.backtest import (
+from aiquanttrader.backtest import (
     Backtester,
     BacktestConfig,
     FillConfig,

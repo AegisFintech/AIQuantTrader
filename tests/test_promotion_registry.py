@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import duckdb
 
-from finrobot.research.comparison import PromotionDecision, compare
-from finrobot.research.experiments import ExperimentRecord
-from finrobot.research.registry import (
+from aiquanttrader.research.comparison import PromotionDecision, compare
+from aiquanttrader.research.experiments import ExperimentRecord
+from aiquanttrader.research.registry import (
     index_promotion_report,
     init_promotion_registry,
     query_promotion_reports,

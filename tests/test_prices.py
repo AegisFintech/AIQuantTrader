@@ -14,8 +14,8 @@ pytest.importorskip("duckdb", reason="duckdb package is required for warehouse t
 
 ROOT = Path(__file__).resolve().parents[1]
 
-from finrobot import data_store, prices  # noqa: E402
-from finrobot.validators import (  # noqa: E402
+from aiquanttrader import data_store, prices  # noqa: E402
+from aiquanttrader.validators import (  # noqa: E402
     Severity,
     reconcile_prices_against_positions,
     validate_price,
@@ -82,7 +82,7 @@ def test_load_status_bidask_returns_empty_on_missing_file(tmp_path):
 
 
 def test_load_status_bidask_returns_one_snapshot_per_symbol(tmp_path):
-    (tmp_path / "finrobot_status.json").write_text(
+    (tmp_path / "aiquanttrader_status.json").write_text(
         json.dumps(
             {
                 "ts": 1780000000,
@@ -265,8 +265,8 @@ def test_cli_load_historical_prices_inserts_then_second_run_inserts_zero(tmp_pat
         "2026-01-01 00:00\t1\t2\t0.5\t1.5\t10\n"
         "2026-01-01 00:01\t1.5\t2\t1.4\t1.8\t11\n"
     )
-    env["FINROBOT_DATA_DIR"] = str(data_dir)
-    env["FINROBOT_WAREHOUSE"] = str(tmp_path / "prices.duckdb")
+    env["AIQUANTTRADER_DATA_DIR"] = str(data_dir)
+    env["AIQUANTTRADER_WAREHOUSE"] = str(tmp_path / "prices.duckdb")
 
     first = subprocess.run(
         [sys.executable, "scripts/load_historical_prices.py"],

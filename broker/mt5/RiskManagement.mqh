@@ -1,6 +1,6 @@
 #property strict
 
-// Risk Management for FinRobot
+// Risk Management for AIQuantTrader
 
 int DayStamp(datetime value) {
    MqlDateTime dt;

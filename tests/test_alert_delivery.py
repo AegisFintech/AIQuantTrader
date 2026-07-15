@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from finrobot import alert_delivery
+from aiquanttrader import alert_delivery
 
 
 def test_load_metrics_returns_empty_dict_on_missing_file(tmp_path):

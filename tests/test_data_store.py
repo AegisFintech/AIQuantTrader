@@ -14,7 +14,7 @@ SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from finrobot import data_store  # noqa: E402
+from aiquanttrader import data_store  # noqa: E402
 from mt5_ingest_common_files import ingest_common_files  # noqa: E402
 
 
@@ -142,7 +142,7 @@ def test_ingest_common_files_flow_with_tmp_common_files(tmp_path):
     common = tmp_path / "common"
     common.mkdir()
     warehouse = tmp_path / "warehouse.duckdb"
-    (common / "finrobot_status.json").write_text(
+    (common / "aiquanttrader_status.json").write_text(
         json.dumps(
             {
                 "ts": 1780000020,
@@ -159,16 +159,16 @@ def test_ingest_common_files_flow_with_tmp_common_files(tmp_path):
         )
     )
     _write_csv(
-        common / "finrobot_positions.csv",
+        common / "aiquanttrader_positions.csv",
         ["time", "ticket", "symbol", "type", "volume", "open_price", "current_price", "profit", "sl", "tp", "comment"],
         [_position(ticket=301, symbol="XAUUSD", side="BUY")],
     )
     _write_csv(
-        common / "finrobot_deals.csv",
+        common / "aiquanttrader_deals.csv",
         ["time", "ticket", "order", "position_id", "symbol", "entry", "type", "volume", "price", "profit", "commission", "swap", "comment"],
         [_deal(ticket=401, position_id=8001, entry=1, profit=3.21)],
     )
-    (common / "finrobot_acks.csv").write_text(
+    (common / "aiquanttrader_acks.csv").write_text(
         "41,2026.06.10 10:00:00,AUTO_FILLED,XAUUSD strategy QuickMomentum,XAUUSD,BUY,0.01,60000.00\n"
     )
 
@@ -201,7 +201,7 @@ def _position(ticket: int, symbol: str = "XAUUSD", side: str = "BUY") -> dict:
         "profit": "1.23",
         "sl": "59000.00",
         "tp": "62000.00",
-        "comment": "FinRobot_XAUUSD_QuickMomentum",
+        "comment": "AIQuantTrader_XAUUSD_QuickMomentum",
     }
 
 
@@ -219,7 +219,7 @@ def _deal(ticket: int, position_id: int, entry: int, profit: float = 0.0) -> dic
         "profit": str(profit),
         "commission": "-0.10",
         "swap": "0.00",
-        "comment": "FinRobot_XAUUSD_QuickMomentum",
+        "comment": "AIQuantTrader_XAUUSD_QuickMomentum",
     }
 
 

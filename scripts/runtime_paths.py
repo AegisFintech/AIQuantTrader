@@ -15,9 +15,9 @@ def env_path(name: str, default: Path) -> Path:
     return path
 
 
-RUNTIME_DIR = env_path("FINROBOT_RUNTIME_DIR", ROOT / ".runtime")
-WINEPREFIX = env_path("FINROBOT_WINEPREFIX", RUNTIME_DIR / "wineprefix")
-MT5_DIR = env_path("FINROBOT_MT5_DIR", RUNTIME_DIR / "mt5")
+RUNTIME_DIR = env_path("AIQUANTTRADER_RUNTIME_DIR", ROOT / ".runtime")
+WINEPREFIX = env_path("AIQUANTTRADER_WINEPREFIX", RUNTIME_DIR / "wineprefix")
+MT5_DIR = env_path("AIQUANTTRADER_MT5_DIR", RUNTIME_DIR / "mt5")
 MT5_TERMINAL_DIR = MT5_DIR / "terminal" / "current"
 MT5_TERMINAL = MT5_TERMINAL_DIR / "terminal64.exe"
 
@@ -32,14 +32,14 @@ def common_file_dirs() -> list[Path]:
 
 
 def common_dir() -> Path | None:
-    override = os.getenv("FINROBOT_COMMON_DIR")
+    override = os.getenv("AIQUANTTRADER_COMMON_DIR")
     if override:
-        directory = env_path("FINROBOT_COMMON_DIR", ROOT)
+        directory = env_path("AIQUANTTRADER_COMMON_DIR", ROOT)
         return directory if directory.is_dir() else None
 
     for directory in common_file_dirs():
-        if (directory / "finrobot_status.json").exists() or (directory / "finrobot_deals.csv").exists():
+        if (directory / "aiquanttrader_status.json").exists() or (directory / "aiquanttrader_deals.csv").exists():
             return directory
-    for path in WINEPREFIX.glob("**/finrobot_status.json"):
+    for path in WINEPREFIX.glob("**/aiquanttrader_status.json"):
         return path.parent
     return None

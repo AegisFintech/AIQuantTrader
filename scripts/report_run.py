@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from finrobot.backtest import (  # noqa: E402
+from aiquanttrader.backtest import (  # noqa: E402
     BacktestConfig,
     BacktestResult,
     BreakEvenConfig,

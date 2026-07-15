@@ -12,8 +12,8 @@ pytest.importorskip("duckdb", reason="duckdb package is required for warehouse t
 
 ROOT = Path(__file__).resolve().parents[1]
 
-from finrobot import data_store  # noqa: E402
-from finrobot.validators import (  # noqa: E402
+from aiquanttrader import data_store  # noqa: E402
+from aiquanttrader.validators import (  # noqa: E402
     Severity,
     reconcile_positions_vs_deals,
     reconcile_status_equity_vs_balance,
@@ -72,7 +72,7 @@ def test_validate_deal_unknown_entry_warns():
 
 
 def test_validate_deal_non_ascii_comment_warns():
-    issues = validate_deal(_deal(comment="FinRobot_XAUUSD_\u00e9"))
+    issues = validate_deal(_deal(comment="AIQuantTrader_XAUUSD_\u00e9"))
     assert _has_warning(issues, "deal_comment_nonprintable")
 
 
@@ -284,7 +284,7 @@ def _position(
         "profit": "1.23",
         "sl": sl,
         "tp": tp,
-        "comment": "FinRobot_XAUUSD_QuickMomentum",
+        "comment": "AIQuantTrader_XAUUSD_QuickMomentum",
     }
 
 
@@ -294,7 +294,7 @@ def _deal(
     entry: int = 1,
     ts_server: int | None = None,
     symbol: str = "XAUUSD",
-    comment: str = "FinRobot_XAUUSD_QuickMomentum",
+    comment: str = "AIQuantTrader_XAUUSD_QuickMomentum",
 ) -> dict:
     server_ts = _now() if ts_server is None else ts_server
     return {

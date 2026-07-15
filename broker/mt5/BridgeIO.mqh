@@ -1,6 +1,6 @@
 #property strict
 
-// Bridge I/O for FinRobot
+// Bridge I/O for AIQuantTrader
 
 string Clean(string s) {
    StringReplace(s, "\"", "'");

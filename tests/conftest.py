@@ -11,4 +11,4 @@ if str(SCRIPTS) not in sys.path:
 
 
 def pytest_configure(config):
-    config.addinivalue_line("markers", "real_repo: test that uses the real FinRobot git checkout")
+    config.addinivalue_line("markers", "real_repo: test that uses the real AIQuantTrader git checkout")

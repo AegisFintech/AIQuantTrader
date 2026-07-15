@@ -16,11 +16,11 @@ If a secret was leaked (e.g. in chat, in a screenshot, in a commit), rotate it a
 
 ## T3N-specific runbook
 
-This runbook covers [Issue #13](https://github.com/AegisFintech/FinRobot/issues/13).
+This runbook covers [Issue #13](https://github.com/AegisFintech/AIQuantTrader/issues/13).
 
 1. Visit the T3N console (Terminal 3 network dashboard) and revoke the leaked key (`0x0207…`).
 2. Generate a new 256-bit hex bearer secret. Save it in the vendor console flow or another secure local secret handoff.
-3. Add the new key to `/root/FinRobot/.env` as `T3N_API_KEY=<new-value>`. The `.env` file is already gitignored.
+3. Add the new key to `/root/AIQuantTrader/.env` as `T3N_API_KEY=<new-value>`. The `.env` file is already gitignored.
 4. Add the corresponding DID to `.env` as `T3N_DID=<the W3C DID, public-by-design>`.
 5. Restart any agent that consumes the key. Currently none in this repo consume it, but agents may load it in the future.
 6. Run `./scripts/check_secrets.sh` to confirm the new key is not in any tracked file.
@@ -37,4 +37,4 @@ This runbook covers [Issue #13](https://github.com/AegisFintech/FinRobot/issues/
 
 | Date | Event | Status |
 | --- | --- | --- |
-| 2026-06-11 | T3N key leaked in chat ([Issue #13](https://github.com/AegisFintech/FinRobot/issues/13)). Audit confirmed key not in tracked files under `/root/FinRobot`. | Rotation pending Aloy's T3N console action. |
+| 2026-06-11 | T3N key leaked in chat ([Issue #13](https://github.com/AegisFintech/AIQuantTrader/issues/13)). Audit confirmed key not in tracked files under `/root/AIQuantTrader`. | Rotation pending Aloy's T3N console action. |

@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from finrobot import data_store, prices  # noqa: E402
+from aiquanttrader import data_store, prices  # noqa: E402
 from runtime_paths import common_dir as default_common_dir  # noqa: E402
 
 
@@ -45,7 +45,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _default_warehouse() -> Path:
-    value = os.getenv("FINROBOT_WAREHOUSE")
+    value = os.getenv("AIQUANTTRADER_WAREHOUSE")
     return Path(value) if value else data_store.DEFAULT_WAREHOUSE
 
 

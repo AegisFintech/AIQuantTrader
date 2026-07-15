@@ -11,13 +11,13 @@ import pytest
 
 pytest.importorskip("duckdb", reason="duckdb package is required for metrics tests")
 
-from finrobot import data_store, metrics  # noqa: E402
-from finrobot.backtest.engine import BacktestConfig, BacktestResult  # noqa: E402
-from finrobot.backtest.metrics import (  # noqa: E402
+from aiquanttrader import data_store, metrics  # noqa: E402
+from aiquanttrader.backtest.engine import BacktestConfig, BacktestResult  # noqa: E402
+from aiquanttrader.backtest.metrics import (  # noqa: E402
     compute_metrics as compute_backtest_metrics,
     max_drawdown as backtest_max_drawdown,
 )
-from finrobot.backtest.position import Position  # noqa: E402
+from aiquanttrader.backtest.position import Position  # noqa: E402
 
 
 @pytest.fixture
@@ -168,7 +168,7 @@ def test_get_pm2_restarts_returns_none_when_pm2_missing_or_process_absent(monkey
         stdout = json.dumps([{"name": "other", "pm2_env": {"restart_time": 3}}])
 
     monkeypatch.setattr(metrics.subprocess, "run", lambda *args, **kwargs: Proc())
-    assert metrics.get_pm2_restarts("mt5-terminal") is None
+    assert metrics.get_pm2_restarts("aiquanttrader-mt5") is None
 
 
 def test_write_snapshot_and_load_snapshot_round_trip(con, tmp_path):
@@ -211,12 +211,12 @@ def test_compute_snapshot_end_to_end_common_files_and_warehouse(con, tmp_path):
         ],
     )
     _write_csv(
-        common / "finrobot_positions.csv",
+        common / "aiquanttrader_positions.csv",
         ["time", "ticket", "symbol", "type", "volume", "open_price", "current_price", "profit", "sl", "tp", "comment"],
         [_position(ticket=301, symbol="XAUUSD")],
     )
     _write_csv(
-        common / "finrobot_deals.csv",
+        common / "aiquanttrader_deals.csv",
         ["time", "ticket", "order", "position_id", "symbol", "entry", "type", "volume", "price", "profit", "commission", "swap", "comment"],
         [_deal(ticket=401, position_id=301, symbol="XAUUSD", ts_server=now + 121)],
     )
@@ -413,7 +413,7 @@ def _write_status(
     git_sha: str | None = None,
 ) -> Path:
     common.mkdir(parents=True, exist_ok=True)
-    path = common / "finrobot_status.json"
+    path = common / "aiquanttrader_status.json"
     path.write_text(
         json.dumps(
             _status(
@@ -443,7 +443,7 @@ def _position(ticket: int, symbol: str = "XAUUSD") -> dict:
         "profit": "1.23",
         "sl": "59000.00",
         "tp": "62000.00",
-        "comment": f"FinRobot_{symbol}_QuickMomentum",
+        "comment": f"AIQuantTrader_{symbol}_QuickMomentum",
     }
 
 
@@ -462,7 +462,7 @@ def _deal(ticket: int, position_id: int, symbol: str = "XAUUSD", ts_server: int 
         "profit": "3.21",
         "commission": "-0.10",
         "swap": "0.00",
-        "comment": f"FinRobot_{symbol}_QuickMomentum",
+        "comment": f"AIQuantTrader_{symbol}_QuickMomentum",
     }
 
 

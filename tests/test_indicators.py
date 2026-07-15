@@ -1,6 +1,6 @@
 import pandas as pd
 
-from finrobot.indicators import enrich_indicators
+from aiquanttrader.indicators import enrich_indicators
 
 
 def test_enrich_indicators_adds_expected_columns():

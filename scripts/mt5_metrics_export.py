@@ -13,14 +13,14 @@ if str(ROOT) not in sys.path:
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from finrobot import data_store  # noqa: E402
-from finrobot.alerts import (  # noqa: E402
+from aiquanttrader import data_store  # noqa: E402
+from aiquanttrader.alerts import (  # noqa: E402
     Alert,
     alerts_to_dict,
     evaluate_alerts,
     exit_code_for,
 )
-from finrobot.metrics import (  # noqa: E402
+from aiquanttrader.metrics import (  # noqa: E402
     compute_snapshot,
     get_pm2_restarts,
     snapshot_to_dict,
@@ -31,7 +31,7 @@ from runtime_paths import common_dir  # noqa: E402
 
 def main(argv: list[str] | None = None) -> int:
     """Export metrics and evaluate alert rules."""
-    parser = argparse.ArgumentParser(description="Export FinRobot MT5 metrics.")
+    parser = argparse.ArgumentParser(description="Export AIQuantTrader MT5 metrics.")
     parser.add_argument(
         "--warehouse",
         type=Path,
@@ -71,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
         snap = compute_snapshot(
             con=con,
             common_dir=common_dir(),
-            pm2_restarts=get_pm2_restarts("mt5-terminal"),
+            pm2_restarts=get_pm2_restarts("aiquanttrader-mt5"),
             heartbeat_stale_seconds=args.heartbeat_stale_seconds,
             freshness_window_seconds=args.freshness_window_seconds,
             clock_skew_window_seconds=args.clock_skew_window_seconds,

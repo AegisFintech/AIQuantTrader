@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from finrobot.backtest import (
+from aiquanttrader.backtest import (
     Backtester,
     BacktestConfig,
     FillConfig,
@@ -11,12 +11,12 @@ from finrobot.backtest import (
     XauQuickMomentumParams,
     XauQuickMomentumStrategy,
 )
-from finrobot.backtest.parity_replay import (
+from aiquanttrader.backtest.parity_replay import (
     ParityReplayConfig,
     _ReplayVolumeSizer,
     run_parity_replay,
 )
-from finrobot.backtest.strategies._xau_state import XauM5RollingFeatureState
+from aiquanttrader.backtest.strategies._xau_state import XauM5RollingFeatureState
 
 
 def test_xau_rolling_state_no_regression():

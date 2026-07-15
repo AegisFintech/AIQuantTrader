@@ -13,7 +13,7 @@ DEFAULT_SYMBOL = "XAUUSD"
 DEFAULT_PERIOD = "M1"
 DEFAULT_PERIOD_TYPE = "0"
 DEFAULT_PERIOD_SIZE = "1"
-STARTUP_EXPERT = "FinRobot\\FinRobotBridgeEA"
+STARTUP_EXPERT = "AIQuantTrader\\AIQuantTraderBridgeEA"
 
 
 def replace_line(text: str, key: str, value: str) -> str:
@@ -37,8 +37,8 @@ def configure_chart(chart_path: Path, symbol: str, period_type: str, period_size
 
     expert = (
         "<expert>\n"
-        "name=FinRobotBridgeEA\n"
-        "path=Experts\\FinRobot\\FinRobotBridgeEA.ex5\n"
+        "name=AIQuantTraderBridgeEA\n"
+        "path=Experts\\AIQuantTrader\\AIQuantTraderBridgeEA.ex5\n"
         "expertmode=1\n"
         "<inputs>\n"
         "</inputs>\n"
@@ -137,7 +137,7 @@ def configure_startup(config_path: Path, symbol: str, period: str) -> None:
     text = set_ini_value(text, "Experts", "Account", "0")
     text = set_ini_value(text, "Experts", "Profile", "0")
     text = set_ini_value(text, "StartUp", "Expert", STARTUP_EXPERT)
-    if env_bool("FINROBOT_STARTUP_OPEN_CHART", False):
+    if env_bool("AIQUANTTRADER_STARTUP_OPEN_CHART", False):
         text = set_ini_value(text, "StartUp", "Symbol", symbol)
         text = set_ini_value(text, "StartUp", "Period", period)
     else:
@@ -161,7 +161,7 @@ def configure_profile_dir(profile_dir: Path, symbol: str, period_type: str, peri
         return False
 
     configure_chart(chart_path, symbol, period_type, period_size)
-    if env_bool("FINROBOT_SINGLE_CHART_PROFILE", True):
+    if env_bool("AIQUANTTRADER_SINGLE_CHART_PROFILE", True):
         for extra_chart in sorted(profile_dir.glob("chart*.chr")):
             if extra_chart.name != "chart01.chr":
                 extra_chart.unlink()
@@ -170,12 +170,12 @@ def configure_profile_dir(profile_dir: Path, symbol: str, period_type: str, peri
 
 
 def main() -> int:
-    config_path = MT5_TERMINAL_DIR / "Config" / "finrobot-login.ini"
+    config_path = MT5_TERMINAL_DIR / "Config" / "aiquanttrader-login.ini"
 
-    symbol = os.getenv("FINROBOT_ATTACH_SYMBOL", DEFAULT_SYMBOL)
-    period = os.getenv("FINROBOT_ATTACH_PERIOD", DEFAULT_PERIOD)
-    period_type = os.getenv("FINROBOT_ATTACH_PERIOD_TYPE", DEFAULT_PERIOD_TYPE)
-    period_size = os.getenv("FINROBOT_ATTACH_PERIOD_SIZE", DEFAULT_PERIOD_SIZE)
+    symbol = os.getenv("AIQUANTTRADER_ATTACH_SYMBOL", DEFAULT_SYMBOL)
+    period = os.getenv("AIQUANTTRADER_ATTACH_PERIOD", DEFAULT_PERIOD)
+    period_type = os.getenv("AIQUANTTRADER_ATTACH_PERIOD_TYPE", DEFAULT_PERIOD_TYPE)
+    period_size = os.getenv("AIQUANTTRADER_ATTACH_PERIOD_SIZE", DEFAULT_PERIOD_SIZE)
 
     configured = [path for path in profile_dirs() if configure_profile_dir(path, symbol, period_type, period_size)]
     if not configured:

@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from finrobot import data_store, prices  # noqa: E402
+from aiquanttrader import data_store, prices  # noqa: E402
 
 
 DEFAULT_SYMBOLS = "XAUUSD"
@@ -98,12 +98,12 @@ def _symbols(value: str) -> list[str]:
 
 
 def _default_data_dir() -> Path:
-    value = os.getenv("FINROBOT_DATA_DIR")
+    value = os.getenv("AIQUANTTRADER_DATA_DIR")
     return Path(value) if value else ROOT / "data"
 
 
 def _default_warehouse() -> Path:
-    value = os.getenv("FINROBOT_WAREHOUSE")
+    value = os.getenv("AIQUANTTRADER_WAREHOUSE")
     return Path(value) if value else data_store.DEFAULT_WAREHOUSE
 
 

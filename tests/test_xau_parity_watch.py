@@ -177,9 +177,9 @@ def _watch_env(
     env = os.environ.copy()
     env.update(
         {
-            "FINROBOT_COMMON_DIR": str(common_dir),
-            "FINROBOT_XAU_PARITY_PYTEST_TARGET": str(target),
-            "FINROBOT_XAU_PARITY_FIXTURE_STATUS": pytest_status,
+            "AIQUANTTRADER_COMMON_DIR": str(common_dir),
+            "AIQUANTTRADER_XAU_PARITY_PYTEST_TARGET": str(target),
+            "AIQUANTTRADER_XAU_PARITY_FIXTURE_STATUS": pytest_status,
             "PYTHON": sys.executable,
         }
     )
@@ -196,7 +196,7 @@ import pytest
 
 @pytest.mark.xfail(reason="watch fixture")
 def test_xau_parity_live_probe():
-    if os.environ["FINROBOT_XAU_PARITY_FIXTURE_STATUS"] == "XPASS":
+    if os.environ["AIQUANTTRADER_XAU_PARITY_FIXTURE_STATUS"] == "XPASS":
         print("live XAU parity: 1/1 matched (100.00%)")
         assert True
         return
@@ -251,7 +251,7 @@ def _insert_bar(warehouse: Path, timestamp: str) -> None:
 
 def _write_acks(common_dir: Path, rows: list[str]) -> None:
     header = "id,time,status,message,symbol,side,volume,price"
-    (common_dir / "finrobot_acks.csv").write_text("\n".join([header, *rows]) + "\n")
+    (common_dir / "aiquanttrader_acks.csv").write_text("\n".join([header, *rows]) + "\n")
 
 
 def _single_report(report_dir: Path) -> dict:

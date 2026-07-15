@@ -1,4 +1,4 @@
-# FinRobot Repository Map
+# AIQuantTrader Repository Map
 
 Last verified: 2026-07-14
 
@@ -13,12 +13,12 @@ The current mandate is MT5 demo trading for `XAUUSD` only.
 Authority order:
 
 1. `AGENTS.md` for owner directives and change rules.
-2. `broker/mt5/FinRobotBridgeEA.mq5` and its three `.mqh` modules for live
+2. `broker/mt5/AIQuantTraderBridgeEA.mq5` and its three `.mqh` modules for live
    trading behavior.
 3. Current MT5 Common Files plus `scripts/mt5_trade_report.py` for deployed
    state and realized performance.
 4. `ecosystem.config.js` for active services.
-5. Python under `finrobot/backtest/`, `finrobot/xau_profiles.py`, and
+5. Python under `aiquanttrader/backtest/`, `aiquanttrader/xau_profiles.py`, and
    `scripts/xau_strategy_lab.py` for the promotion research path.
 
 `CLAUDE.md` and `QUANT_ROADMAP.md` contain useful historical analysis, but they
@@ -28,30 +28,30 @@ are point-in-time documents and are not runtime truth.
 
 ```text
 PM2
-|- mt5-terminal
+|- aiquanttrader-mt5
 |  `- scripts/start_mt5.sh
 |     `- MT5 under Wine/Xvfb
-|        `- FinRobotBridgeEA.ex5 (XAUUSD timer-driven trading)
-|- mt5-watchdog
+|        `- AIQuantTraderBridgeEA.ex5 (XAUUSD timer-driven trading)
+|- aiquanttrader-watchdog
 |  `- scripts/mt5_watchdog.py (heartbeat check and terminal restart only)
-|- autonomous-review
+|- aiquanttrader-review
 |  `- scripts/autonomous_review_loop.py
 |     |- scripts/mt5_trade_report.py
 |     `- scripts/xau_strategy_lab.py (analysis by default)
-`- finrobot-dashboard
+`- aiquanttrader-dashboard
    `- dashboard/app.py (read-only Streamlit UI on 127.0.0.1:8501)
 
-FinRobotBridgeEA.ex5
+AIQuantTraderBridgeEA.ex5
 |- reads optional commands, strategy profile, and blackout CSV files
 |- writes status, positions, deals, and acknowledgement files
 `- MT5 Common Files
    |- report/status/dashboard readers
-   `- cron ingestion -> data/finrobot.duckdb -> research/metrics/validation
+   `- cron ingestion -> data/aiquanttrader.duckdb -> research/metrics/validation
 ```
 
 There is no active Python order executor. Automatic orders originate inside the
 MQL5 EA. The dashboard is read-only. No PM2 process currently writes
-`finrobot_commands.csv`.
+`aiquanttrader_commands.csv`.
 
 ## Live Trading Path
 
@@ -59,7 +59,7 @@ MQL5 EA. The dashboard is read-only. No PM2 process currently writes
 
 | File | Live responsibility |
 |---|---|
-| `broker/mt5/FinRobotBridgeEA.mq5` | EA inputs, timer lifecycle, runtime profile parser, command execution, auto signals, order placement, status/position/deal exports. |
+| `broker/mt5/AIQuantTraderBridgeEA.mq5` | EA inputs, timer lifecycle, runtime profile parser, command execution, auto signals, order placement, status/position/deal exports. |
 | `broker/mt5/SmartMoney.mqh` | Premium/discount range, FVG, order block, liquidity sweep, structure shift, long/short SMC scores. |
 | `broker/mt5/RiskManagement.mqh` | Broker-day closed PnL aggregation, legacy session windows, dynamic break-even. |
 | `broker/mt5/BridgeIO.mqh` | CSV acknowledgement append and string sanitizing helpers. |
@@ -103,7 +103,7 @@ maximum, 1.2 ATR stop, and 2.4R take profit. The score-5 multiplier is retained
 for lower-risk runtime profiles but cannot exceed the hard 1.00% effective-risk
 cap.
 Runtime profile values are clamped in both the EA and
-`finrobot/xau_profiles.py`.
+`aiquanttrader/xau_profiles.py`.
 
 ### Money-management mechanics
 
@@ -126,15 +126,15 @@ floating PnL or reserved risk from other open positions.
 
 | File | Direction | Purpose | Main consumers |
 |---|---|---|---|
-| `finrobot_status.json` | EA writes | Heartbeat, account, deployed version/SHA, profile, money management, quotes, signal counters. | watchdog, status, healthcheck, dashboard, ingestion, metrics |
-| `finrobot_positions.csv` | EA writes | Current magic-number managed positions. | report, healthcheck, dashboard, ingestion |
-| `finrobot_deals.csv` | EA writes | Rolling 14-day magic-number deal history. | report, dashboard, ingestion, parity tooling |
-| `finrobot_acks.csv` | EA appends | Command and automatic fill/rejection events. | report, dashboard, ingestion, parity tooling |
-| `finrobot_commands.csv` | EA reads/deletes | Optional external `MARKET`, `CLOSE`, and `CLOSE_ALL` requests. | no active writer |
-| `finrobot_strategy_profile.csv` | EA reads | Optional bounded key/value runtime overrides. | strategy lab may write only through gated deployment |
-| `finrobot_blackout.csv` | EA reads | Optional broker-time start/end/reason blackout windows. | operator-managed; only active when profile enables it |
-| `finrobot_entry_pause.flag` | EA reads | Operator-controlled pause for all new automatic and command-file market entries. | `scripts/mt5_entry_pause.py`; close actions and position management remain active |
-| `finrobot_export_XAUUSD_M1.tsv` | EA writes | Bounded periodic M1 bar export for fresh research. | autonomous review harvest and price loader |
+| `aiquanttrader_status.json` | EA writes | Heartbeat, account, deployed version/SHA, profile, money management, quotes, signal counters. | watchdog, status, healthcheck, dashboard, ingestion, metrics |
+| `aiquanttrader_positions.csv` | EA writes | Current magic-number managed positions. | report, healthcheck, dashboard, ingestion |
+| `aiquanttrader_deals.csv` | EA writes | Rolling 14-day magic-number deal history. | report, dashboard, ingestion, parity tooling |
+| `aiquanttrader_acks.csv` | EA appends | Command and automatic fill/rejection events. | report, dashboard, ingestion, parity tooling |
+| `aiquanttrader_commands.csv` | EA reads/deletes | Optional external `MARKET`, `CLOSE`, and `CLOSE_ALL` requests. | no active writer |
+| `aiquanttrader_strategy_profile.csv` | EA reads | Optional bounded key/value runtime overrides. | strategy lab may write only through gated deployment |
+| `aiquanttrader_blackout.csv` | EA reads | Optional broker-time start/end/reason blackout windows. | operator-managed; only active when profile enables it |
+| `aiquanttrader_entry_pause.flag` | EA reads | Operator-controlled pause for all new automatic and command-file market entries. | `scripts/mt5_entry_pause.py`; close actions and position management remain active |
+| `aiquanttrader_export_XAUUSD_M1.tsv` | EA writes | Bounded periodic M1 bar export for fresh research. | autonomous review harvest and price loader |
 | `EA_MANIFEST.txt` | EA reads at init | Deployed EA version and git SHA. | generated by release tooling and copied by sync |
 
 `scripts/runtime_paths.py` is the shared Python resolver for repo-local runtime,
@@ -148,14 +148,14 @@ Wine prefix, terminal, and Common Files locations. Runtime artifacts under
 | Process definitions | `ecosystem.config.js` | Only the four PM2 services shown above are active. All PM2 output uses `logs/combined.log`. |
 | Install/bootstrap | `install.sh`, `.env.sample` | Installs Python/PM2/MT5 and configures the repo-local runtime. Never print `.env` or the generated login INI. |
 | MT5 startup | `scripts/start_mt5.sh`, `scripts/mt5_configure_profile.py`, `scripts/wine_box64.sh` | Rewrites the secret login INI, enforces the startup profile, and starts MT5 through the selected Wine path. |
-| EA sync/release | `scripts/sync_mt5_ea.sh`, `finrobot/release_manifest.py`, `scripts/release_manifest.py` | Sync regenerates release manifests, copies source, and invokes MetaEditor when present. Compile output still requires inspection before restart. |
+| EA sync/release | `scripts/sync_mt5_ea.sh`, `aiquanttrader/release_manifest.py`, `scripts/release_manifest.py` | Sync regenerates release manifests, copies source, and invokes MetaEditor when present. Compile output still requires inspection before restart. |
 | Health/recovery | `scripts/mt5_status.py`, `scripts/healthcheck.py`, `scripts/mt5_watchdog.py`, `scripts/mt5_entry_pause.py` | Healthcheck covers runtime, disk, research freshness, and all PM2 services. Watchdog remains heartbeat-only. The pause CLI manages the persistent no-new-entry flag. |
 | Reporting | `scripts/mt5_trade_report.py`, `dashboard/app.py` | Current Common Files are the input. Strategy attribution comes from deal comments. |
-| Scheduled operations | `scripts/mt5_minute_cycle.py`, `config/finrobot.cron` | Common Files ingestion and bid/ask capture run sequentially; cron serializes all DuckDB jobs with a shared file lock. |
-| Archive/log policy | `scripts/archive_common_files.py`, `config/logrotate-finrobot`, `scripts/install_logrotate.sh` | Archives go under ignored `state/`; combined, cron, and alert logs rotate daily. |
+| Scheduled operations | `scripts/mt5_minute_cycle.py`, `config/aiquanttrader.cron` | Common Files ingestion and bid/ask capture run sequentially; cron serializes all DuckDB jobs with a shared file lock. |
+| Archive/log policy | `scripts/archive_common_files.py`, `config/logrotate-aiquanttrader`, `scripts/install_logrotate.sh` | Archives go under ignored `state/`; combined, cron, and alert logs rotate daily. |
 | Reverse proxy | `config/nginx-trading.aims-sg.com.conf` | Proxies the read-only dashboard. |
 
-Optional cron jobs in `config/finrobot.cron` ingest bridge snapshots and quotes
+Optional cron jobs in `config/aiquanttrader.cron` ingest bridge snapshots and quotes
 every minute, export metrics every five minutes, validate hourly, and archive
 daily. The cron configuration writes `logs/cron.log`; it is separate from the
 four active PM2 processes and must be installed explicitly.
@@ -166,13 +166,13 @@ four active PM2 processes and must be installed explicitly.
 
 | File | Responsibility |
 |---|---|
-| `finrobot/data_store.py` | DuckDB schema and ingestion/query functions for status, positions, deals, acks, prices, and experiments. |
+| `aiquanttrader/data_store.py` | DuckDB schema and ingestion/query functions for status, positions, deals, acks, prices, and experiments. |
 | `scripts/mt5_ingest_common_files.py` | Snapshot Common Files into DuckDB, preferring deployed status metadata. |
 | `scripts/mt5_snapshot_prices.py` | Store live bid/ask/spread observations. |
 | `scripts/load_historical_prices.py` | Load normalized historical bar CSVs. |
 | `scripts/harvest_mt5_export.py` | Discover/copy MT5 exports and invoke the loader. |
-| `finrobot/validators.py`, `scripts/mt5_validate_warehouse.py` | Warehouse schema, freshness, reconciliation, and risk validation. |
-| `finrobot/metrics.py`, `finrobot/alerts.py`, `finrobot/alert_delivery.py` | Metrics snapshots, alert evaluation, and transition delivery. |
+| `aiquanttrader/validators.py`, `scripts/mt5_validate_warehouse.py` | Warehouse schema, freshness, reconciliation, and risk validation. |
+| `aiquanttrader/metrics.py`, `aiquanttrader/alerts.py`, `aiquanttrader/alert_delivery.py` | Metrics snapshots, alert evaluation, and transition delivery. |
 
 The tracked historical input is `data/XAUUSD1.csv`; a second local
 `data/XAUUSD_M1.csv` is currently available but ignored. The local DuckDB
@@ -182,19 +182,19 @@ warehouse is also ignored by git even when a working copy exists.
 
 | Module | Responsibility |
 |---|---|
-| `finrobot/backtest/engine.py` | Bar loop, signal handling, positions, SL/TP exits, break-even, recovery gates, and trade ledger. |
-| `finrobot/backtest/position.py` | Position model, `PositionSizer`, and `DailyRiskSizer`. |
-| `finrobot/backtest/fills.py` | Deterministic point-size-aware spread/slippage/commission/swap fill assumptions. |
-| `finrobot/backtest/instruments.py` | Broker-calibrated point, tick-value, spread, and commission specifications used by XAU research. |
-| `finrobot/backtest/metrics.py` | PnL, drawdown, Sharpe/Sortino/Calmar, expectancy, loss streak, and distribution metrics. |
-| `finrobot/backtest/walkforward.py` | Purged and embargoed walk-forward folds plus stability aggregation. |
-| `finrobot/backtest/reporter.py` | Machine-readable and Markdown reports with verdicts and attribution. |
-| `finrobot/backtest/parity.py`, `parity_replay.py` | Compare Python decisions with EA acknowledgements. |
-| `finrobot/backtest/strategies/_xau_state.py` | Rolling M1-to-forming-M5 indicator state used to approximate the EA timer path. |
-| `finrobot/backtest/strategies/xau_gates.py` | Python port of the live XAU indicator/PDA/SMC gates. |
-| `finrobot/backtest/strategies/xau_atr_impulse.py` | Live ATR impulse strategy slice. |
-| `finrobot/backtest/strategies/xau_gated.py` | PDA/SMC/ADX/cooldown/blackout wrapper. |
-| `finrobot/backtest/strategies/xau_quick_momentum.py` | Quick-momentum parity/research slice. |
+| `aiquanttrader/backtest/engine.py` | Bar loop, signal handling, positions, SL/TP exits, break-even, recovery gates, and trade ledger. |
+| `aiquanttrader/backtest/position.py` | Position model, `PositionSizer`, and `DailyRiskSizer`. |
+| `aiquanttrader/backtest/fills.py` | Deterministic point-size-aware spread/slippage/commission/swap fill assumptions. |
+| `aiquanttrader/backtest/instruments.py` | Broker-calibrated point, tick-value, spread, and commission specifications used by XAU research. |
+| `aiquanttrader/backtest/metrics.py` | PnL, drawdown, Sharpe/Sortino/Calmar, expectancy, loss streak, and distribution metrics. |
+| `aiquanttrader/backtest/walkforward.py` | Purged and embargoed walk-forward folds plus stability aggregation. |
+| `aiquanttrader/backtest/reporter.py` | Machine-readable and Markdown reports with verdicts and attribution. |
+| `aiquanttrader/backtest/parity.py`, `parity_replay.py` | Compare Python decisions with EA acknowledgements. |
+| `aiquanttrader/backtest/strategies/_xau_state.py` | Rolling M1-to-forming-M5 indicator state used to approximate the EA timer path. |
+| `aiquanttrader/backtest/strategies/xau_gates.py` | Python port of the live XAU indicator/PDA/SMC gates. |
+| `aiquanttrader/backtest/strategies/xau_atr_impulse.py` | Live ATR impulse strategy slice. |
+| `aiquanttrader/backtest/strategies/xau_gated.py` | PDA/SMC/ADX/cooldown/blackout wrapper. |
+| `aiquanttrader/backtest/strategies/xau_quick_momentum.py` | Quick-momentum parity/research slice. |
 
 `buy_and_hold.py`, `stub_replay.py`, `xau_mean_reversion.py`,
 `xau_ml_ensemble.py`, and `xau_seasonal.py` are offline sleeves or test helpers;
@@ -202,7 +202,7 @@ they do not place live orders.
 
 ### Profile lab and promotion
 
-`finrobot/xau_profiles.py` owns the compiled-equivalent incumbent and four
+`aiquanttrader/xau_profiles.py` owns the compiled-equivalent incumbent and four
 bounded candidates. `scripts/xau_strategy_lab.py` loads XAU bars from DuckDB,
 runs five purged/embargoed walk-forward evaluations plus a recent window, writes
 experiment records, and ranks candidates.
@@ -225,8 +225,8 @@ Research orchestration:
 | `scripts/run_walkforward.py` | Walk-forward CLI for supported XAU strategies. |
 | `scripts/run_parity.py`, `scripts/xau_parity_watch.sh` | EA/Python parity replay and scheduled checks. |
 | `scripts/run_quant_pipeline.py` | Experimental features/regime/ML/significance pipeline. Not used by live execution or profile promotion. |
-| `finrobot/research/experiments.py`, `registry.py`, `comparison.py` | Experiment persistence, registry indexing, and incumbent/challenger decisions. |
-| `finrobot/research/features.py`, `regime.py`, `models.py`, `significance.py`, `optimizer.py` | Experimental feature, HMM, ML, statistical, and optimization tools. Optional dependencies are not all declared in core requirements. |
+| `aiquanttrader/research/experiments.py`, `registry.py`, `comparison.py` | Experiment persistence, registry indexing, and incumbent/challenger decisions. |
+| `aiquanttrader/research/features.py`, `regime.py`, `models.py`, `significance.py`, `optimizer.py` | Experimental feature, HMM, ML, statistical, and optimization tools. Optional dependencies are not all declared in core requirements. |
 | `scripts/promote_compare.py`, `scripts/report_run.py`, `scripts/strategy_report.py` | Research report and promotion-support CLIs. |
 
 ### Not in the live or promotion path
@@ -234,17 +234,17 @@ Research orchestration:
 These modules are retained research/legacy code and must not be mistaken for
 deployed alpha:
 
-- `finrobot/hft.py`
-- `finrobot/indicators.py`
-- `finrobot/strategies/grid.py`
-- `finrobot/strategies/backtesting.py` (includes martingale research)
-- `finrobot/strategies/harmonics.py`
-- `finrobot/strategies/smart_money.py`
-- `finrobot/strategies/orchestrator.py`
-- `finrobot/risk/kelly.py`, `vol_target.py`, and `limits.py`
-- `finrobot/monitoring/alpha_decay.py`
+- `aiquanttrader/hft.py`
+- `aiquanttrader/indicators.py`
+- `aiquanttrader/strategies/grid.py`
+- `aiquanttrader/strategies/backtesting.py` (includes martingale research)
+- `aiquanttrader/strategies/harmonics.py`
+- `aiquanttrader/strategies/smart_money.py`
+- `aiquanttrader/strategies/orchestrator.py`
+- `aiquanttrader/risk/kelly.py`, `vol_target.py`, and `limits.py`
+- `aiquanttrader/monitoring/alpha_decay.py`
 
-`finrobot/execution/` currently has no implementation. `python -m finrobot`
+`aiquanttrader/execution/` currently has no implementation. `python -m aiquanttrader`
 only prints the PM2 startup hint.
 
 ## Test and Release Surface
@@ -267,19 +267,19 @@ changes, but verify its version/test-count examples against current code.
 Minimum repo checks after edits:
 
 ```bash
-python3 -m compileall -q finrobot scripts
+python3 -m compileall -q aiquanttrader scripts
 python3 scripts/mt5_trade_report.py
 .venv/bin/python -m pytest -q -p no:cacheprovider
 ```
 
 After EA changes also run `scripts/sync_mt5_ea.sh`, inspect the MetaEditor
-compile result, restart only `mt5-terminal`, and verify deployed status/report.
+compile result, restart only `aiquanttrader-mt5`, and verify deployed status/report.
 
 ## Verified Snapshot and Known Gaps
 
 Observed on 2026-07-15; re-run the listed commands before relying on numbers:
 
-- Runtime: all four PM2 services online, v1.41 heartbeat fresh, no open managed
+- Runtime: all four PM2 services online, v2.00 heartbeat fresh, no open managed
   positions, compiled defaults active, and autonomous demo entries enabled.
 - Performance: the sliding deal export currently contains 28 closed XAU deals,
   total PnL `-7,989.96`, win rate `17.86%`, and expectancy `-285.36`.
@@ -293,7 +293,7 @@ Observed on 2026-07-15; re-run the listed commands before relying on numbers:
 - The targeted `macd_continuation_m1` repair improved mean fold PnL to
   `16,808.09` and recent PnL to `115,280.72`, but mean PF `1.05` and worst-fold
   PnL `-37,275.95` failed promotion. The challenger remains undeployed.
-- Release identity: live status reports v1.41 and the current repository HEAD
+- Release identity: live status reports v2.00 and the current repository HEAD
   SHA. MetaEditor compiled the deployed artifact with zero errors.
 
 Known issues to address before trusting strategy promotion or further increasing risk:
@@ -313,7 +313,7 @@ Known issues to address before trusting strategy promotion or further increasing
 6. Signals use the forming M1 bar and are evaluated every timer tick. Cooldown
    and `lastTradeTimes` are in memory and reset after an EA restart.
 7. `EnforceManagedRisk` closes stopless managed-symbol positions only when the
-   comment does not start with `FinRobot_`; healthcheck is the main detector for
+   comment does not start with `AIQuantTrader_`; healthcheck is the main detector for
    an EA-owned position that loses SL/TP protection.
 8. The bridge deal export covers 14 days, acknowledgement IDs can repeat after
     restart, and status telemetry resets daily/restart, so Common Files alone

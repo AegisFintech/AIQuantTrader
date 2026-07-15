@@ -8,11 +8,11 @@ if [ -f "$ROOT/.env" ]; then
   source "$ROOT/.env"
   set +a
 fi
-RUNTIME_DIR="${FINROBOT_RUNTIME_DIR:-$ROOT/.runtime}"
-WINEPREFIX_DIR="${FINROBOT_WINEPREFIX:-$RUNTIME_DIR/wineprefix}"
-MT5_DIR="${FINROBOT_MT5_DIR:-$RUNTIME_DIR/mt5}"
+RUNTIME_DIR="${AIQUANTTRADER_RUNTIME_DIR:-$ROOT/.runtime}"
+WINEPREFIX_DIR="${AIQUANTTRADER_WINEPREFIX:-$RUNTIME_DIR/wineprefix}"
+MT5_DIR="${AIQUANTTRADER_MT5_DIR:-$RUNTIME_DIR/mt5}"
 TERMINAL_DIR="$MT5_DIR/terminal/current"
-EXPERT_DIR="$TERMINAL_DIR/MQL5/Experts/FinRobot"
+EXPERT_DIR="$TERMINAL_DIR/MQL5/Experts/AIQuantTrader"
 COMPILE=1
 
 if [ "${1:-}" = "--no-compile" ]; then
@@ -26,7 +26,7 @@ if [ ! -d "$TERMINAL_DIR" ]; then
 fi
 
 mkdir -p "$EXPERT_DIR"
-cp "$ROOT/broker/mt5/FinRobotBridgeEA.mq5" "$EXPERT_DIR/FinRobotBridgeEA.mq5"
+cp "$ROOT/broker/mt5/AIQuantTraderBridgeEA.mq5" "$EXPERT_DIR/AIQuantTraderBridgeEA.mq5"
 cp "$ROOT/broker/mt5/BridgeIO.mqh" "$EXPERT_DIR/BridgeIO.mqh"
 cp "$ROOT/broker/mt5/RiskManagement.mqh" "$EXPERT_DIR/RiskManagement.mqh"
 cp "$ROOT/broker/mt5/SmartMoney.mqh" "$EXPERT_DIR/SmartMoney.mqh"
@@ -42,8 +42,8 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 "$PYTHON_BIN" "$ROOT/scripts/release_manifest.py"
 if MANIFEST_SRC="$ROOT/state/mt5/EA_MANIFEST.txt"; [ -f "$MANIFEST_SRC" ]; then
     cp "$MANIFEST_SRC" "$EXPERT_DIR/EA_MANIFEST.txt"
-    if [ -n "${FINROBOT_COMMON_DIR:-}" ] && [ -d "$FINROBOT_COMMON_DIR" ]; then
-        cp "$MANIFEST_SRC" "$FINROBOT_COMMON_DIR/EA_MANIFEST.txt"
+    if [ -n "${AIQUANTTRADER_COMMON_DIR:-}" ] && [ -d "$AIQUANTTRADER_COMMON_DIR" ]; then
+        cp "$MANIFEST_SRC" "$AIQUANTTRADER_COMMON_DIR/EA_MANIFEST.txt"
     fi
     for COMMON_DIR in "$WINEPREFIX_DIR"/drive_c/users/*/AppData/Roaming/MetaQuotes/Terminal/Common/Files; do
         if [ -d "$COMMON_DIR" ]; then
@@ -66,9 +66,9 @@ fi
 export WINEPREFIX="$WINEPREFIX_DIR"
 export WINEARCH=win64
 export WINEDEBUG="${WINEDEBUG:--all}"
-WINE_CMD="${FINROBOT_WINE_CMD:-wine}"
+WINE_CMD="${AIQUANTTRADER_WINE_CMD:-wine}"
 ARCH="$(uname -m)"
-if [ "${FINROBOT_ALLOW_EMULATED_MT5:-false}" = "true" ] && [ "$ARCH" != "x86_64" ] && [ "$ARCH" != "amd64" ] && [ -z "${FINROBOT_WINE_CMD:-}" ]; then
+if [ "${AIQUANTTRADER_ALLOW_EMULATED_MT5:-false}" = "true" ] && [ "$ARCH" != "x86_64" ] && [ "$ARCH" != "amd64" ] && [ -z "${AIQUANTTRADER_WINE_CMD:-}" ]; then
   if command -v wine >/dev/null 2>&1 && wine --version 2>/dev/null | grep -qi 'hangover'; then
     WINE_CMD="wine"
   else
@@ -78,5 +78,5 @@ fi
 read -r -a WINE_CMD_ARR <<< "$WINE_CMD"
 
 cd "$TERMINAL_DIR"
-xvfb-run -a "${WINE_CMD_ARR[@]}" "$METAEDITOR" /compile:"MQL5\\Experts\\FinRobot\\FinRobotBridgeEA.mq5" /log:compile.log || true
+xvfb-run -a "${WINE_CMD_ARR[@]}" "$METAEDITOR" /compile:"MQL5\\Experts\\AIQuantTrader\\AIQuantTraderBridgeEA.mq5" /log:compile.log || true
 echo "EA files synced. Compile log: $TERMINAL_DIR/compile.log"

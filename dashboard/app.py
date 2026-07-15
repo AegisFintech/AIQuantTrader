@@ -26,17 +26,17 @@ from runtime_paths import common_dir  # noqa: E402
 LIVE_HEARTBEAT_SECONDS = 60
 
 
-st.set_page_config(page_title="FinRobot Dashboard", page_icon="chart_with_upwards_trend", layout="wide")
+st.set_page_config(page_title="AIQuantTrader Dashboard", page_icon="chart_with_upwards_trend", layout="wide")
 st.markdown(
     """
     <style>
       .block-container { padding-top: 1rem; padding-bottom: 2rem; max-width: 1500px; }
       [data-testid="stMetricValue"] { font-size: 1.45rem; }
       [data-testid="stMetricDelta"] { font-size: .8rem; }
-      .fr-muted { color: #6b7280; font-size: .85rem; }
-      .fr-ok { color: #15803d; font-weight: 700; }
-      .fr-warn { color: #b45309; font-weight: 700; }
-      .fr-bad { color: #b91c1c; font-weight: 700; }
+      .aqt-muted { color: #6b7280; font-size: .85rem; }
+      .aqt-ok { color: #15803d; font-weight: 700; }
+      .aqt-warn { color: #b45309; font-weight: 700; }
+      .aqt-bad { color: #b91c1c; font-weight: 700; }
     </style>
     """,
     unsafe_allow_html=True,
@@ -117,7 +117,7 @@ def status_label(status_path: Path | None, age_seconds: float | None) -> tuple[s
 def strategy_name(row: dict[str, str], entries: dict[str, list[dict[str, str]]]) -> str:
     entry = (entries.get(row.get("position_id") or "") or [{}])[0]
     comment = entry.get("comment") or row.get("comment") or "UNKNOWN"
-    return str(comment).replace("FinRobot_", "")
+    return str(comment).replace("AIQuantTrader_", "")
 
 
 def summarize_deals(rows: list[dict[str, str]]) -> dict[str, Any]:
@@ -261,11 +261,11 @@ def pgrep_status() -> str:
 
 
 common = common_dir()
-status_path = common / "finrobot_status.json" if common else None
-positions_path = common / "finrobot_positions.csv" if common else None
-deals_path = common / "finrobot_deals.csv" if common else None
-acks_path = common / "finrobot_acks.csv" if common else None
-profile_path = common / "finrobot_strategy_profile.csv" if common else None
+status_path = common / "aiquanttrader_status.json" if common else None
+positions_path = common / "aiquanttrader_positions.csv" if common else None
+deals_path = common / "aiquanttrader_deals.csv" if common else None
+acks_path = common / "aiquanttrader_acks.csv" if common else None
+profile_path = common / "aiquanttrader_strategy_profile.csv" if common else None
 
 status = read_json(status_path)
 status_age = time.time() - status_path.stat().st_mtime if status_path and status_path.exists() else None
@@ -278,9 +278,9 @@ label, label_class = status_label(status_path, status_age)
 
 
 with st.sidebar:
-    st.title("FinRobot")
+    st.title("AIQuantTrader")
     st.caption("MT5 demo monitor for XAUUSD")
-    st.markdown(f"<span class='fr-{label_class}'>{label}</span>", unsafe_allow_html=True)
+    st.markdown(f"<span class='aqt-{label_class}'>{label}</span>", unsafe_allow_html=True)
     st.write(f"Heartbeat age: {status_age:.1f}s" if status_age is not None else "Heartbeat unavailable")
     st.write(f"Common files: `{common or 'not found'}`")
     if st.button("Refresh now", width="stretch"):
@@ -288,7 +288,7 @@ with st.sidebar:
     st.caption("Auto-refresh is disabled.")
 
 
-st.title("FinRobot Trading Dashboard")
+st.title("AIQuantTrader Trading Dashboard")
 st.caption("Read-only live status from MT5 Common Files and PM2 logs.")
 
 balance = as_float(status.get("balance"))

@@ -1,5 +1,5 @@
-#property copyright "FinRobot"
-#property link      "https://github.com/AegisFintech/FinRobot"
+#property copyright "AIQuantTrader"
+#property link      "https://github.com/AegisFintech/AIQuantTrader"
 #property version   "1.00"
 #property script_show_inputs
 
@@ -15,18 +15,18 @@ int OnStart()
    StringTrimRight(export_symbol);
    if(export_symbol == "")
    {
-      Print("FinRobot export error: Symbol is required");
+      Print("AIQuantTrader export error: Symbol is required");
       return 1;
    }
    if(BarCount <= 0)
    {
-      PrintFormat("FinRobot export error: invalid BarCount=%d", BarCount);
+      PrintFormat("AIQuantTrader export error: invalid BarCount=%d", BarCount);
       return 1;
    }
    if(!SymbolSelect(export_symbol, true))
    {
       PrintFormat(
-         "FinRobot export error: unable to select symbol %s, err=%d",
+         "AIQuantTrader export error: unable to select symbol %s, err=%d",
          export_symbol,
          GetLastError()
       );
@@ -40,7 +40,7 @@ int OnStart()
    if(copied <= 0)
    {
       PrintFormat(
-         "FinRobot export error: no M1 history for %s, requested=%d err=%d",
+         "AIQuantTrader export error: no M1 history for %s, requested=%d err=%d",
          export_symbol,
          BarCount,
          GetLastError()
@@ -48,14 +48,14 @@ int OnStart()
       return 1;
    }
 
-   string file_name = StringFormat("finrobot_export_%s_M1.tsv", export_symbol);
+   string file_name = StringFormat("aiquanttrader_export_%s_M1.tsv", export_symbol);
    FileDelete(file_name, FILE_COMMON);
    ResetLastError();
    int handle = FileOpen(file_name, FILE_WRITE | FILE_TXT | FILE_ANSI | FILE_COMMON);
    if(handle == INVALID_HANDLE)
    {
       PrintFormat(
-         "FinRobot export error: unable to open %s in Common Files, err=%d",
+         "AIQuantTrader export error: unable to open %s in Common Files, err=%d",
          file_name,
          GetLastError()
       );
@@ -79,7 +79,7 @@ int OnStart()
       {
          int err = GetLastError();
          FileClose(handle);
-         PrintFormat("FinRobot export error: write failed for %s, err=%d", file_name, err);
+         PrintFormat("AIQuantTrader export error: write failed for %s, err=%d", file_name, err);
          return 1;
       }
       written++;
@@ -88,11 +88,11 @@ int OnStart()
 
    if(written <= 0)
    {
-      PrintFormat("FinRobot export error: history too short for %s", export_symbol);
+      PrintFormat("AIQuantTrader export error: history too short for %s", export_symbol);
       return 1;
    }
 
-   PrintFormat("FinRobot export: %s bars=%d file=%s", export_symbol, written, file_name);
+   PrintFormat("AIQuantTrader export: %s bars=%d file=%s", export_symbol, written, file_name);
    return 0;
 }
 

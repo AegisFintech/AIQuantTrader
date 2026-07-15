@@ -67,7 +67,7 @@ still part of active work, even if it is technically merged.
 ## Reference
 
 This policy follows the Option A+C recommendation from
-[issue #9](https://github.com/AegisFintech/FinRobot/issues/9): use
+[issue #9](https://github.com/AegisFintech/AIQuantTrader/issues/9): use
 phase-bounded feature branches for milestone work and trunk-based delivery for
 small ops or hotfix work. The immediate cleanup was raised because
 `phase1/hardening`, `phase2/warehouse`, and `phase3/data-layer` were already

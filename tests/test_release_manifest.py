@@ -8,7 +8,7 @@ import pytest
 
 pytest.importorskip("duckdb", reason="duckdb package is required for warehouse tests")
 
-from finrobot import data_store, release_manifest
+from aiquanttrader import data_store, release_manifest
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,7 +34,7 @@ def test_build_manifest_returns_required_keys():
 def test_build_manifest_extracts_ea_version_from_mq5_source():
     manifest = release_manifest.build_manifest(ROOT)
 
-    assert manifest["ea_version"] == "1.41"
+    assert manifest["ea_version"] == "2.00"
 
 
 def test_build_manifest_extracts_auto_symbols_as_managed_symbols():
@@ -67,9 +67,9 @@ def test_build_manifest_returns_empty_git_fields_outside_git_repo(tmp_path):
 
 
 @pytest.mark.real_repo
-def test_build_manifest_populates_git_sha_inside_real_finrobot_repo():
-    if not (ROOT / ".git").exists() or not (ROOT / "broker" / "mt5" / "FinRobotBridgeEA.mq5").exists():
-        pytest.skip("not running inside the FinRobot git repo")
+def test_build_manifest_populates_git_sha_inside_real_aiquanttrader_repo():
+    if not (ROOT / ".git").exists() or not (ROOT / "broker" / "mt5" / "AIQuantTraderBridgeEA.mq5").exists():
+        pytest.skip("not running inside the AIQuantTrader git repo")
 
     manifest = release_manifest.build_manifest(ROOT)
 
@@ -124,7 +124,7 @@ def test_ingest_status_without_explicit_version_reads_manifest(tmp_path, monkeyp
 
 
 def test_ingest_status_prefers_live_status_over_manifest(tmp_path, monkeypatch):
-    """Live finrobot_status.json must override state/mt5/RELEASE.json.
+    """Live aiquanttrader_status.json must override state/mt5/RELEASE.json.
 
     The deployed .ex5 carries the compile-time SHA; state/mt5/RELEASE.json
     carries the current HEAD SHA. They diverge between deploys. The script
@@ -138,7 +138,7 @@ def test_ingest_status_prefers_live_status_over_manifest(tmp_path, monkeypatch):
 
     common = tmp_path / "common"
     common.mkdir()
-    (common / "finrobot_status.json").write_text(
+    (common / "aiquanttrader_status.json").write_text(
         json.dumps(
             {
                 "ts": 1780000100,
@@ -162,13 +162,13 @@ def test_ingest_status_prefers_live_status_over_manifest(tmp_path, monkeypatch):
             }
         )
     )
-    (common / "finrobot_positions.csv").write_text(
+    (common / "aiquanttrader_positions.csv").write_text(
         "time,ticket,symbol,type,side,volume,open_price,current_price,profit,sl,tp,comment\n"
     )
-    (common / "finrobot_deals.csv").write_text(
+    (common / "aiquanttrader_deals.csv").write_text(
         "time,ticket,order,position_id,symbol,entry,type,volume,price,profit,commission,swap,comment\n"
     )
-    (common / "finrobot_acks.csv").write_text(
+    (common / "aiquanttrader_acks.csv").write_text(
         "time,ticket,order,position_id,symbol,action,side,volume,price,sl,tp,comment,source\n"
     )
 
@@ -186,7 +186,7 @@ def test_ingest_status_prefers_live_status_over_manifest(tmp_path, monkeypatch):
 
 
 def _write_ea(root: Path, version: str = "1.30") -> Path:
-    mq5 = root / "broker" / "mt5" / "FinRobotBridgeEA.mq5"
+    mq5 = root / "broker" / "mt5" / "AIQuantTraderBridgeEA.mq5"
     mq5.parent.mkdir(parents=True, exist_ok=True)
     mq5.write_text(
         "\n".join(

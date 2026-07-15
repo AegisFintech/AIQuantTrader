@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""6-hour autonomous FinRobot review loop.
+"""6-hour autonomous AIQuantTrader review loop.
 
 Policy:
 - Review MT5 XAUUSD performance and strategy memory every 6 hours.
@@ -208,7 +208,7 @@ def _tail_text(value: str | bytes | None, limit: int = 12_000) -> str:
 
 def opencode_review(memory: list[dict], mt5_report: str, strategy_lab: dict, dry_run: bool) -> dict:
     prompt = f"""
-You are a senior HFT/quant trading engineer reviewing FinRobot.
+You are a senior HFT/quant trading engineer reviewing AIQuantTrader.
 
 Current mandate:
 - Trade only broker/demo MT5 symbol: XAUUSD.
@@ -266,7 +266,7 @@ def cycle(args: argparse.Namespace) -> dict:
             'rationale': rec['reason'],
             'decision': 'rejected',
             'reason': rec['reason'],
-            'model': 'autonomous-review',
+            'model': 'aiquanttrader-review',
         })
         return {'applied': False, 'skipped': True, 'reason': rec['reason']}
 
@@ -292,7 +292,7 @@ def cycle(args: argparse.Namespace) -> dict:
             'rationale': 'LLM editing disabled by AUTOREVIEW_ENABLE_LLM; recorded analysis only',
             'decision': 'rejected',
             'reason': 'llm_editing_disabled',
-            'model': 'autonomous-review',
+            'model': 'aiquanttrader-review',
         })
         return {'applied': False, 'analysis_only': True, 'closed_deals': n, 'strategy_lab': lab_result}
 
@@ -310,14 +310,14 @@ def cycle(args: argparse.Namespace) -> dict:
     log(f"opencode_returncode={result['returncode']}")
     if result['returncode'] == 0 and not args.dry_run:
         checks = [
-            run([sys.executable, '-m', 'compileall', '-q', 'finrobot', 'scripts'], timeout=300),
+            run([sys.executable, '-m', 'compileall', '-q', 'aiquanttrader', 'scripts'], timeout=300),
             run([sys.executable, 'scripts/mt5_trade_report.py'], timeout=120),
         ]
         ok = all(c.returncode == 0 for c in checks)
         log(f"post_checks_ok={ok}")
         if ok:
             pm2_bin = shutil.which('pm2') or 'pm2'
-            run([pm2_bin, 'restart', 'mt5-terminal', 'autonomous-review', '--update-env'], timeout=300)
+            run([pm2_bin, 'restart', 'aiquanttrader-mt5', 'aiquanttrader-review', '--update-env'], timeout=300)
         return {'applied': ok, 'opencode': result}
     return {'applied': False, 'opencode': result}
 

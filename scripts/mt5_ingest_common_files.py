@@ -14,8 +14,8 @@ if str(ROOT) not in sys.path:
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
-from finrobot import data_store  # noqa: E402
-from finrobot.release_manifest import load_release_manifest  # noqa: E402
+from aiquanttrader import data_store  # noqa: E402
+from aiquanttrader.release_manifest import load_release_manifest  # noqa: E402
 from mt5_trade_report import read_csv, read_json  # noqa: E402
 from runtime_paths import common_dir  # noqa: E402
 
@@ -43,12 +43,12 @@ def ingest_common_files(common: Path, warehouse: Path | None = None) -> dict:
     con = data_store.connect(warehouse)
     try:
         data_store.init_schema(con)
-        status = read_json(common / "finrobot_status.json")
-        positions = read_csv(common / "finrobot_positions.csv")
-        deals = read_csv(common / "finrobot_deals.csv")
-        acks = read_acks(common / "finrobot_acks.csv")
+        status = read_json(common / "aiquanttrader_status.json")
+        positions = read_csv(common / "aiquanttrader_positions.csv")
+        deals = read_csv(common / "aiquanttrader_deals.csv")
+        acks = read_acks(common / "aiquanttrader_acks.csv")
         manifest = load_release_manifest()
-        # Prefer the live finrobot_status.json over the static release manifest.
+        # Prefer the live aiquanttrader_status.json over the static release manifest.
         # The release manifest is generated from current HEAD, but the deployed .ex5
         # was compiled at a (possibly older) commit; status.json reflects what's
         # actually running. Fall back to the manifest only when status lacks these

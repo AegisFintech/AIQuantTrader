@@ -11,10 +11,10 @@ from runtime_paths import WINEPREFIX, common_file_dirs
 
 def latest_status_path() -> Path | None:
     for directory in common_file_dirs():
-        path = directory / "finrobot_status.json"
+        path = directory / "aiquanttrader_status.json"
         if path.exists():
             return path
-    for path in WINEPREFIX.glob("**/finrobot_status.json"):
+    for path in WINEPREFIX.glob("**/aiquanttrader_status.json"):
         return path
     return None
 
@@ -28,7 +28,7 @@ if path:
         print(json.dumps(data, indent=2))
         print(f"age_seconds={age:.1f}")
         common = path.parent
-        for name in ("finrobot_positions.csv", "finrobot_deals.csv", "finrobot_acks.csv"):
+        for name in ("aiquanttrader_positions.csv", "aiquanttrader_deals.csv", "aiquanttrader_acks.csv"):
             file_path = common / name
             if file_path.exists():
                 file_age = time.time() - file_path.stat().st_mtime

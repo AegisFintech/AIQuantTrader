@@ -6,16 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from finrobot.backtest.engine import BacktestConfig
-from finrobot.backtest.fills import FillConfig
-from finrobot.backtest.position import PositionSizer
-from finrobot.backtest.parity_replay import (
+from aiquanttrader.backtest.engine import BacktestConfig
+from aiquanttrader.backtest.fills import FillConfig
+from aiquanttrader.backtest.position import PositionSizer
+from aiquanttrader.backtest.parity_replay import (
     ParityReplayConfig,
     load_acked_decisions,
     run_parity_replay,
 )
-from finrobot.backtest.strategies.base import Signal, Strategy
-from finrobot.backtest.strategies.stub_replay import StubReplayStrategy
+from aiquanttrader.backtest.strategies.base import Signal, Strategy
+from aiquanttrader.backtest.strategies.stub_replay import StubReplayStrategy
 
 
 ROOT = Path(__file__).resolve().parents[1]

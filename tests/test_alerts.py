@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from finrobot.alerts import (
+from aiquanttrader.alerts import (
     Alert,
     AlertSeverity,
     alert_clock_skew_large,
@@ -16,7 +16,7 @@ from finrobot.alerts import (
     exit_code_for,
     highest_severity,
 )
-from finrobot.metrics import MetricsSnapshot
+from aiquanttrader.metrics import MetricsSnapshot
 
 
 def test_alert_heartbeat_stale_fires_when_stale():
