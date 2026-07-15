@@ -25,3 +25,14 @@
         pm2 reloadLogs >/dev/null 2>&1 || true
     endscript
 }
+
+/root/FinRobot/logs/cron.log /root/FinRobot/logs/alerts.log {
+    daily
+    rotate 14
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    create 0640 root root
+}

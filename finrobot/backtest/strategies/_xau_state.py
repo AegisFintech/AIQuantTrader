@@ -16,9 +16,16 @@ from finrobot.backtest.strategies.xau_gates import (
 class XauRollingFeatureState:
     """O(1) rolling indicator state for normal sequential backtester calls."""
 
-    def __init__(self, params: Any, gate_params: XauGateParams | None = None):
+    def __init__(
+        self,
+        params: Any,
+        gate_params: XauGateParams | None = None,
+        *,
+        eager_gate_features: bool = True,
+    ):
         self.params = params
         self.gate_params = gate_params
+        self.eager_gate_features = bool(eager_gate_features)
         self.ema_fast = _RollingEma(getattr(params, "fast", 9))
         self.ema_slow = _RollingEma(getattr(params, "slow", 21))
         self.ema_trend = _RollingEma(getattr(params, "trend", 50))
@@ -34,6 +41,7 @@ class XauRollingFeatureState:
     def update(self, idx: int, bar: dict) -> dict:
         close = float(bar["close"])
         previous = self.closes[-1] if self.closes else None
+        previous_bar = self.bars[-1] if self.bars else None
         close_three_bars_ago = self.closes[-3] if len(self.closes) >= 3 else None
         previous_ema_fast = self.ema_fast.value
         previous_ema_slow = self.ema_slow.value
@@ -109,6 +117,12 @@ class XauRollingFeatureState:
                 "adx": None,
                 "current": close,
                 "previous": previous,
+                "previous_high": (
+                    float(previous_bar["high"]) if previous_bar is not None else None
+                ),
+                "previous_low": (
+                    float(previous_bar["low"]) if previous_bar is not None else None
+                ),
                 "momentum3": None,
                 "bullish_cross": False,
                 "bearish_cross": False,
@@ -132,6 +146,12 @@ class XauRollingFeatureState:
             "adx": adx_value,
             "current": close,
             "previous": previous,
+            "previous_high": (
+                float(previous_bar["high"]) if previous_bar is not None else None
+            ),
+            "previous_low": (
+                float(previous_bar["low"]) if previous_bar is not None else None
+            ),
             "momentum3": momentum3,
             "bullish_cross": bullish_cross,
             "bearish_cross": bearish_cross,
@@ -151,7 +171,7 @@ class XauRollingFeatureState:
         current: float,
         atr_value: float | None,
     ) -> dict:
-        if self.gate_params is None:
+        if self.gate_params is None or not self.eager_gate_features:
             return feature
 
         return _with_gate_features(
@@ -159,6 +179,22 @@ class XauRollingFeatureState:
             bars=self.bars,
             gate_params=self.gate_params,
             current=current,
+            atr_value=atr_value,
+        )
+
+    def gate_features_for_price(
+        self,
+        *,
+        price: float,
+        atr_value: float | None,
+    ) -> dict:
+        if self.gate_params is None:
+            return {}
+        return _with_gate_features(
+            feature={},
+            bars=self.bars,
+            gate_params=self.gate_params,
+            current=float(price),
             atr_value=atr_value,
         )
 
@@ -371,6 +407,31 @@ class XauM5RollingFeatureState:
         assert self._forming_bar is not None
         m5_idx = len(self._state.closes)
         self._state.update(m5_idx, self._forming_bar)
+
+
+def build_xau_feature_state(
+    params: Any,
+    *,
+    timeframe: str,
+    gate_params: XauGateParams | None = None,
+    eager_gate_features: bool = True,
+) -> XauRollingFeatureState | XauM5RollingFeatureState:
+    """Build the rolling state that matches the EA profile timeframe."""
+
+    normalized = str(timeframe or "").strip().upper().replace("PERIOD_", "")
+    if normalized == "M1":
+        return XauRollingFeatureState(
+            params,
+            gate_params=gate_params,
+            eager_gate_features=eager_gate_features,
+        )
+    if normalized == "M5":
+        return XauM5RollingFeatureState(
+            params,
+            gate_params=gate_params,
+            eager_gate_features=eager_gate_features,
+        )
+    raise ValueError(f"unsupported XAU research timeframe: {timeframe!r}")
 
 
 _RollingXauState = XauRollingFeatureState

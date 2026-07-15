@@ -13,6 +13,19 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:  # pragma: no cover - dependency is installed in production.
+    load_dotenv = None
+
+
+def _load_repo_dotenv(path: Path = ROOT / ".env") -> None:
+    if load_dotenv is not None:
+        load_dotenv(path)
+
+
+_load_repo_dotenv()
+
 from finrobot.alert_delivery import (  # noqa: E402
     diff_alerts,
     last_state_path,

@@ -10,6 +10,9 @@ Checks (all read-only):
   2. finrobot_positions.csv exists; no managed position is missing both SL and TP
      unless the EA's auto-close-no-sl-tp safety is enabled.
   3. money_management.loss_limit_reached is 0 in finrobot_status.json.
+  4. Repository disk usage stays below the configured ceiling.
+  5. Autonomous research has a recent successful strategy-lab record.
+  6. All active PM2 services are online and below the restart threshold.
 
 Usage:
   python3 scripts/healthcheck.py
@@ -20,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import time
@@ -34,6 +38,15 @@ from runtime_paths import common_dir  # noqa: E402
 
 DEFAULT_HEARTBEAT_STALE_SECONDS = 60
 DEFAULT_PM2_STALE_RESTARTS = 20  # mirror ecosystem.config.js max_restarts
+DEFAULT_DISK_MAX_USED_PERCENT = 85.0
+DEFAULT_RESEARCH_MAX_AGE_HOURS = 14.0
+DEFAULT_PM2_PROCESSES = (
+    "mt5-terminal",
+    "mt5-watchdog",
+    "autonomous-review",
+    "finrobot-dashboard",
+)
+DEFAULT_RESEARCH_JOURNAL = ROOT / "state" / "mt5" / "improver_journal.jsonl"
 
 
 @dataclass
@@ -155,6 +168,97 @@ def check_unprotected_positions(common: Path, status: dict) -> CheckResult:
     )
 
 
+def check_disk_usage(
+    path: Path = ROOT,
+    max_used_percent: float = DEFAULT_DISK_MAX_USED_PERCENT,
+) -> CheckResult:
+    usage = shutil.disk_usage(path)
+    used_percent = 0.0 if usage.total <= 0 else usage.used / usage.total * 100.0
+    free_gib = usage.free / (1024**3)
+    ok = used_percent < float(max_used_percent)
+    return CheckResult(
+        name="disk_usage",
+        ok=ok,
+        detail=(
+            f"{path} used={used_percent:.1f}% free={free_gib:.2f}GiB "
+            f"limit={float(max_used_percent):.1f}%"
+        ),
+        extra={
+            "path": str(path),
+            "used_percent": round(used_percent, 2),
+            "free_gib": round(free_gib, 3),
+            "max_used_percent": float(max_used_percent),
+        },
+    )
+
+
+def check_research_freshness(
+    journal: Path = DEFAULT_RESEARCH_JOURNAL,
+    max_age_hours: float = DEFAULT_RESEARCH_MAX_AGE_HOURS,
+) -> CheckResult:
+    if not journal.exists() or not journal.stat().st_size:
+        return CheckResult(
+            name="research_cycle_pending",
+            ok=True,
+            detail=f"no autonomous research journal yet at {journal}",
+        )
+
+    last_record: dict | None = None
+    for raw_line in reversed(journal.read_text(errors="replace").splitlines()):
+        try:
+            record = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if record.get("event") == "autonomous_strategy_lab":
+            last_record = record
+            break
+    if last_record is None:
+        return CheckResult(
+            name="research_cycle_present",
+            ok=False,
+            detail=f"no autonomous_strategy_lab record in {journal}",
+        )
+
+    timestamp = float(last_record.get("ts") or 0.0)
+    age_hours = max(0.0, time.time() - timestamp) / 3600.0
+    result = last_record.get("result") or {}
+    if result.get("enabled") is False:
+        return CheckResult(
+            name="research_cycle_disabled",
+            ok=True,
+            detail=f"profile lab disabled; last record age={age_hours:.2f}h",
+        )
+    returncode = result.get("returncode")
+    timed_out = bool(result.get("timed_out")) or returncode == 124
+    fresh = age_hours <= float(max_age_hours)
+    succeeded = returncode == 0 and not timed_out
+    if not fresh:
+        detail = (
+            f"last strategy lab is {age_hours:.2f}h old "
+            f"(>{float(max_age_hours):.2f}h)"
+        )
+    elif timed_out:
+        detail = (
+            "last strategy lab timed out "
+            f"after {result.get('duration_seconds', result.get('timeout_seconds', '?'))}s"
+        )
+    elif not succeeded:
+        detail = f"last strategy lab failed returncode={returncode!r}"
+    else:
+        detail = f"last strategy lab succeeded age={age_hours:.2f}h"
+    return CheckResult(
+        name="research_cycle_fresh",
+        ok=fresh and succeeded,
+        detail=detail,
+        extra={
+            "age_hours": round(age_hours, 3),
+            "max_age_hours": float(max_age_hours),
+            "returncode": returncode,
+            "timed_out": timed_out,
+        },
+    )
+
+
 def check_pm2(process_name: str = "mt5-terminal") -> CheckResult:
     try:
         proc = subprocess.run(
@@ -227,7 +331,11 @@ def check_pm2(process_name: str = "mt5-terminal") -> CheckResult:
 def check_all(
     common: Optional[Path] = None,
     heartbeat_stale_seconds: int = DEFAULT_HEARTBEAT_STALE_SECONDS,
-    pm2_process: str = "mt5-terminal",
+    pm2_process: str | None = None,
+    disk_path: Path = ROOT,
+    disk_max_used_percent: float = DEFAULT_DISK_MAX_USED_PERCENT,
+    research_journal: Path = DEFAULT_RESEARCH_JOURNAL,
+    research_max_age_hours: float = DEFAULT_RESEARCH_MAX_AGE_HOURS,
 ) -> list[CheckResult]:
     results: list[CheckResult] = []
     if common is None:
@@ -246,7 +354,12 @@ def check_all(
     status = _read_status(common)
     results.append(check_loss_limit(status))
     results.append(check_unprotected_positions(common, status))
-    results.append(check_pm2(pm2_process))
+    results.append(check_disk_usage(disk_path, disk_max_used_percent))
+    results.append(
+        check_research_freshness(research_journal, research_max_age_hours)
+    )
+    pm2_processes = (pm2_process,) if pm2_process else DEFAULT_PM2_PROCESSES
+    results.extend(check_pm2(name) for name in pm2_processes)
     return results
 
 
@@ -260,8 +373,20 @@ def main() -> int:
     )
     parser.add_argument(
         "--pm2-process",
-        default="mt5-terminal",
-        help="PM2 process name to check (default: mt5-terminal)",
+        default="",
+        help="Check only this PM2 process instead of all active FinRobot services",
+    )
+    parser.add_argument(
+        "--disk-max-used-percent",
+        type=float,
+        default=DEFAULT_DISK_MAX_USED_PERCENT,
+        help="Fail when repository filesystem usage reaches this percentage",
+    )
+    parser.add_argument(
+        "--research-max-age-hours",
+        type=float,
+        default=DEFAULT_RESEARCH_MAX_AGE_HOURS,
+        help="Fail when the latest strategy-lab record is older than this",
     )
     parser.add_argument(
         "--json",
@@ -272,7 +397,9 @@ def main() -> int:
 
     results = check_all(
         heartbeat_stale_seconds=args.heartbeat_stale_seconds,
-        pm2_process=args.pm2_process,
+        pm2_process=args.pm2_process or None,
+        disk_max_used_percent=args.disk_max_used_percent,
+        research_max_age_hours=args.research_max_age_hours,
     )
     if args.json:
         print(

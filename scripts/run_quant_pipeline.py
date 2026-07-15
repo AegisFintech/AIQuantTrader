@@ -7,7 +7,7 @@ current strategies have real edge.
 
 Usage:
     .venv/bin/python scripts/run_quant_pipeline.py
-    .venv/bin/python scripts/run_quant_pipeline.py --bars 50000 --timeframe M5
+    .venv/bin/python scripts/run_quant_pipeline.py --bars 50000 --timeframe M1
 """
 
 from __future__ import annotations

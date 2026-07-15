@@ -101,6 +101,7 @@ The EA writes MT5 Common Files:
 Current auto-trading posture:
 
 - XAUUSD lot sizing targets 1.00% planned stop risk per position from broker-day equity and SL distance. Score multipliers cannot exceed that hard effective-risk cap; the 50-lot demo ceiling and broker volume limits still apply.
+- XAUUSD signals and indicators run on M1 for the active demo strategy; the strategy lab uses the profile timeframe when replaying M1 warehouse bars.
 - XAUUSD scans Monday-Friday whenever the broker symbol is inside its configured trade session, while requiring premium/discount smart-money score 4+ entries.
 - Entries require spread, smart-money, position-count, and daily-risk checks before any order is sent.
 - Auto trades and command-file market trades require broker-side SL and TP values before the EA sends the order.
@@ -133,7 +134,13 @@ python3 scripts/xau_strategy_lab.py --harvest-first
 python3 scripts/xau_strategy_lab.py --write-profile
 ```
 
-The lab writes a live profile only when `--write-profile` is passed and the winning candidate clears the promotion gates, unless `--force-profile` is also passed. The 6-hour `autonomous-review` loop runs the lab by default for analysis; live profile deployment remains gated by `AUTOREVIEW_ENABLE_PROMOTION_DEPLOY=true`. LLM code edits remain separately gated by `AUTOREVIEW_ENABLE_LLM=true`.
+The lab writes a live profile only when `--write-profile` is passed and the winning candidate clears the promotion gates, unless `--force-profile` is also passed. The 6-hour `autonomous-review` loop runs the lab over the latest 50,000 bars at low CPU priority by default and journals timeouts without aborting the cycle. Live profile deployment remains gated by `AUTOREVIEW_ENABLE_PROMOTION_DEPLOY=true`; LLM code edits remain separately gated by `AUTOREVIEW_ENABLE_LLM=true`.
+
+The `macd_continuation_m1` challenger adds a strengthening MACD-histogram gate to the M1 ATR impulse entry. The EA supports the gate through runtime profiles, but the compiled default remains off and the lab will not deploy the challenger unless it clears every promotion gate.
+
+`config/finrobot.cron` serializes DuckDB ingestion and price snapshots through `scripts/mt5_minute_cycle.py`, then sequences metrics export, alert delivery, and the broader healthcheck every five minutes. The healthcheck covers heartbeat, risk, unprotected positions, disk usage, research freshness, and all four PM2 services.
+
+Telegram warning and critical transitions use `TELEGRAM_BOT_TOKEN` and `TELEGRAM_ALERT_CHAT_ID` from the repo-local `.env`. `scripts/alert_delivery.py` loads that file directly so cron delivery does not depend on an interactive shell environment.
 
 ## Clean Reset
 

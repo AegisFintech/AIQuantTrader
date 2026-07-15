@@ -6,7 +6,7 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from finrobot.backtest.position import Position
-from finrobot.backtest.strategies._xau_state import XauM5RollingFeatureState
+from finrobot.backtest.strategies._xau_state import build_xau_feature_state
 from finrobot.backtest.strategies.base import Signal, Strategy
 from finrobot.backtest.strategies.xau_gates import XauGateParams
 
@@ -21,6 +21,7 @@ class XauGatedParams:
     enable_smc_gate: bool = True
     enable_pda_gate: bool = True
     enable_adx_gate: bool = True
+    enable_macd_histogram_alignment: bool = False
     adx_min_threshold: float = 20.0
     gate_params: XauGateParams = field(default_factory=XauGateParams)
     min_bars_between_signals: int = 0
@@ -52,6 +53,7 @@ class XauGatedStrategy(Strategy):
         self.params = gate_params
         self._inner = inner
         self._state_params = getattr(inner, "params", _DefaultXauStateParams())
+        self.timeframe = str(getattr(inner, "timeframe", "M5"))
         self._reset()
 
     def on_bar(
@@ -66,10 +68,7 @@ class XauGatedStrategy(Strategy):
     ) -> Signal:
         """Return the inner signal only when the XAU gates pass.
 
-        The inner XAU strategies and this gate state both preview MQL5
-        ``PERIOD_M5`` features from M1 bars. PDA gate mirrors MQL5
-        FinRobotBridgeEA.mq5 lines 873-879. SMC score gate mirrors lines
-        883-889.
+        The inner XAU strategy and gate state use the same profile timeframe.
         """
 
         if idx == 0 and self._last_idx >= 0:
@@ -114,6 +113,20 @@ class XauGatedStrategy(Strategy):
             adx_value = feature.get("adx")
             if adx_value is None or float(adx_value) < self.params.adx_min_threshold:
                 return Signal(action="HOLD", strategy=self.name, comment="adx_regime_reject")
+
+        if self.params.enable_macd_histogram_alignment:
+            macd_hist = feature.get("macd_hist")
+            previous_macd_hist = (
+                self._features[-2].get("macd_hist")
+                if len(self._features) >= 2
+                else None
+            )
+            if not _macd_histogram_aligned(
+                action=action,
+                macd_hist=macd_hist,
+                previous_macd_hist=previous_macd_hist,
+            ):
+                return Signal(action="HOLD", strategy=self.name, comment="direction_reject")
 
         if self.params.enable_pda_gate:
             if action == "BUY" and pda_value > self.params.pda_long_ceiling:
@@ -194,8 +207,9 @@ class XauGatedStrategy(Strategy):
         return average_atr > 0.0 and float(current_atr) > average_atr * multiplier
 
     def _reset(self) -> None:
-        self._state = XauM5RollingFeatureState(
+        self._state = build_xau_feature_state(
             self._state_params,
+            timeframe=self.timeframe,
             gate_params=self.params.gate_params,
             eager_gate_features=False,
         )
@@ -212,6 +226,19 @@ def _numeric_epoch(value: Any) -> int | None:
         return int(float(value))
     except (TypeError, ValueError):
         return None
+
+
+def _macd_histogram_aligned(
+    *,
+    action: str,
+    macd_hist: Any,
+    previous_macd_hist: Any,
+) -> bool:
+    if macd_hist is None or previous_macd_hist is None:
+        return False
+    if action == "BUY":
+        return float(macd_hist) > 0.0 and float(macd_hist) > float(previous_macd_hist)
+    return float(macd_hist) < 0.0 and float(macd_hist) < float(previous_macd_hist)
 
 
 def _truthy(value: Any) -> bool:

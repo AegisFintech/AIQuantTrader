@@ -1,6 +1,6 @@
 #property strict
 #property description "FinRobot MT5 bridge and demo auto trader for XAUUSD."
-#property version "1.39"
+#property version "1.41"
 
 #include <Trade/Trade.mqh>
 #include "BridgeIO.mqh"
@@ -24,7 +24,7 @@ input int DefaultDeviationPoints = 30;
 input bool AllowTrading = true;
 input bool AutoTradeMT5 = true;
 input string AutoSymbols = "XAUUSD";
-input ENUM_TIMEFRAMES AutoTimeframe = PERIOD_M5;
+input ENUM_TIMEFRAMES AutoTimeframe = PERIOD_M1;
 input double XauBaseLot = 0.05;                // Fallback only when daily risk sizing is disabled
 input double MaxLotPerTrade = 50.0;            // Demo ceiling; the 1% stop-risk cap remains primary
 input double MaxLotPerTradeXAUUSD = 50.0;      // Allows 1% risk sizing on the high-equity XAU demo account
@@ -76,6 +76,7 @@ input int NyEndHour = 17;
 input bool EnableAdxRegimeFilter = true;
 input int AdxPeriod = 14;
 input double AdxMinThreshold = 20.0;
+input bool EnableMacdHistogramAlignment = false;
 input bool EnableDynamicBreakEven = true;
 input double BreakEvenRrRatio = 1.0;
 input double BreakEvenExtraPoints = 10.0;
@@ -113,7 +114,7 @@ string activeProfileName = "compiled_defaults";
 int activeRiskTier = 0;
 int runtimeProfileLoaded = 0;
 string runtimeProfileMessage = "compiled defaults";
-ENUM_TIMEFRAMES runtimeAutoTimeframe = PERIOD_M5;
+ENUM_TIMEFRAMES runtimeAutoTimeframe = PERIOD_M1;
 double runtimeAtrImpulseMultiplier = 0.12;
 double runtimeMaxLotPerTradeXAUUSD = 50.0;
 double runtimeHighConfluenceLotMultiplier = 3.0;
@@ -136,6 +137,7 @@ bool runtimeEnableXauRsiReversion = false;
 bool runtimeEnableXauAtrImpulse = true;
 bool runtimeEnableAdxRegimeFilter = true;
 double runtimeAdxMinThreshold = 20.0;
+bool runtimeEnableMacdHistogramAlignment = false;
 double runtimePdaLongCeiling = 0.40;
 double runtimePdaShortFloor = 0.60;
 int runtimeLossStreakPauseCount = 0;
@@ -269,6 +271,7 @@ void ResetRuntimeStrategyProfile() {
    runtimeEnableXauAtrImpulse = EnableXauAtrImpulse;
    runtimeEnableAdxRegimeFilter = EnableAdxRegimeFilter;
    runtimeAdxMinThreshold = ClampProfileDouble(AdxMinThreshold, 5.0, 45.0);
+   runtimeEnableMacdHistogramAlignment = EnableMacdHistogramAlignment;
    runtimePdaLongCeiling = 0.40;
    runtimePdaShortFloor = 0.60;
    runtimeLossStreakPauseCount = ClampProfileInt(LossStreakPauseCount, 0, 8);
@@ -288,6 +291,7 @@ void ApplyRuntimeProfileKey(string keyRaw, string valueRaw) {
    else if(key == "enable_xau_rsi_reversion") runtimeEnableXauRsiReversion = ParseProfileBool(value, runtimeEnableXauRsiReversion);
    else if(key == "enable_smart_money_gates") runtimeEnableSmartMoneyGates = ParseProfileBool(value, runtimeEnableSmartMoneyGates);
    else if(key == "enable_adx_regime_filter") runtimeEnableAdxRegimeFilter = ParseProfileBool(value, runtimeEnableAdxRegimeFilter);
+   else if(key == "enable_macd_histogram_alignment") runtimeEnableMacdHistogramAlignment = ParseProfileBool(value, runtimeEnableMacdHistogramAlignment);
    else if(key == "impulse_atr_multiplier") runtimeAtrImpulseMultiplier = ClampProfileDouble(StringToDouble(value), 0.04, 0.30);
    else if(key == "min_smc_confluence_score_xauusd") runtimeMinSmcConfluenceScoreXAUUSD = ClampProfileInt((int)StringToInteger(value), 1, 6);
    else if(key == "pda_long_ceiling") runtimePdaLongCeiling = ClampProfileDouble(StringToDouble(value), 0.05, 0.50);
@@ -364,6 +368,7 @@ string StrategyProfileJson() {
    payload += "\"pda_long_ceiling\":" + DoubleToString(runtimePdaLongCeiling, 2) + ",";
    payload += "\"pda_short_floor\":" + DoubleToString(runtimePdaShortFloor, 2) + ",";
    payload += "\"atr_impulse_multiplier\":" + DoubleToString(runtimeAtrImpulseMultiplier, 3) + ",";
+   payload += "\"macd_histogram_alignment\":" + IntegerToString((int)runtimeEnableMacdHistogramAlignment) + ",";
    payload += "\"loss_streak_pause_count\":" + IntegerToString(runtimeLossStreakPauseCount) + ",";
    payload += "\"bad_day_downshift_fraction\":" + DoubleToString(runtimeBadDayDownshiftFraction, 2) + ",";
    payload += "\"max_recent_drawdown_fraction\":" + DoubleToString(runtimeMaxRecentDrawdownFraction, 4) + ",";
@@ -1168,6 +1173,16 @@ void ManageAutoSymbol(string symbol, int idx) {
       return;
    }
 
+   if(runtimeEnableMacdHistogramAlignment) {
+      bool macdAligned = side > 0
+         ? macdHist > 0.0 && macdHist > prevMacdHist
+         : macdHist < 0.0 && macdHist < prevMacdHist;
+      if(!macdAligned) {
+         SetLastSignal(idx, "direction_reject " + reason + " macd_hist");
+         return;
+      }
+   }
+
    int sameSidePositions = CountPositionsByMagicAndSide(symbol, MagicNumber, side);
    if(sameSidePositions >= runtimeMaxSameDirectionPositionsPerSymbol) {
       SetLastSignal(idx, "same_side_max " + reason + " side=" + (side > 0 ? "BUY" : "SELL"));
@@ -1310,7 +1325,7 @@ int OnInit() {
    LoadManagedSymbols();
    LoadRuntimeStrategyProfile();
    UpdateMoneyManagementState();
-   Print("FinRobotBridgeEA 1.39 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(runtimeAutoTimeframe), " profile=", activeProfileName, " profile_loaded=", runtimeProfileLoaded, " entry_pause=", IsEntryPauseActive());
+   Print("FinRobotBridgeEA 1.40 initialized. AutoTradeMT5=", AutoTradeMT5, " symbols=", AutoSymbols, " timeframe=", EnumToString(runtimeAutoTimeframe), " profile=", activeProfileName, " profile_loaded=", runtimeProfileLoaded, " entry_pause=", IsEntryPauseActive());
    WriteStatus();
    WritePositions();
    WriteDealsHistory();

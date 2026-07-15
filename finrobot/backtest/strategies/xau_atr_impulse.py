@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass, replace
 
 from finrobot.backtest.position import Position
-from finrobot.backtest.strategies._xau_state import XauM5RollingFeatureState
+from finrobot.backtest.strategies._xau_state import build_xau_feature_state
 from finrobot.backtest.strategies.base import Signal, Strategy
 
 
@@ -33,6 +33,8 @@ class XauAtrImpulseStrategy(Strategy):
     def __init__(
         self,
         params: XauAtrImpulseParams | None = None,
+        *,
+        timeframe: str = "M5",
         **kwargs: float | int,
     ):
         if params is None:
@@ -40,6 +42,7 @@ class XauAtrImpulseStrategy(Strategy):
         elif kwargs:
             params = replace(params, **kwargs)
         self.params = params
+        self.timeframe = str(timeframe).upper().replace("PERIOD_", "")
         self._reset()
 
     def on_bar(
@@ -54,9 +57,9 @@ class XauAtrImpulseStrategy(Strategy):
     ) -> Signal:
         """Return BUY/SELL/HOLD for the current bar.
 
-        MQL5 uses ``AutoTimeframe = PERIOD_M5`` at line 21, so the rolling
-        state previews M5 indicators from incoming M1 bars. Indicator inputs
-        mirror lines 751-777 of ``FinRobotBridgeEA.mq5``. Signal booleans mirror lines 813-814,
+        The rolling state follows the selected runtime profile timeframe while
+        receiving M1 warehouse bars. Indicator inputs mirror the EA signal path.
+        Signal booleans mirror the ATR-impulse conditions,
         with the XAU weak-signal filter in lines 832-835 leaving
         ``atrImpulseLong`` and ``atrImpulseShort`` intact.
         """
@@ -80,8 +83,8 @@ class XauAtrImpulseStrategy(Strategy):
             return Signal(action="HOLD", strategy=self.name)
 
         params = self.params
-        # Mirrors MQL5 lines 813-814: rates[0] is the forming M5 bar and
-        # rates[1] is the previous fully closed M5 bar.
+        # Mirrors MQL5: rates[0] is the forming timeframe bar and rates[1]
+        # is the previous fully closed timeframe bar.
         long_trigger = _atr_impulse_long_trigger(
             m1_high=float(bar["high"]),
             previous_high=float(previous_high),
@@ -149,7 +152,10 @@ class XauAtrImpulseStrategy(Strategy):
         return sl_distance, tp_distance
 
     def _reset(self) -> None:
-        self._state = XauM5RollingFeatureState(self.params)
+        self._state = build_xau_feature_state(
+            self.params,
+            timeframe=self.timeframe,
+        )
         self._features: list[dict] = []
         self._last_idx = -1
         self._last_trigger_price: float | None = None

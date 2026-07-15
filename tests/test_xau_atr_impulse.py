@@ -49,6 +49,18 @@ def test_xau_atr_impulse_long_fires_on_breakout():
     assert signal.tp_distance == pytest.approx(expected_tp, abs=1e-6)
 
 
+def test_xau_atr_impulse_m1_uses_previous_m1_bar_for_breakout_context():
+    bars = _atr_impulse_long_bars()
+    strategy = XauAtrImpulseStrategy(timeframe="M1")
+
+    _run_strategy_to_bar(strategy, bars, len(bars) - 1)
+    feature = strategy._features[-1]
+
+    assert feature["previous_high"] == pytest.approx(bars[-2]["high"])
+    assert feature["previous_low"] == pytest.approx(bars[-2]["low"])
+    assert "m5_bucket_start" not in feature
+
+
 def test_xau_atr_impulse_short_fires_on_breakout():
     bars = _atr_impulse_short_bars()
     strategy = XauAtrImpulseStrategy()

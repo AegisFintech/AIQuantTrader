@@ -326,7 +326,8 @@ def _strategy(profile: XauStrategyProfile) -> XauGatedStrategy:
             impulse_atr_mult=profile.impulse_atr_multiplier,
             stop_atr_mult=profile.stop_atr_multiplier,
             tp_atr_mult=profile.take_profit_atr_multiplier,
-        )
+        ),
+        timeframe=profile.auto_timeframe,
     )
     return XauGatedStrategy(
         inner,
@@ -337,6 +338,7 @@ def _strategy(profile: XauStrategyProfile) -> XauGatedStrategy:
             enable_smc_gate=profile.enable_smart_money_gates,
             enable_pda_gate=True,
             enable_adx_gate=profile.enable_adx_regime_filter,
+            enable_macd_histogram_alignment=profile.enable_macd_histogram_alignment,
             adx_min_threshold=profile.adx_min_threshold,
             min_seconds_between_trades=profile.min_seconds_between_trades_xauusd,
             blackout_enabled=profile.blackout_enabled,

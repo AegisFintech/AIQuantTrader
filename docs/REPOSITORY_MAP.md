@@ -84,7 +84,7 @@ global/account trading enabled
 -> weekday + broker session
 -> recent drawdown / loss streak / blackout recovery controls
 -> max positions / cooldown
--> M5 bars and indicator availability
+-> M1 bars and indicator availability
 -> spread
 -> signal (ATR impulse plus remaining quick-momentum/momentum paths)
 -> ATR regime
@@ -97,7 +97,7 @@ global/account trading enabled
 -> market order and acknowledgement
 ```
 
-Compiled defaults are M5, SMC score 4+, `1.00%` broker-day snapshot risk per
+Compiled defaults are M1, SMC score 4+, `1.00%` broker-day snapshot risk per
 position, `1.00%` realized daily loss limit, two XAU positions, 50.0 lots
 maximum, 1.2 ATR stop, and 2.4R take profit. The score-5 multiplier is retained
 for lower-risk runtime profiles but cannot exceed the hard 1.00% effective-risk
@@ -148,10 +148,11 @@ Wine prefix, terminal, and Common Files locations. Runtime artifacts under
 | Process definitions | `ecosystem.config.js` | Only the four PM2 services shown above are active. All PM2 output uses `logs/combined.log`. |
 | Install/bootstrap | `install.sh`, `.env.sample` | Installs Python/PM2/MT5 and configures the repo-local runtime. Never print `.env` or the generated login INI. |
 | MT5 startup | `scripts/start_mt5.sh`, `scripts/mt5_configure_profile.py`, `scripts/wine_box64.sh` | Rewrites the secret login INI, enforces the startup profile, and starts MT5 through the selected Wine path. |
-| EA sync/release | `scripts/sync_mt5_ea.sh`, `finrobot/release_manifest.py`, `scripts/release_manifest.py` | Sync copies source and any existing manifest, then invokes MetaEditor when present. Compile success is not currently a hard automated gate. |
-| Health/recovery | `scripts/mt5_status.py`, `scripts/healthcheck.py`, `scripts/mt5_watchdog.py`, `scripts/mt5_entry_pause.py` | Watchdog only restarts `mt5-terminal` after stale heartbeat plus cooldown. The pause CLI manages the persistent no-new-entry flag. |
+| EA sync/release | `scripts/sync_mt5_ea.sh`, `finrobot/release_manifest.py`, `scripts/release_manifest.py` | Sync regenerates release manifests, copies source, and invokes MetaEditor when present. Compile output still requires inspection before restart. |
+| Health/recovery | `scripts/mt5_status.py`, `scripts/healthcheck.py`, `scripts/mt5_watchdog.py`, `scripts/mt5_entry_pause.py` | Healthcheck covers runtime, disk, research freshness, and all PM2 services. Watchdog remains heartbeat-only. The pause CLI manages the persistent no-new-entry flag. |
 | Reporting | `scripts/mt5_trade_report.py`, `dashboard/app.py` | Current Common Files are the input. Strategy attribution comes from deal comments. |
-| Archive/log policy | `scripts/archive_common_files.py`, `config/logrotate-finrobot`, `scripts/install_logrotate.sh` | Archives go under ignored `state/`; active service logs remain consolidated. |
+| Scheduled operations | `scripts/mt5_minute_cycle.py`, `config/finrobot.cron` | Common Files ingestion and bid/ask capture run sequentially; cron serializes all DuckDB jobs with a shared file lock. |
+| Archive/log policy | `scripts/archive_common_files.py`, `config/logrotate-finrobot`, `scripts/install_logrotate.sh` | Archives go under ignored `state/`; combined, cron, and alert logs rotate daily. |
 | Reverse proxy | `config/nginx-trading.aims-sg.com.conf` | Proxies the read-only dashboard. |
 
 Optional cron jobs in `config/finrobot.cron` ingest bridge snapshots and quotes
@@ -276,19 +277,23 @@ compile result, restart only `mt5-terminal`, and verify deployed status/report.
 
 ## Verified Snapshot and Known Gaps
 
-Observed on 2026-07-14; re-run the listed commands before relying on numbers:
+Observed on 2026-07-15; re-run the listed commands before relying on numbers:
 
-- Runtime: all four PM2 services online, v1.39 heartbeat fresh, no open managed
+- Runtime: all four PM2 services online, v1.41 heartbeat fresh, no open managed
   positions, compiled defaults active, and autonomous demo entries enabled.
-- Performance: 49 closed XAU deals, total PnL `-13,778.99`, win rate `18.37%`,
-  expectancy `-281.20`; 47 ATR impulse deals account for `-13,839.40`.
+- Performance: the sliding deal export currently contains 28 closed XAU deals,
+  total PnL `-7,989.96`, win rate `17.86%`, and expectancy `-285.36`.
 - Research data: the corrected local warehouse has 200,000 XAU M1 bars from
   2026-01-19 through 2026-07-14. The EA exports broker-wall epoch timestamps and
   the loader preserves the same server-time convention for legacy text bars.
-- Latest 50,000-bar profile lab: every candidate failed promotion. The
-  incumbent had mean fold PnL `1,129.02` but only `0.40` consistency, a
-  `-5,609.12` worst fold, and `-4,448.80` recent PnL. No profile was deployed.
-- Release identity: live status reports v1.39 and the current repository HEAD
+- Latest 50,000-bar M1 profile lab completed in 363 seconds at low priority.
+  Every candidate failed promotion. Breakout had mean fold PnL `10,023.54` and
+  `0.60` consistency, but recent PnL was `-5,767.87` and its worst fold was
+  `-12,701.68`; no profile was deployed.
+- The targeted `macd_continuation_m1` repair improved mean fold PnL to
+  `16,808.09` and recent PnL to `115,280.72`, but mean PF `1.05` and worst-fold
+  PnL `-37,275.95` failed promotion. The challenger remains undeployed.
+- Release identity: live status reports v1.41 and the current repository HEAD
   SHA. MetaEditor compiled the deployed artifact with zero errors.
 
 Known issues to address before trusting strategy promotion or further increasing risk:
@@ -305,7 +310,7 @@ Known issues to address before trusting strategy promotion or further increasing
    aggregate open-position risk.
 5. Recovery controls exist but compiled defaults leave loss-streak, early
    drawdown, blackout, and ATR-regime pauses disabled.
-6. Signals use the forming M5 bar and are evaluated every timer tick. Cooldown
+6. Signals use the forming M1 bar and are evaluated every timer tick. Cooldown
    and `lastTradeTimes` are in memory and reset after an EA restart.
 7. `EnforceManagedRisk` closes stopless managed-symbol positions only when the
    comment does not start with `FinRobot_`; healthcheck is the main detector for

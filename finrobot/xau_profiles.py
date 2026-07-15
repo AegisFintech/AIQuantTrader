@@ -17,12 +17,13 @@ class XauStrategyProfile:
 
     profile_name: str
     risk_tier: int
-    auto_timeframe: str = "M5"
+    auto_timeframe: str = "M1"
     enable_xau_atr_impulse: bool = True
     enable_xau_rsi_reversion: bool = False
     impulse_atr_multiplier: float = 0.12
     enable_smart_money_gates: bool = True
     enable_adx_regime_filter: bool = True
+    enable_macd_histogram_alignment: bool = False
     min_smc_confluence_score_xauusd: int = 4
     pda_long_ceiling: float = 0.40
     pda_short_floor: float = 0.60
@@ -54,6 +55,7 @@ class XauStrategyProfile:
         return replace(
             self,
             risk_tier=_clamp_int(self.risk_tier, 0, 2),
+            auto_timeframe=_bounded_timeframe(self.auto_timeframe),
             min_smc_confluence_score_xauusd=_clamp_int(
                 self.min_smc_confluence_score_xauusd,
                 1,
@@ -168,7 +170,7 @@ PROFILE_CANDIDATES: tuple[XauStrategyProfile, ...] = (
     XauStrategyProfile(
         profile_name="attack_atr_m1",
         risk_tier=1,
-        auto_timeframe="M5",
+        auto_timeframe="M1",
         min_smc_confluence_score_xauusd=3,
         impulse_atr_multiplier=0.10,
         pda_long_ceiling=0.42,
@@ -250,6 +252,21 @@ PROFILE_CANDIDATES: tuple[XauStrategyProfile, ...] = (
         blackout_enabled=True,
         max_atr_regime_multiplier=2.50,
     ),
+    XauStrategyProfile(
+        profile_name="macd_continuation_m1",
+        risk_tier=2,
+        impulse_atr_multiplier=0.28,
+        enable_macd_histogram_alignment=True,
+        daily_risk_per_trade_fraction=0.0100,
+        daily_loss_limit_fraction=0.0100,
+        max_lot_per_trade_xauusd=50.0,
+        max_auto_positions_xauusd=2,
+        max_same_direction_positions_per_symbol=2,
+        min_seconds_between_trades_xauusd=180,
+        stop_atr_multiplier=1.20,
+        take_profit_atr_multiplier=3.00,
+        adx_min_threshold=14.0,
+    ),
 )
 
 
@@ -304,3 +321,8 @@ def _clamp_float(value: float, lo: float, hi: float) -> float:
 
 def _clamp_int(value: int, lo: int, hi: int) -> int:
     return max(int(lo), min(int(hi), int(value)))
+
+
+def _bounded_timeframe(value: str) -> str:
+    normalized = str(value or "").strip().upper().replace("PERIOD_", "")
+    return normalized if normalized in {"M1", "M5", "M15"} else "M1"

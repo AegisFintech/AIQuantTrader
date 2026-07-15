@@ -34,7 +34,7 @@ def test_build_manifest_returns_required_keys():
 def test_build_manifest_extracts_ea_version_from_mq5_source():
     manifest = release_manifest.build_manifest(ROOT)
 
-    assert manifest["ea_version"] == "1.39"
+    assert manifest["ea_version"] == "1.41"
 
 
 def test_build_manifest_extracts_auto_symbols_as_managed_symbols():
@@ -52,6 +52,7 @@ def test_build_manifest_extracts_compounding_risk_defaults():
     assert manifest["config_inputs"]["MinSmcConfluenceScoreXAUUSD"] == "4"
     assert manifest["config_inputs"]["DailyRiskPerTradeFraction"] == "0.0100"
     assert manifest["config_inputs"]["DailyLossLimitFraction"] == "0.01"
+    assert manifest["config_inputs"]["AutoTimeframe"] == "PERIOD_M1"
 
 
 def test_build_manifest_returns_empty_git_fields_outside_git_repo(tmp_path):

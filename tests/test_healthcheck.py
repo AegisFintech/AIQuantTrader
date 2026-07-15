@@ -11,9 +11,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from healthcheck import (  # noqa: E402
+    check_disk_usage,
     check_heartbeat,
     check_loss_limit,
     check_pm2,
+    check_research_freshness,
     check_unprotected_positions,
 )
 
@@ -199,3 +201,82 @@ def test_check_pm2_returns_check_result():
     assert hasattr(result, "ok")
     assert hasattr(result, "name")
     assert hasattr(result, "detail")
+
+
+def test_check_disk_usage_fails_at_configured_ceiling(tmp_path, monkeypatch):
+    usage = type("Usage", (), {"total": 100, "used": 90, "free": 10})()
+    monkeypatch.setattr("healthcheck.shutil.disk_usage", lambda path: usage)
+
+    result = check_disk_usage(tmp_path, max_used_percent=85.0)
+
+    assert not result.ok
+    assert result.extra["used_percent"] == 90.0
+
+
+def test_check_research_freshness_allows_pending_first_run(tmp_path):
+    result = check_research_freshness(tmp_path / "missing.jsonl", max_age_hours=14)
+
+    assert result.ok
+    assert result.name == "research_cycle_pending"
+
+
+def test_check_research_freshness_accepts_recent_success(tmp_path):
+    journal = tmp_path / "journal.jsonl"
+    journal.write_text(
+        json.dumps(
+            {
+                "ts": time.time(),
+                "event": "autonomous_strategy_lab",
+                "result": {"enabled": True, "returncode": 0, "timed_out": False},
+            }
+        )
+        + "\n"
+    )
+
+    result = check_research_freshness(journal, max_age_hours=14)
+
+    assert result.ok
+    assert "succeeded" in result.detail
+
+
+def test_check_research_freshness_rejects_timeout(tmp_path):
+    journal = tmp_path / "journal.jsonl"
+    journal.write_text(
+        json.dumps(
+            {
+                "ts": time.time(),
+                "event": "autonomous_strategy_lab",
+                "result": {
+                    "enabled": True,
+                    "returncode": 124,
+                    "timed_out": True,
+                    "duration_seconds": 1800,
+                },
+            }
+        )
+        + "\n"
+    )
+
+    result = check_research_freshness(journal, max_age_hours=14)
+
+    assert not result.ok
+    assert "timed out" in result.detail
+
+
+def test_check_research_freshness_rejects_stale_success(tmp_path):
+    journal = tmp_path / "journal.jsonl"
+    journal.write_text(
+        json.dumps(
+            {
+                "ts": time.time() - 15 * 3600,
+                "event": "autonomous_strategy_lab",
+                "result": {"enabled": True, "returncode": 0},
+            }
+        )
+        + "\n"
+    )
+
+    result = check_research_freshness(journal, max_age_hours=14)
+
+    assert not result.ok
+    assert "old" in result.detail

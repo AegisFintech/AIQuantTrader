@@ -258,4 +258,11 @@ def _escape_code(value: Any) -> str:
 
 
 def _escape_text(value: Any) -> str:
-    return str(value).replace("*", "\\*").replace("`", "'")
+    return (
+        str(value)
+        .replace("\\", "\\\\")
+        .replace("*", "\\*")
+        .replace("_", "\\_")
+        .replace("[", "\\[")
+        .replace("`", "'")
+    )

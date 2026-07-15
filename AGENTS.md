@@ -9,7 +9,7 @@ FinRobot is now an MT5-first autonomous demo-trading repo. Trade and optimize on
 ## Source of truth
 
 - Repository navigation map: `docs/REPOSITORY_MAP.md` (read this before broad rescans)
-- Active EA: `broker/mt5/FinRobotBridgeEA.mq5` (v1.39)
+- Active EA: `broker/mt5/FinRobotBridgeEA.mq5` (v1.41)
 - EA Modules: `broker/mt5/RiskManagement.mqh`, `SmartMoney.mqh`, `BridgeIO.mqh`
 - Runtime process list: `ecosystem.config.js`
 - MT5 heartbeat watchdog: `scripts/mt5_watchdog.py`
@@ -63,7 +63,7 @@ Use `python3 scripts/mt5_trade_report.py` before making strategy changes. It sum
 1. Reads MT5 trade report and improvement memory.
 2. On service restart, waits one full `AUTOREVIEW_INTERVAL_HOURS` period before the first review unless `AUTOREVIEW_RUN_ON_START=true`.
 3. Skips if fewer than `AUTOREVIEW_MIN_TRADES` closed deals are available.
-4. Harvests the EA's current XAU M1 export, then runs `scripts/xau_strategy_lab.py` for bounded profile research unless the corresponding feature flags are disabled.
+4. Harvests the EA's current XAU M1 export, then runs `scripts/xau_strategy_lab.py` at low CPU priority over the latest 50,000 bars by default. Timeouts are journaled as structured failures instead of aborting the entire cycle.
 5. Writes a live `finrobot_strategy_profile.csv` only when `AUTOREVIEW_ENABLE_PROMOTION_DEPLOY=true` and the lab winner clears promotion gates.
 6. Calls Opencode with the current mandate only when `AUTOREVIEW_ENABLE_LLM=true`.
 7. Runs `compileall` and `scripts/mt5_trade_report.py` after successful Opencode changes.
@@ -101,7 +101,7 @@ pm2 list
 
 - Current owner directive: non-XAU symbols are retired completely and must not be traded, scanned, optimized, or restored without an explicit owner reversal.
 - Owner directive (2026-06-26): keep proportional compounding lot sizing enabled for the high-equity demo account. Do not restore the emergency auto-entry pause or the `0.25` XAU lot ceiling unless the owner explicitly asks.
-- `FinRobotBridgeEA.mq5` should keep `AutoSymbols="XAUUSD"`, `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=true`, `UseDailyRiskLotSizing=true`, `DisableWeakStrategySignals=true`, `EnableXauWeekdayMarketHours=true`, `MinSmcConfluenceScoreXAUUSD=4`, `MaxAutoPositionsPerSymbol=2`, `DailyRiskPerTradeFraction=0.0100`, and `MaxLotPerTradeXAUUSD=50.0` unless the owner changes risk again.
+- `FinRobotBridgeEA.mq5` should keep `AutoSymbols="XAUUSD"`, `AutoTimeframe=PERIOD_M1`, `EnableSmartMoneyGates=true`, `EnableXauAutoTrading=true`, `UseDailyRiskLotSizing=true`, `DisableWeakStrategySignals=true`, `EnableXauWeekdayMarketHours=true`, `MinSmcConfluenceScoreXAUUSD=4`, `MaxAutoPositionsPerSymbol=2`, `DailyRiskPerTradeFraction=0.0100`, and `MaxLotPerTradeXAUUSD=50.0` unless the owner changes risk again.
 - Runtime profiles may override bounded XAU-only settings through `finrobot_strategy_profile.csv`; compiled defaults remain the fallback when the file is missing, empty, or disabled.
 - Runtime profiles may also arm recovery controls: loss-streak pause, bad-day risk downshift, recent drawdown pause, blackout-file windows, and ATR regime rejection.
 - Owner-approved demo bounds are 1.00% effective risk per position and 50.0 XAU lots. The compiled daily loss limit remains 1.00% and the position limit remains two; do not raise these bounds again without an explicit owner reversal.
@@ -122,6 +122,7 @@ pm2 list
 - Owner-requested maximum-frequency demo defaults (2026-06-01) failed and are retired: do not restore `DisableWeakStrategySignals=false`, `MaxAutoPositionsPerSymbol=5`, `MinSecondsBetweenTrades=60`, `MaxLotPerTrade=1.00`, `DailyRiskPerTradeFraction=0.0050`, or `MinSmcConfluenceScore=1` without fresh evidence.
 - Compounding demo defaults (2026-06-26): `DisableWeakStrategySignals=true`, `MaxAutoPositionsPerSymbol=2`, `MaxLotPerTrade=5.0`, `MaxLotPerTradeXAUUSD=5.0`, `DailyRiskPerTradeFraction=0.0010` (0.10% of equity), and `DailyLossLimitFraction=0.01` (1.00% of equity).
 - High-risk demo update (2026-07-14): owner explicitly raised planned risk to `DailyRiskPerTradeFraction=0.0100` (1.00% per position). `MaxLotPerTrade` and `MaxLotPerTradeXAUUSD` are 50.0 so the risk calculation can reach its target on the high-equity demo account; high-confluence multiplication is hard-capped at 1.00% effective risk. The 1.00% realized daily loss limit and two-position limit remain unchanged.
+- M1 execution update (2026-07-15): owner explicitly changed the active XAU strategy timeframe to `PERIOD_M1` for more opportunities. Keep the 1.00% per-position risk cap, two-position limit, SMC score 4+, PDA gates, and ADX filter unless separately changed.
 - SMC tightening (2026-07-01): `MinSmcConfluenceScoreXAUUSD=4` after live fills showed score-3 XAU ATR impulse entries drove the recent drawdown. Keep score 4+ unless new evidence supports loosening.
 - XAU-only update (2026-06-22): non-XAU trading is removed from active EA defaults, startup profile defaults, docs, and symbol-specific research/backtest scaffolding.
 - XAU weekday-market update (2026-06-11): `EnableXauWeekdayMarketHours=true` bypasses the old London/NY-only gate for XAU and instead checks Monday-Friday plus the broker's symbol trade sessions/trade mode. If the broker session is closed, the signal is `market_closed`, not `outside_trading_session`.
@@ -131,12 +132,14 @@ pm2 list
 - LLM editing is HARD-GATED OFF by default via `AUTOREVIEW_ENABLE_LLM` (unset/false = analysis-only: the loop logs the real closed-deal count and journals analysis but never invokes opencode). Set `AUTOREVIEW_ENABLE_LLM=true` to re-enable autonomous code edits.
 - Runtime profile update (2026-07-07): `scripts/xau_strategy_lab.py` evaluates bounded aggressive XAU profiles and can write `finrobot_strategy_profile.csv`; `FinRobotBridgeEA.mq5` reloads the profile periodically and reports the active profile in `finrobot_status.json`. Profile deployment is gated separately from LLM edits by `AUTOREVIEW_ENABLE_PROMOTION_DEPLOY`.
 - Recovery-control update (2026-07-08): profile-lab promotion now requires recent-window evidence and challenger improvement over the incumbent. The EA exposes recovery settings in status and can block new entries after configured loss streaks, recent drawdown, active blackout windows from `finrobot_blackout.csv`, or abnormal ATR regimes.
+- M1 MACD repair research (2026-07-15): `macd_continuation_m1` requires a directionally strengthening MACD histogram and remains a lab-only challenger. Its first 50,000-bar run improved mean fold PnL to `16,808.09` with `0.60` consistency and strong recent results, but failed promotion on mean profit factor (`1.05`) and worst-fold PnL (`-37,275.95`). Do not force-deploy it; the EA v1.41 runtime gate defaults off.
 
 ## Operational scripts (Phase 1 quick wins)
 
-- `scripts/healthcheck.py`: stale heartbeat (>60s), missing Common Files, daily loss breach, unprotected managed positions, PM2 process state. Exits non-zero on any FAIL. Wire to cron or systemd timer.
+- `scripts/healthcheck.py`: stale heartbeat (>60s), missing Common Files, daily loss breach, unprotected managed positions, disk pressure, stale/failed autonomous research, and all active PM2 process states. Exits non-zero on any FAIL. `config/finrobot.cron` runs it every five minutes.
 - `scripts/mt5_watchdog.py`: lightweight PM2-managed heartbeat recovery for MT5. It restarts `mt5-terminal` only after stale/missing heartbeat detection and a cooldown.
 - `scripts/archive_common_files.py`: snapshot `finrobot_status.json`, `finrobot_positions.csv`, `finrobot_deals.csv`, `finrobot_acks.csv` into `state/mt5/archive/YYYY-MM-DD/HHMMSS/`. Run daily via cron (state/ is gitignored).
-- `config/logrotate-finrobot` + `scripts/install_logrotate.sh`: drop-in policy for `logs/combined.log` (rotate daily, keep 14, reload PM2 log handles). Install with `sudo scripts/install_logrotate.sh`.
+- `scripts/mt5_minute_cycle.py`: runs Common Files ingestion and bid/ask capture sequentially. Cron wraps all DuckDB jobs with `/tmp/finrobot-duckdb.lock` to prevent single-writer contention.
+- `config/logrotate-finrobot` + `scripts/install_logrotate.sh`: drop-in policy for `logs/combined.log`, `logs/cron.log`, and `logs/alerts.log` (rotate daily, keep 14, reload PM2 log handles). Install with `sudo scripts/install_logrotate.sh`.
 - `docs/RELEASE_CHECKLIST.md`: pre-flight, compile, pre-deploy snapshot, restart, post-deploy verification, and rollback steps. Run this in order before any EA source / risk / bridge change.
-- Tests cover the new scripts: `tests/test_healthcheck.py` and `tests/test_mt5_trade_report.py`. Full suite: `26 passed`.
+- Tests cover the operational scripts, including autonomous-review timeout handling and host/research health checks.
