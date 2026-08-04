@@ -1,0 +1,11 @@
+schema_version = 1
+policy_id = "btc-purged-walk-forward-v1"
+train_ns = 2419200000000000
+purge_ns = 300000000000
+validation_ns = 604800000000000
+embargo_ns = 3600000000000
+test_ns = 604800000000000
+step_ns = 604800000000000
+final_holdout_ns = 1209600000000000
+label_horizon_ns = 300000000000
+minimum_folds = 3

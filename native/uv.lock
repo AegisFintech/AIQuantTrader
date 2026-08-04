@@ -13,6 +13,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "duckdb" },
+    { name = "hftbacktest" },
     { name = "hyperliquid-python-sdk" },
     { name = "nautilus-trader" },
     { name = "prometheus-client" },
@@ -20,11 +21,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "websockets" },
     { name = "zstandard" },
-]
-
-[package.optional-dependencies]
-research = [
-    { name = "hftbacktest" },
 ]
 
 [package.dev-dependencies]
@@ -39,7 +35,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "duckdb", specifier = "==1.5.4" },
-    { name = "hftbacktest", marker = "extra == 'research'", specifier = "==2.4.4" },
+    { name = "hftbacktest", specifier = "==2.4.4" },
     { name = "hyperliquid-python-sdk", specifier = "==0.24.0" },
     { name = "nautilus-trader", specifier = "==1.230.0" },
     { name = "prometheus-client", specifier = "==0.25.0" },
@@ -48,7 +44,6 @@ requires-dist = [
     { name = "websockets", specifier = "==17.0.1" },
     { name = "zstandard", specifier = "==0.25.0" },
 ]
-provides-extras = ["research"]
 
 [package.metadata.requires-dev]
 dev = [

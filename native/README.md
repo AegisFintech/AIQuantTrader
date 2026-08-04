@@ -6,7 +6,8 @@ perpetual platform. During migration it deliberately uses the import package
 `aiquanttrader` package. ADR 0008 defines the coexistence and final rename.
 
 The package currently provides the Phase 2 foundation, Phase 3 public market
-data path, and Phase 4 fail-closed execution/risk path:
+data path, Phase 4 fail-closed execution/risk path, and Phase 5 causal
+backtesting framework:
 
 - typed, fail-closed deployment configuration;
 - versioned market-data, feature, experiment, and deployment schemas;
@@ -23,6 +24,14 @@ data path, and Phase 4 fail-closed execution/risk path:
   SQLite order journal with unknown-outcome reconciliation;
 - a separately credentialed SDK sentinel for exchange dead-man renewal and
   emergency cancel-all.
+- deterministic Tardis and admitted-Parquet conversion into HftBacktest events
+  with immutable lineage manifests;
+- versioned queue, latency, fee, liquidity, slippage, partial-fill, and funding
+  scenarios with an explicit calibration gate;
+- a pure strategy-kernel boundary shared by Hft local-arrival replay and actual
+  Nautilus market-data objects;
+- purged walk-forward planning, validation-only selection receipts, untouched
+  holdout authorization, block bootstrap, and multiple-selection penalties.
 
 It contains no alpha strategy. The exchange order path is installed but remains
 disabled in every checked-in environment. Configuration accepts only secret
@@ -90,3 +99,22 @@ parsing. The normalizer is a separate process so Arrow/Parquet work cannot
 delay capture. Operational procedures, failure handling, Tardis downloads,
 dataset admission, and the required soak are in
 [`MARKET_DATA_RUNBOOK.md`](../docs/operations/MARKET_DATA_RUNBOOK.md).
+
+## Backtesting
+
+Validate the non-promotable seed scenarios and inspect conversion commands:
+
+```bash
+uv run aqt-backtest validate-scenario --scenario configs/backtest/baseline.toml
+uv run aqt-backtest validate-scenario --scenario configs/backtest/pessimistic.toml
+uv run aqt-backtest convert-tardis --help
+uv run aqt-backtest convert-normalized --help
+uv run aqt-backtest plan-validation --help
+```
+
+Conversion preserves exchange and local-arrival timestamps and produces a
+byte-deterministic NPZ plus a SHA-256 lineage manifest. The checked-in scenarios
+remain `uncalibrated`; governance must reject them for promotion until new,
+reviewed calibration artifacts are bound by hash. Procedures and evidence
+requirements are in
+[`BACKTESTING_RUNBOOK.md`](../docs/operations/BACKTESTING_RUNBOOK.md).

@@ -1,0 +1,23 @@
+flowchart LR
+    TD[Tardis UTC-day files] --> ADMIT[Manifest and quality admission]
+    LP[Phase 3 normalized Parquet] --> ADMIT
+    ADMIT --> CONVERT[Causal Hft event conversion]
+    CONVERT --> NPZ[Deterministic NPZ plus SHA-256 manifest]
+
+    NPZ --> HFT[HftBacktest Rust replay]
+    BASE[Baseline scenario] --> HFT
+    PESS[Pessimistic scenario] --> HFT
+    HFT --> EXEC[Fill fee slippage funding evidence]
+
+    NPZ --> HA[Hft local-arrival adapter]
+    NT[Nautilus market-data objects] --> NA[Nautilus adapter]
+    HA --> KERNEL[Pure decision kernel]
+    NA --> KERNEL
+    KERNEL --> PARITY[Exact decision-trace parity]
+
+    NPZ --> WF[Purged walk-forward planner]
+    WF --> SELECT[Validation-only selection]
+    SELECT --> RECEIPT[Immutable selection receipt]
+    RECEIPT --> HOLDOUT[Final holdout access]
+    EXEC --> REPORT[Bootstrap and selection-deflated report]
+    HOLDOUT --> REPORT

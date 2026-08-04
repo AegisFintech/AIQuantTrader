@@ -1,6 +1,6 @@
 # MT5/Wine to Hyperliquid Migration Plan
 
-Status: proposed for ratification
+Status: approved; Phases 2-5 implemented in parallel, with phase-specific acceptance evidence pending
 Migration mode: parallel replacement with gated cutover
 Target: Linux-native BTC perpetual trading on Hyperliquid
 
