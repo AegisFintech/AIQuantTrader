@@ -10,6 +10,7 @@ import pytest
 
 from aiquanttrader_native.cli import main
 from aiquanttrader_native.config import load_config
+from aiquanttrader_native.schemas import SCHEMAS
 from aiquanttrader_native.service import create_health_server
 
 
@@ -108,7 +109,7 @@ def test_cli_show_config_and_schema_export(
     assert main(["export-schemas", "--output", str(tmp_path)]) == 0
     exported = json.loads(capsys.readouterr().out)
     assert exported["status"] == "valid"
-    assert len(exported["schemas"]) == 11
+    assert len(exported["schemas"]) == len(SCHEMAS)
 
 
 def test_cli_reports_invalid_configuration(

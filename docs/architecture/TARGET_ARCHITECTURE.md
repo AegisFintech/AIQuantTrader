@@ -1,6 +1,6 @@
 # Linux-Native BTC Perpetual Target Architecture
 
-Status: proposed for ratification by pull-request merge
+Status: accepted; implemented incrementally under phase acceptance gates
 Target venue: Hyperliquid
 Target instrument: `BTC-USD-PERP.HYPERLIQUID`
 Legacy runtime: MT5/XAUUSD remains operational until Phase 9 cutover

@@ -13,8 +13,9 @@ authorized by the architecture approval alone, and automated research may not
 promote a model into production. Until the Phase 9 cutover is separately
 approved, the deployed runtime remains the MT5 demo system described below.
 
-Phases 2-4 now provide the isolated native foundation, raw-first Hyperliquid
-market-data path, and a fail-closed execution/risk path. Phase 4 uses
+Phases 2-5 now provide the isolated native foundation, raw-first Hyperliquid
+market-data path, fail-closed execution/risk path, and causal BTC replay and
+validation framework. Phase 4 uses
 NautilusTrader as the sole ordinary order owner and a separately credentialed
 Hyperliquid SDK sentinel for exchange dead-man and emergency cancellation. See
 [`docs/migration/PHASE_4_EXECUTION_RISK.md`](docs/migration/PHASE_4_EXECUTION_RISK.md)
@@ -22,6 +23,15 @@ and [`docs/operations/EXECUTION_RISK_RUNBOOK.md`](docs/operations/EXECUTION_RISK
 All checked-in environments remain execution-disabled; credentialed testnet
 acceptance evidence is still required. Phase 4 configuration rejects enabled
 mainnet wallets; no mainnet deployment is authorized.
+
+Phase 5 converts manifest-admitted Tardis and local captures into deterministic
+HftBacktest events, runs versioned baseline/pessimistic execution assumptions,
+normalizes both Hft and real Nautilus objects through a shared pure-kernel
+contract, and guards the final holdout behind a frozen validation-only selection
+receipt. The seed scenarios are explicitly uncalibrated and cannot support
+promotion. See
+[`docs/migration/PHASE_5_BACKTESTING.md`](docs/migration/PHASE_5_BACKTESTING.md)
+and [`docs/operations/BACKTESTING_RUNBOOK.md`](docs/operations/BACKTESTING_RUNBOOK.md).
 
 ## Current deployed runtime
 

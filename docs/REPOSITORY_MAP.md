@@ -43,9 +43,11 @@ Native migration authority order:
 
 ## Native Migration Topology
 
-Phases 2 and 3 implement the non-trading contracts, toolchain, and public BTC
-data path under `native/` and `rust/`. Phase 3 connects only to public market
-data and cannot submit orders. The runtime ownership boundaries are:
+Phases 2-5 implement the native contracts, public BTC data, fail-closed testnet
+execution, and causal replay/validation paths under `native/` and `rust/`.
+Phase 3 connects only to public market data. Phase 4 is the only native path
+that can submit testnet orders; Phase 5 has no exchange credential. The runtime
+ownership boundaries are:
 
 ```text
 Hyperliquid public/private APIs
@@ -98,6 +100,23 @@ The Phase 3 code gates are implemented. Phase 3 must not be marked accepted
 until the runbook's sustained public-feed soak finishes and every observed gap
 is classified.
 
+Current Phase 5 backtesting ownership:
+
+| Path | Responsibility |
+|---|---|
+| `native/src/aiquanttrader_native/backtest/conversion.py` | Manifest-verified Tardis/admitted-Parquet conversion and byte-deterministic HftBacktest NPZ lineage. |
+| `native/src/aiquanttrader_native/backtest/scenarios.py` | Strict scenario loading, liquidity stress, and pinned HftBacktest asset construction. |
+| `native/src/aiquanttrader_native/backtest/replay.py` | Queue/latency/partial-fill replay plus fee, explicit slippage, mark, and hourly funding accounting. |
+| `native/src/aiquanttrader_native/backtest/kernel.py` | Pure decision-kernel contract and Hft local-arrival/Nautilus object parity adapters. |
+| `native/src/aiquanttrader_native/backtest/validation.py` | Purged walk-forward plans, validation-only selection receipts, and final-holdout authorization. |
+| `native/src/aiquanttrader_native/backtest/statistics.py` | Seeded block-bootstrap intervals and multiple-selection lower bounds. |
+| `native/configs/backtest/` | Versioned baseline, pessimistic, and walk-forward policies. Seed scenarios are uncalibrated and not promotable. |
+| `docs/operations/BACKTESTING_RUNBOOK.md` | Conversion, calibration, replay, holdout, evidence, failure, and rollback procedures. |
+
+Phase 5 implementation gates are automated. Acceptance still requires reviewed
+calibration artifacts, full-dataset scenario reports, Phase 6 production-kernel
+parity, and evidence that selection was frozen before final holdout access.
+
 ## Current Legacy System Topology
 
 ```text
@@ -130,7 +149,7 @@ MQL5 EA. The dashboard is read-only. No PM2 process currently writes
 ## Parallel Linux-native migration
 
 The `native/` tree is an isolated, Docker-managed BTC perpetual replacement
-under construction. It is not part of the active PM2/MT5 runtime. Phases 2-4
+under construction. It is not part of the active PM2/MT5 runtime. Phases 2-5
 currently provide:
 
 | Area | Native ownership |
@@ -141,6 +160,7 @@ currently provide:
 | Normal execution | `native/src/aiquanttrader_native/execution/`; only `RiskManagedExecutionStrategy` may call Nautilus order APIs. |
 | Emergency control | `native/src/aiquanttrader_native/sentinel/`; independent SDK control wallet, dead-man renewal, and cancel-all only. |
 | Testnet deployment | `native/compose.testnet.yaml`; trading and control secrets are mounted into different processes. |
+| Backtesting | `native/src/aiquanttrader_native/backtest/`; causal HftBacktest replay, Nautilus-object parity, scenario stress, and guarded validation. |
 
 Phase 4 code is implemented but is not accepted until the credentialed testnet
 scenario matrix and kill/dead-man drills in

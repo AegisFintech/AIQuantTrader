@@ -9,6 +9,14 @@ from typing import Any
 
 from pydantic import TypeAdapter
 
+from aiquanttrader_native.backtest.models import (
+    BacktestDatasetManifest,
+    ExecutionScenario,
+    ReplayResult,
+    SelectionReceipt,
+    ValidationPlan,
+    ValidationPolicy,
+)
 from aiquanttrader_native.domain.data import (
     DatasetManifest,
     NormalizedSegmentManifest,
@@ -46,6 +54,14 @@ def _model_schema(
 
 
 SCHEMAS: dict[str, SchemaFactory] = {
+    "backtest.schema.json": lambda: TypeAdapter(
+        BacktestDatasetManifest
+        | ExecutionScenario
+        | ReplayResult
+        | SelectionReceipt
+        | ValidationPlan
+        | ValidationPolicy
+    ).json_schema(),
     "data-capabilities.schema.json": DataCapabilities.model_json_schema,
     "deployment-approval.schema.json": lambda: _model_schema(DeploymentApproval),
     "experiment.schema.json": lambda: _model_schema(ExperimentManifest),

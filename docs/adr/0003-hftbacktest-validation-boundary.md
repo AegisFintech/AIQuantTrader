@@ -1,6 +1,6 @@
 # ADR 0003: Dual Backtest and Validation Boundary
 
-Status: proposed; accepted when the migration blueprint PR is merged
+Status: accepted
 Date: 2026-08-04
 
 ## Context

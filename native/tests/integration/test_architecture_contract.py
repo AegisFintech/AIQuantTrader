@@ -117,7 +117,7 @@ def test_dependency_and_tool_versions_are_pinned(project_root: Path) -> None:
     assert payload["tool"]["uv"]["required-version"] == "==0.11.29"
     assert "nautilus-trader==1.230.0" in payload["project"]["dependencies"]
     assert "hyperliquid-python-sdk==0.24.0" in payload["project"]["dependencies"]
-    assert "hftbacktest==2.4.4" in payload["project"]["optional-dependencies"]["research"]
+    assert "hftbacktest==2.4.4" in payload["project"]["dependencies"]
 
 
 def test_rust_toolchain_is_pinned_without_placeholder_crates(project_root: Path) -> None:

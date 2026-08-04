@@ -1,0 +1,858 @@
+{
+  "$defs": {
+    "BacktestDatasetManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "converter_version": {
+          "const": "hft-events-v1",
+          "default": "hft-events-v1",
+          "title": "Converter Version",
+          "type": "string"
+        },
+        "dataset_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dataset Id",
+          "type": "string"
+        },
+        "event_count": {
+          "exclusiveMinimum": 0,
+          "title": "Event Count",
+          "type": "integer"
+        },
+        "event_file": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Event File",
+          "type": "string"
+        },
+        "event_file_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Event File Sha256",
+          "type": "string"
+        },
+        "first_exchange_ts_ns": {
+          "minimum": 0,
+          "title": "First Exchange Ts Ns",
+          "type": "integer"
+        },
+        "first_local_ts_ns": {
+          "minimum": 0,
+          "title": "First Local Ts Ns",
+          "type": "integer"
+        },
+        "instrument_id": {
+          "const": "BTC-USD-PERP.HYPERLIQUID",
+          "default": "BTC-USD-PERP.HYPERLIQUID",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "last_exchange_ts_ns": {
+          "minimum": 0,
+          "title": "Last Exchange Ts Ns",
+          "type": "integer"
+        },
+        "last_local_ts_ns": {
+          "minimum": 0,
+          "title": "Last Local Ts Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source_kind": {
+          "enum": [
+            "tardis",
+            "normalized_parquet"
+          ],
+          "title": "Source Kind",
+          "type": "string"
+        },
+        "sources": {
+          "items": {
+            "$ref": "#/$defs/SourceArtifact"
+          },
+          "minItems": 1,
+          "title": "Sources",
+          "type": "array"
+        }
+      },
+      "required": [
+        "dataset_id",
+        "source_kind",
+        "sources",
+        "event_file",
+        "event_file_sha256",
+        "event_count",
+        "first_exchange_ts_ns",
+        "last_exchange_ts_ns",
+        "first_local_ts_ns",
+        "last_local_ts_ns"
+      ],
+      "title": "BacktestDatasetManifest",
+      "type": "object"
+    },
+    "CalibrationState": {
+      "enum": [
+        "uncalibrated",
+        "calibrated"
+      ],
+      "title": "CalibrationState",
+      "type": "string"
+    },
+    "ExecutionScenario": {
+      "additionalProperties": false,
+      "description": "Every simulator assumption that can materially alter execution results.",
+      "properties": {
+        "allow_partial_fills": {
+          "default": true,
+          "title": "Allow Partial Fills",
+          "type": "boolean"
+        },
+        "book_liquidity_multiplier": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "maximum": 1.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "1",
+          "title": "Book Liquidity Multiplier"
+        },
+        "calibration_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Calibration Sha256"
+        },
+        "calibration_state": {
+          "$ref": "#/$defs/CalibrationState"
+        },
+        "entry_latency_ns": {
+          "minimum": 0,
+          "title": "Entry Latency Ns",
+          "type": "integer"
+        },
+        "feed_latency_offset_ns": {
+          "minimum": 0,
+          "title": "Feed Latency Offset Ns",
+          "type": "integer"
+        },
+        "funding_rate_multiplier": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "1",
+          "title": "Funding Rate Multiplier"
+        },
+        "lot_size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Lot Size"
+        },
+        "maker_fee_bps": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": -100.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maker Fee Bps"
+        },
+        "queue_model": {
+          "$ref": "#/$defs/QueueModel"
+        },
+        "queue_power": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "2",
+          "title": "Queue Power"
+        },
+        "response_latency_ns": {
+          "minimum": 0,
+          "title": "Response Latency Ns",
+          "type": "integer"
+        },
+        "scenario_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "taker_fee_bps": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": -100.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Taker Fee Bps"
+        },
+        "taker_slippage_bps": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Taker Slippage Bps"
+        },
+        "tick_size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Tick Size"
+        },
+        "trade_flow_multiplier": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "maximum": 1.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "1",
+          "title": "Trade Flow Multiplier"
+        }
+      },
+      "required": [
+        "scenario_id",
+        "calibration_state",
+        "tick_size",
+        "lot_size",
+        "entry_latency_ns",
+        "response_latency_ns",
+        "feed_latency_offset_ns",
+        "maker_fee_bps",
+        "taker_fee_bps",
+        "queue_model"
+      ],
+      "title": "ExecutionScenario",
+      "type": "object"
+    },
+    "FillObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "local_ts_ns": {
+          "minimum": 0,
+          "title": "Local Ts Ns",
+          "type": "integer"
+        },
+        "maker": {
+          "title": "Maker",
+          "type": "boolean"
+        },
+        "order_id": {
+          "exclusiveMinimum": 0,
+          "title": "Order Id",
+          "type": "integer"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Price"
+        },
+        "quantity_base": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Quantity Base"
+        },
+        "side": {
+          "enum": [
+            "buy",
+            "sell"
+          ],
+          "title": "Side",
+          "type": "string"
+        }
+      },
+      "required": [
+        "local_ts_ns",
+        "order_id",
+        "side",
+        "quantity_base",
+        "price",
+        "maker"
+      ],
+      "title": "FillObservation",
+      "type": "object"
+    },
+    "FundingCashflow": {
+      "additionalProperties": false,
+      "properties": {
+        "cashflow_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Cashflow Usd"
+        },
+        "funding_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Funding Rate"
+        },
+        "oracle_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Oracle Price"
+        },
+        "position_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Position Base"
+        },
+        "settlement_ts_ns": {
+          "minimum": 0,
+          "title": "Settlement Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "settlement_ts_ns",
+        "position_base",
+        "funding_rate",
+        "oracle_price",
+        "cashflow_usd"
+      ],
+      "title": "FundingCashflow",
+      "type": "object"
+    },
+    "QueueModel": {
+      "enum": [
+        "log_probability",
+        "power_probability",
+        "risk_adverse"
+      ],
+      "title": "QueueModel",
+      "type": "string"
+    },
+    "ReplayResult": {
+      "additionalProperties": false,
+      "properties": {
+        "cash_balance_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Cash Balance Usd"
+        },
+        "dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dataset Sha256",
+          "type": "string"
+        },
+        "ending_mark_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Ending Mark Price"
+        },
+        "ending_position_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Ending Position Base"
+        },
+        "exchange_fee_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Exchange Fee Usd"
+        },
+        "explicit_slippage_usd": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Explicit Slippage Usd"
+        },
+        "fills": {
+          "items": {
+            "$ref": "#/$defs/FillObservation"
+          },
+          "title": "Fills",
+          "type": "array"
+        },
+        "funding_cashflow_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Funding Cashflow Usd"
+        },
+        "funding_cashflows": {
+          "items": {
+            "$ref": "#/$defs/FundingCashflow"
+          },
+          "title": "Funding Cashflows",
+          "type": "array"
+        },
+        "marked_equity_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Marked Equity Usd"
+        },
+        "scenario_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "dataset_sha256",
+        "scenario_sha256",
+        "ending_position_base",
+        "ending_mark_price",
+        "cash_balance_usd",
+        "exchange_fee_usd",
+        "explicit_slippage_usd",
+        "funding_cashflow_usd",
+        "marked_equity_usd",
+        "fills",
+        "funding_cashflows"
+      ],
+      "title": "ReplayResult",
+      "type": "object"
+    },
+    "SelectionReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_set_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Candidate Set Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "selected_candidate_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Selected Candidate Id",
+          "type": "string"
+        },
+        "selection_metric": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Selection Metric",
+          "type": "string"
+        },
+        "selection_payload_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Selection Payload Sha256",
+          "type": "string"
+        },
+        "validation_plan_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Validation Plan Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "selected_candidate_id",
+        "candidate_set_sha256",
+        "validation_plan_sha256",
+        "selection_metric",
+        "selection_payload_sha256"
+      ],
+      "title": "SelectionReceipt",
+      "type": "object"
+    },
+    "SourceArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Artifact Sha256",
+          "type": "string"
+        },
+        "relative_path": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Relative Path",
+          "type": "string"
+        },
+        "row_count": {
+          "minimum": 0,
+          "title": "Row Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "relative_path",
+        "artifact_sha256",
+        "row_count"
+      ],
+      "title": "SourceArtifact",
+      "type": "object"
+    },
+    "TimeWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "end_ts_ns": {
+          "exclusiveMinimum": 0,
+          "title": "End Ts Ns",
+          "type": "integer"
+        },
+        "role": {
+          "$ref": "#/$defs/WindowRole"
+        },
+        "start_ts_ns": {
+          "minimum": 0,
+          "title": "Start Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "role",
+        "start_ts_ns",
+        "end_ts_ns"
+      ],
+      "title": "TimeWindow",
+      "type": "object"
+    },
+    "ValidationPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dataset Sha256",
+          "type": "string"
+        },
+        "final_holdout": {
+          "$ref": "#/$defs/TimeWindow"
+        },
+        "folds": {
+          "items": {
+            "$ref": "#/$defs/WalkForwardFold"
+          },
+          "minItems": 1,
+          "title": "Folds",
+          "type": "array"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_sha256",
+        "dataset_sha256",
+        "folds",
+        "final_holdout"
+      ],
+      "title": "ValidationPlan",
+      "type": "object"
+    },
+    "ValidationPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "embargo_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Embargo Ns",
+          "type": "integer"
+        },
+        "final_holdout_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Final Holdout Ns",
+          "type": "integer"
+        },
+        "label_horizon_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Label Horizon Ns",
+          "type": "integer"
+        },
+        "minimum_folds": {
+          "default": 3,
+          "minimum": 1,
+          "title": "Minimum Folds",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "purge_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Purge Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "step_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Step Ns",
+          "type": "integer"
+        },
+        "test_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Test Ns",
+          "type": "integer"
+        },
+        "train_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Train Ns",
+          "type": "integer"
+        },
+        "validation_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Validation Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_id",
+        "train_ns",
+        "purge_ns",
+        "validation_ns",
+        "embargo_ns",
+        "test_ns",
+        "step_ns",
+        "final_holdout_ns",
+        "label_horizon_ns"
+      ],
+      "title": "ValidationPolicy",
+      "type": "object"
+    },
+    "WalkForwardFold": {
+      "additionalProperties": false,
+      "properties": {
+        "embargo": {
+          "$ref": "#/$defs/TimeWindow"
+        },
+        "fold": {
+          "minimum": 0,
+          "title": "Fold",
+          "type": "integer"
+        },
+        "purge": {
+          "$ref": "#/$defs/TimeWindow"
+        },
+        "test": {
+          "$ref": "#/$defs/TimeWindow"
+        },
+        "train": {
+          "$ref": "#/$defs/TimeWindow"
+        },
+        "validation": {
+          "$ref": "#/$defs/TimeWindow"
+        }
+      },
+      "required": [
+        "fold",
+        "train",
+        "purge",
+        "validation",
+        "embargo",
+        "test"
+      ],
+      "title": "WalkForwardFold",
+      "type": "object"
+    },
+    "WindowRole": {
+      "enum": [
+        "train",
+        "purge",
+        "validation",
+        "embargo",
+        "walk_forward_test",
+        "final_holdout"
+      ],
+      "title": "WindowRole",
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/BacktestDatasetManifest"
+    },
+    {
+      "$ref": "#/$defs/ExecutionScenario"
+    },
+    {
+      "$ref": "#/$defs/ReplayResult"
+    },
+    {
+      "$ref": "#/$defs/SelectionReceipt"
+    },
+    {
+      "$ref": "#/$defs/ValidationPlan"
+    },
+    {
+      "$ref": "#/$defs/ValidationPolicy"
+    }
+  ]
+}
