@@ -10,6 +10,7 @@ only the standard BTC perpetual, represented as
 - `docs/migration/MT5_TO_HYPERLIQUID.md`
 - `docs/migration/PHASE_ACCEPTANCE_GATES.md`
 - `docs/migration/FILE_DISPOSITION.md`
+- `docs/migration/PHASE_2_FOUNDATION.md`
 - `docs/operations/NATIVE_PLATFORM_THREAT_MODEL.md`
 - `docs/operations/NATIVE_RELEASE_CHECKLIST.md`
 
@@ -32,6 +33,12 @@ Migration rules:
 - When migration and legacy instructions differ, apply migration instructions
   only to native-platform files and legacy instructions only to the deployed
   MT5 runtime.
+- Until Phase 9 retirement, native Python belongs under
+  `native/src/aiquanttrader_native`; do not introduce native dependencies into
+  the deployed legacy `aiquanttrader` package. See ADR 0008.
+- Checked-in native environment overlays must keep execution disabled. Mainnet
+  order submission remains unavailable until its later implementation includes
+  signed approval verification and all preceding gates have passed.
 
 ## Legacy runtime mandate
 

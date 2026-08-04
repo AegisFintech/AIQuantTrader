@@ -13,6 +13,13 @@ authorized by the architecture approval alone, and automated research may not
 promote a model into production. Until the Phase 9 cutover is separately
 approved, the deployed runtime remains the MT5 demo system described below.
 
+Phase 2 now provides a non-trading native foundation: typed fail-closed
+configuration, versioned event schemas, governance contracts, locked Python and
+Rust toolchains, and a hardened container baseline. See
+[`docs/migration/PHASE_2_FOUNDATION.md`](docs/migration/PHASE_2_FOUNDATION.md).
+No market-data connection, order submission, or production deployment is
+enabled by this foundation.
+
 ## Current deployed runtime
 
 The current runtime is MT5-first autonomous demo trading for exactly one symbol:

@@ -41,10 +41,11 @@ Native migration authority order:
    `docs/operations/NATIVE_RELEASE_CHECKLIST.md` for security and release.
 5. Phase implementation and runbooks after they are merged.
 
-## Target Native Topology
+## Native Migration Topology
 
-No target trading implementation exists at architecture-ratification time. The
-planned ownership boundaries are:
+Phase 2 implements the non-trading contracts and toolchain under `native/` and
+`rust/`. It does not connect to market data or submit orders. The planned
+runtime ownership boundaries are:
 
 ```text
 Hyperliquid public/private APIs
@@ -66,6 +67,18 @@ DuckDB -> manifests, experiments, deployments, and offline analytics only
 See `docs/architecture/diagrams/` for the system, live-order, and promotion
 flows. The native hot path must not depend on DuckDB, Parquet, Grafana, or a
 remote message broker.
+
+Current native foundation ownership:
+
+| Path | Responsibility |
+|---|---|
+| `native/src/aiquanttrader_native/config/` | Fail-closed environment configuration and immutable fingerprints. |
+| `native/src/aiquanttrader_native/domain/` | Versioned market, feature, experiment, approval, and promotion contracts. |
+| `native/schemas/` | Deterministic JSON Schemas checked against the Python contracts in CI. |
+| `native/configs/` | Non-secret environment overlays; every checked-in overlay disables execution. |
+| `native/Dockerfile`, `native/compose.yaml` | Non-root, read-only-compatible foundation container. |
+| `rust/` | Pinned, empty performance workspace; crates require benchmark evidence. |
+| `.github/workflows/native-ci.yml` | Native lock, lint, type, test, schema, dependency, secret, Rust, and image gates. |
 
 ## Current Legacy System Topology
 

@@ -1,0 +1,263 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "adverse_selection_bps": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Adverse Selection Bps"
+    },
+    "aggressor_ratio": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Aggressor Ratio"
+    },
+    "atr": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Atr"
+    },
+    "book_imbalance": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": -1.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Book Imbalance"
+    },
+    "computed_ts_ns": {
+      "minimum": 0,
+      "title": "Computed Ts Ns",
+      "type": "integer"
+    },
+    "depth_imbalance": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": -1.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Depth Imbalance"
+    },
+    "event_ts_ns": {
+      "minimum": 0,
+      "title": "Event Ts Ns",
+      "type": "integer"
+    },
+    "feature_set": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Feature Set",
+      "type": "string"
+    },
+    "fill_probability": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Fill Probability"
+    },
+    "instrument_id": {
+      "const": "BTC-USD-PERP.HYPERLIQUID",
+      "default": "BTC-USD-PERP.HYPERLIQUID",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "inventory_base": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Inventory Base"
+    },
+    "inventory_notional_usd": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Inventory Notional Usd"
+    },
+    "max_input_age_ns": {
+      "minimum": 0,
+      "title": "Max Input Age Ns",
+      "type": "integer"
+    },
+    "microprice": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Microprice"
+    },
+    "realized_volatility": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Realized Volatility"
+    },
+    "receive_ts_ns": {
+      "minimum": 0,
+      "title": "Receive Ts Ns",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "spread_bps": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Spread Bps"
+    },
+    "trade_flow_imbalance": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": -1.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Trade Flow Imbalance"
+    },
+    "vamp": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Vamp"
+    },
+    "volume_delta": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Volume Delta"
+    },
+    "weighted_midprice": {
+      "anyOf": [
+        {
+          "exclusiveMinimum": 0.0,
+          "type": "number"
+        },
+        {
+          "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+          "type": "string"
+        }
+      ],
+      "title": "Weighted Midprice"
+    }
+  },
+  "required": [
+    "feature_set",
+    "event_ts_ns",
+    "receive_ts_ns",
+    "computed_ts_ns",
+    "max_input_age_ns",
+    "book_imbalance",
+    "microprice",
+    "vamp",
+    "weighted_midprice",
+    "depth_imbalance",
+    "trade_flow_imbalance",
+    "aggressor_ratio",
+    "volume_delta",
+    "realized_volatility",
+    "atr",
+    "spread_bps",
+    "inventory_base",
+    "inventory_notional_usd",
+    "fill_probability",
+    "adverse_selection_bps"
+  ],
+  "title": "FeatureSnapshot",
+  "type": "object"
+}

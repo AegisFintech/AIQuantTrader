@@ -1,0 +1,10 @@
+environment = "shadow"
+mode = "shadow"
+
+[exchange]
+network = "mainnet"
+http_url = "https://api.hyperliquid.xyz"
+websocket_url = "wss://api.hyperliquid.xyz/ws"
+
+[execution]
+enabled = false

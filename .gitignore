@@ -6,6 +6,12 @@ __pycache__/
 .env.*
 !.env.sample
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.uv-cache/
+models/
 .DS_Store
 node_modules/
 npm-debug.log*

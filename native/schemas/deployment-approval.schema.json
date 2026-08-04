@@ -1,0 +1,117 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "account_address": {
+      "pattern": "^0x[0-9a-fA-F]{40}$",
+      "title": "Account Address",
+      "type": "string"
+    },
+    "approval_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Approval Id",
+      "type": "string"
+    },
+    "approved_at": {
+      "format": "date-time",
+      "title": "Approved At",
+      "type": "string"
+    },
+    "approver": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Approver",
+      "type": "string"
+    },
+    "artifact_manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Artifact Manifest Sha256",
+      "type": "string"
+    },
+    "capital_limit_usd": {
+      "pattern": "^[1-9][0-9]*(\\.[0-9]+)?$",
+      "title": "Capital Limit Usd",
+      "type": "string"
+    },
+    "commit_sha": {
+      "pattern": "^[0-9a-f]{40}$",
+      "title": "Commit Sha",
+      "type": "string"
+    },
+    "configuration_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Configuration Sha256",
+      "type": "string"
+    },
+    "expires_at": {
+      "format": "date-time",
+      "title": "Expires At",
+      "type": "string"
+    },
+    "feature_schema_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Feature Schema Sha256",
+      "type": "string"
+    },
+    "image_digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "title": "Image Digest",
+      "type": "string"
+    },
+    "instrument_id": {
+      "const": "BTC-USD-PERP.HYPERLIQUID",
+      "default": "BTC-USD-PERP.HYPERLIQUID",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "model_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Model Sha256",
+      "type": "string"
+    },
+    "risk_policy_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Risk Policy Sha256",
+      "type": "string"
+    },
+    "rollback_deployment_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Rollback Deployment Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "stage": {
+      "enum": [
+        "approved_canary",
+        "production"
+      ],
+      "title": "Stage",
+      "type": "string"
+    }
+  },
+  "required": [
+    "approval_id",
+    "stage",
+    "account_address",
+    "commit_sha",
+    "image_digest",
+    "artifact_manifest_sha256",
+    "model_sha256",
+    "configuration_sha256",
+    "feature_schema_sha256",
+    "capital_limit_usd",
+    "risk_policy_sha256",
+    "rollback_deployment_id",
+    "approver",
+    "approved_at",
+    "expires_at"
+  ],
+  "title": "DeploymentApproval",
+  "type": "object"
+}

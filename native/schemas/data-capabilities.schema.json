@@ -1,0 +1,24 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "account_liquidations_available": {
+      "default": true,
+      "title": "Account Liquidations Available",
+      "type": "boolean"
+    },
+    "market_wide_liquidations_available": {
+      "const": false,
+      "default": false,
+      "title": "Market Wide Liquidations Available",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "title": "DataCapabilities",
+  "type": "object"
+}

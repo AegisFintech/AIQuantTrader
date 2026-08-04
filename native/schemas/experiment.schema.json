@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "PromotionStage": {
+      "enum": [
+        "draft",
+        "candidate",
+        "backtest_passed",
+        "walk_forward_passed",
+        "paper_passed",
+        "shadow_passed",
+        "awaiting_approval",
+        "approved_canary",
+        "production",
+        "retired",
+        "rejected",
+        "rolled_back"
+      ],
+      "title": "PromotionStage",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "code_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Code Sha256",
+      "type": "string"
+    },
+    "configuration_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Configuration Sha256",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dataset_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Dataset Sha256",
+      "type": "string"
+    },
+    "experiment_id": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Experiment Id",
+      "type": "string"
+    },
+    "feature_schema_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Feature Schema Sha256",
+      "type": "string"
+    },
+    "metrics": {
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "title": "Metrics",
+      "type": "object"
+    },
+    "parameters": {
+      "additionalProperties": true,
+      "title": "Parameters",
+      "type": "object"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "stage": {
+      "$ref": "#/$defs/PromotionStage"
+    }
+  },
+  "required": [
+    "experiment_id",
+    "created_at",
+    "stage",
+    "code_sha256",
+    "dataset_sha256",
+    "feature_schema_sha256",
+    "configuration_sha256",
+    "parameters",
+    "metrics"
+  ],
+  "title": "ExperimentManifest",
+  "type": "object"
+}

@@ -1,0 +1,10 @@
+environment = "testnet"
+mode = "testnet"
+
+[exchange]
+network = "testnet"
+http_url = "https://api.hyperliquid-testnet.xyz"
+websocket_url = "wss://api.hyperliquid-testnet.xyz/ws"
+
+[execution]
+enabled = false
