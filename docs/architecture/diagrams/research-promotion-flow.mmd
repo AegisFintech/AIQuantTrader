@@ -1,0 +1,20 @@
+flowchart LR
+    D[DRAFT] --> C[CANDIDATE]
+    C --> B[BACKTEST_PASSED]
+    B --> W[WALK_FORWARD_PASSED]
+    W --> P[PAPER_PASSED]
+    P --> S[SHADOW_PASSED]
+    S --> A[AWAITING_APPROVAL]
+    A -->|Signed human approval| CA[APPROVED_CANARY]
+    CA -->|Separate scale approval| PR[PRODUCTION]
+    PR --> RT[RETIRED]
+
+    C --> RJ[REJECTED]
+    B --> RJ
+    W --> RJ
+    P --> RJ
+    S --> RJ
+    CA --> RB[ROLLED_BACK]
+    PR --> RB
+
+    AUTO[Automation boundary] -. may advance only to .-> A
