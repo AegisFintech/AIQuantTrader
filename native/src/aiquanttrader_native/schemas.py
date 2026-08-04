@@ -34,6 +34,24 @@ from aiquanttrader_native.domain.execution import (
 from aiquanttrader_native.domain.features import FeatureSnapshot
 from aiquanttrader_native.domain.governance import DeploymentApproval, ExperimentManifest
 from aiquanttrader_native.domain.market import DataCapabilities, MarketEvent
+from aiquanttrader_native.features.models import (
+    FeatureDatasetManifest,
+    FeatureEngineConfig,
+    FeatureSchema,
+    MicrostructureSnapshot,
+)
+from aiquanttrader_native.research.models import (
+    ChampionChallengerReport,
+    DriftReport,
+    ModelArtifactManifest,
+    NegativeControlReport,
+    NoSignalControlReport,
+    PromotionMetrics,
+    PromotionPolicy,
+    ResearchExperimentManifest,
+    SearchPolicy,
+    SearchReceipt,
+)
 
 SchemaFactory = Callable[[], dict[str, Any]]
 
@@ -68,12 +86,30 @@ SCHEMAS: dict[str, SchemaFactory] = {
     "execution.schema.json": lambda: TypeAdapter(
         OrderIntent | RiskSnapshot | RiskDecision | ExecutionJournalEvent | TradingHeartbeat
     ).json_schema(),
-    "features.schema.json": lambda: _model_schema(FeatureSnapshot),
+    "features.schema.json": lambda: TypeAdapter(
+        FeatureSnapshot
+        | FeatureEngineConfig
+        | FeatureSchema
+        | MicrostructureSnapshot
+        | FeatureDatasetManifest
+    ).json_schema(),
     "market-data.schema.json": lambda: TypeAdapter(MarketEvent).json_schema(),
     "dataset-manifest.schema.json": lambda: _model_schema(DatasetManifest),
     "normalized-segment-manifest.schema.json": lambda: _model_schema(NormalizedSegmentManifest),
     "raw-segment-manifest.schema.json": lambda: _model_schema(RawSegmentManifest),
     "recorder-state.schema.json": lambda: _model_schema(RecorderState),
+    "research.schema.json": lambda: TypeAdapter(
+        ModelArtifactManifest
+        | SearchPolicy
+        | SearchReceipt
+        | NegativeControlReport
+        | NoSignalControlReport
+        | PromotionMetrics
+        | PromotionPolicy
+        | ChampionChallengerReport
+        | DriftReport
+        | ResearchExperimentManifest
+    ).json_schema(),
     "tardis-file-manifest.schema.json": lambda: _model_schema(TardisFileManifest),
 }
 

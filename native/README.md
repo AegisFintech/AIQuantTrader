@@ -6,8 +6,8 @@ perpetual platform. During migration it deliberately uses the import package
 `aiquanttrader` package. ADR 0008 defines the coexistence and final rename.
 
 The package currently provides the Phase 2 foundation, Phase 3 public market
-data path, Phase 4 fail-closed execution/risk path, and Phase 5 causal
-backtesting framework:
+data path, Phase 4 fail-closed execution/risk path, Phase 5 causal backtesting
+framework, and Phase 6 BTC research/strategy framework:
 
 - typed, fail-closed deployment configuration;
 - versioned market-data, feature, experiment, and deployment schemas;
@@ -32,19 +32,27 @@ backtesting framework:
   Nautilus market-data objects;
 - purged walk-forward planning, validation-only selection receipts, untouched
   holdout authorization, block bootstrap, and multiple-selection penalties.
+- bounded causal order-book, flow, volatility, inventory, fill, and
+  adverse-selection features with deterministic Parquet lineage;
+- pure Avellaneda-Stoikov market-making and cost-aware order-flow scalping
+  kernels with HftBacktest/Nautilus representation parity;
+- CPU-only LightGBM, XGBoost, and CatBoost adapters using native model formats,
+  schema/hash validation, bounded validation search, and negative controls;
+- immutable single-writer research registry, full champion-challenger gates,
+  drift reports, automation ceiling, metrics contract, and Grafana dashboard.
 
-It contains no alpha strategy. The exchange order path is installed but remains
-disabled in every checked-in environment. Configuration accepts only secret
-file references. Phase 4 permits explicit testnet runtime enablement only;
-enabled mainnet wallets are rejected until Phase 9 implements cryptographic
-artifact-approval verification.
+The Phase 6 strategies are research candidates and are not wired into the
+exchange node. The exchange order path remains disabled in every checked-in
+environment. Configuration accepts only secret file references. Phase 4
+permits explicit testnet runtime enablement only; enabled mainnet wallets are
+rejected until Phase 9 implements cryptographic artifact-approval verification.
 
 ## Development
 
 Use uv `0.11.29` and Python `3.12.13`:
 
 ```bash
-uv sync --frozen --group dev
+uv sync --frozen --extra research --group dev
 uv run ruff format --check src tests scripts
 uv run ruff check src tests scripts
 uv run mypy
@@ -118,3 +126,23 @@ remain `uncalibrated`; governance must reject them for promotion until new,
 reviewed calibration artifacts are bound by hash. Procedures and evidence
 requirements are in
 [`BACKTESTING_RUNBOOK.md`](../docs/operations/BACKTESTING_RUNBOOK.md).
+
+## Features, strategies, and research
+
+Inspect the reproducible feature, model-search, model-validation, registry, and
+promotion commands:
+
+```bash
+uv run aqt-research feature-replay --help
+uv run aqt-research run-search --help
+uv run aqt-research validate-model --help
+uv run aqt-research registry-register-experiment --help
+uv run aqt-research evaluate --help
+```
+
+The market-maker seed requires calibrated fill evidence and therefore fails
+closed with the checked-in uncalibrated feature configuration. Research may
+advance a passing challenger only to `AWAITING_APPROVAL`; the CLI has no human
+approval actor. See
+[`PHASE_6_RESEARCH.md`](../docs/migration/PHASE_6_RESEARCH.md) and
+[`RESEARCH_RUNBOOK.md`](../docs/operations/RESEARCH_RUNBOOK.md).

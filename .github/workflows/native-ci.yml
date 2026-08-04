@@ -48,7 +48,7 @@ jobs:
         working-directory: native
         run: |
           uv lock --check
-          uv sync --frozen --group dev
+          uv sync --frozen --extra research --group dev
 
       - name: Lint and format
         working-directory: native
@@ -111,7 +111,9 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Build pinned foundation image
-        run: docker build --tag aiquanttrader-native-foundation:ci native
+        run: |
+          docker build --tag aiquanttrader-native-foundation:ci native
+          docker build --target research --tag aiquanttrader-native-research:ci native
 
       - name: Verify image identity and fail-closed configuration
         run: |
@@ -119,6 +121,12 @@ jobs:
           docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
             aiquanttrader-native-foundation:ci \
             validate-config --config-dir /etc/aiquanttrader-native --environment paper
+          test "$(docker image inspect --format '{{.Config.User}}' aiquanttrader-native-research:ci)" = "65532:65532"
+          docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m \
+            aiquanttrader-native-research:ci --help
+          docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m \
+            --entrypoint python aiquanttrader-native-research:ci \
+            -c "import catboost, lightgbm, xgboost"
 
       - name: Verify Compose policy
         working-directory: native

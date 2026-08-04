@@ -43,8 +43,9 @@ Native migration authority order:
 
 ## Native Migration Topology
 
-Phases 2-5 implement the native contracts, public BTC data, fail-closed testnet
-execution, and causal replay/validation paths under `native/` and `rust/`.
+Phases 2-6 implement the native contracts, public BTC data, fail-closed testnet
+execution, causal replay/validation, and research strategy paths under
+`native/` and `rust/`.
 Phase 3 connects only to public market data. Phase 4 is the only native path
 that can submit testnet orders; Phase 5 has no exchange credential. The runtime
 ownership boundaries are:
@@ -114,8 +115,28 @@ Current Phase 5 backtesting ownership:
 | `docs/operations/BACKTESTING_RUNBOOK.md` | Conversion, calibration, replay, holdout, evidence, failure, and rollback procedures. |
 
 Phase 5 implementation gates are automated. Acceptance still requires reviewed
-calibration artifacts, full-dataset scenario reports, Phase 6 production-kernel
-parity, and evidence that selection was frozen before final holdout access.
+calibration artifacts, full-dataset scenario reports, and evidence that
+selection was frozen before final holdout access. Phase 6 now supplies automated
+feature and production-strategy-kernel parity coverage.
+
+Current Phase 6 feature, strategy, and research ownership:
+
+| Path | Responsibility |
+|---|---|
+| `native/src/aiquanttrader_native/features/` | Causal bounded microstructure features and deterministic feature-dataset lineage. |
+| `native/src/aiquanttrader_native/strategies/` | Pure Avellaneda-Stoikov and order-flow scalper decision kernels. |
+| `native/src/aiquanttrader_native/research/model_adapters.py` | CPU-only LightGBM, XGBoost, and CatBoost training/prediction in safe native formats. |
+| `native/src/aiquanttrader_native/research/search.py` | Bounded validation-only fold search and seeded negative controls. |
+| `native/src/aiquanttrader_native/research/{artifacts,registry,governance,drift}.py` | Hash-bound model artifacts, immutable experiment history, promotion gates, and feature drift. |
+| `native/configs/{features,strategies,research}/` | Versioned research seeds and frozen gate/search inputs. |
+| `native/observability/grafana/dashboards/research.json` | Bounded research, drift, training, and governance telemetry views. |
+| `docs/operations/RESEARCH_RUNBOOK.md` | Feature replay, model search, controls, registry, promotion review, backup, and rollback. |
+
+Phase 6 implementation gates are automated. Acceptance still requires retained
+multi-regime studies, reviewed fill/queue/arrival/latency/cost calibration,
+strategy-risk load evidence, and a registry backup/restore drill. Its strategy
+kernels are not wired to the native execution node, and the automation CLI has
+no human approval capability.
 
 ## Current Legacy System Topology
 
@@ -149,7 +170,7 @@ MQL5 EA. The dashboard is read-only. No PM2 process currently writes
 ## Parallel Linux-native migration
 
 The `native/` tree is an isolated, Docker-managed BTC perpetual replacement
-under construction. It is not part of the active PM2/MT5 runtime. Phases 2-5
+under construction. It is not part of the active PM2/MT5 runtime. Phases 2-6
 currently provide:
 
 | Area | Native ownership |
@@ -161,6 +182,7 @@ currently provide:
 | Emergency control | `native/src/aiquanttrader_native/sentinel/`; independent SDK control wallet, dead-man renewal, and cancel-all only. |
 | Testnet deployment | `native/compose.testnet.yaml`; trading and control secrets are mounted into different processes. |
 | Backtesting | `native/src/aiquanttrader_native/backtest/`; causal HftBacktest replay, Nautilus-object parity, scenario stress, and guarded validation. |
+| BTC research | `native/src/aiquanttrader_native/{features,strategies,research}/`; causal features, pure strategy kernels, native tabular models, bounded search, controls, drift, and an automation-ceiling registry. |
 
 Phase 4 code is implemented but is not accepted until the credentialed testnet
 scenario matrix and kill/dead-man drills in

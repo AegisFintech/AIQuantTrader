@@ -14,7 +14,11 @@ COPY src ./src
 
 RUN uv sync --frozen --no-dev --no-editable
 
-FROM python:3.12.13-slim-bookworm@sha256:d50fb7611f86d04a3b0471b46d7557818d88983fc3136726336b2a4c657aa30b AS runtime
+FROM builder AS research-builder
+
+RUN uv sync --frozen --no-dev --no-editable --extra research
+
+FROM python:3.12.13-slim-bookworm@sha256:d50fb7611f86d04a3b0471b46d7557818d88983fc3136726336b2a4c657aa30b AS runtime-base
 
 ENV PATH="/opt/aiquanttrader/.venv/bin:${PATH}" \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -25,11 +29,27 @@ RUN groupadd --gid 65532 aiquanttrader \
     && mkdir -p /etc/aiquanttrader-native /var/lib/aiquanttrader/data /var/lib/aiquanttrader/state \
     && chown -R 65532:65532 /var/lib/aiquanttrader
 
-COPY --from=builder --chown=65532:65532 /opt/aiquanttrader/.venv /opt/aiquanttrader/.venv
 COPY --chown=65532:65532 configs /etc/aiquanttrader-native
 
 USER 65532:65532
 WORKDIR /var/lib/aiquanttrader
+
+FROM runtime-base AS research
+
+USER root
+RUN apt-get update \
+    && apt-get install --no-install-recommends --yes libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=research-builder --chown=65532:65532 /opt/aiquanttrader/.venv /opt/aiquanttrader/.venv
+
+USER 65532:65532
+ENTRYPOINT ["aqt-research"]
+CMD ["--help"]
+
+FROM runtime-base AS runtime
+
+COPY --from=builder --chown=65532:65532 /opt/aiquanttrader/.venv /opt/aiquanttrader/.venv
 
 EXPOSE 9108 9109 9110 9111
 

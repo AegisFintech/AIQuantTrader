@@ -32,6 +32,7 @@ class KernelBookLevel(DomainModel):
 
 
 class KernelTrade(DomainModel):
+    exchange_ts_ns: int = Field(ge=0)
     price: Annotated[Decimal, Field(gt=0)]
     size: Annotated[Decimal, Field(gt=0)]
     aggressor: AggressorSide
@@ -40,16 +41,21 @@ class KernelTrade(DomainModel):
 class KernelMarketState(DomainModel):
     instrument_id: Literal["BTC-USD-PERP.HYPERLIQUID"] = "BTC-USD-PERP.HYPERLIQUID"
     exchange_ts_ns: int = Field(ge=0)
+    book_exchange_ts_ns: int = Field(ge=0)
     observed_ts_ns: int = Field(ge=0)
     sequence: int = Field(ge=0)
     bids: tuple[KernelBookLevel, ...] = Field(min_length=1)
     asks: tuple[KernelBookLevel, ...] = Field(min_length=1)
-    last_trade: KernelTrade | None = None
+    trades: tuple[KernelTrade, ...] = ()
 
     @model_validator(mode="after")
     def validate_causal_book(self) -> Self:
         if self.observed_ts_ns < self.exchange_ts_ns:
             raise ValueError("kernel state cannot be observed before its exchange event")
+        if self.book_exchange_ts_ns > self.exchange_ts_ns:
+            raise ValueError("book timestamp cannot follow the latest state event")
+        if any(trade.exchange_ts_ns > self.exchange_ts_ns for trade in self.trades):
+            raise ValueError("trade timestamp cannot follow the latest state event")
         if self.bids != tuple(sorted(self.bids, key=lambda level: level.price, reverse=True)):
             raise ValueError("kernel bids must be descending")
         if self.asks != tuple(sorted(self.asks, key=lambda level: level.price)):
@@ -116,12 +122,14 @@ def hft_market_states(
     local_rows = [row for row in events if int(row["ev"]) & LOCAL_EVENT]
     bids: dict[float, float] = {}
     asks: dict[float, float] = {}
-    last_trade: KernelTrade | None = None
+    bid_exchange_ts_ns: int | None = None
+    ask_exchange_ts_ns: int | None = None
     states: list[KernelMarketState] = []
     for sequence, (local_ts, grouped) in enumerate(
         groupby(local_rows, key=lambda row: int(row["local_ts"]))
     ):
         exchange_ts = 0
+        trades: list[KernelTrade] = []
         for row in grouped:
             flags = int(row["ev"])
             exchange_ts = max(exchange_ts, int(row["exch_ts"]))
@@ -129,6 +137,10 @@ def hft_market_states(
             quantity = float(row["qty"])
             if flags & DEPTH_EVENT:
                 side = bids if flags & BUY_EVENT else asks
+                if flags & BUY_EVENT:
+                    bid_exchange_ts_ns = int(row["exch_ts"])
+                else:
+                    ask_exchange_ts_ns = int(row["exch_ts"])
                 if quantity == 0:
                     side.pop(price, None)
                 else:
@@ -141,10 +153,15 @@ def hft_market_states(
                     if flags & SELL_EVENT
                     else AggressorSide.UNKNOWN
                 )
-                last_trade = KernelTrade(
-                    price=Decimal(str(price)), size=Decimal(str(quantity)), aggressor=aggressor
+                trades.append(
+                    KernelTrade(
+                        exchange_ts_ns=int(row["exch_ts"]),
+                        price=Decimal(str(price)),
+                        size=Decimal(str(quantity)),
+                        aggressor=aggressor,
+                    )
                 )
-        if not bids or not asks:
+        if not bids or not asks or bid_exchange_ts_ns is None or ask_exchange_ts_ns is None:
             continue
         bid_levels = tuple(
             KernelBookLevel(price=Decimal(str(price)), size=Decimal(str(size)))
@@ -158,12 +175,13 @@ def hft_market_states(
             raise ValueError("HftBacktest replay produced a crossed local book")
         states.append(
             KernelMarketState(
-                exchange_ts_ns=exchange_ts,
+                exchange_ts_ns=max(exchange_ts, bid_exchange_ts_ns, ask_exchange_ts_ns),
+                book_exchange_ts_ns=min(bid_exchange_ts_ns, ask_exchange_ts_ns),
                 observed_ts_ns=local_ts,
                 sequence=sequence,
                 bids=bid_levels,
                 asks=ask_levels,
-                last_trade=last_trade,
+                trades=tuple(trades),
             )
         )
     return tuple(states)
@@ -182,12 +200,13 @@ def nautilus_market_states(
     ordered = sorted(events, key=lambda event: (int(event.ts_init), int(event.ts_event)))
     bids: tuple[KernelBookLevel, ...] = ()
     asks: tuple[KernelBookLevel, ...] = ()
-    last_trade: KernelTrade | None = None
+    book_exchange_ts_ns: int | None = None
     states: list[KernelMarketState] = []
     for sequence, (local_ts, grouped) in enumerate(
         groupby(ordered, key=lambda event: int(event.ts_init))
     ):
         exchange_ts = 0
+        trades: list[KernelTrade] = []
         for event in grouped:
             if str(event.instrument_id) != "BTC-USD-PERP.HYPERLIQUID":
                 raise ValueError("Nautilus replay received an unexpected instrument")
@@ -201,6 +220,7 @@ def nautilus_market_states(
                     KernelBookLevel(price=Decimal(str(order.price)), size=Decimal(str(order.size)))
                     for order in event.asks[:depth_levels]
                 )
+                book_exchange_ts_ns = int(event.ts_event)
             elif isinstance(event, QuoteTick):
                 bids = (
                     KernelBookLevel(
@@ -212,29 +232,34 @@ def nautilus_market_states(
                         price=Decimal(str(event.ask_price)), size=Decimal(str(event.ask_size))
                     ),
                 )
+                book_exchange_ts_ns = int(event.ts_event)
             else:
                 trade = cast(TradeTick, event)
                 aggressor = {
                     NautilusAggressorSide.BUYER: AggressorSide.BUYER,
                     NautilusAggressorSide.SELLER: AggressorSide.SELLER,
                 }.get(trade.aggressor_side, AggressorSide.UNKNOWN)
-                last_trade = KernelTrade(
-                    price=Decimal(str(trade.price)),
-                    size=Decimal(str(trade.size)),
-                    aggressor=aggressor,
+                trades.append(
+                    KernelTrade(
+                        exchange_ts_ns=int(trade.ts_event),
+                        price=Decimal(str(trade.price)),
+                        size=Decimal(str(trade.size)),
+                        aggressor=aggressor,
+                    )
                 )
-        if not bids or not asks:
+        if not bids or not asks or book_exchange_ts_ns is None:
             continue
         if bids[0].price >= asks[0].price:
             raise ValueError("Nautilus replay produced a crossed local book")
         states.append(
             KernelMarketState(
-                exchange_ts_ns=exchange_ts,
+                exchange_ts_ns=max(exchange_ts, book_exchange_ts_ns),
+                book_exchange_ts_ns=book_exchange_ts_ns,
                 observed_ts_ns=local_ts,
                 sequence=sequence,
                 bids=bids,
                 asks=asks,
-                last_trade=last_trade,
+                trades=tuple(trades),
             )
         )
     return tuple(states)

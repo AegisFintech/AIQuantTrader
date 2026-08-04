@@ -15,6 +15,7 @@ dependencies = [
   "hftbacktest==2.4.4",
   "hyperliquid-python-sdk==0.24.0",
   "nautilus-trader==1.230.0",
+  "numpy==2.2.6",
   "prometheus-client==0.25.0",
   "pyarrow==25.0.0",
   "pydantic==2.13.4",
@@ -22,9 +23,17 @@ dependencies = [
   "zstandard==0.25.0",
 ]
 
+[project.optional-dependencies]
+research = [
+  "catboost==1.2.10",
+  "lightgbm==4.7.0",
+  "xgboost-cpu==3.3.0",
+]
+
 [project.scripts]
 aqt-native = "aiquanttrader_native.cli:main"
 aqt-backtest = "aiquanttrader_native.backtest.cli:main"
+aqt-research = "aiquanttrader_native.research.cli:main"
 aqt-market-data = "aiquanttrader_native.market_data.cli:main"
 aqt-execution = "aiquanttrader_native.execution.cli:main"
 aqt-sentinel = "aiquanttrader_native.sentinel.cli:main"
@@ -81,6 +90,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["hftbacktest", "hftbacktest.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["catboost", "catboost.*", "lightgbm", "lightgbm.*", "xgboost", "xgboost.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

@@ -1,0 +1,17 @@
+schema_version = 1
+strategy_id = "avellaneda-stoikov-v1"
+risk_aversion_per_usd = "0.00001"
+arrival_intensity_per_usd = "1"
+horizon_seconds = "1"
+tick_size = "1"
+order_quantity_base = "0.001"
+max_abs_inventory_base = "0.05"
+minimum_half_spread_ticks = 1
+maximum_quote_spread_bps = "25"
+minimum_quote_lifetime_ns = 500000000
+quote_hysteresis_ticks = 1
+funding_skew_multiplier = "1"
+adverse_selection_multiplier = "0.25"
+minimum_fill_probability = "0.05"
+require_calibrated_fill_model = true
+require_model_identity_when_forecasted = true
