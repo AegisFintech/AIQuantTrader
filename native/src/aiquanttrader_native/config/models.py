@@ -21,6 +21,11 @@ from aiquanttrader_native.domain.base import canonical_sha256
 
 EthereumAddress = Annotated[str, StringConstraints(pattern=r"^0x[0-9a-fA-F]{40}$")]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+ImageDigest = Annotated[str, StringConstraints(pattern=r"^sha256:[0-9a-f]{64}$")]
+Identifier = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")]
+
+CANARY_CAPITAL_HARD_CAP_USD = Decimal("1000")
+PRODUCTION_CAPITAL_HARD_CAP_USD = Decimal("100000")
 
 
 class FrozenModel(BaseModel):
@@ -73,6 +78,7 @@ class ExchangeConfig(FrozenModel):
     http_url: AnyHttpUrl
     websocket_url: AnyUrl
     account_address: EthereumAddress | None = None
+    vault_address: EthereumAddress | None = None
     trading_wallet_secret_path: Path | None = None
     control_wallet_secret_path: Path | None = None
 
@@ -82,7 +88,17 @@ class ExchangeConfig(FrozenModel):
         control = _validate_secret_reference(self.control_wallet_secret_path)
         if trading is not None and trading == control:
             raise ValueError("trading and control wallets must use different secret files")
+        if (
+            self.account_address is not None
+            and self.vault_address is not None
+            and self.account_address.lower() == self.vault_address.lower()
+        ):
+            raise ValueError("vault and master account addresses must be different")
         return self
+
+    @property
+    def execution_account_address(self) -> str | None:
+        return self.vault_address or self.account_address
 
 
 class ExecutionConfig(FrozenModel):
@@ -276,24 +292,54 @@ class ObservabilityConfig(FrozenModel):
 
 
 class ApprovalConfig(FrozenModel):
-    approval_id: str | None = None
-    scale_approval_id: str | None = None
+    deployment_id: Identifier | None = None
+    approval_id: Identifier | None = None
+    scale_approval_id: Identifier | None = None
     artifact_manifest_sha256: Sha256 | None = None
+    approval_path: Path | None = None
     manifest_path: Path | None = None
     signature_path: Path | None = None
     public_key_path: Path | None = None
+    public_key_id: Identifier | None = None
+    public_key_sha256: Sha256 | None = None
+    artifact_root_path: Path | None = None
+
+    @model_validator(mode="after")
+    def validate_approval_paths(self) -> Self:
+        for path in (
+            self.manifest_path,
+            self.approval_path,
+            self.signature_path,
+            self.public_key_path,
+            self.artifact_root_path,
+        ):
+            if path is None:
+                continue
+            if not path.is_absolute() or not path.is_relative_to("/run/approvals"):
+                raise ValueError("approval paths must be absolute and below /run/approvals")
+            if path == Path("/run/approvals"):
+                raise ValueError("approval path must identify a file or artifact directory")
+        return self
+
+    def active_approval_id(self, mode: DeploymentMode) -> str | None:
+        return self.scale_approval_id if mode is DeploymentMode.PRODUCTION else self.approval_id
 
     def complete_for(self, mode: DeploymentMode) -> bool:
         common = (
-            self.approval_id,
+            self.deployment_id,
+            self.active_approval_id(mode),
             self.artifact_manifest_sha256,
+            self.approval_path,
             self.manifest_path,
             self.signature_path,
             self.public_key_path,
+            self.public_key_id,
+            self.public_key_sha256,
+            self.artifact_root_path,
         )
         if not all(item is not None for item in common):
             return False
-        return mode is not DeploymentMode.PRODUCTION or self.scale_approval_id is not None
+        return mode is not DeploymentMode.PRODUCTION or self.approval_id is not None
 
 
 class NativeSettings(FrozenModel):
@@ -341,6 +387,7 @@ class NativeSettings(FrozenModel):
                 value is not None
                 for value in (
                     self.exchange.account_address,
+                    self.exchange.vault_address,
                     self.exchange.trading_wallet_secret_path,
                     self.exchange.control_wallet_secret_path,
                 )
@@ -400,10 +447,12 @@ class NativeSettings(FrozenModel):
 
         if self.execution.enabled or self.sentinel.enabled:
             if self.exchange.network is ExchangeNetwork.MAINNET:
-                raise ValueError(
-                    "mainnet wallets and execution remain unavailable until Phase 9 "
-                    "cryptographic approval verification"
-                )
+                if self.mode not in {DeploymentMode.CANARY, DeploymentMode.PRODUCTION}:
+                    raise ValueError("mainnet execution is restricted to canary and production")
+                if not self.approval.complete_for(self.mode):
+                    raise ValueError(
+                        "mainnet execution requires complete signed-approval references"
+                    )
             expected_http = (
                 "https://api.hyperliquid-testnet.xyz"
                 if self.exchange.network is ExchangeNetwork.TESTNET
@@ -429,13 +478,39 @@ class NativeSettings(FrozenModel):
                         f"{self.exchange.network.value} wallet references must use {prefix} names"
                     )
 
+        if (
+            self.execution.enabled
+            and self.mode is DeploymentMode.CANARY
+            and (
+                self.risk.max_leverage > Decimal("1")
+                or self.risk.max_order_size_base > Decimal("0.002")
+                or self.risk.max_position_size_base > Decimal("0.01")
+                or self.risk.max_order_notional_usd > Decimal("100")
+                or self.risk.max_inventory_notional_usd > Decimal("500")
+                or self.risk.max_open_orders > 2
+                or self.risk.max_orders_per_second > 2
+            )
+        ):
+            raise ValueError("canary execution exceeds immutable Phase 9 risk ceilings")
+
         return self
 
     @property
     def can_submit_orders(self) -> bool:
-        """Return the validated execution capability, never strategy intent."""
+        """Return structural execution capability; mainnet also requires runtime admission."""
 
         return self.execution.enabled
+
+    @property
+    def requires_signed_approval(self) -> bool:
+        return self.exchange.network is ExchangeNetwork.MAINNET and (
+            self.execution.enabled or self.sentinel.enabled
+        )
+
+    def approval_configuration_fingerprint(self) -> str:
+        """Hash approved behavior without circular approval-file references."""
+
+        return canonical_sha256(self.model_dump(mode="json", exclude={"approval"}))
 
     def fingerprint(self) -> str:
         """Hash the complete non-secret effective configuration."""

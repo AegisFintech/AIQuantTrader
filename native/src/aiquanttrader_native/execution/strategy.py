@@ -6,7 +6,7 @@ import time
 import uuid
 from collections import deque
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, Literal, Protocol
 
 from nautilus_trader.model.enums import OrderSide as NautilusOrderSide
 from nautilus_trader.model.enums import TimeInForce as NautilusTimeInForce
@@ -33,6 +33,15 @@ from aiquanttrader_native.execution.metrics import ExecutionMetrics
 from aiquanttrader_native.risk.authority import ApprovalError, RiskAuthority
 
 
+class AdmissionGuard(Protocol):
+    @property
+    def capital_limit_usd(self) -> Decimal: ...
+
+    def require_active(self) -> object: ...
+
+    def is_active(self) -> bool: ...
+
+
 class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
     """Translate approved intents; future alpha kernels never inherit from Strategy."""
 
@@ -44,6 +53,7 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         limits: RiskLimits,
         heartbeat: HeartbeatPublisher,
         metrics: ExecutionMetrics | None = None,
+        admission_guard: AdmissionGuard | None = None,
     ) -> None:
         super().__init__(
             StrategyConfig(
@@ -58,6 +68,7 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         self._limits = limits
         self._heartbeat = heartbeat
         self._metrics = ExecutionMetrics() if metrics is None else metrics
+        self._admission_guard = admission_guard
         self._cancel_times_ns: deque[int] = deque()
 
     def on_start(self) -> None:
@@ -81,8 +92,9 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         """Risk-check and submit one idempotent order from the Nautilus event loop."""
 
         risk_started = time.perf_counter()
-        decision = self._authority.evaluate(intent, snapshot)
-        self.update_health(snapshot, decision)
+        guarded_snapshot = self._guarded_snapshot(snapshot)
+        decision = self._authority.evaluate(intent, guarded_snapshot)
+        self.update_health(guarded_snapshot, decision)
         self._metrics.observe_decision(
             decision,
             latency_seconds=time.perf_counter() - risk_started,
@@ -118,8 +130,10 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
             )
         )
         try:
-            self._authority.consume(decision, intent, snapshot)
-        except ApprovalError as exc:
+            if self._admission_guard is not None:
+                self._admission_guard.require_active()
+            self._authority.consume(decision, intent, guarded_snapshot)
+        except (ApprovalError, ValueError) as exc:
             self._journal_append(
                 self._event(
                     intent.intent_id,
@@ -174,8 +188,9 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         if replacement.kind is not OrderKind.LIMIT or replacement.limit_price is None:
             raise ValueError("cancel-replace requires a priced limit intent")
         risk_started = time.perf_counter()
-        decision = self._authority.evaluate(replacement, snapshot)
-        self.update_health(snapshot, decision)
+        guarded_snapshot = self._guarded_snapshot(snapshot)
+        decision = self._authority.evaluate(replacement, guarded_snapshot)
+        self.update_health(guarded_snapshot, decision)
         self._metrics.observe_decision(
             decision,
             latency_seconds=time.perf_counter() - risk_started,
@@ -191,7 +206,9 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
                 )
             )
             return decision
-        self._authority.consume(decision, replacement, snapshot)
+        if self._admission_guard is not None:
+            self._admission_guard.require_active()
+        self._authority.consume(decision, replacement, guarded_snapshot)
         self._journal_append(
             self._event(
                 intent_id,
@@ -279,6 +296,7 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         healthy = (
             snapshot.exchange_connected
             and snapshot.reconciliation_complete
+            and snapshot.deployment_approved
             and not snapshot.operator_kill
             and decision.state in {RiskState.ACTIVE, RiskState.REDUCE_ONLY, RiskState.FLATTENING}
         )
@@ -293,6 +311,21 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         self._metrics.set_operational_state(
             reconciled=snapshot.reconciliation_complete,
             unresolved_commands=self._journal.unresolved_command_count(),
+        )
+
+    def _guarded_snapshot(self, snapshot: RiskSnapshot) -> RiskSnapshot:
+        if self._admission_guard is None:
+            return snapshot
+        active = self._admission_guard.is_active()
+        self._metrics.set_deployment_admission(
+            active=active,
+            capital_limit_usd=float(self._admission_guard.capital_limit_usd),
+        )
+        return snapshot.model_copy(
+            update={
+                "deployment_approved": active,
+                "approved_capital_limit_usd": self._admission_guard.capital_limit_usd,
+            }
         )
 
     def on_order_submitted(self, event: Any) -> None:

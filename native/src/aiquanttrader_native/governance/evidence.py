@@ -1,0 +1,161 @@
+"""Frozen canary gates which stop at a separate production approval boundary."""
+
+from __future__ import annotations
+
+import time
+import tomllib
+from decimal import Decimal
+from pathlib import Path
+
+from aiquanttrader_native.domain.base import canonical_sha256
+from aiquanttrader_native.domain.governance import PromotionStage
+from aiquanttrader_native.governance.models import (
+    CanaryEvidencePolicy,
+    CanaryEvidenceReport,
+    CanaryGateResult,
+    CanaryObservation,
+    DeploymentAdmissionRecord,
+    DeploymentAdmissionState,
+)
+
+
+def load_canary_policy(path: Path) -> CanaryEvidencePolicy:
+    resolved = path.resolve(strict=True)
+    size = resolved.stat().st_size
+    if not resolved.is_file() or size <= 0 or size > 1_048_576:
+        raise ValueError("canary evidence policy path is invalid")
+    with resolved.open("rb") as handle:
+        payload = tomllib.load(handle)
+    return CanaryEvidencePolicy.model_validate(payload)
+
+
+def evaluate_canary_evidence(
+    *,
+    admission: DeploymentAdmissionRecord,
+    observation: CanaryObservation,
+    policy: CanaryEvidencePolicy,
+    generated_ts_ns: int | None = None,
+) -> CanaryEvidenceReport:
+    if admission.state is not DeploymentAdmissionState.ACTIVE:
+        raise ValueError("canary evidence requires the active admitted deployment")
+    if admission.stage is not PromotionStage.APPROVED_CANARY:
+        raise ValueError("canary evidence requires an approved-canary admission")
+    if observation.deployment_id != admission.deployment_id:
+        raise ValueError("canary observation deployment does not match admission")
+    if observation.admission_id != admission.admission_id:
+        raise ValueError("canary observation admission identity does not match")
+    duration = observation.ended_ts_ns - observation.started_ts_ns
+    rejection_fraction = (
+        Decimal(observation.rejected_orders) / Decimal(observation.orders)
+        if observation.orders
+        else Decimal("1")
+    )
+    gates = (
+        _gate(
+            "observation",
+            duration >= policy.minimum_observation_ns,
+            duration,
+            policy.minimum_observation_ns,
+        ),
+        _gate(
+            "orders",
+            observation.orders >= policy.minimum_orders,
+            observation.orders,
+            policy.minimum_orders,
+        ),
+        _gate(
+            "fills",
+            observation.fills >= policy.minimum_fills,
+            observation.fills,
+            policy.minimum_fills,
+        ),
+        _gate(
+            "maker_fills",
+            observation.maker_fills >= policy.minimum_maker_fills,
+            observation.maker_fills,
+            policy.minimum_maker_fills,
+        ),
+        _gate(
+            "rejection_fraction",
+            rejection_fraction <= policy.maximum_rejection_fraction,
+            rejection_fraction,
+            policy.maximum_rejection_fraction,
+        ),
+        _gate(
+            "unknown_outcomes", observation.unknown_outcomes == 0, observation.unknown_outcomes, 0
+        ),
+        _gate(
+            "reconciliation_failures",
+            observation.reconciliation_failures == 0,
+            observation.reconciliation_failures,
+            0,
+        ),
+        _gate(
+            "fee_attribution",
+            observation.fee_events >= observation.fills,
+            observation.fee_events,
+            observation.fills,
+        ),
+        _gate(
+            "funding_attribution",
+            observation.funding_events >= 1,
+            observation.funding_events,
+            ">= 1",
+        ),
+        _gate(
+            "positive_post_cost_pnl",
+            not policy.require_positive_post_cost_pnl or observation.post_cost_pnl_usd > 0,
+            observation.post_cost_pnl_usd,
+            "> 0",
+        ),
+        _gate(
+            "drawdown",
+            observation.maximum_drawdown_fraction <= policy.maximum_drawdown_fraction,
+            observation.maximum_drawdown_fraction,
+            policy.maximum_drawdown_fraction,
+        ),
+        _gate(
+            "adverse_markout",
+            observation.mean_adverse_markout_bps >= -policy.maximum_adverse_markout_bps,
+            observation.mean_adverse_markout_bps,
+            f">= {-policy.maximum_adverse_markout_bps}",
+        ),
+        _gate(
+            "capital",
+            observation.maximum_account_equity_usd <= admission.capital_limit_usd,
+            observation.maximum_account_equity_usd,
+            admission.capital_limit_usd,
+        ),
+        _gate(
+            "drills",
+            set(observation.completed_drills) >= set(policy.required_drills),
+            sorted(observation.completed_drills),
+            sorted(policy.required_drills),
+        ),
+    )
+    payload = {
+        "schema_version": 1,
+        "deployment_id": observation.deployment_id,
+        "admission_id": observation.admission_id,
+        "policy_id": policy.policy_id,
+        "policy_sha256": policy.sha256(),
+        "observation_sha256": observation.sha256(),
+        "generated_ts_ns": time.time_ns() if generated_ts_ns is None else generated_ts_ns,
+        "gates": [gate.model_dump(mode="json") for gate in gates],
+    }
+    return CanaryEvidenceReport.model_validate(
+        {
+            "report_id": canonical_sha256(payload),
+            "awaiting_production_approval": all(gate.passed for gate in gates),
+            **payload,
+        }
+    )
+
+
+def _gate(name: str, passed: bool, actual: object, required: object) -> CanaryGateResult:
+    return CanaryGateResult(
+        gate=name,
+        passed=passed,
+        actual=str(actual),
+        required=str(required),
+    )

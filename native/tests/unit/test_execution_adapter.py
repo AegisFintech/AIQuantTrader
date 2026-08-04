@@ -11,7 +11,7 @@ from nautilus_trader.core.nautilus_pyo3 import HyperliquidEnvironment
 
 from aiquanttrader_native.config import load_config
 from aiquanttrader_native.config.loader import ConfigBundle
-from aiquanttrader_native.config.models import ExecutionConfig, RiskLimits
+from aiquanttrader_native.config.models import ExchangeNetwork, ExecutionConfig, RiskLimits
 from aiquanttrader_native.domain.execution import (
     OrderIntent,
     OrderKind,
@@ -75,6 +75,20 @@ def test_pinned_nautilus_configuration_is_fail_closed_and_scoped(
     disabled = load_config(config_dir, "testnet", environ={})
     with pytest.raises(ValueError, match="disabled"):
         build_nautilus_config(disabled, PrivateKey("1" * 64))
+
+    mainnet_mode = ConfigBundle(
+        settings=bundle.settings.model_copy(
+            update={
+                "exchange": bundle.settings.exchange.model_copy(
+                    update={"network": ExchangeNetwork.MAINNET}
+                )
+            }
+        ),
+        sources=bundle.sources,
+        fingerprint=bundle.fingerprint,
+    )
+    with pytest.raises(ValueError, match="verified deployment admission"):
+        build_nautilus_config(mainnet_mode, PrivateKey("1" * 64))
 
 
 def _intent(**updates: object) -> OrderIntent:
@@ -167,6 +181,52 @@ def test_stale_snapshot_cannot_grant_a_healthy_sentinel_lease(tmp_path: Path) ->
         reconciliation_complete=True,
         valid_for_ms=1500,
     )
+
+
+def test_gateway_denies_exposure_when_deployment_admission_is_inactive(
+    tmp_path: Path,
+) -> None:
+    class InactiveAdmission:
+        capital_limit_usd = Decimal("1000")
+
+        @staticmethod
+        def is_active() -> bool:
+            return False
+
+        @staticmethod
+        def require_active() -> object:
+            raise ValueError("inactive")
+
+    journal = ExecutionJournal((tmp_path / "admission.db").resolve())
+    heartbeat = Mock(spec=HeartbeatPublisher)
+    strategy = RiskManagedExecutionStrategy(
+        authority=RiskAuthority(
+            RiskLimits(),
+            ExecutionConfig(),
+            kill_switch=KillSwitchStore((tmp_path / "admission-kill.json").resolve()),
+            inflight_count=journal.unresolved_command_count,
+            clock_ns=lambda: NOW,
+            signing_key=b"a" * 32,
+        ),
+        journal=journal,
+        limits=RiskLimits(),
+        heartbeat=heartbeat,
+        admission_guard=InactiveAdmission(),
+    )
+
+    decision, client_order_id = strategy.execute_intent(
+        _intent(),
+        _snapshot(
+            account_equity_usd="1000",
+            day_start_equity_usd="1000",
+            high_water_equity_usd="1000",
+        ),
+    )
+
+    assert not decision.allowed
+    assert client_order_id is None
+    assert "deployment_approval_invalid" in journal.events("intent-1")[-1].detail
+    journal.close()
 
 
 def test_cancel_budget_and_terminal_lookup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

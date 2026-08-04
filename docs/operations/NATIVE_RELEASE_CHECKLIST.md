@@ -52,7 +52,13 @@ checklist while MT5 remains deployed.
   shadow stages with immutable evidence.
 - [ ] Production/canary has a valid human signature bound to the exact account,
   image, code, data, model, configuration, capital ceiling, limits, and expiry.
+- [ ] Approval key ID and public-key fingerprint match the offline trust root;
+  trading/control key-derived addresses match their separately signed roles.
+- [ ] The dependency lock and every manifest-bound artifact hash match bytes in
+  the read-only release bundle.
 - [ ] The approval has not been reused for a different release or capital level.
+- [ ] The credential-free controller explicitly admitted the verified identity;
+  execution and sentinel independently observe the same active ledger record.
 - [ ] Production promotion and capital increase remain impossible for research
   automation.
 
@@ -76,6 +82,8 @@ checklist while MT5 remains deployed.
   remain within policy.
 - [ ] Alerts reach the operator through the tested route.
 - [ ] Deployment registry points to the running artifact and rollback target.
+- [ ] Execution and sentinel admission gauges are one, approval time remaining
+  is positive, and account/vault equity does not exceed approved capital.
 
 ## 8. Rollback or incident response
 

@@ -1708,6 +1708,8 @@
         "public_data_stale",
         "private_data_stale",
         "invalid_account_state",
+        "deployment_approval_invalid",
+        "capital_limit",
         "daily_loss_limit",
         "drawdown_limit",
         "order_size_limit",

@@ -7,6 +7,8 @@ import re
 import stat
 from pathlib import Path
 
+from eth_account import Account
+
 PRIVATE_KEY_PATTERN = re.compile(r"^(?:0x)?[0-9a-fA-F]{64}$")
 
 
@@ -46,3 +48,9 @@ def read_private_key(path: Path) -> PrivateKey:
     finally:
         os.close(descriptor)
     return PrivateKey(value)
+
+
+def private_key_address(private_key: PrivateKey) -> str:
+    """Derive the public EVM address without exposing the private key."""
+
+    return str(Account.from_key(private_key.reveal()).address)

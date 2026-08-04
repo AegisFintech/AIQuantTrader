@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sqlite3
 import sys
 import time
 from collections.abc import Sequence
@@ -23,7 +24,15 @@ from aiquanttrader_native.execution.node import (
     mark_stale_submissions,
     run_trading_node,
 )
-from aiquanttrader_native.execution.secrets import read_private_key
+from aiquanttrader_native.execution.secrets import private_key_address, read_private_key
+from aiquanttrader_native.governance.approval import (
+    configured_artifact_paths,
+    verify_deployment_admission,
+)
+from aiquanttrader_native.governance.ledger import (
+    DeploymentAdmissionGuard,
+    DeploymentAdmissionLedger,
+)
 from aiquanttrader_native.risk import KillSwitchStore, RiskAuthority
 
 
@@ -33,6 +42,9 @@ def _parser() -> argparse.ArgumentParser:
 
     run = commands.add_parser("run", help="run the risk-gated Nautilus trading node")
     _add_config(run)
+    run.add_argument("--code-identity")
+    run.add_argument("--image-identity")
+    run.add_argument("--dependency-lock-path", type=Path)
 
     health = commands.add_parser("healthcheck", help="verify execution heartbeat readiness")
     _add_config(health)
@@ -97,6 +109,36 @@ def main(argv: Sequence[str] | None = None) -> int:
             account = settings.exchange.account_address
             if secret_path is None or account is None:
                 raise ValueError("enabled execution requires trading wallet and account references")
+            private_key = read_private_key(secret_path)
+            admission = None
+            admission_ledger = None
+            admission_guard = None
+            if settings.requires_signed_approval:
+                if (
+                    not args.code_identity
+                    or not args.image_identity
+                    or args.dependency_lock_path is None
+                ):
+                    raise ValueError(
+                        "mainnet execution requires code, image, and dependency identities"
+                    )
+                admission = verify_deployment_admission(
+                    bundle,
+                    configured_artifact_paths(
+                        bundle,
+                        runtime_dependency_lock_path=args.dependency_lock_path,
+                    ),
+                    code_identity=args.code_identity,
+                    image_identity=args.image_identity,
+                    wallet_role="trading",
+                    wallet_address=private_key_address(private_key),
+                )
+                admission_ledger = DeploymentAdmissionLedger(
+                    state_root / "governance" / "admissions.sqlite3",
+                    read_only=True,
+                )
+                admission_guard = DeploymentAdmissionGuard(admission_ledger, admission)
+                admission_guard.require_active()
             journal = ExecutionJournal(state_root / "execution" / "journal.sqlite3")
             mark_stale_submissions(
                 journal,
@@ -109,6 +151,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 account_address=account,
                 config_fingerprint=bundle.fingerprint,
                 kill_switch=kill_switch,
+                admission=admission,
             )
             authority = RiskAuthority(
                 settings.risk,
@@ -117,6 +160,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 inflight_count=journal.unresolved_command_count,
             )
             metrics = ExecutionMetrics()
+            if admission is not None and admission_guard is not None:
+                metrics.set_deployment_admission(
+                    active=True,
+                    expiry_seconds=admission.approval.expires_at.timestamp(),
+                    capital_limit_usd=float(admission.approval.capital_limit_usd),
+                )
             start_http_server(
                 settings.observability.execution_metrics_port,
                 addr=settings.observability.execution_metrics_host,
@@ -124,11 +173,13 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             built = build_trading_node(
                 bundle,
-                read_private_key(secret_path),
+                private_key,
                 journal=journal,
                 authority=authority,
                 heartbeat=heartbeat,
                 metrics=metrics,
+                admission=admission,
+                admission_guard=admission_guard,
             )
             try:
                 run_trading_node(
@@ -137,11 +188,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                     heartbeat_interval_ms=settings.execution.heartbeat_interval_ms,
                     journal=journal,
                     unknown_order_timeout_ms=settings.execution.unknown_order_timeout_ms,
+                    admission_guard=admission_guard,
                 )
             finally:
                 journal.close()
+                if admission_ledger is not None:
+                    admission_ledger.close()
             return 0
-    except (ConfigLoadError, OSError, ValueError) as exc:
+    except (ConfigLoadError, OSError, sqlite3.Error, ValueError) as exc:
         print(json.dumps({"status": "error", "error": str(exc)}), file=sys.stderr)
         return 2
     raise RuntimeError(f"unhandled command: {args.command}")

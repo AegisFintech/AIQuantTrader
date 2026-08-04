@@ -16,6 +16,7 @@ from aiquanttrader_native.config.loader import ConfigBundle
 from aiquanttrader_native.domain.execution import TradingHeartbeat
 from aiquanttrader_native.execution.heartbeat import read_heartbeat
 from aiquanttrader_native.execution.secrets import PrivateKey
+from aiquanttrader_native.governance.models import VerifiedDeploymentAdmission
 from aiquanttrader_native.sentinel.metrics import SentinelMetrics
 
 
@@ -23,6 +24,10 @@ class ControlClient(Protocol):
     def schedule_cancel(self, deadline_ms: int | None) -> None: ...
 
     def cancel_all(self) -> int: ...
+
+
+class AdmissionGuard(Protocol):
+    def is_active(self) -> bool: ...
 
 
 class HyperliquidControlClient:
@@ -35,15 +40,17 @@ class HyperliquidControlClient:
         base_url: str,
         account_address: str,
         timeout_seconds: int,
+        vault_address: str | None = None,
     ) -> None:
         wallet = Account.from_key(private_key.reveal())
         normalized_url = base_url.rstrip("/")
-        self._account_address = account_address
+        self._execution_account_address = vault_address or account_address
         self._info = Info(normalized_url, skip_ws=True, timeout=timeout_seconds)
         self._exchange = Exchange(
             wallet,
             base_url=normalized_url,
             account_address=account_address,
+            vault_address=vault_address,
             timeout=timeout_seconds,
         )
 
@@ -51,7 +58,7 @@ class HyperliquidControlClient:
         self._ensure_ok(self._exchange.schedule_cancel(deadline_ms), "scheduleCancel")
 
     def cancel_all(self) -> int:
-        orders = self._info.open_orders(self._account_address)
+        orders = self._info.open_orders(self._execution_account_address)
         if not isinstance(orders, list):
             raise RuntimeError("openOrders returned an unexpected response")
         cancels: list[CancelRequest] = []
@@ -83,6 +90,8 @@ class SafetySentinel:
         heartbeat_path: Path,
         client: ControlClient,
         metrics: SentinelMetrics,
+        admission: VerifiedDeploymentAdmission | None = None,
+        admission_guard: AdmissionGuard | None = None,
         clock_ns: Callable[[], int] = time.time_ns,
     ) -> None:
         settings = bundle.settings
@@ -95,6 +104,8 @@ class SafetySentinel:
         self._heartbeat_path = heartbeat_path
         self._client = client
         self._metrics = metrics
+        self._admission = admission
+        self._admission_guard = admission_guard
         self._clock_ns = clock_ns
         self._last_renew_ns = 0
         self._last_emergency_cancel_ns: int | None = None
@@ -105,6 +116,8 @@ class SafetySentinel:
         now_ns = self._clock_ns()
         heartbeat = self._read_heartbeat()
         healthy, age_ns = self._classify(heartbeat, now_ns)
+        admission_active = self._admission_guard is None or self._admission_guard.is_active()
+        self._metrics.deployment_admission_active.set(1 if admission_active else 0)
         self._metrics.heartbeat_age_seconds.set(age_ns / 1_000_000_000)
         self._metrics.trading_node_healthy.set(1 if healthy else 0)
         if not healthy:
@@ -155,8 +168,18 @@ class SafetySentinel:
             return False, stale_ns + 1
         age_ns = max(0, now_ns - heartbeat.heartbeat_ts_ns)
         expected_account = self._settings.exchange.account_address
+        admission_healthy = self._admission_guard is None or self._admission_guard.is_active()
+        identity_healthy = self._admission is None or (
+            heartbeat.deployment_id == self._admission.approval.deployment_id
+            and heartbeat.approval_id == self._admission.approval.approval_id
+            and heartbeat.admission_id == self._admission.admission_id
+            and heartbeat.approval_expires_ts_ns
+            == int(self._admission.approval.expires_at.timestamp() * 1_000_000_000)
+        )
         healthy = (
             age_ns <= stale_ns
+            and admission_healthy
+            and identity_healthy
             and heartbeat.environment == self._settings.environment
             and heartbeat.account_address.lower() == str(expected_account).lower()
             and heartbeat.config_fingerprint == self._fingerprint

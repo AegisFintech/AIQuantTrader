@@ -113,6 +113,10 @@ Every phase requires:
 
 ## Phase 9: Mainnet
 
+Implementation status: automated admission controls are present; this phase is
+not accepted and no mainnet release is authorized until every item below has
+retained evidence and human approval.
+
 - A non-expired signed approval binds the exact image, commit, dataset, model,
   configuration, account, capital, limits, and rollback target.
 - The exact release passes a final testnet dress rehearsal.

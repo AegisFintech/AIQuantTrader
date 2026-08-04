@@ -60,6 +60,38 @@ def test_execution_and_control_wallets_are_process_isolated(project_root: Path) 
     assert "mainnet" not in overlay
 
 
+def test_mainnet_overlay_is_exact_image_admission_gated_and_wallet_isolated(
+    project_root: Path,
+) -> None:
+    overlay = (project_root / "compose.mainnet.yaml").read_text(encoding="utf-8")
+    controller = overlay.split("  deployment-controller:", 1)[1].split("  trading-node:", 1)[0]
+    trading = overlay.split("  trading-node:", 1)[1].split("  safety-sentinel:", 1)[0]
+    sentinel = overlay.split("  safety-sentinel:", 1)[1].split("\nsecrets:", 1)[0]
+
+    assert "@${AQT_MAINNET_IMAGE_DIGEST:" in overlay
+    assert "build:" not in overlay
+    assert 'profiles: ["mainnet-admission"]' in controller
+    assert "secrets:" not in controller
+    assert 'entrypoint: ["aqt-governance"]' in controller
+    assert "source: mainnet_trading_wallet" in trading
+    assert "source: mainnet_control_wallet" not in trading
+    assert "source: mainnet_control_wallet" in sentinel
+    assert "source: mainnet_trading_wallet" not in sentinel
+    assert "mainnet-state:/var/lib/aiquanttrader/state:ro" in sentinel
+    assert "mainnet-data:/var/lib/aiquanttrader/data" not in sentinel
+    assert "/run/approvals:ro" in controller
+    assert "/run/approvals:ro" in trading
+    assert "/run/approvals:ro" in sentinel
+
+    dashboard = json.loads(
+        (
+            project_root / "observability" / "grafana" / "dashboards" / "production-governance.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert dashboard["uid"] == "aqt-production-governance"
+    assert len(dashboard["panels"]) >= 6
+
+
 def test_paper_service_has_no_wallet_secret_or_exchange_order_capability(
     project_root: Path,
 ) -> None:
@@ -179,6 +211,44 @@ def test_shadow_compose_renders_exact_image_when_docker_is_available(project_roo
     )
 
 
+def test_mainnet_compose_renders_exact_image_when_docker_is_available(project_root: Path) -> None:
+    if shutil.which("docker") is None:
+        pytest.skip("Docker Compose is unavailable")
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "AQT_MAINNET_IMAGE_REPOSITORY": "registry.invalid/aiquanttrader-native",
+            "AQT_MAINNET_IMAGE_DIGEST": "sha256:" + "a" * 64,
+            "AQT_MAINNET_ACCOUNT_ADDRESS": "0x" + "1" * 40,
+            "AQT_MAINNET_DEPLOYMENT_ID": "deployment-001",
+            "AQT_MAINNET_CANARY_APPROVAL_ID": "approval-001",
+            "AQT_MAINNET_MANIFEST_SHA256": "b" * 64,
+            "AQT_MAINNET_PUBLIC_KEY_ID": "approver-001",
+            "AQT_MAINNET_PUBLIC_KEY_SHA256": "c" * 64,
+            "AQT_MAINNET_ENVIRONMENT": "canary",
+            "AQT_MAINNET_COMMIT_SHA": "d" * 40,
+            "AQT_APPROVAL_BUNDLE_DIR": "/tmp/approval-bundle",
+            "AQT_MAINNET_TRADING_WALLET_FILE": "/tmp/mainnet-trading-wallet",
+            "AQT_MAINNET_CONTROL_WALLET_FILE": "/tmp/mainnet-control-wallet",
+        }
+    )
+    subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            "compose.mainnet.yaml",
+            "--profile",
+            "mainnet-live",
+            "config",
+            "--quiet",
+        ],
+        cwd=project_root,
+        env=environment,
+        check=True,
+    )
+
+
 def test_only_gateway_calls_nautilus_and_sdk_cannot_place_orders(project_root: Path) -> None:
     source_root = project_root / "src" / "aiquanttrader_native"
     normal_order_calls: list[Path] = []
@@ -213,6 +283,7 @@ def test_dependency_and_tool_versions_are_pinned(project_root: Path) -> None:
     assert "nautilus-trader==1.230.0" in payload["project"]["dependencies"]
     assert "hyperliquid-python-sdk==0.24.0" in payload["project"]["dependencies"]
     assert "hftbacktest==2.4.4" in payload["project"]["dependencies"]
+    assert "pycryptodome==3.23.0" in payload["project"]["dependencies"]
     assert payload["project"]["optional-dependencies"]["research"] == [
         "catboost==1.2.10",
         "lightgbm==4.7.0",

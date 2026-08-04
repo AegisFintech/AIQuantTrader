@@ -159,6 +159,16 @@ def test_hard_order_and_exposure_limits(
             RiskReason.RECONCILIATION_INCOMPLETE,
         ),
         (
+            {"deployment_approved": False},
+            RiskState.HALTED,
+            RiskReason.DEPLOYMENT_APPROVAL_INVALID,
+        ),
+        (
+            {"account_equity_usd": "1001", "approved_capital_limit_usd": "1000"},
+            RiskState.HALTED,
+            RiskReason.CAPITAL_LIMIT,
+        ),
+        (
             {"public_data_ts_ns": NOW - 2_000_000_000},
             RiskState.CANCEL_ONLY,
             RiskReason.PUBLIC_DATA_STALE,

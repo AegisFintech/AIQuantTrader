@@ -40,6 +40,15 @@ from aiquanttrader_native.features.models import (
     FeatureSchema,
     MicrostructureSnapshot,
 )
+from aiquanttrader_native.governance.models import (
+    CanaryEvidencePolicy,
+    CanaryEvidenceReport,
+    CanaryObservation,
+    DeploymentAdmissionRecord,
+    DeploymentArtifactManifest,
+    DetachedApprovalSignature,
+    VerifiedDeploymentAdmission,
+)
 from aiquanttrader_native.paper.models import (
     PaperAccountState,
     PaperDecisionRecord,
@@ -113,6 +122,15 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | FeatureSchema
         | MicrostructureSnapshot
         | FeatureDatasetManifest
+    ).json_schema(),
+    "governance.schema.json": lambda: TypeAdapter(
+        DeploymentArtifactManifest
+        | DetachedApprovalSignature
+        | VerifiedDeploymentAdmission
+        | DeploymentAdmissionRecord
+        | CanaryEvidencePolicy
+        | CanaryObservation
+        | CanaryEvidenceReport
     ).json_schema(),
     "market-data.schema.json": lambda: TypeAdapter(MarketEvent).json_schema(),
     "dataset-manifest.schema.json": lambda: _model_schema(DatasetManifest),

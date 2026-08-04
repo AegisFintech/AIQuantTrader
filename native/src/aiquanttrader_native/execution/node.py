@@ -38,6 +38,8 @@ from aiquanttrader_native.execution.journal import ExecutionJournal
 from aiquanttrader_native.execution.metrics import ExecutionMetrics
 from aiquanttrader_native.execution.secrets import PrivateKey
 from aiquanttrader_native.execution.strategy import RiskManagedExecutionStrategy
+from aiquanttrader_native.governance.ledger import DeploymentAdmissionGuard
+from aiquanttrader_native.governance.models import VerifiedDeploymentAdmission
 from aiquanttrader_native.risk.authority import RiskAuthority
 
 
@@ -47,7 +49,12 @@ class BuiltTradingNode:
     gateway: RiskManagedExecutionStrategy
 
 
-def build_nautilus_config(bundle: ConfigBundle, private_key: PrivateKey) -> TradingNodeConfig:
+def build_nautilus_config(
+    bundle: ConfigBundle,
+    private_key: PrivateKey,
+    *,
+    admission: VerifiedDeploymentAdmission | None = None,
+) -> TradingNodeConfig:
     """Map validated native policy to the exact pinned adapter configuration."""
 
     settings = bundle.settings
@@ -55,6 +62,8 @@ def build_nautilus_config(bundle: ConfigBundle, private_key: PrivateKey) -> Trad
         raise ValueError("Nautilus execution cannot start while execution is disabled")
     if settings.exchange.account_address is None:
         raise ValueError("Nautilus execution requires an account address")
+    if settings.exchange.network is ExchangeNetwork.MAINNET and admission is None:
+        raise ValueError("mainnet Nautilus execution requires verified deployment admission")
     environment = (
         HyperliquidEnvironment.TESTNET
         if settings.exchange.network is ExchangeNetwork.TESTNET
@@ -111,6 +120,7 @@ def build_nautilus_config(bundle: ConfigBundle, private_key: PrivateKey) -> Trad
             HYPERLIQUID: HyperliquidExecClientConfig(
                 private_key=private_key.reveal(),
                 account_address=settings.exchange.account_address,
+                vault_address=settings.exchange.vault_address,
                 instrument_provider=provider,
                 product_types=(HyperliquidProductType.PERP,),
                 environment=environment,
@@ -135,14 +145,17 @@ def build_trading_node(
     authority: RiskAuthority,
     heartbeat: HeartbeatPublisher,
     metrics: ExecutionMetrics | None = None,
+    admission: VerifiedDeploymentAdmission | None = None,
+    admission_guard: DeploymentAdmissionGuard | None = None,
 ) -> BuiltTradingNode:
-    node = TradingNode(config=build_nautilus_config(bundle, private_key))
+    node = TradingNode(config=build_nautilus_config(bundle, private_key, admission=admission))
     gateway = RiskManagedExecutionStrategy(
         authority=authority,
         journal=journal,
         limits=bundle.settings.risk,
         heartbeat=heartbeat,
         metrics=metrics,
+        admission_guard=admission_guard,
     )
     node.trader.add_strategy(gateway)
     node.add_data_client_factory(HYPERLIQUID, HyperliquidLiveDataClientFactory)
@@ -158,11 +171,17 @@ def run_trading_node(
     heartbeat_interval_ms: int,
     journal: ExecutionJournal,
     unknown_order_timeout_ms: int,
+    admission_guard: DeploymentAdmissionGuard | None = None,
 ) -> None:
     stop = threading.Event()
 
     def publish_heartbeat() -> None:
         while not stop.wait(heartbeat_interval_ms / 1_000):
+            if admission_guard is not None and not admission_guard.is_active():
+                heartbeat.set_health(
+                    execution_healthy=False,
+                    reconciliation_complete=False,
+                )
             heartbeat.publish()
             mark_stale_submissions(
                 journal,

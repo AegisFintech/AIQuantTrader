@@ -17,6 +17,32 @@ ACCOUNT = "0x" + "1" * 40
 HASH = "a" * 64
 
 
+def mainnet_environment() -> dict[str, str]:
+    return {
+        "AQT_NATIVE__APPROVAL__DEPLOYMENT_ID": "deployment-001",
+        "AQT_NATIVE__APPROVAL__APPROVAL_ID": "approval-001",
+        "AQT_NATIVE__APPROVAL__ARTIFACT_MANIFEST_SHA256": HASH,
+        "AQT_NATIVE__APPROVAL__APPROVAL_PATH": "/run/approvals/approval.json",
+        "AQT_NATIVE__APPROVAL__MANIFEST_PATH": "/run/approvals/manifest.json",
+        "AQT_NATIVE__APPROVAL__PUBLIC_KEY_PATH": "/run/approvals/approver.pub",
+        "AQT_NATIVE__APPROVAL__PUBLIC_KEY_ID": "approver-001",
+        "AQT_NATIVE__APPROVAL__PUBLIC_KEY_SHA256": HASH,
+        "AQT_NATIVE__APPROVAL__SIGNATURE_PATH": "/run/approvals/approval.sig.json",
+        "AQT_NATIVE__APPROVAL__ARTIFACT_ROOT_PATH": "/run/approvals/artifacts",
+        "AQT_NATIVE__EXCHANGE__ACCOUNT_ADDRESS": ACCOUNT,
+        "AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH": ("/run/secrets/mainnet-control-wallet"),
+        "AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH": ("/run/secrets/mainnet-trading-wallet"),
+        "AQT_NATIVE__EXECUTION__ENABLED": "true",
+        "AQT_NATIVE__SENTINEL__ENABLED": "true",
+        "AQT_NATIVE__RISK__MAX_ORDER_SIZE_BASE": "0.002",
+        "AQT_NATIVE__RISK__MAX_POSITION_SIZE_BASE": "0.01",
+        "AQT_NATIVE__RISK__MAX_ORDER_NOTIONAL_USD": "100",
+        "AQT_NATIVE__RISK__MAX_INVENTORY_NOTIONAL_USD": "500",
+        "AQT_NATIVE__RISK__MAX_OPEN_ORDERS": "2",
+        "AQT_NATIVE__RISK__MAX_ORDERS_PER_SECOND": "2",
+    }
+
+
 @pytest.mark.parametrize(
     ("environment", "mode", "network"),
     [
@@ -109,8 +135,8 @@ def test_non_execution_modes_cannot_be_overridden(config_dir: Path, environment:
         )
 
 
-def test_mainnet_execution_is_unavailable_during_phase_4(config_dir: Path) -> None:
-    with pytest.raises(ConfigLoadError, match="remain unavailable until Phase 9"):
+def test_mainnet_execution_requires_complete_approval_references(config_dir: Path) -> None:
+    with pytest.raises(ConfigLoadError, match="complete signed-approval references"):
         load_config(
             config_dir,
             "canary",
@@ -128,49 +154,25 @@ def test_mainnet_execution_is_unavailable_during_phase_4(config_dir: Path) -> No
         )
 
 
-def test_canary_rejects_even_complete_approval_until_phase_9(config_dir: Path) -> None:
-    with pytest.raises(ConfigLoadError, match="remain unavailable until Phase 9"):
-        load_config(
-            config_dir,
-            "canary",
-            environ={
-                "AQT_NATIVE__APPROVAL__APPROVAL_ID": "approval-001",
-                "AQT_NATIVE__APPROVAL__ARTIFACT_MANIFEST_SHA256": HASH,
-                "AQT_NATIVE__APPROVAL__MANIFEST_PATH": "/run/secrets/canary-manifest",
-                "AQT_NATIVE__APPROVAL__PUBLIC_KEY_PATH": "/run/secrets/approver-public-key",
-                "AQT_NATIVE__APPROVAL__SIGNATURE_PATH": "/run/secrets/canary-signature",
-                "AQT_NATIVE__EXCHANGE__ACCOUNT_ADDRESS": ACCOUNT,
-                "AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH": (
-                    "/run/secrets/mainnet-control-wallet"
-                ),
-                "AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH": (
-                    "/run/secrets/mainnet-trading-wallet"
-                ),
-                "AQT_NATIVE__EXECUTION__ENABLED": "true",
-                "AQT_NATIVE__SENTINEL__ENABLED": "true",
-            },
-        )
+def test_canary_can_be_structurally_enabled_but_still_requires_runtime_admission(
+    config_dir: Path,
+) -> None:
+    bundle = load_config(config_dir, "canary", environ=mainnet_environment())
+
+    assert bundle.settings.can_submit_orders
+    assert bundle.settings.requires_signed_approval
+    assert bundle.settings.approval.complete_for(DeploymentMode.CANARY)
 
 
-def test_production_approval_cannot_bypass_phase_9_lock(config_dir: Path) -> None:
-    environ = {
-        "AQT_NATIVE__APPROVAL__APPROVAL_ID": "approval-001",
-        "AQT_NATIVE__APPROVAL__ARTIFACT_MANIFEST_SHA256": HASH,
-        "AQT_NATIVE__APPROVAL__MANIFEST_PATH": "/run/secrets/production-manifest",
-        "AQT_NATIVE__APPROVAL__PUBLIC_KEY_PATH": "/run/secrets/approver-public-key",
-        "AQT_NATIVE__APPROVAL__SIGNATURE_PATH": "/run/secrets/production-signature",
-        "AQT_NATIVE__EXCHANGE__ACCOUNT_ADDRESS": ACCOUNT,
-        "AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH": ("/run/secrets/mainnet-control-wallet"),
-        "AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH": ("/run/secrets/mainnet-trading-wallet"),
-        "AQT_NATIVE__EXECUTION__ENABLED": "true",
-        "AQT_NATIVE__SENTINEL__ENABLED": "true",
-    }
-    with pytest.raises(ConfigLoadError, match="remain unavailable until Phase 9"):
+def test_production_requires_separate_scale_approval(config_dir: Path) -> None:
+    environ = mainnet_environment()
+    with pytest.raises(ConfigLoadError, match="complete signed-approval references"):
         load_config(config_dir, "production", environ=environ)
 
     environ["AQT_NATIVE__APPROVAL__SCALE_APPROVAL_ID"] = "scale-001"
-    with pytest.raises(ConfigLoadError, match="remain unavailable until Phase 9"):
-        load_config(config_dir, "production", environ=environ)
+    bundle = load_config(config_dir, "production", environ=environ)
+
+    assert bundle.settings.approval.active_approval_id(DeploymentMode.PRODUCTION) == "scale-001"
 
 
 @pytest.mark.parametrize(

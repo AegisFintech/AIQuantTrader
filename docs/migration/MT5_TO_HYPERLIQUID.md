@@ -1,6 +1,6 @@
 # MT5/Wine to Hyperliquid Migration Plan
 
-Status: approved; Phases 2-6 implemented in parallel, with phase-specific acceptance evidence pending
+Status: approved; Phases 2-9 implemented in parallel, with phase-specific acceptance evidence pending
 Migration mode: parallel replacement with gated cutover
 Target: Linux-native BTC perpetual trading on Hyperliquid
 
@@ -211,6 +211,11 @@ Tests:
 Migration action: successful automation stops at `AWAITING_APPROVAL`.
 
 ### Phase 9: Mainnet canary and cutover
+
+Implementation note: the cryptographic approval, anti-replay admission,
+runtime guards, conservative canary bounds, exact-image topology, evidence
+policy, and runbooks are implemented. Mainnet activation, empirical acceptance,
+production scale, and legacy retirement remain pending and separately approved.
 
 Deliverables:
 

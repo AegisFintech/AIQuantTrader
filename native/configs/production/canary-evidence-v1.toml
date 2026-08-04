@@ -1,0 +1,18 @@
+schema_version = 1
+policy_id = "btc-mainnet-canary-v1"
+frozen_at_ns = 1785772800000000000
+minimum_observation_ns = 604800000000000
+minimum_orders = 10000
+minimum_fills = 1000
+minimum_maker_fills = 800
+maximum_drawdown_fraction = "0.005"
+maximum_rejection_fraction = "0.01"
+maximum_adverse_markout_bps = "5"
+require_positive_post_cost_pnl = true
+required_drills = [
+  "operator_kill",
+  "deadman_expiry",
+  "restart_reconciliation",
+  "credential_rotation",
+  "backup_restore",
+]
