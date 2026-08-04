@@ -74,6 +74,8 @@ class RiskReason(StrEnum):
     PUBLIC_DATA_STALE = "public_data_stale"
     PRIVATE_DATA_STALE = "private_data_stale"
     INVALID_ACCOUNT_STATE = "invalid_account_state"
+    DEPLOYMENT_APPROVAL_INVALID = "deployment_approval_invalid"
+    CAPITAL_LIMIT = "capital_limit"
     DAILY_LOSS_LIMIT = "daily_loss_limit"
     DRAWDOWN_LIMIT = "drawdown_limit"
     ORDER_SIZE_LIMIT = "order_size_limit"
@@ -106,6 +108,8 @@ class RiskSnapshot(DomainModel):
     open_order_count: int = Field(ge=0)
     exchange_connected: bool
     reconciliation_complete: bool
+    deployment_approved: bool = True
+    approved_capital_limit_usd: PositiveDecimal | None = None
     operator_kill: bool = False
     flatten_requested: bool = False
 
@@ -179,3 +183,21 @@ class TradingHeartbeat(DomainModel):
     reconciliation_complete: bool
     operator_kill: bool
     config_fingerprint: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+    deployment_id: Identifier | None = None
+    approval_id: Identifier | None = None
+    admission_id: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")] | None = None
+    approval_expires_ts_ns: TimestampNs | None = None
+
+    @model_validator(mode="after")
+    def admission_identity_is_complete(self) -> TradingHeartbeat:
+        identity = (
+            self.deployment_id,
+            self.approval_id,
+            self.admission_id,
+            self.approval_expires_ts_ns,
+        )
+        if any(value is not None for value in identity) and not all(
+            value is not None for value in identity
+        ):
+            raise ValueError("heartbeat deployment admission identity must be complete")
+        return self

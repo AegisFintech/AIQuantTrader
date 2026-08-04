@@ -8,7 +8,8 @@ perpetual platform. During migration it deliberately uses the import package
 The package currently provides the Phase 2 foundation, Phase 3 public market
 data path, Phase 4 fail-closed execution/risk path, Phase 5 causal backtesting
 framework, Phase 6 BTC research/strategy framework, Phase 7 paper path, and
-Phase 8 network-isolated shadow path:
+Phase 8 network-isolated shadow path, and the Phase 9 production-admission
+boundary:
 
 - typed, fail-closed deployment configuration;
 - versioned market-data, feature, experiment, and deployment schemas;
@@ -52,13 +53,19 @@ Phase 8 network-isolated shadow path:
   client;
 - atomic counterfactual submit/cancel commands, exact retained-ingress replay,
   operational latency/availability/fault evidence, and a read-only observer.
+- offline Ed25519 deployment approval bound to exact artifacts, image, commit,
+  account/vault, wallet roles, capital, risk, expiry, and rollback;
+- a durable anti-replay admission ledger checked independently by execution and
+  the sentinel, conservative canary hard caps, and frozen canary evidence gates.
 
 The Phase 6 strategies are research candidates and are wired only into the
 credential-free Phase 7 simulator, not the exchange node. The exchange order
 path remains disabled in every checked-in
 environment. Configuration accepts only secret file references. Phase 4
-permits explicit testnet runtime enablement only; enabled mainnet wallets are
-rejected until Phase 9 implements cryptographic artifact-approval verification.
+permits explicit testnet runtime enablement. Phase 9 permits structural mainnet
+enablement only when complete approval references are supplied; startup and
+every exposure-changing command still require valid signed artifacts and an
+explicit active ledger admission. No checked-in overlay enables execution.
 
 ## Development
 
@@ -89,6 +96,10 @@ AQT_NATIVE__OBSERVABILITY__HEALTH_PORT=9200 \
 
 Configuration never accepts a private key value. It accepts only absolute
 secret-file references below `/run/secrets`.
+
+Mainnet admission is documented in
+`../docs/operations/MAINNET_CANARY_RUNBOOK.md`. A passing canary report never
+promotes automatically and a separate signed approval is required for scale.
 
 ## Execution and risk
 

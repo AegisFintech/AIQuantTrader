@@ -1,0 +1,158 @@
+name: aiquanttrader-native-mainnet
+
+x-mainnet-security: &mainnet-security
+  user: "65532:65532"
+  read_only: true
+  init: true
+  restart: "no"
+  cap_drop: ["ALL"]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+  logging:
+    driver: json-file
+    options:
+      max-file: "3"
+      max-size: 10m
+
+x-mainnet-image: &mainnet-image
+  image: ${AQT_MAINNET_IMAGE_REPOSITORY:?set immutable image repository}@${AQT_MAINNET_IMAGE_DIGEST:?set sha256 image digest}
+
+x-mainnet-environment: &mainnet-environment
+  AQT_NATIVE__EXCHANGE__ACCOUNT_ADDRESS: ${AQT_MAINNET_ACCOUNT_ADDRESS:?set mainnet master account}
+  AQT_NATIVE__EXCHANGE__VAULT_ADDRESS: ${AQT_MAINNET_VAULT_ADDRESS:-null}
+  AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH: /run/secrets/mainnet-trading-wallet
+  AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH: /run/secrets/mainnet-control-wallet
+  AQT_NATIVE__EXECUTION__ENABLED: "true"
+  AQT_NATIVE__SENTINEL__ENABLED: "true"
+  AQT_NATIVE__RISK__MAX_LEVERAGE: ${AQT_MAINNET_MAX_LEVERAGE:-1}
+  AQT_NATIVE__RISK__MAX_ORDER_SIZE_BASE: ${AQT_MAINNET_MAX_ORDER_SIZE_BASE:-0.002}
+  AQT_NATIVE__RISK__MAX_POSITION_SIZE_BASE: ${AQT_MAINNET_MAX_POSITION_SIZE_BASE:-0.01}
+  AQT_NATIVE__RISK__MAX_ORDER_NOTIONAL_USD: ${AQT_MAINNET_MAX_ORDER_NOTIONAL_USD:-100}
+  AQT_NATIVE__RISK__MAX_INVENTORY_NOTIONAL_USD: ${AQT_MAINNET_MAX_INVENTORY_NOTIONAL_USD:-500}
+  AQT_NATIVE__RISK__MAX_OPEN_ORDERS: ${AQT_MAINNET_MAX_OPEN_ORDERS:-2}
+  AQT_NATIVE__RISK__MAX_ORDERS_PER_SECOND: ${AQT_MAINNET_MAX_ORDERS_PER_SECOND:-2}
+  AQT_NATIVE__APPROVAL__DEPLOYMENT_ID: ${AQT_MAINNET_DEPLOYMENT_ID:?set deployment id}
+  AQT_NATIVE__APPROVAL__APPROVAL_ID: ${AQT_MAINNET_CANARY_APPROVAL_ID:?set canary approval id}
+  AQT_NATIVE__APPROVAL__SCALE_APPROVAL_ID: ${AQT_MAINNET_SCALE_APPROVAL_ID:-null}
+  AQT_NATIVE__APPROVAL__ARTIFACT_MANIFEST_SHA256: ${AQT_MAINNET_MANIFEST_SHA256:?set manifest digest}
+  AQT_NATIVE__APPROVAL__APPROVAL_PATH: /run/approvals/deployment-approval.json
+  AQT_NATIVE__APPROVAL__MANIFEST_PATH: /run/approvals/artifact-manifest.json
+  AQT_NATIVE__APPROVAL__SIGNATURE_PATH: /run/approvals/deployment-approval.sig.json
+  AQT_NATIVE__APPROVAL__PUBLIC_KEY_PATH: /run/approvals/approver-ed25519.pub.pem
+  AQT_NATIVE__APPROVAL__PUBLIC_KEY_ID: ${AQT_MAINNET_PUBLIC_KEY_ID:?set approval key id}
+  AQT_NATIVE__APPROVAL__PUBLIC_KEY_SHA256: ${AQT_MAINNET_PUBLIC_KEY_SHA256:?set approval public key fingerprint}
+  AQT_NATIVE__APPROVAL__ARTIFACT_ROOT_PATH: /run/approvals/artifacts
+
+services:
+  deployment-controller:
+    <<: [*mainnet-security, *mainnet-image]
+    profiles: ["mainnet-admission"]
+    entrypoint: ["aqt-governance"]
+    command:
+      - verify
+      - --config-dir
+      - /etc/aiquanttrader-native
+      - --environment
+      - ${AQT_MAINNET_ENVIRONMENT:?set canary or production}
+      - --code-identity
+      - ${AQT_MAINNET_COMMIT_SHA:?set exact 40-character commit}
+      - --image-identity
+      - ${AQT_MAINNET_IMAGE_DIGEST:?set sha256 image digest}
+      - --dependency-lock-path
+      - /opt/aiquanttrader/release/uv.lock
+    environment: *mainnet-environment
+    volumes:
+      - mainnet-state:/var/lib/aiquanttrader/state
+      - ${AQT_APPROVAL_BUNDLE_DIR:?set approval bundle directory}:/run/approvals:ro
+
+  trading-node:
+    <<: [*mainnet-security, *mainnet-image]
+    profiles: ["mainnet-live"]
+    restart: unless-stopped
+    stop_grace_period: 30s
+    entrypoint: ["aqt-execution"]
+    command:
+      - run
+      - --config-dir
+      - /etc/aiquanttrader-native
+      - --environment
+      - ${AQT_MAINNET_ENVIRONMENT:?set canary or production}
+      - --code-identity
+      - ${AQT_MAINNET_COMMIT_SHA:?set exact 40-character commit}
+      - --image-identity
+      - ${AQT_MAINNET_IMAGE_DIGEST:?set sha256 image digest}
+      - --dependency-lock-path
+      - /opt/aiquanttrader/release/uv.lock
+    environment: *mainnet-environment
+    volumes:
+      - mainnet-data:/var/lib/aiquanttrader/data
+      - mainnet-state:/var/lib/aiquanttrader/state
+      - ${AQT_APPROVAL_BUNDLE_DIR:?set approval bundle directory}:/run/approvals:ro
+    secrets:
+      - source: mainnet_trading_wallet
+        target: mainnet-trading-wallet
+    ports:
+      - "127.0.0.1:9110:9110"
+    healthcheck:
+      test:
+        - CMD
+        - aqt-execution
+        - healthcheck
+        - --config-dir
+        - /etc/aiquanttrader-native
+        - --environment
+        - ${AQT_MAINNET_ENVIRONMENT:?set canary or production}
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+  safety-sentinel:
+    <<: [*mainnet-security, *mainnet-image]
+    profiles: ["mainnet-live"]
+    restart: unless-stopped
+    entrypoint: ["aqt-sentinel"]
+    command:
+      - --config-dir
+      - /etc/aiquanttrader-native
+      - --environment
+      - ${AQT_MAINNET_ENVIRONMENT:?set canary or production}
+      - --code-identity
+      - ${AQT_MAINNET_COMMIT_SHA:?set exact 40-character commit}
+      - --image-identity
+      - ${AQT_MAINNET_IMAGE_DIGEST:?set sha256 image digest}
+      - --dependency-lock-path
+      - /opt/aiquanttrader/release/uv.lock
+    environment: *mainnet-environment
+    volumes:
+      - mainnet-state:/var/lib/aiquanttrader/state:ro
+      - ${AQT_APPROVAL_BUNDLE_DIR:?set approval bundle directory}:/run/approvals:ro
+    secrets:
+      - source: mainnet_control_wallet
+        target: mainnet-control-wallet
+    ports:
+      - "127.0.0.1:9111:9111"
+    healthcheck:
+      test:
+        - CMD
+        - aqt-sentinel
+        - --healthcheck
+        - --config-dir
+        - /etc/aiquanttrader-native
+        - --environment
+        - ${AQT_MAINNET_ENVIRONMENT:?set canary or production}
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+secrets:
+  mainnet_trading_wallet:
+    file: ${AQT_MAINNET_TRADING_WALLET_FILE:?set trading wallet file}
+  mainnet_control_wallet:
+    file: ${AQT_MAINNET_CONTROL_WALLET_FILE:?set control wallet file}
+
+volumes:
+  mainnet-data:
+  mainnet-state:

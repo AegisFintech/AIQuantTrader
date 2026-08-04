@@ -15,6 +15,7 @@ from aiquanttrader_native.sentinel.metrics import SentinelMetrics
 from aiquanttrader_native.sentinel.service import HyperliquidControlClient, SafetySentinel
 
 ACCOUNT = "0x" + "1" * 40
+VAULT = "0x" + "2" * 40
 
 
 class FakeControlClient:
@@ -124,6 +125,30 @@ def test_sentinel_recovers_and_rejects_stale_or_mismatched_state(
     assert client.cancel_calls == 2
 
 
+def test_sentinel_cancels_when_durable_deployment_admission_is_inactive(
+    config_dir: Path,
+    tmp_path: Path,
+) -> None:
+    bundle = enabled_bundle(config_dir)
+    now = 300_000_000_000
+    heartbeat = (tmp_path / "heartbeat.json").resolve()
+    write_healthy_heartbeat(bundle, heartbeat, now)
+    guard = Mock()
+    guard.is_active.return_value = False
+    client = FakeControlClient()
+    sentinel = SafetySentinel(
+        bundle=bundle,
+        heartbeat_path=heartbeat,
+        client=client,
+        metrics=SentinelMetrics(CollectorRegistry()),
+        admission_guard=guard,
+        clock_ns=lambda: now,
+    )
+
+    assert not sentinel.step()
+    assert client.cancel_calls == 1
+
+
 def test_sentinel_surfaces_exchange_failures(config_dir: Path, tmp_path: Path) -> None:
     bundle = enabled_bundle(config_dir)
     client = FakeControlClient()
@@ -188,9 +213,11 @@ def test_control_client_validates_open_orders_and_exchange_responses(
         base_url="https://api.hyperliquid-testnet.xyz/",
         account_address=ACCOUNT,
         timeout_seconds=10,
+        vault_address=VAULT,
     )
     client.schedule_cancel(12345)
     assert client.cancel_all() == 1
+    info.open_orders.assert_called_with(VAULT)
     exchange.bulk_cancel.assert_called_once_with([{"coin": "BTC", "oid": 7}])
 
     info.open_orders.return_value = []

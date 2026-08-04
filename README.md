@@ -13,7 +13,7 @@ authorized by the architecture approval alone, and automated research may not
 promote a model into production. Until the Phase 9 cutover is separately
 approved, the deployed runtime remains the MT5 demo system described below.
 
-Phases 2-8 now provide the isolated native foundation, raw-first Hyperliquid
+Phases 2-9 now provide the isolated native foundation, raw-first Hyperliquid
 market-data path, fail-closed execution/risk path, causal BTC replay and
 validation, BTC feature/strategy/research framework, and credential-free live
 paper trading, and network-isolated shadow deployment. Phase 4 uses
@@ -23,8 +23,13 @@ dead-man and emergency cancellation. See
 [`docs/migration/PHASE_4_EXECUTION_RISK.md`](docs/migration/PHASE_4_EXECUTION_RISK.md)
 and [`docs/operations/EXECUTION_RISK_RUNBOOK.md`](docs/operations/EXECUTION_RISK_RUNBOOK.md).
 All checked-in environments remain execution-disabled; credentialed testnet
-acceptance evidence is still required. Phase 4 configuration rejects enabled
-mainnet wallets; no mainnet deployment is authorized.
+acceptance evidence is still required. Phase 9 adds cryptographically signed,
+artifact-bound, explicit canary/production admission, durable anti-replay
+state, independent wallet-role verification, capital clamps, and an exact-image
+mainnet topology. It does not activate mainnet or retire MT5. See
+[`docs/migration/PHASE_9_PRODUCTION_ADMISSION.md`](docs/migration/PHASE_9_PRODUCTION_ADMISSION.md)
+and
+[`docs/operations/MAINNET_CANARY_RUNBOOK.md`](docs/operations/MAINNET_CANARY_RUNBOOK.md).
 
 Phase 5 converts manifest-admitted Tardis and local captures into deterministic
 HftBacktest events, runs versioned baseline/pessimistic execution assumptions,

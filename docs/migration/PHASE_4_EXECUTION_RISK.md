@@ -68,10 +68,10 @@ docs/
 - A corrupt operator-kill file fails closed. Activations and clears are atomic,
   mode `0600`, and append to a separately fsynced audit file. The authority
   reads this operator-owned state itself; strategy input cannot clear it.
-- Phase 4 rejects enabled mainnet wallets in application configuration,
-  including configurations that supply approval-file references. Phase 9 must
-  add and verify the artifact-bound cryptographic approval before that lock can
-  be removed.
+- Phase 4's testnet-only boundary originally rejected enabled mainnet wallets.
+  Phase 9 replaces that blanket lock only for canary/production configurations
+  which pass exact artifact-bound signature verification and explicit durable
+  admission; Phase 4 itself remains testnet-scoped.
 - Testnet wallet references must use the `testnet-` secret namespace. The
   Compose overlay mounts only the trading key into the trading node and only
   the control key into the sentinel.
@@ -183,5 +183,5 @@ Still required before Phase 4 is declared accepted:
 - verification that the testnet deployment has no mainnet key mounted;
 - measured journal/decision/submit latency and retained reviewer sign-off.
 
-Mainnet enablement is not a Phase 4 acceptance item. It remains a separate
-Phase 9 change and review.
+Mainnet enablement is not a Phase 4 acceptance item. Phase 9 implements its
+separate admission controls and still requires separate evidence and review.

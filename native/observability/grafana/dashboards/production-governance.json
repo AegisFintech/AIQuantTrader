@@ -1,0 +1,65 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Execution admission active",
+      "type": "stat",
+      "targets": [{"expr": "aqt_execution_deployment_admission_active", "refId": "A"}]
+    },
+    {
+      "id": 2,
+      "title": "Sentinel admission active",
+      "type": "stat",
+      "targets": [{"expr": "aqt_sentinel_deployment_admission_active", "refId": "A"}]
+    },
+    {
+      "id": 3,
+      "title": "Approval time remaining",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "aqt_execution_approval_expiry_seconds - time()",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Approved capital ceiling",
+      "type": "stat",
+      "targets": [{"expr": "aqt_execution_approved_capital_limit_usd", "refId": "A"}]
+    },
+    {
+      "id": 5,
+      "title": "Admission and risk denials",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(aqt_execution_risk_decisions_total{result=\"denied\"}[5m]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Emergency cancel attempts",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(aqt_sentinel_emergency_cancel_total[5m]))",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["aiquanttrader", "mainnet", "governance"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "utc",
+  "title": "AIQuantTrader Production Governance",
+  "uid": "aqt-production-governance",
+  "version": 1
+}

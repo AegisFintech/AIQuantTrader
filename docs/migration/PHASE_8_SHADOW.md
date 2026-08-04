@@ -148,7 +148,8 @@ decision and command content while excluding random journal identities.
 
 A fully passing report sets only `awaiting_human_approval = true`. There is no
 approval, deployment, credential, or capital-changing operation in the shadow
-CLI. Phase 9 must implement and separately review cryptographic human approval.
+CLI. Phase 9 supplies the separately reviewed cryptographic admission boundary;
+the shadow CLI remains unable to invoke it or change capital.
 
 ## Design decisions, alternatives, and tradeoffs
 

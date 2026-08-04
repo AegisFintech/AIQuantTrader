@@ -26,10 +26,11 @@ ENV PATH="/opt/aiquanttrader/.venv/bin:${PATH}" \
 
 RUN groupadd --gid 65532 aiquanttrader \
     && useradd --uid 65532 --gid 65532 --no-create-home --shell /usr/sbin/nologin aiquanttrader \
-    && mkdir -p /etc/aiquanttrader-native /var/lib/aiquanttrader/data /var/lib/aiquanttrader/state \
+    && mkdir -p /etc/aiquanttrader-native /opt/aiquanttrader/release /var/lib/aiquanttrader/data /var/lib/aiquanttrader/state \
     && chown -R 65532:65532 /var/lib/aiquanttrader
 
 COPY --chown=65532:65532 configs /etc/aiquanttrader-native
+COPY --from=builder --chown=65532:65532 /build/uv.lock /opt/aiquanttrader/release/uv.lock
 
 USER 65532:65532
 WORKDIR /var/lib/aiquanttrader

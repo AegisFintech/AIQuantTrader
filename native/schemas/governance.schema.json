@@ -1,0 +1,1008 @@
+{
+  "$defs": {
+    "CanaryEvidencePolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "frozen_at_ns": {
+          "minimum": 0,
+          "title": "Frozen At Ns",
+          "type": "integer"
+        },
+        "maximum_adverse_markout_bps": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Adverse Markout Bps"
+        },
+        "maximum_drawdown_fraction": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "maximum": 1.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Drawdown Fraction"
+        },
+        "maximum_rejection_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Rejection Fraction"
+        },
+        "minimum_fills": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Fills",
+          "type": "integer"
+        },
+        "minimum_maker_fills": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Maker Fills",
+          "type": "integer"
+        },
+        "minimum_observation_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Observation Ns",
+          "type": "integer"
+        },
+        "minimum_orders": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Orders",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "require_positive_post_cost_pnl": {
+          "default": true,
+          "title": "Require Positive Post Cost Pnl",
+          "type": "boolean"
+        },
+        "required_drills": {
+          "items": {
+            "enum": [
+              "operator_kill",
+              "deadman_expiry",
+              "restart_reconciliation",
+              "credential_rotation",
+              "backup_restore"
+            ],
+            "type": "string"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "title": "Required Drills",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_id",
+        "frozen_at_ns",
+        "minimum_observation_ns",
+        "minimum_orders",
+        "minimum_fills",
+        "minimum_maker_fills",
+        "maximum_drawdown_fraction",
+        "maximum_rejection_fraction",
+        "maximum_adverse_markout_bps",
+        "required_drills"
+      ],
+      "title": "CanaryEvidencePolicy",
+      "type": "object"
+    },
+    "CanaryEvidenceReport": {
+      "additionalProperties": false,
+      "properties": {
+        "admission_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Admission Id",
+          "type": "string"
+        },
+        "awaiting_production_approval": {
+          "title": "Awaiting Production Approval",
+          "type": "boolean"
+        },
+        "deployment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Deployment Id",
+          "type": "string"
+        },
+        "gates": {
+          "items": {
+            "$ref": "#/$defs/CanaryGateResult"
+          },
+          "title": "Gates",
+          "type": "array"
+        },
+        "generated_ts_ns": {
+          "minimum": 0,
+          "title": "Generated Ts Ns",
+          "type": "integer"
+        },
+        "observation_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Observation Sha256",
+          "type": "string"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "report_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Report Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "report_id",
+        "deployment_id",
+        "admission_id",
+        "policy_id",
+        "policy_sha256",
+        "observation_sha256",
+        "generated_ts_ns",
+        "gates",
+        "awaiting_production_approval"
+      ],
+      "title": "CanaryEvidenceReport",
+      "type": "object"
+    },
+    "CanaryGateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "actual": {
+          "title": "Actual",
+          "type": "string"
+        },
+        "gate": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Gate",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "required": {
+          "title": "Required",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gate",
+        "passed",
+        "actual",
+        "required"
+      ],
+      "title": "CanaryGateResult",
+      "type": "object"
+    },
+    "CanaryObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "admission_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Admission Id",
+          "type": "string"
+        },
+        "completed_drills": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "type": "string"
+          },
+          "title": "Completed Drills",
+          "type": "array"
+        },
+        "deployment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Deployment Id",
+          "type": "string"
+        },
+        "ended_ts_ns": {
+          "minimum": 0,
+          "title": "Ended Ts Ns",
+          "type": "integer"
+        },
+        "evidence_bundle_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Evidence Bundle Sha256",
+          "type": "string"
+        },
+        "fee_events": {
+          "minimum": 0,
+          "title": "Fee Events",
+          "type": "integer"
+        },
+        "fills": {
+          "minimum": 0,
+          "title": "Fills",
+          "type": "integer"
+        },
+        "funding_events": {
+          "minimum": 0,
+          "title": "Funding Events",
+          "type": "integer"
+        },
+        "maker_fills": {
+          "minimum": 0,
+          "title": "Maker Fills",
+          "type": "integer"
+        },
+        "maximum_account_equity_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Account Equity Usd"
+        },
+        "maximum_drawdown_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Drawdown Fraction"
+        },
+        "mean_adverse_markout_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Mean Adverse Markout Bps"
+        },
+        "orders": {
+          "minimum": 0,
+          "title": "Orders",
+          "type": "integer"
+        },
+        "post_cost_pnl_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Post Cost Pnl Usd"
+        },
+        "reconciliation_failures": {
+          "minimum": 0,
+          "title": "Reconciliation Failures",
+          "type": "integer"
+        },
+        "rejected_orders": {
+          "minimum": 0,
+          "title": "Rejected Orders",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_ts_ns": {
+          "minimum": 0,
+          "title": "Started Ts Ns",
+          "type": "integer"
+        },
+        "unknown_outcomes": {
+          "minimum": 0,
+          "title": "Unknown Outcomes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "deployment_id",
+        "admission_id",
+        "started_ts_ns",
+        "ended_ts_ns",
+        "orders",
+        "fills",
+        "maker_fills",
+        "rejected_orders",
+        "unknown_outcomes",
+        "reconciliation_failures",
+        "fee_events",
+        "funding_events",
+        "post_cost_pnl_usd",
+        "maximum_drawdown_fraction",
+        "mean_adverse_markout_bps",
+        "maximum_account_equity_usd",
+        "completed_drills",
+        "evidence_bundle_sha256"
+      ],
+      "title": "CanaryObservation",
+      "type": "object"
+    },
+    "DeploymentAdmissionRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "account_address": {
+          "pattern": "^0x[0-9a-fA-F]{40}$",
+          "title": "Account Address",
+          "type": "string"
+        },
+        "actor": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Actor",
+          "type": "string"
+        },
+        "admission_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Admission Id",
+          "type": "string"
+        },
+        "admitted_at": {
+          "format": "date-time",
+          "title": "Admitted At",
+          "type": "string"
+        },
+        "approval_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Approval Id",
+          "type": "string"
+        },
+        "artifact_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Artifact Manifest Sha256",
+          "type": "string"
+        },
+        "capital_limit_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Capital Limit Usd"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        },
+        "deployment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Deployment Id",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "image_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Image Digest",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "stage": {
+          "enum": [
+            "approved_canary",
+            "production"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/DeploymentAdmissionState"
+        },
+        "vault_address": {
+          "anyOf": [
+            {
+              "pattern": "^0x[0-9a-fA-F]{40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vault Address"
+        }
+      },
+      "required": [
+        "deployment_id",
+        "approval_id",
+        "admission_id",
+        "stage",
+        "account_address",
+        "artifact_manifest_sha256",
+        "configuration_sha256",
+        "image_digest",
+        "capital_limit_usd",
+        "admitted_at",
+        "expires_at",
+        "state",
+        "actor",
+        "reason"
+      ],
+      "title": "DeploymentAdmissionRecord",
+      "type": "object"
+    },
+    "DeploymentAdmissionState": {
+      "enum": [
+        "active",
+        "superseded",
+        "rolled_back",
+        "revoked"
+      ],
+      "title": "DeploymentAdmissionState",
+      "type": "string"
+    },
+    "DeploymentApproval": {
+      "additionalProperties": false,
+      "description": "Human-signed authority for one exact canary or production deployment.",
+      "properties": {
+        "account_address": {
+          "pattern": "^0x[0-9a-fA-F]{40}$",
+          "title": "Account Address",
+          "type": "string"
+        },
+        "approval_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Approval Id",
+          "type": "string"
+        },
+        "approved_at": {
+          "format": "date-time",
+          "title": "Approved At",
+          "type": "string"
+        },
+        "approver": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Approver",
+          "type": "string"
+        },
+        "artifact_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Artifact Manifest Sha256",
+          "type": "string"
+        },
+        "canary_evidence_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Canary Evidence Sha256"
+        },
+        "capital_limit_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,21}0*$)\\d{0,12}\\.\\d{0,8}0*$)",
+              "type": "string"
+            }
+          ],
+          "title": "Capital Limit Usd"
+        },
+        "commit_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Commit Sha",
+          "type": "string"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        },
+        "control_wallet_address": {
+          "pattern": "^0x[0-9a-fA-F]{40}$",
+          "title": "Control Wallet Address",
+          "type": "string"
+        },
+        "dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dataset Sha256",
+          "type": "string"
+        },
+        "dependency_lock_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dependency Lock Sha256",
+          "type": "string"
+        },
+        "deployment_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Deployment Id",
+          "type": "string"
+        },
+        "expires_at": {
+          "format": "date-time",
+          "title": "Expires At",
+          "type": "string"
+        },
+        "feature_schema_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Schema Sha256",
+          "type": "string"
+        },
+        "image_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Image Digest",
+          "type": "string"
+        },
+        "instrument_id": {
+          "const": "BTC-USD-PERP.HYPERLIQUID",
+          "default": "BTC-USD-PERP.HYPERLIQUID",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "model_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Model Sha256",
+          "type": "string"
+        },
+        "prior_approval_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prior Approval Id"
+        },
+        "risk_policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Risk Policy Sha256",
+          "type": "string"
+        },
+        "rollback_deployment_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Rollback Deployment Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "shadow_evidence_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Shadow Evidence Sha256",
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "approved_canary",
+            "production"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "strategy_config_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Strategy Config Sha256",
+          "type": "string"
+        },
+        "testnet_evidence_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Testnet Evidence Sha256",
+          "type": "string"
+        },
+        "trading_wallet_address": {
+          "pattern": "^0x[0-9a-fA-F]{40}$",
+          "title": "Trading Wallet Address",
+          "type": "string"
+        },
+        "vault_address": {
+          "anyOf": [
+            {
+              "pattern": "^0x[0-9a-fA-F]{40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vault Address"
+        }
+      },
+      "required": [
+        "approval_id",
+        "deployment_id",
+        "stage",
+        "account_address",
+        "trading_wallet_address",
+        "control_wallet_address",
+        "commit_sha",
+        "image_digest",
+        "artifact_manifest_sha256",
+        "dependency_lock_sha256",
+        "dataset_sha256",
+        "model_sha256",
+        "configuration_sha256",
+        "feature_schema_sha256",
+        "strategy_config_sha256",
+        "risk_policy_sha256",
+        "shadow_evidence_sha256",
+        "testnet_evidence_sha256",
+        "capital_limit_usd",
+        "rollback_deployment_id",
+        "approver",
+        "approved_at",
+        "expires_at"
+      ],
+      "title": "DeploymentApproval",
+      "type": "object"
+    },
+    "DeploymentArtifactBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/DeploymentArtifactKind"
+        },
+        "relative_path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Relative Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "relative_path",
+        "content_sha256"
+      ],
+      "title": "DeploymentArtifactBinding",
+      "type": "object"
+    },
+    "DeploymentArtifactKind": {
+      "enum": [
+        "dependency_lock",
+        "dataset_manifest",
+        "model_manifest",
+        "feature_schema",
+        "strategy_config",
+        "risk_policy",
+        "shadow_evidence",
+        "testnet_evidence",
+        "canary_evidence"
+      ],
+      "title": "DeploymentArtifactKind",
+      "type": "string"
+    },
+    "DeploymentArtifactManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/DeploymentArtifactBinding"
+          },
+          "maxItems": 9,
+          "minItems": 8,
+          "title": "Artifacts",
+          "type": "array"
+        },
+        "canary_evidence_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Canary Evidence Sha256"
+        },
+        "commit_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Commit Sha",
+          "type": "string"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dataset Sha256",
+          "type": "string"
+        },
+        "dependency_lock_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dependency Lock Sha256",
+          "type": "string"
+        },
+        "deployment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Deployment Id",
+          "type": "string"
+        },
+        "feature_schema_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Schema Sha256",
+          "type": "string"
+        },
+        "image_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Image Digest",
+          "type": "string"
+        },
+        "model_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Model Sha256",
+          "type": "string"
+        },
+        "risk_policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Risk Policy Sha256",
+          "type": "string"
+        },
+        "rollback_deployment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Rollback Deployment Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "shadow_evidence_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Shadow Evidence Sha256",
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "approved_canary",
+            "production"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "strategy_config_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Strategy Config Sha256",
+          "type": "string"
+        },
+        "testnet_evidence_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Testnet Evidence Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "deployment_id",
+        "stage",
+        "created_at",
+        "commit_sha",
+        "image_digest",
+        "configuration_sha256",
+        "dependency_lock_sha256",
+        "dataset_sha256",
+        "model_sha256",
+        "feature_schema_sha256",
+        "strategy_config_sha256",
+        "risk_policy_sha256",
+        "shadow_evidence_sha256",
+        "testnet_evidence_sha256",
+        "rollback_deployment_id",
+        "artifacts"
+      ],
+      "title": "DeploymentArtifactManifest",
+      "type": "object"
+    },
+    "DetachedApprovalSignature": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "const": "ed25519",
+          "default": "ed25519",
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "approval_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Approval Sha256",
+          "type": "string"
+        },
+        "key_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Key Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "signature_base64": {
+          "maxLength": 88,
+          "minLength": 88,
+          "title": "Signature Base64",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key_id",
+        "approval_sha256",
+        "signature_base64"
+      ],
+      "title": "DetachedApprovalSignature",
+      "type": "object"
+    },
+    "VerifiedDeploymentAdmission": {
+      "additionalProperties": false,
+      "properties": {
+        "admission_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Admission Id",
+          "type": "string"
+        },
+        "approval": {
+          "$ref": "#/$defs/DeploymentApproval"
+        },
+        "artifact_manifest": {
+          "$ref": "#/$defs/DeploymentArtifactManifest"
+        },
+        "public_key_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Public Key Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "signature_envelope_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Signature Envelope Sha256",
+          "type": "string"
+        },
+        "verified_at": {
+          "format": "date-time",
+          "title": "Verified At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "admission_id",
+        "approval",
+        "artifact_manifest",
+        "public_key_sha256",
+        "signature_envelope_sha256",
+        "verified_at"
+      ],
+      "title": "VerifiedDeploymentAdmission",
+      "type": "object"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/DeploymentArtifactManifest"
+    },
+    {
+      "$ref": "#/$defs/DetachedApprovalSignature"
+    },
+    {
+      "$ref": "#/$defs/VerifiedDeploymentAdmission"
+    },
+    {
+      "$ref": "#/$defs/DeploymentAdmissionRecord"
+    },
+    {
+      "$ref": "#/$defs/CanaryEvidencePolicy"
+    },
+    {
+      "$ref": "#/$defs/CanaryObservation"
+    },
+    {
+      "$ref": "#/$defs/CanaryEvidenceReport"
+    }
+  ]
+}

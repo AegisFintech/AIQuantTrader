@@ -40,3 +40,8 @@ class SentinelMetrics:
             ["operation"],
             registry=self.registry,
         )
+        self.deployment_admission_active = Gauge(
+            "aqt_sentinel_deployment_admission_active",
+            "Whether the signed deployment admission is active",
+            registry=self.registry,
+        )

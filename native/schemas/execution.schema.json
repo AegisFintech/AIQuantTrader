@@ -326,6 +326,8 @@
         "public_data_stale",
         "private_data_stale",
         "invalid_account_state",
+        "deployment_approval_invalid",
+        "capital_limit",
         "daily_loss_limit",
         "drawdown_limit",
         "order_size_limit",
@@ -360,6 +362,23 @@
           ],
           "title": "Account Equity Usd"
         },
+        "approved_capital_limit_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approved Capital Limit Usd"
+        },
         "day_start_equity_usd": {
           "anyOf": [
             {
@@ -372,6 +391,11 @@
             }
           ],
           "title": "Day Start Equity Usd"
+        },
+        "deployment_approved": {
+          "default": true,
+          "title": "Deployment Approved",
+          "type": "boolean"
         },
         "exchange_connected": {
           "title": "Exchange Connected",
@@ -541,10 +565,64 @@
           "title": "Account Address",
           "type": "string"
         },
+        "admission_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Admission Id"
+        },
+        "approval_expires_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approval Expires Ts Ns"
+        },
+        "approval_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approval Id"
+        },
         "config_fingerprint": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Config Fingerprint",
           "type": "string"
+        },
+        "deployment_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Deployment Id"
         },
         "environment": {
           "maxLength": 128,

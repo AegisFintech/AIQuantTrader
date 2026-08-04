@@ -17,6 +17,7 @@ dependencies = [
   "nautilus-trader==1.230.0",
   "numpy==2.2.6",
   "prometheus-client==0.25.0",
+  "pycryptodome==3.23.0",
   "pyarrow==25.0.0",
   "pydantic==2.13.4",
   "websockets==17.0.1",
@@ -39,6 +40,7 @@ aqt-execution = "aiquanttrader_native.execution.cli:main"
 aqt-sentinel = "aiquanttrader_native.sentinel.cli:main"
 aqt-paper = "aiquanttrader_native.paper.cli:main"
 aqt-shadow = "aiquanttrader_native.shadow.cli:main"
+aqt-governance = "aiquanttrader_native.governance.cli:main"
 
 [dependency-groups]
 dev = [
@@ -100,6 +102,10 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = ["nautilus_trader", "nautilus_trader.*", "hyperliquid", "hyperliquid.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["Crypto", "Crypto.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

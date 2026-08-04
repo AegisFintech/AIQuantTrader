@@ -43,7 +43,7 @@ Native migration authority order:
 
 ## Native Migration Topology
 
-Phases 2-8 implement the native contracts, public BTC data, fail-closed testnet
+Phases 2-9 implement the native contracts, public BTC data, fail-closed testnet
 execution, causal replay/validation, research strategy paths, and
 credential-free paper under `native/` and `rust/`.
 Phase 3 connects only to public market data. Phase 4 is the only native path
@@ -173,6 +173,21 @@ shadow run has yet passed seven days, samples/regimes, exact replay,
 availability/latency/economics/drift, and every retained fault drill. A passing
 report can only enter `AWAITING_APPROVAL`.
 
+Current Phase 9 production-admission ownership:
+
+| Path | Responsibility |
+|---|---|
+| `native/src/aiquanttrader_native/governance/` | Ed25519 artifact verification, explicit anti-replay admission, wallet/account/capital binding, and frozen canary evidence. |
+| `native/compose.mainnet.yaml` | Exact-image controller/trading/sentinel topology with separated wallet mounts. |
+| `native/configs/production/` | Frozen production-admission evidence policies; never credentials or enabled execution. |
+| `native/observability/grafana/dashboards/production-governance.json` | Admission, expiry, capital, denial, and emergency-cancel views. |
+| `docs/operations/MAINNET_CANARY_RUNBOOK.md` | Two-person preflight, verify/admit, canary drills, evidence, incident, and scale procedure. |
+| `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md` | Separately authorized archival, `mt5-final` tag, disable, observation, and removal procedure. |
+
+Phase 9 code gates do not establish empirical acceptance. No signed release,
+mainnet funding/order, production scale, `mt5-final` tag, or MT5 retirement is
+performed by the repository implementation.
+
 ## Current Legacy System Topology
 
 ```text
@@ -205,12 +220,12 @@ MQL5 EA. The dashboard is read-only. No PM2 process currently writes
 ## Parallel Linux-native migration
 
 The `native/` tree is an isolated, Docker-managed BTC perpetual replacement
-under construction. It is not part of the active PM2/MT5 runtime. Phases 2-8
+under construction. It is not part of the active PM2/MT5 runtime. Phases 2-9
 currently provide:
 
 | Area | Native ownership |
 |---|---|
-| Deployment policy | `native/src/aiquanttrader_native/config/`; checked configs reject unknown keys and keep execution disabled. |
+| Deployment policy | `native/src/aiquanttrader_native/{config,governance}/`; checked configs remain disabled, while runtime mainnet requires exact signed artifacts plus explicit durable admission. |
 | Public market data | `native/src/aiquanttrader_native/market_data/`; independent raw-first Hyperliquid recorder and normalizer. |
 | Hard risk | `native/src/aiquanttrader_native/risk/`; synchronous approval authority and persistent operator kill. |
 | Normal execution | `native/src/aiquanttrader_native/execution/`; only `RiskManagedExecutionStrategy` may call Nautilus order APIs. |
@@ -220,12 +235,14 @@ currently provide:
 | BTC research | `native/src/aiquanttrader_native/{features,strategies,research}/`; causal features, pure strategy kernels, native tabular models, bounded search, controls, drift, and an automation-ceiling registry. |
 | Paper trading | `native/src/aiquanttrader_native/paper/`; live public data through production kernels/risk into a credential-free simulator and immutable evidence journal. |
 | Shadow deployment | `native/src/aiquanttrader_native/shadow/`; public gateway into a no-network decision engine, recorded-only commands, replay comparison, and human-gated evidence. |
+| Mainnet admission | `native/compose.mainnet.yaml`; exact-image controller, trading, and sentinel processes independently verify signed authority and the durable ledger. |
 
 Phase 4 code is implemented but is not accepted until the credentialed testnet
 scenario matrix and kill/dead-man drills in
-`docs/operations/EXECUTION_RISK_RUNBOOK.md` are retained and reviewed. No
-native mainnet order path is authorized: Phase 4 application configuration
-rejects enabled mainnet wallets even when approval-file references are present.
+`docs/operations/EXECUTION_RISK_RUNBOOK.md` are retained and reviewed. Phase 9
+adds a structurally gated mainnet path, but no native mainnet order path is
+authorized until all preceding evidence and the exact signed admission are
+separately reviewed and activated.
 Native work must not modify or restart the MT5 runtime unless the owner
 separately requests it.
 

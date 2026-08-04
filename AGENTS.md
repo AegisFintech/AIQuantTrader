@@ -17,6 +17,7 @@ only the standard BTC perpetual, represented as
 - `docs/migration/PHASE_6_RESEARCH.md`
 - `docs/migration/PHASE_7_PAPER.md`
 - `docs/migration/PHASE_8_SHADOW.md`
+- `docs/migration/PHASE_9_PRODUCTION_ADMISSION.md`
 - `docs/operations/NATIVE_PLATFORM_THREAT_MODEL.md`
 - `docs/operations/NATIVE_RELEASE_CHECKLIST.md`
 - `docs/operations/EXECUTION_RISK_RUNBOOK.md`
@@ -24,6 +25,8 @@ only the standard BTC perpetual, represented as
 - `docs/operations/RESEARCH_RUNBOOK.md`
 - `docs/operations/PAPER_TRADING_RUNBOOK.md`
 - `docs/operations/SHADOW_DEPLOYMENT_RUNBOOK.md`
+- `docs/operations/MAINNET_CANARY_RUNBOOK.md`
+- `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md`
 
 Migration rules:
 
@@ -51,9 +54,13 @@ Migration rules:
   Phase 4 order path does not authorize testnet acceptance or mainnet use;
   credentialed testnet drills, all preceding gates, and artifact-bound signed
   approval remain mandatory.
-- Phase 4 application configuration must reject enabled mainnet wallets even
-  when approval-file references are present. Removing that lock belongs to the
-  separately reviewed Phase 9 cryptographic approval implementation.
+- Mainnet configuration may be structurally enabled only with complete Phase 9
+  approval references. The credential-free controller, trading node, and
+  sentinel must independently verify the exact signed bundle; execution also
+  requires an explicit active anti-replay ledger admission.
+- Every checked-in overlay must remain execution-disabled. Never create, sign,
+  admit, fund, or activate a mainnet release merely because the Phase 9 code is
+  present.
 - Phase 8 shadow must keep the decision engine at `network_mode: none`, ingress
   read-only, and all account/wallet/signer/execution-client capability absent.
   A passing shadow report stops at `AWAITING_APPROVAL` and never authorizes

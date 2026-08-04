@@ -1,0 +1,23 @@
+flowchart LR
+    Human[Two-person human review] --> Offline[Offline Ed25519 signing]
+    Offline --> Bundle[Read-only exact artifact bundle]
+    Image[Image by sha256 digest] --> Controller
+    Bundle --> Controller[Credential-free admission controller]
+    Controller --> Ledger[(Durable anti-replay ledger)]
+    Ledger --> Trading[Trading node]
+    Ledger --> Sentinel[Independent safety sentinel]
+    Bundle --> Trading
+    Bundle --> Sentinel
+    Trading --> Risk[Synchronous risk and capital clamp]
+    Risk --> Nautilus[Nautilus Hyperliquid adapter]
+    Nautilus --> Vault[Approved BTC mainnet account or vault]
+    Sentinel --> Deadman[Dead-man renewal and cancel-all]
+    Deadman --> Vault
+    Trading --> Metrics[Prometheus and Grafana]
+    Sentinel --> Metrics
+    Vault --> Evidence[Canary evidence and drills]
+    Evidence --> Awaiting[AWAITING_PRODUCTION_APPROVAL]
+    Awaiting --> Human
+    Operator[Operator rollback or revoke] --> Ledger
+    Ledger -. inactive .-> Risk
+    Ledger -. inactive .-> Deadman

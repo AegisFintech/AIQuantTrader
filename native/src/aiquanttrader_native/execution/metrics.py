@@ -58,6 +58,21 @@ class ExecutionMetrics:
             "Commands awaiting an authoritative exchange outcome",
             registry=self.registry,
         )
+        self.deployment_admission_active = Gauge(
+            "aqt_execution_deployment_admission_active",
+            "Whether the exact signed deployment remains durably admitted",
+            registry=self.registry,
+        )
+        self.approval_expiry_seconds = Gauge(
+            "aqt_execution_approval_expiry_seconds",
+            "Signed deployment approval expiry as Unix seconds",
+            registry=self.registry,
+        )
+        self.approved_capital_limit_usd = Gauge(
+            "aqt_execution_approved_capital_limit_usd",
+            "Maximum account or vault equity authorized by signed approval",
+            registry=self.registry,
+        )
 
     def observe_decision(self, decision: RiskDecision, *, latency_seconds: float) -> None:
         self.risk_decision_latency_seconds.observe(latency_seconds)
@@ -85,3 +100,16 @@ class ExecutionMetrics:
     def set_operational_state(self, *, reconciled: bool, unresolved_commands: int) -> None:
         self.reconciliation_complete.set(1 if reconciled else 0)
         self.unresolved_commands.set(unresolved_commands)
+
+    def set_deployment_admission(
+        self,
+        *,
+        active: bool,
+        expiry_seconds: float | None = None,
+        capital_limit_usd: float | None = None,
+    ) -> None:
+        self.deployment_admission_active.set(1 if active else 0)
+        if expiry_seconds is not None:
+            self.approval_expiry_seconds.set(expiry_seconds)
+        if capital_limit_usd is not None:
+            self.approved_capital_limit_usd.set(capital_limit_usd)

@@ -186,6 +186,13 @@ class RiskAuthority:
     def _state(self, snapshot: RiskSnapshot, now: int) -> tuple[RiskState, list[RiskReason]]:
         if self._kill_switch.read().active or snapshot.operator_kill:
             return RiskState.HALTED, [RiskReason.OPERATOR_KILL]
+        if not snapshot.deployment_approved:
+            return RiskState.HALTED, [RiskReason.DEPLOYMENT_APPROVAL_INVALID]
+        if (
+            snapshot.approved_capital_limit_usd is not None
+            and snapshot.account_equity_usd > snapshot.approved_capital_limit_usd
+        ):
+            return RiskState.HALTED, [RiskReason.CAPITAL_LIMIT]
         if not snapshot.exchange_connected:
             return RiskState.CANCEL_ONLY, [RiskReason.EXCHANGE_DISCONNECTED]
         if not snapshot.reconciliation_complete:
