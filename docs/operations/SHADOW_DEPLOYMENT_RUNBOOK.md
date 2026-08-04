@@ -35,8 +35,8 @@ cannot be deployed. Record the resolved registry digest in release evidence.
 
 ```bash
 cd native
-uv run --frozen ruff format --check src tests
-uv run --frozen ruff check src tests
+uv run --frozen ruff format --check src tests scripts
+uv run --frozen ruff check src tests scripts
 uv run --frozen mypy
 uv run --frozen pytest --cov
 uv run --frozen aqt-native export-schemas --output schemas --check
