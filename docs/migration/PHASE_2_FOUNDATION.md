@@ -3,7 +3,7 @@
 ## Outcome
 
 Phase 2 creates an independently buildable native Python distribution, typed
-configuration and schemas, Rust workspace boundary, container security policy,
+configuration and schemas, Rust performance boundary, container security policy,
 and native CI. It creates no strategy, market-data connection, wallet reader,
 or order submission path.
 
@@ -24,8 +24,7 @@ native/
   src/aiquanttrader_native/{config,domain,service}/
   tests/{unit,integration}/
 rust/
-  Cargo.toml
-  Cargo.lock
+  README.md
   rust-toolchain.toml
 .github/workflows/native-ci.yml
 Makefile
@@ -64,8 +63,10 @@ approval identifier.
   `python:3.12.13-slim-bookworm` observed during Phase 2.
 - The container runs as `65532:65532`, drops all capabilities, uses a read-only
   root, and has explicit data/state volumes and bounded local logs.
-- Rust is pinned to `1.96.0`. No Rust crate is added until a measured hot path
-  has an interface, benchmark, and owner.
+- Rust is pinned to `1.96.0`. Cargo defines a workspace as containing at least
+  one package, so Phase 2 deliberately has no Cargo manifest, lockfile, or
+  placeholder crate. The workspace begins only when a measured hot path has an
+  interface, benchmark, and owner.
 
 ## Hard bounds
 
@@ -89,7 +90,7 @@ review and a risk ADR; the existence of a ceiling does not authorize capital.
 - deterministic checked-in JSON Schema generation;
 - Python dependency audit and repository secret scan;
 - documentation-link and Mermaid entry-point checks;
-- Rust toolchain/lock metadata verification;
+- Rust toolchain and pre-workspace boundary verification;
 - Docker build, non-root identity, read-only execution, fail-closed config, and
   Compose policy checks.
 

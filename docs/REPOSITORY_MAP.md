@@ -77,7 +77,7 @@ Current native foundation ownership:
 | `native/schemas/` | Deterministic JSON Schemas checked against the Python contracts in CI. |
 | `native/configs/` | Non-secret environment overlays; every checked-in overlay disables execution. |
 | `native/Dockerfile`, `native/compose.yaml` | Non-root, read-only-compatible foundation container. |
-| `rust/` | Pinned, empty performance workspace; crates require benchmark evidence. |
+| `rust/` | Pinned performance boundary; a Cargo workspace requires benchmark evidence and a real first crate. |
 | `.github/workflows/native-ci.yml` | Native lock, lint, type, test, schema, dependency, secret, Rust, and image gates. |
 
 ## Current Legacy System Topology

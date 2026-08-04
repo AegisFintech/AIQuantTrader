@@ -84,7 +84,7 @@ jobs:
         run: ./scripts/check_secrets.sh
 
   rust:
-    name: Rust workspace contract
+    name: Rust toolchain boundary
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -94,11 +94,12 @@ jobs:
       - name: Install pinned Rust toolchain
         run: rustup toolchain install 1.96.0 --profile minimal --component clippy,rustfmt
 
-      - name: Verify workspace metadata and lockfile
+      - name: Verify pinned pre-workspace contract
         run: |
-          cargo +1.96.0 metadata --manifest-path rust/Cargo.toml --locked --format-version 1
-          cargo +1.96.0 generate-lockfile --manifest-path rust/Cargo.toml
-          git diff --exit-code -- rust/Cargo.lock
+          rustc +1.96.0 --version
+          cargo +1.96.0 --version
+          test "$(find rust -name Cargo.toml -print -quit)" = ""
+          test "$(find rust -name Cargo.lock -print -quit)" = ""
 
   container:
     name: Container security contract

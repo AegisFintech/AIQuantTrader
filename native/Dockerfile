@@ -2,7 +2,8 @@ FROM python:3.12.13-slim-bookworm@sha256:d50fb7611f86d04a3b0471b46d7557818d88983
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
+    UV_LINK_MODE=copy \
+    UV_PROJECT_ENVIRONMENT=/opt/aiquanttrader/.venv
 
 WORKDIR /build
 
@@ -24,7 +25,7 @@ RUN groupadd --gid 65532 aiquanttrader \
     && mkdir -p /etc/aiquanttrader-native /var/lib/aiquanttrader/data /var/lib/aiquanttrader/state \
     && chown -R 65532:65532 /var/lib/aiquanttrader
 
-COPY --from=builder --chown=65532:65532 /build/.venv /opt/aiquanttrader/.venv
+COPY --from=builder --chown=65532:65532 /opt/aiquanttrader/.venv /opt/aiquanttrader/.venv
 COPY --chown=65532:65532 configs /etc/aiquanttrader-native
 
 USER 65532:65532

@@ -44,7 +44,9 @@ Deliverables:
 
 - `src/` application layout and typed domain/configuration packages;
 - Python 3.12 project with an exact dependency lock;
-- Rust workspace and lockfile without premature application code;
+- pinned Rust toolchain and reserved performance boundary without premature
+  application code; create the workspace and lockfile with the first
+  evidence-backed crate;
 - multi-stage Docker image and Docker Compose service definitions;
 - CI for linting, type checks, unit tests, dependency audit, image build, secret
   scan, and documentation links;

@@ -25,6 +25,8 @@ def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path
     compose = (project_root / "compose.yaml").read_text(encoding="utf-8")
 
     assert "python:3.12.13-slim-bookworm@sha256:" in dockerfile
+    assert "UV_PROJECT_ENVIRONMENT=/opt/aiquanttrader/.venv" in dockerfile
+    assert "/opt/aiquanttrader/.venv /opt/aiquanttrader/.venv" in dockerfile
     assert "USER 65532:65532" in dockerfile
     assert "COPY ." not in dockerfile
     assert "read_only: true" in compose
@@ -41,3 +43,14 @@ def test_dependency_and_tool_versions_are_pinned(project_root: Path) -> None:
     assert payload["tool"]["uv"]["required-version"] == "==0.11.29"
     assert "nautilus-trader==1.230.0" in payload["project"]["optional-dependencies"]["execution"]
     assert "hftbacktest==2.4.4" in payload["project"]["optional-dependencies"]["research"]
+
+
+def test_rust_toolchain_is_pinned_without_placeholder_crates(project_root: Path) -> None:
+    repository_root = project_root.parent
+    with (repository_root / "rust" / "rust-toolchain.toml").open("rb") as handle:
+        toolchain = tomllib.load(handle)
+
+    assert toolchain["toolchain"]["channel"] == "1.96.0"
+    assert list((repository_root / "rust").rglob("Cargo.toml")) == []
+    assert list((repository_root / "rust").rglob("Cargo.lock")) == []
+    assert (repository_root / "rust" / "README.md").is_file()
