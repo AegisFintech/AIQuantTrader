@@ -1,0 +1,935 @@
+{
+  "$defs": {
+    "ChampionChallengerReport": {
+      "additionalProperties": false,
+      "properties": {
+        "challenger_experiment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Challenger Experiment Id",
+          "type": "string"
+        },
+        "challenger_metrics_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Challenger Metrics Sha256",
+          "type": "string"
+        },
+        "champion_experiment_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Champion Experiment Id"
+        },
+        "champion_metrics_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Champion Metrics Sha256"
+        },
+        "gates": {
+          "items": {
+            "$ref": "#/$defs/GateResult"
+          },
+          "minItems": 1,
+          "title": "Gates",
+          "type": "array"
+        },
+        "maximum_automation_stage": {
+          "const": "awaiting_approval",
+          "default": "awaiting_approval",
+          "title": "Maximum Automation Stage",
+          "type": "string"
+        },
+        "negative_controls_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Negative Controls Sha256",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "challenger_experiment_id",
+        "policy_sha256",
+        "challenger_metrics_sha256",
+        "negative_controls_sha256",
+        "gates",
+        "passed"
+      ],
+      "title": "ChampionChallengerReport",
+      "type": "object"
+    },
+    "DriftReport": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_rows": {
+          "exclusiveMinimum": 0,
+          "title": "Baseline Rows",
+          "type": "integer"
+        },
+        "current_rows": {
+          "exclusiveMinimum": 0,
+          "title": "Current Rows",
+          "type": "integer"
+        },
+        "drifted": {
+          "title": "Drifted",
+          "type": "boolean"
+        },
+        "feature_schema_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Schema Sha256",
+          "type": "string"
+        },
+        "features": {
+          "items": {
+            "$ref": "#/$defs/FeatureDrift"
+          },
+          "minItems": 1,
+          "title": "Features",
+          "type": "array"
+        },
+        "maximum_psi": {
+          "minimum": 0,
+          "title": "Maximum Psi",
+          "type": "number"
+        },
+        "maximum_standardized_mean_shift": {
+          "minimum": 0,
+          "title": "Maximum Standardized Mean Shift",
+          "type": "number"
+        },
+        "mean_shift_threshold": {
+          "minimum": 0,
+          "title": "Mean Shift Threshold",
+          "type": "number"
+        },
+        "psi_threshold": {
+          "minimum": 0,
+          "title": "Psi Threshold",
+          "type": "number"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "feature_schema_sha256",
+        "baseline_rows",
+        "current_rows",
+        "maximum_psi",
+        "maximum_standardized_mean_shift",
+        "drifted",
+        "psi_threshold",
+        "mean_shift_threshold",
+        "features"
+      ],
+      "title": "DriftReport",
+      "type": "object"
+    },
+    "FeatureDrift": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_name": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Feature Name",
+          "type": "string"
+        },
+        "population_stability_index": {
+          "minimum": 0,
+          "title": "Population Stability Index",
+          "type": "number"
+        },
+        "standardized_mean_shift": {
+          "minimum": 0,
+          "title": "Standardized Mean Shift",
+          "type": "number"
+        }
+      },
+      "required": [
+        "feature_name",
+        "population_stability_index",
+        "standardized_mean_shift"
+      ],
+      "title": "FeatureDrift",
+      "type": "object"
+    },
+    "ForecastTarget": {
+      "enum": [
+        "next_mid_return_bps",
+        "passive_fill_probability",
+        "spread_expansion_bps",
+        "volatility_regime"
+      ],
+      "title": "ForecastTarget",
+      "type": "string"
+    },
+    "GateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "gate": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Gate",
+          "type": "string"
+        },
+        "observed": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Observed"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "threshold": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Threshold"
+        }
+      },
+      "required": [
+        "gate",
+        "passed",
+        "observed",
+        "threshold"
+      ],
+      "title": "GateResult",
+      "type": "object"
+    },
+    "ModelArtifactManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Artifact Bytes",
+          "type": "integer"
+        },
+        "artifact_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Artifact Sha256",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "dependency_lock_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dependency Lock Sha256",
+          "type": "string"
+        },
+        "engine": {
+          "$ref": "#/$defs/ModelEngine"
+        },
+        "feature_schema_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Schema Sha256",
+          "type": "string"
+        },
+        "model_format": {
+          "$ref": "#/$defs/ModelFormat"
+        },
+        "model_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Model Id",
+          "type": "string"
+        },
+        "parameters_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Parameters Sha256",
+          "type": "string"
+        },
+        "relative_path": {
+          "pattern": "^[A-Za-z0-9_./=:-]+$",
+          "title": "Relative Path",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "target": {
+          "$ref": "#/$defs/ForecastTarget"
+        },
+        "training_dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Training Dataset Sha256",
+          "type": "string"
+        },
+        "training_window_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Training Window Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_id",
+        "engine",
+        "model_format",
+        "target",
+        "relative_path",
+        "artifact_sha256",
+        "artifact_bytes",
+        "feature_schema_sha256",
+        "training_dataset_sha256",
+        "training_window_sha256",
+        "parameters_sha256",
+        "dependency_lock_sha256",
+        "created_at"
+      ],
+      "title": "ModelArtifactManifest",
+      "type": "object"
+    },
+    "ModelEngine": {
+      "enum": [
+        "lightgbm",
+        "xgboost",
+        "catboost"
+      ],
+      "title": "ModelEngine",
+      "type": "string"
+    },
+    "ModelFormat": {
+      "enum": [
+        "lightgbm_text",
+        "xgboost_json",
+        "catboost_cbm"
+      ],
+      "title": "ModelFormat",
+      "type": "string"
+    },
+    "NegativeControlReport": {
+      "additionalProperties": false,
+      "properties": {
+        "no_signal_decision_count": {
+          "minimum": 0,
+          "title": "No Signal Decision Count",
+          "type": "integer"
+        },
+        "no_signal_report_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "No Signal Report Sha256",
+          "type": "string"
+        },
+        "randomized_label_minimum_mse": {
+          "minimum": 0,
+          "title": "Randomized Label Minimum Mse",
+          "type": "number"
+        },
+        "randomized_label_score": {
+          "minimum": 0,
+          "title": "Randomized Label Score",
+          "type": "number"
+        },
+        "randomized_seed": {
+          "minimum": 0,
+          "title": "Randomized Seed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "randomized_label_score",
+        "randomized_label_minimum_mse",
+        "no_signal_decision_count",
+        "no_signal_report_sha256",
+        "randomized_seed"
+      ],
+      "title": "NegativeControlReport",
+      "type": "object"
+    },
+    "NoSignalControlReport": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_count": {
+          "minimum": 0,
+          "title": "Decision Count",
+          "type": "integer"
+        },
+        "feature_dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Dataset Sha256",
+          "type": "string"
+        },
+        "observation_count": {
+          "exclusiveMinimum": 0,
+          "title": "Observation Count",
+          "type": "integer"
+        },
+        "scenario_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "strategy_configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Strategy Configuration Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "feature_dataset_sha256",
+        "strategy_configuration_sha256",
+        "scenario_sha256",
+        "observation_count",
+        "decision_count"
+      ],
+      "title": "NoSignalControlReport",
+      "type": "object"
+    },
+    "PromotionMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "adverse_selection_bps": {
+          "title": "Adverse Selection Bps",
+          "type": "number"
+        },
+        "decision_latency_p99_ms": {
+          "minimum": 0,
+          "title": "Decision Latency P99 Ms",
+          "type": "number"
+        },
+        "drift_psi_max": {
+          "minimum": 0,
+          "title": "Drift Psi Max",
+          "type": "number"
+        },
+        "fill_count": {
+          "minimum": 0,
+          "title": "Fill Count",
+          "type": "integer"
+        },
+        "fold_consistency": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Fold Consistency",
+          "type": "number"
+        },
+        "maker_ratio": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Maker Ratio",
+          "type": "number"
+        },
+        "maximum_abs_inventory_base": {
+          "minimum": 0,
+          "title": "Maximum Abs Inventory Base",
+          "type": "number"
+        },
+        "maximum_drawdown_usd": {
+          "minimum": 0,
+          "title": "Maximum Drawdown Usd",
+          "type": "number"
+        },
+        "operational_failure_count": {
+          "minimum": 0,
+          "title": "Operational Failure Count",
+          "type": "integer"
+        },
+        "post_cost_pnl_usd": {
+          "title": "Post Cost Pnl Usd",
+          "type": "number"
+        },
+        "tail_loss_99_usd": {
+          "minimum": 0,
+          "title": "Tail Loss 99 Usd",
+          "type": "number"
+        }
+      },
+      "required": [
+        "post_cost_pnl_usd",
+        "maximum_drawdown_usd",
+        "tail_loss_99_usd",
+        "maximum_abs_inventory_base",
+        "fill_count",
+        "maker_ratio",
+        "adverse_selection_bps",
+        "decision_latency_p99_ms",
+        "fold_consistency",
+        "drift_psi_max",
+        "operational_failure_count"
+      ],
+      "title": "PromotionMetrics",
+      "type": "object"
+    },
+    "PromotionPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "maximum_abs_inventory_base": {
+          "minimum": 0,
+          "title": "Maximum Abs Inventory Base",
+          "type": "number"
+        },
+        "maximum_adverse_selection_bps": {
+          "minimum": 0,
+          "title": "Maximum Adverse Selection Bps",
+          "type": "number"
+        },
+        "maximum_decision_latency_p99_ms": {
+          "minimum": 0,
+          "title": "Maximum Decision Latency P99 Ms",
+          "type": "number"
+        },
+        "maximum_drawdown_usd": {
+          "minimum": 0,
+          "title": "Maximum Drawdown Usd",
+          "type": "number"
+        },
+        "maximum_drift_psi": {
+          "minimum": 0,
+          "title": "Maximum Drift Psi",
+          "type": "number"
+        },
+        "maximum_tail_loss_99_usd": {
+          "minimum": 0,
+          "title": "Maximum Tail Loss 99 Usd",
+          "type": "number"
+        },
+        "minimum_champion_improvement_usd": {
+          "minimum": 0,
+          "title": "Minimum Champion Improvement Usd",
+          "type": "number"
+        },
+        "minimum_fill_count": {
+          "minimum": 1,
+          "title": "Minimum Fill Count",
+          "type": "integer"
+        },
+        "minimum_fold_consistency": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Minimum Fold Consistency",
+          "type": "number"
+        },
+        "minimum_maker_ratio": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Minimum Maker Ratio",
+          "type": "number"
+        },
+        "minimum_post_cost_pnl_usd": {
+          "title": "Minimum Post Cost Pnl Usd",
+          "type": "number"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "require_negative_controls": {
+          "default": true,
+          "title": "Require Negative Controls",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_id",
+        "minimum_post_cost_pnl_usd",
+        "maximum_drawdown_usd",
+        "maximum_tail_loss_99_usd",
+        "maximum_abs_inventory_base",
+        "minimum_fill_count",
+        "minimum_maker_ratio",
+        "maximum_adverse_selection_bps",
+        "maximum_decision_latency_p99_ms",
+        "minimum_fold_consistency",
+        "maximum_drift_psi",
+        "minimum_champion_improvement_usd"
+      ],
+      "title": "PromotionPolicy",
+      "type": "object"
+    },
+    "PromotionStage": {
+      "enum": [
+        "draft",
+        "candidate",
+        "backtest_passed",
+        "walk_forward_passed",
+        "paper_passed",
+        "shadow_passed",
+        "awaiting_approval",
+        "approved_canary",
+        "production",
+        "retired",
+        "rejected",
+        "rolled_back"
+      ],
+      "title": "PromotionStage",
+      "type": "string"
+    },
+    "ResearchExperimentManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "code_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Code Sha256",
+          "type": "string"
+        },
+        "configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Configuration Sha256",
+          "type": "string"
+        },
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dataset Sha256",
+          "type": "string"
+        },
+        "dependency_lock_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dependency Lock Sha256",
+          "type": "string"
+        },
+        "experiment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Experiment Id",
+          "type": "string"
+        },
+        "feature_schema_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Schema Sha256",
+          "type": "string"
+        },
+        "metrics": {
+          "$ref": "#/$defs/PromotionMetrics"
+        },
+        "model_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Model Sha256",
+          "type": "string"
+        },
+        "negative_controls": {
+          "$ref": "#/$defs/NegativeControlReport"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "title": "Parameters",
+          "type": "object"
+        },
+        "report_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Report Sha256",
+          "type": "string"
+        },
+        "scenario_sha256s": {
+          "items": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "minItems": 2,
+          "title": "Scenario Sha256S",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "search_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Search Receipt Sha256",
+          "type": "string"
+        },
+        "stage": {
+          "$ref": "#/$defs/PromotionStage"
+        },
+        "strategy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "validation_plan_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Validation Plan Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "experiment_id",
+        "created_at",
+        "stage",
+        "strategy_id",
+        "code_sha256",
+        "dataset_sha256",
+        "feature_schema_sha256",
+        "configuration_sha256",
+        "dependency_lock_sha256",
+        "model_sha256",
+        "search_receipt_sha256",
+        "validation_plan_sha256",
+        "scenario_sha256s",
+        "parameters",
+        "metrics",
+        "negative_controls",
+        "report_sha256"
+      ],
+      "title": "ResearchExperimentManifest",
+      "type": "object"
+    },
+    "SearchPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "metric": {
+          "const": "mean_squared_error",
+          "default": "mean_squared_error",
+          "title": "Metric",
+          "type": "string"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "seed": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Seed",
+          "type": "integer"
+        },
+        "trials": {
+          "items": {
+            "$ref": "#/$defs/SearchTrial"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Trials",
+          "type": "array"
+        }
+      },
+      "required": [
+        "policy_id",
+        "trials"
+      ],
+      "title": "SearchPolicy",
+      "type": "object"
+    },
+    "SearchReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "results": {
+          "items": {
+            "$ref": "#/$defs/TrialResult"
+          },
+          "minItems": 1,
+          "title": "Results",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "search_policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Search Policy Sha256",
+          "type": "string"
+        },
+        "selected_parameters_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Selected Parameters Sha256",
+          "type": "string"
+        },
+        "selected_trial_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Selected Trial Id",
+          "type": "string"
+        },
+        "training_dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Training Dataset Sha256",
+          "type": "string"
+        },
+        "training_window_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Training Window Sha256",
+          "type": "string"
+        },
+        "validation_window_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Validation Window Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "search_policy_sha256",
+        "training_dataset_sha256",
+        "training_window_sha256",
+        "validation_window_sha256",
+        "selected_trial_id",
+        "selected_parameters_sha256",
+        "results"
+      ],
+      "title": "SearchReceipt",
+      "type": "object"
+    },
+    "SearchTrial": {
+      "additionalProperties": false,
+      "properties": {
+        "parameters": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "boolean"
+              }
+            ]
+          },
+          "title": "Parameters",
+          "type": "object"
+        },
+        "trial_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Trial Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "trial_id",
+        "parameters"
+      ],
+      "title": "SearchTrial",
+      "type": "object"
+    },
+    "TrialResult": {
+      "additionalProperties": false,
+      "properties": {
+        "parameters_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Parameters Sha256",
+          "type": "string"
+        },
+        "trial_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Trial Id",
+          "type": "string"
+        },
+        "validation_score": {
+          "minimum": 0,
+          "title": "Validation Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "trial_id",
+        "parameters_sha256",
+        "validation_score"
+      ],
+      "title": "TrialResult",
+      "type": "object"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/ModelArtifactManifest"
+    },
+    {
+      "$ref": "#/$defs/SearchPolicy"
+    },
+    {
+      "$ref": "#/$defs/SearchReceipt"
+    },
+    {
+      "$ref": "#/$defs/NegativeControlReport"
+    },
+    {
+      "$ref": "#/$defs/NoSignalControlReport"
+    },
+    {
+      "$ref": "#/$defs/PromotionMetrics"
+    },
+    {
+      "$ref": "#/$defs/PromotionPolicy"
+    },
+    {
+      "$ref": "#/$defs/ChampionChallengerReport"
+    },
+    {
+      "$ref": "#/$defs/DriftReport"
+    },
+    {
+      "$ref": "#/$defs/ResearchExperimentManifest"
+    }
+  ]
+}

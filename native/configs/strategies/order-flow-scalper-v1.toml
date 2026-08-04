@@ -1,0 +1,14 @@
+schema_version = 1
+strategy_id = "order-flow-scalper-v1"
+entry_style = "taker"
+order_quantity_base = "0.001"
+max_abs_inventory_base = "0.01"
+imbalance_weight_bps = "3"
+flow_weight_bps = "4"
+momentum_weight = "0.5"
+safety_margin_bps = "1.5"
+maximum_spread_bps = "12"
+signal_threshold_bps = "2"
+cooldown_ns = 1000000000
+reject_high_volatility = true
+require_model_identity_when_forecasted = true

@@ -13,9 +13,13 @@ only the standard BTC perpetual, represented as
 - `docs/migration/PHASE_2_FOUNDATION.md`
 - `docs/migration/PHASE_3_MARKET_DATA.md`
 - `docs/migration/PHASE_4_EXECUTION_RISK.md`
+- `docs/migration/PHASE_5_BACKTESTING.md`
+- `docs/migration/PHASE_6_RESEARCH.md`
 - `docs/operations/NATIVE_PLATFORM_THREAT_MODEL.md`
 - `docs/operations/NATIVE_RELEASE_CHECKLIST.md`
 - `docs/operations/EXECUTION_RISK_RUNBOOK.md`
+- `docs/operations/BACKTESTING_RUNBOOK.md`
+- `docs/operations/RESEARCH_RUNBOOK.md`
 
 Migration rules:
 

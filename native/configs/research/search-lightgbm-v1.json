@@ -1,0 +1,38 @@
+{
+  "metric": "mean_squared_error",
+  "policy_id": "lightgbm-bounded-v1",
+  "schema_version": 1,
+  "seed": 0,
+  "trials": [
+    {
+      "parameters": {
+        "learning_rate": 0.03,
+        "max_depth": 4,
+        "min_data_in_leaf": 20,
+        "num_boost_round": 100,
+        "num_leaves": 15
+      },
+      "trial_id": "lgb-conservative"
+    },
+    {
+      "parameters": {
+        "learning_rate": 0.05,
+        "max_depth": 6,
+        "min_data_in_leaf": 20,
+        "num_boost_round": 150,
+        "num_leaves": 31
+      },
+      "trial_id": "lgb-reference"
+    },
+    {
+      "parameters": {
+        "learning_rate": 0.03,
+        "max_depth": 8,
+        "min_data_in_leaf": 40,
+        "num_boost_round": 200,
+        "num_leaves": 63
+      },
+      "trial_id": "lgb-wide"
+    }
+  ]
+}

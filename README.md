@@ -13,9 +13,9 @@ authorized by the architecture approval alone, and automated research may not
 promote a model into production. Until the Phase 9 cutover is separately
 approved, the deployed runtime remains the MT5 demo system described below.
 
-Phases 2-5 now provide the isolated native foundation, raw-first Hyperliquid
-market-data path, fail-closed execution/risk path, and causal BTC replay and
-validation framework. Phase 4 uses
+Phases 2-6 now provide the isolated native foundation, raw-first Hyperliquid
+market-data path, fail-closed execution/risk path, causal BTC replay and
+validation, and the first native BTC feature/strategy/research framework. Phase 4 uses
 NautilusTrader as the sole ordinary order owner and a separately credentialed
 Hyperliquid SDK sentinel for exchange dead-man and emergency cancellation. See
 [`docs/migration/PHASE_4_EXECUTION_RISK.md`](docs/migration/PHASE_4_EXECUTION_RISK.md)
@@ -32,6 +32,15 @@ receipt. The seed scenarios are explicitly uncalibrated and cannot support
 promotion. See
 [`docs/migration/PHASE_5_BACKTESTING.md`](docs/migration/PHASE_5_BACKTESTING.md)
 and [`docs/operations/BACKTESTING_RUNBOOK.md`](docs/operations/BACKTESTING_RUNBOOK.md).
+
+Phase 6 adds causal bounded microstructure features, pure Avellaneda-Stoikov
+and order-flow-scalping kernels, native-format LightGBM/XGBoost/CatBoost
+research adapters, bounded validation-only search, drift and negative controls,
+and an immutable champion-challenger registry. These strategies are research
+candidates and are not connected to the native execution node. Automation has
+no human approval capability and stops at `AWAITING_APPROVAL`. See
+[`docs/migration/PHASE_6_RESEARCH.md`](docs/migration/PHASE_6_RESEARCH.md) and
+[`docs/operations/RESEARCH_RUNBOOK.md`](docs/operations/RESEARCH_RUNBOOK.md).
 
 ## Current deployed runtime
 

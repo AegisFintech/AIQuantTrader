@@ -162,8 +162,8 @@ future profitability.
    lifetimes, book evolution, fills, effective account fees, and hourly funding.
 2. Produce reviewed calibration artifacts and new scenario versions that bind
    their SHA-256 hashes. Do not mutate the v1 seed scenarios.
-3. Implement Phase 6 market-making, scalping, and forecasting kernels and run
-   each through Hft/Nautilus parity.
+3. Use the Phase 6 market-making and scalping kernels, whose Hft/Nautilus
+   feature and decision parity is now automated, in retained scenario studies.
 4. Execute baseline and pessimistic walk-forward studies over admitted Tardis
    and local-capture data, then freeze selection before opening final holdout.
 5. Retain commands, lockfile, commit, dataset/scenario hashes, reports, and
@@ -194,6 +194,4 @@ Still required before Phase 5 is declared accepted:
 
 - reviewed latency, queue, fee/rebate, slippage, and fill calibration artifacts;
 - retained full-dataset baseline and pessimistic reports;
-- parity evidence for the Phase 6 production kernels, not only the diagnostic
-  contract kernel;
 - reviewer sign-off that the final holdout was opened only after selection.

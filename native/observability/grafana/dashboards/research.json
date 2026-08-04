@@ -1,0 +1,100 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [
+        {"expr": "sum by (stage) (aqt_research_stage_info)", "refId": "A"}
+      ],
+      "title": "Experiments by stage",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 0},
+      "id": 2,
+      "targets": [
+        {"expr": "max by (feature_set) (aqt_research_feature_drift_psi_max)", "refId": "A"}
+      ],
+      "title": "Maximum feature PSI",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 0},
+      "id": 3,
+      "targets": [
+        {"expr": "sum(increase(aqt_research_experiments_total[24h]))", "refId": "A"}
+      ],
+      "title": "Experiments in 24h",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "id": 4,
+      "targets": [
+        {
+          "expr": "sum by (stage, result) (increase(aqt_research_experiments_total[6h]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Research outcomes",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "id": 5,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, engine, target) (rate(aqt_research_training_seconds_bucket[6h])))",
+          "refId": "A"
+        }
+      ],
+      "title": "Training duration p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"min": 0, "max": 1, "unit": "none"}, "overrides": []},
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 13},
+      "id": 6,
+      "targets": [
+        {
+          "expr": "aqt_research_promotion_gate_passed",
+          "legendFormat": "{{strategy}} / {{gate}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest champion-challenger gates",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 41,
+  "tags": ["aiquanttrader", "research", "governance"],
+  "templating": {
+    "list": [
+      {
+        "current": {"text": "Prometheus", "value": "Prometheus"},
+        "label": "Prometheus",
+        "name": "DS_PROMETHEUS",
+        "query": "prometheus",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {"from": "now-24h", "to": "now"},
+  "title": "AIQuantTrader Research Governance",
+  "uid": "aqt-research-governance",
+  "version": 1
+}

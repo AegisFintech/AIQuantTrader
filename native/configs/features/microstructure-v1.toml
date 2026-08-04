@@ -1,0 +1,14 @@
+schema_version = 1
+feature_set = "btc-microstructure-v1"
+depth_levels = 10
+flow_window_ns = 5000000000
+volatility_window_ns = 30000000000
+spread_window_ns = 30000000000
+markout_horizon_ns = 1000000000
+warmup_samples = 20
+maximum_input_age_ns = 2000000000
+low_volatility_bps = "1.5"
+high_volatility_bps = "8"
+inventory_limit_base = "0.05"
+fill_model_id = "heuristic-uncalibrated-v1"
+fill_model_calibrated = false

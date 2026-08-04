@@ -17,6 +17,7 @@ from aiquanttrader_native.backtest.kernel import (
     KernelBookLevel,
     KernelDecision,
     KernelMarketState,
+    KernelTrade,
     KernelTransition,
     assert_kernel_parity,
     hft_market_states,
@@ -24,7 +25,7 @@ from aiquanttrader_native.backtest.kernel import (
     replay_kernel,
 )
 from aiquanttrader_native.domain.execution import OrderIntent, OrderKind, TimeInForce
-from aiquanttrader_native.domain.market import OrderSide
+from aiquanttrader_native.domain.market import AggressorSide, OrderSide
 
 
 class ImbalanceProbeKernel:
@@ -58,6 +59,7 @@ def hft_events() -> np.ndarray[Any, np.dtype[Any]]:
         (DEPTH_EVENT | SELL_EVENT, 1_000, 1_100, 101.0, 5.0, 0, 0, 0.0),
         (TRADE_EVENT | SELL_EVENT, 2_000, 2_100, 100.0, 3.0, 0, 0, 0.0),
         (DEPTH_EVENT | BUY_EVENT, 2_000, 2_100, 100.0, 2.0, 0, 0, 0.0),
+        (DEPTH_EVENT | SELL_EVENT, 2_000, 2_100, 101.0, 5.0, 0, 0, 0.0),
     ]
     raw = np.asarray(rows, dtype=event_dtype)
     return cast(
@@ -159,6 +161,7 @@ def test_kernel_adapters_and_contract_reject_invalid_market_state() -> None:
     with pytest.raises(ValidationError, match="observed before"):
         KernelMarketState(
             exchange_ts_ns=2,
+            book_exchange_ts_ns=2,
             observed_ts_ns=1,
             sequence=0,
             bids=(KernelBookLevel(price=Decimal("100"), size=Decimal("1")),),
@@ -167,6 +170,7 @@ def test_kernel_adapters_and_contract_reject_invalid_market_state() -> None:
     with pytest.raises(ValidationError, match="descending"):
         KernelMarketState(
             exchange_ts_ns=1,
+            book_exchange_ts_ns=1,
             observed_ts_ns=2,
             sequence=0,
             bids=(
@@ -174,4 +178,21 @@ def test_kernel_adapters_and_contract_reject_invalid_market_state() -> None:
                 KernelBookLevel(price=Decimal("100"), size=Decimal("1")),
             ),
             asks=(KernelBookLevel(price=Decimal("101"), size=Decimal("1")),),
+        )
+    with pytest.raises(ValidationError, match="trade timestamp"):
+        KernelMarketState(
+            exchange_ts_ns=1,
+            book_exchange_ts_ns=1,
+            observed_ts_ns=2,
+            sequence=0,
+            bids=(KernelBookLevel(price=Decimal("100"), size=Decimal("1")),),
+            asks=(KernelBookLevel(price=Decimal("101"), size=Decimal("1")),),
+            trades=(
+                KernelTrade(
+                    exchange_ts_ns=2,
+                    price=Decimal("100"),
+                    size=Decimal("1"),
+                    aggressor=AggressorSide.SELLER,
+                ),
+            ),
         )

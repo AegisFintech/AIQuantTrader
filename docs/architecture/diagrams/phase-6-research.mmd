@@ -1,0 +1,43 @@
+flowchart LR
+    subgraph Inputs[Immutable inputs]
+        HFT[HftBacktest local-arrival states]
+        NT[Nautilus market-data objects]
+        DATA[Manifest-admitted Tardis and local data]
+        POLICY[Frozen validation and promotion policies]
+    end
+
+    HFT --> KERNEL[Shared causal market-state contract]
+    NT --> KERNEL
+    KERNEL --> FEATURES[Incremental bounded feature engine]
+    FEATURES --> MM[Avellaneda-Stoikov kernel]
+    FEATURES --> SCALPER[Order-flow scalper kernel]
+    FEATURES --> MATRIX[Causal training matrix]
+
+    DATA --> REPLAY[Offline tick replay]
+    REPLAY --> KERNEL
+    MATRIX --> SEARCH[Bounded validation-only search]
+    SEARCH --> LGB[LightGBM reference]
+    SEARCH --> XGB[XGBoost CPU challenger]
+    SEARCH --> CAT[CatBoost challenger]
+
+    LGB --> NATIVE[Native-format artifact plus schema and lineage hashes]
+    XGB --> NATIVE
+    CAT --> NATIVE
+    NATIVE --> CONTROL[Randomized-label and no-signal controls]
+    POLICY --> CONTROL
+    CONTROL --> GATES[Champion-challenger gates]
+    MM --> GATES
+    SCALPER --> GATES
+
+    GATES --> REGISTRY[(Single-writer DuckDB registry)]
+    REGISTRY --> AUTO[Automation stage transitions]
+    AUTO --> WAIT[AWAITING_APPROVAL]
+    WAIT -->|human approval required| CANARY[APPROVED_CANARY]
+
+    FEATURES --> DRIFT[Feature drift report]
+    DRIFT --> GATES
+    GATES --> METRICS[Bounded Prometheus metrics]
+    METRICS --> DASH[Research governance dashboard]
+
+    classDef hard fill:#5b1a1a,color:#fff,stroke:#ff6b6b,stroke-width:2px;
+    class WAIT,CANARY hard;

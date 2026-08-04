@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
+import sys
 import tomllib
 from pathlib import Path
 
@@ -34,6 +36,10 @@ def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path
     assert "/opt/aiquanttrader/.venv /opt/aiquanttrader/.venv" in dockerfile
     assert "USER 65532:65532" in dockerfile
     assert "COPY ." not in dockerfile
+    assert "FROM builder AS research-builder" in dockerfile
+    assert "uv sync --frozen --no-dev --no-editable --extra research" in dockerfile
+    assert "FROM runtime-base AS research" in dockerfile
+    assert 'ENTRYPOINT ["aqt-research"]' in dockerfile
     assert "read_only: true" in compose
     assert 'user: "65532:65532"' in compose
     assert "no-new-privileges:true" in compose
@@ -118,6 +124,30 @@ def test_dependency_and_tool_versions_are_pinned(project_root: Path) -> None:
     assert "nautilus-trader==1.230.0" in payload["project"]["dependencies"]
     assert "hyperliquid-python-sdk==0.24.0" in payload["project"]["dependencies"]
     assert "hftbacktest==2.4.4" in payload["project"]["dependencies"]
+    assert payload["project"]["optional-dependencies"]["research"] == [
+        "catboost==1.2.10",
+        "lightgbm==4.7.0",
+        "xgboost-cpu==3.3.0",
+    ]
+
+
+def test_research_modules_cold_import_and_dashboard_is_valid(project_root: Path) -> None:
+    subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "import aiquanttrader_native.research.models; import aiquanttrader_native.features",
+        ],
+        cwd=project_root,
+        check=True,
+    )
+    dashboard = json.loads(
+        (project_root / "observability" / "grafana" / "dashboards" / "research.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert dashboard["uid"] == "aqt-research-governance"
+    assert len(dashboard["panels"]) >= 5
 
 
 def test_rust_toolchain_is_pinned_without_placeholder_crates(project_root: Path) -> None:
