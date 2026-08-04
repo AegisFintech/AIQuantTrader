@@ -43,9 +43,9 @@ Native migration authority order:
 
 ## Native Migration Topology
 
-Phases 2-6 implement the native contracts, public BTC data, fail-closed testnet
-execution, causal replay/validation, and research strategy paths under
-`native/` and `rust/`.
+Phases 2-7 implement the native contracts, public BTC data, fail-closed testnet
+execution, causal replay/validation, research strategy paths, and
+credential-free paper under `native/` and `rust/`.
 Phase 3 connects only to public market data. Phase 4 is the only native path
 that can submit testnet orders; Phase 5 has no exchange credential. The runtime
 ownership boundaries are:
@@ -138,6 +138,24 @@ strategy-risk load evidence, and a registry backup/restore drill. Its strategy
 kernels are not wired to the native execution node, and the automation CLI has
 no human approval capability.
 
+Current Phase 7 paper ownership:
+
+| Path | Responsibility |
+|---|---|
+| `native/src/aiquanttrader_native/paper/{market,engine,simulator}.py` | Live normalized-event assembly, exact production strategy/risk orchestration, and deterministic market-by-price fills. |
+| `native/src/aiquanttrader_native/paper/{journal,evidence,drift}.py` | Transactional restart/account evidence, frozen paper gates, sensitivity binding, and bounded online drift. |
+| `native/src/aiquanttrader_native/paper/{service,cli,metrics}.py` | Raw-first live lifecycle, watchdog/kill/status operations, evidence CLI, and Prometheus. |
+| `native/configs/paper/` | Conservative live-paper scenarios plus the frozen sample/economic/drift/drill policy. |
+| `native/compose.yaml` (`paper-trader`) | Non-root, read-only, public-only paper service with no secret mount. |
+| `native/observability/grafana/dashboards/paper-trading.json` | Feed, readiness, PnL, inventory, risk, fill, latency, markout, and drift panels. |
+| `docs/operations/PAPER_TRADING_RUNBOOK.md` | Credential proof, launch, drills, calibration, sensitivity, evidence, incident, and rollback. |
+
+Phase 7 implementation gates are automated. Acceptance remains pending because
+the checked-in execution scenarios are uncalibrated and no retained paper run
+has yet met the frozen samples, regimes, sensitivity, drills, drift, economics,
+and recommended observation window. Paper mode rejects every exchange account
+and wallet reference and cannot instantiate an exchange execution client.
+
 ## Current Legacy System Topology
 
 ```text
@@ -170,7 +188,7 @@ MQL5 EA. The dashboard is read-only. No PM2 process currently writes
 ## Parallel Linux-native migration
 
 The `native/` tree is an isolated, Docker-managed BTC perpetual replacement
-under construction. It is not part of the active PM2/MT5 runtime. Phases 2-6
+under construction. It is not part of the active PM2/MT5 runtime. Phases 2-7
 currently provide:
 
 | Area | Native ownership |
@@ -183,6 +201,7 @@ currently provide:
 | Testnet deployment | `native/compose.testnet.yaml`; trading and control secrets are mounted into different processes. |
 | Backtesting | `native/src/aiquanttrader_native/backtest/`; causal HftBacktest replay, Nautilus-object parity, scenario stress, and guarded validation. |
 | BTC research | `native/src/aiquanttrader_native/{features,strategies,research}/`; causal features, pure strategy kernels, native tabular models, bounded search, controls, drift, and an automation-ceiling registry. |
+| Paper trading | `native/src/aiquanttrader_native/paper/`; live public data through production kernels/risk into a credential-free simulator and immutable evidence journal. |
 
 Phase 4 code is implemented but is not accepted until the credentialed testnet
 scenario matrix and kill/dead-man drills in

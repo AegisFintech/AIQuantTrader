@@ -51,6 +51,21 @@ minimum_free_fraction = "0.10"
 metrics_host = "0.0.0.0"
 metrics_port = 9109
 
+[paper]
+enabled = false
+strategy_id = "order-flow-scalper-v1"
+scenario_path = "paper/baseline-v1.toml"
+sensitivity_scenario_paths = ["paper/pessimistic-v1.toml"]
+feature_config_path = "features/microstructure-v1.toml"
+strategy_config_path = "strategies/order-flow-scalper-v1.toml"
+evidence_policy_path = "paper/evidence-v1.toml"
+initial_equity_usd = "100000"
+watchdog_interval_ms = 250
+status_stale_after_ms = 5000
+markout_horizon_ms = 1000
+metrics_host = "0.0.0.0"
+metrics_port = 9112
+
 [risk]
 daily_loss_fraction = "0.005"
 max_drawdown_fraction = "0.01"

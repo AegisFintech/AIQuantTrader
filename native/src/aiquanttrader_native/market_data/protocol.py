@@ -264,6 +264,7 @@ def _parse_asset_context(
             exchange_timestamp=False,
         )
 
+    next_funding_ts_ns = (timestamp // 3_600_000_000_000 + 1) * 3_600_000_000_000
     return (
         MarkPriceEvent(
             header=header("mark_price"),
@@ -282,6 +283,7 @@ def _parse_asset_context(
             funding_rate=_decimal(
                 _required(context, "funding", channel=channel), field="funding", channel=channel
             ),
+            next_funding_ts_ns=next_funding_ts_ns,
         ),
         OpenInterestEvent(
             header=header("open_interest"),

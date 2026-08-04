@@ -1,0 +1,26 @@
+schema_version = 1
+policy_id = "btc-paper-evidence-v1"
+frozen_at_ns = 1785772800000000000
+minimum_observation_ns = 1209600000000000
+minimum_independent_decisions = 1000
+decision_independence_ns = 1000000000
+minimum_fills = 500
+minimum_regimes = 3
+maximum_drawdown_fraction = "0.01"
+maximum_denial_fraction = "0.25"
+maximum_adverse_markout_bps = "3"
+drift_baseline_samples = 1000
+drift_window_samples = 1000
+drift_evaluation_interval_samples = 100
+maximum_feature_psi = "0.2"
+maximum_standardized_mean_shift = "1"
+require_positive_post_cost_pnl = true
+required_sensitivity_scenarios = ["hyperliquid-btc-paper-pessimistic-v1"]
+required_drills = [
+  "restart",
+  "stale_data",
+  "daily_loss",
+  "drawdown",
+  "operator_kill",
+  "observability",
+]

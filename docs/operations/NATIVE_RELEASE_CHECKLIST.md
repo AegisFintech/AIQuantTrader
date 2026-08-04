@@ -31,6 +31,8 @@ checklist while MT5 remains deployed.
 
 ## 4. Validate execution and risk
 
+- [ ] For paper/shadow, confirm account and wallet references are absent and the
+  container has no secret mount or exchange-order-capable client.
 - [ ] Trading and sentinel API wallets are distinct and have the intended master
   or subaccount address.
 - [ ] Open orders, positions, margin, leverage, funding, and PnL reconcile with
@@ -43,6 +45,9 @@ checklist while MT5 remains deployed.
 
 ## 5. Validate governance
 
+- [ ] Paper evidence binds calibrated baseline/pessimistic scenarios, required
+  independent decisions/fills/regimes, drift, operational drills, and the
+  frozen policy without post-result threshold changes.
 - [ ] The candidate completed the required backtest, walk-forward, paper, and
   shadow stages with immutable evidence.
 - [ ] Production/canary has a valid human signature bound to the exact account,

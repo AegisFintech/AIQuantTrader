@@ -37,6 +37,7 @@ aqt-research = "aiquanttrader_native.research.cli:main"
 aqt-market-data = "aiquanttrader_native.market_data.cli:main"
 aqt-execution = "aiquanttrader_native.execution.cli:main"
 aqt-sentinel = "aiquanttrader_native.sentinel.cli:main"
+aqt-paper = "aiquanttrader_native.paper.cli:main"
 
 [dependency-groups]
 dev = [

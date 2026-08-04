@@ -40,6 +40,18 @@ from aiquanttrader_native.features.models import (
     FeatureSchema,
     MicrostructureSnapshot,
 )
+from aiquanttrader_native.paper.models import (
+    PaperAccountState,
+    PaperDecisionRecord,
+    PaperEngineCheckpoint,
+    PaperEvidencePolicy,
+    PaperEvidenceReport,
+    PaperFill,
+    PaperMarkout,
+    PaperOrder,
+    PaperRunManifest,
+    PaperRuntimeStatus,
+)
 from aiquanttrader_native.research.models import (
     ChampionChallengerReport,
     DriftReport,
@@ -96,6 +108,18 @@ SCHEMAS: dict[str, SchemaFactory] = {
     "market-data.schema.json": lambda: TypeAdapter(MarketEvent).json_schema(),
     "dataset-manifest.schema.json": lambda: _model_schema(DatasetManifest),
     "normalized-segment-manifest.schema.json": lambda: _model_schema(NormalizedSegmentManifest),
+    "paper.schema.json": lambda: TypeAdapter(
+        PaperOrder
+        | PaperFill
+        | PaperAccountState
+        | PaperDecisionRecord
+        | PaperRunManifest
+        | PaperEngineCheckpoint
+        | PaperEvidencePolicy
+        | PaperEvidenceReport
+        | PaperRuntimeStatus
+        | PaperMarkout
+    ).json_schema(),
     "raw-segment-manifest.schema.json": lambda: _model_schema(RawSegmentManifest),
     "recorder-state.schema.json": lambda: _model_schema(RecorderState),
     "research.schema.json": lambda: TypeAdapter(

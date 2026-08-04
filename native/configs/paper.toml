@@ -11,3 +11,7 @@ enabled = false
 
 [market_data]
 enabled = true
+sync_every_records = 1
+
+[paper]
+enabled = true

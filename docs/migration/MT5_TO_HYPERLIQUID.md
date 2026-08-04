@@ -161,6 +161,11 @@ production credential or approval capability.
 
 ### Phase 7: Paper trading
 
+Implementation status: code and automated fault/contract gates are complete.
+Empirical acceptance remains pending calibrated scenario evidence, sensitivity
+runs, samples/regimes, operational drills, and the frozen observation gate. See
+[`PHASE_7_PAPER.md`](PHASE_7_PAPER.md).
+
 Deliverables:
 
 - live public feeds driving the production trading node with simulated orders;

@@ -8,7 +8,7 @@ import shutil
 import time
 import uuid
 from collections import deque
-from collections.abc import Callable, Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from types import TracebackType
 from typing import Literal, Protocol
@@ -22,7 +22,12 @@ from aiquanttrader_native.market_data.catalog import ManifestCatalog
 from aiquanttrader_native.market_data.integrity import IntegrityTracker
 from aiquanttrader_native.market_data.io import atomic_replace_bytes
 from aiquanttrader_native.market_data.metrics import RecorderMetrics
-from aiquanttrader_native.market_data.protocol import ProtocolError, application_ping, parse_frame
+from aiquanttrader_native.market_data.protocol import (
+    ParsedFrame,
+    ProtocolError,
+    application_ping,
+    parse_frame,
+)
 from aiquanttrader_native.market_data.raw import RawSegmentWriter
 
 
@@ -44,6 +49,7 @@ class SocketContext(Protocol):
 
 
 SocketFactory = Callable[[str, int], SocketContext]
+FrameConsumer = Callable[[ParsedFrame], Awaitable[None]]
 
 
 class StaleFeedError(TimeoutError):
@@ -51,6 +57,10 @@ class StaleFeedError(TimeoutError):
 
 
 class DiskPressureError(OSError):
+    pass
+
+
+class FrameConsumerError(RuntimeError):
     pass
 
 
@@ -98,6 +108,7 @@ class MarketDataRecorder:
         wall_clock_ns: Callable[[], int] = time.time_ns,
         monotonic_ns: Callable[[], int] = time.monotonic_ns,
         rng: random.Random | None = None,
+        frame_consumer: FrameConsumer | None = None,
     ) -> None:
         if network not in {"mainnet", "testnet"}:
             raise ValueError(f"unsupported Hyperliquid network: {network}")
@@ -113,6 +124,7 @@ class MarketDataRecorder:
         self.wall_clock_ns = wall_clock_ns
         self.monotonic_ns = monotonic_ns
         self.rng = rng or random.SystemRandom()
+        self.frame_consumer = frame_consumer
         self.state_path = self.state_root / "market-data" / "recorder-state.json"
         self.reconnect_count = 0
         self.last_frame_ts_ns: int | None = None
@@ -133,6 +145,9 @@ class MarketDataRecorder:
                 backoff_ms = self.config.reconnect_initial_ms
             except DiskPressureError:
                 self._write_state("failed", "disk_pressure")
+                raise
+            except FrameConsumerError:
+                self._write_state("failed", "frame_consumer_error")
                 raise
             except asyncio.CancelledError:
                 self._write_state("stopped")
@@ -228,6 +243,13 @@ class MarketDataRecorder:
                         tracker.observe_frame(frame, metadata)
                         for issue in tracker.issues[previous_count:]:
                             self.metrics.issues.labels(kind=issue.kind.value, code=issue.code).inc()
+                        if self.frame_consumer is not None:
+                            try:
+                                await self.frame_consumer(frame)
+                            except Exception as exc:
+                                raise FrameConsumerError(
+                                    f"live frame consumer failed: {type(exc).__name__}"
+                                ) from exc
                     except (ProtocolError, ValidationError) as exc:
                         issue = tracker.record_parse_failure(exc, metadata)
                         self.metrics.issues.labels(kind=issue.kind.value, code=issue.code).inc()

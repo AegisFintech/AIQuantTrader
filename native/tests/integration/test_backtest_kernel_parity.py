@@ -190,6 +190,7 @@ def test_kernel_adapters_and_contract_reject_invalid_market_state() -> None:
             trades=(
                 KernelTrade(
                     exchange_ts_ns=2,
+                    observed_ts_ns=2,
                     price=Decimal("100"),
                     size=Decimal("1"),
                     aggressor=AggressorSide.SELLER,

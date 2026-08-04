@@ -1,0 +1,17 @@
+schema_version = 1
+scenario_id = "hyperliquid-btc-paper-baseline-v1"
+calibration_state = "uncalibrated"
+tick_size = "1.0"
+lot_size = "0.00001"
+entry_latency_ns = 50000000
+response_latency_ns = 50000000
+feed_latency_offset_ns = 0
+maker_fee_bps = "1.5"
+taker_fee_bps = "4.5"
+queue_model = "risk_adverse"
+queue_power = "2"
+allow_partial_fills = true
+book_liquidity_multiplier = "1.0"
+trade_flow_multiplier = "1.0"
+taker_slippage_bps = "0.5"
+funding_rate_multiplier = "1.0"
