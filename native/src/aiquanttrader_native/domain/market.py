@@ -26,14 +26,27 @@ class AggressorSide(StrEnum):
     UNKNOWN = "unknown"
 
 
+class EventSource(StrEnum):
+    HYPERLIQUID_WEBSOCKET = "hyperliquid_websocket"
+    TARDIS_CSV = "tardis_csv"
+
+
+class TimestampSource(StrEnum):
+    EXCHANGE = "exchange"
+    RECEIVE = "receive"
+
+
 class EventHeader(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     event_id: Annotated[str, Field(min_length=1, max_length=256)]
     venue: Literal["HYPERLIQUID"] = "HYPERLIQUID"
     instrument_id: Literal["BTC-USD-PERP.HYPERLIQUID"] = "BTC-USD-PERP.HYPERLIQUID"
     event_ts_ns: TimestampNs
     receive_ts_ns: TimestampNs
     connection_id: Annotated[str, Field(min_length=1, max_length=128)]
+    source: EventSource = EventSource.HYPERLIQUID_WEBSOCKET
+    event_ts_source: TimestampSource = TimestampSource.EXCHANGE
+    source_record_id: Annotated[str, Field(min_length=1, max_length=256)] | None = None
 
     @model_validator(mode="after")
     def receive_time_cannot_precede_exchange_time_unreasonably(self) -> EventHeader:
@@ -45,7 +58,7 @@ class EventHeader(DomainModel):
 class BookLevel(DomainModel):
     price: PositiveDecimal
     size: PositiveDecimal
-    order_count: int = Field(ge=1)
+    order_count: int | None = Field(default=None, ge=1)
 
 
 class L2BookSnapshot(DomainModel):
@@ -120,14 +133,85 @@ class IndexPriceEvent(DomainModel):
     index_price: PositiveDecimal
 
 
+class AccountEventHeader(DomainModel):
+    schema_version: Literal[1] = 1
+    event_id: Annotated[str, Field(min_length=1, max_length=256)]
+    venue: Literal["HYPERLIQUID"] = "HYPERLIQUID"
+    event_ts_ns: TimestampNs
+    receive_ts_ns: TimestampNs
+    connection_id: Annotated[str, Field(min_length=1, max_length=128)]
+    account_address: Annotated[str, Field(pattern=r"^0x[0-9a-fA-F]{40}$")] | None = None
+    source: EventSource = EventSource.HYPERLIQUID_WEBSOCKET
+    event_ts_source: TimestampSource = TimestampSource.EXCHANGE
+    source_record_id: Annotated[str, Field(min_length=1, max_length=256)] | None = None
+
+
 class AccountLiquidationEvent(DomainModel):
     event_type: Literal["account_liquidation"] = "account_liquidation"
+    header: AccountEventHeader
+    liquidation_id: Annotated[str, Field(min_length=1, max_length=256)]
+    liquidator_address: Annotated[str, Field(pattern=r"^0x[0-9a-fA-F]{40}$")]
+    liquidated_user_address: Annotated[str, Field(pattern=r"^0x[0-9a-fA-F]{40}$")]
+    liquidated_notional_usd: NonNegativeDecimal
+    liquidated_account_value_usd: NonNegativeDecimal
+
+
+class LiquidationFillEvent(DomainModel):
+    event_type: Literal["liquidation_fill"] = "liquidation_fill"
     header: EventHeader
     side: OrderSide
     price: PositiveDecimal
     size: PositiveDecimal
-    liquidation_id: Annotated[str, Field(min_length=1, max_length=256)]
-    is_adl: bool = False
+    trade_id: Annotated[str, Field(min_length=1, max_length=256)]
+    method: Literal["market", "backstop"]
+    liquidated_user_address: Annotated[str, Field(pattern=r"^0x[0-9a-fA-F]{40}$")] | None = None
+
+
+class FundingPaymentEvent(DomainModel):
+    event_type: Literal["funding_payment"] = "funding_payment"
+    header: EventHeader
+    amount_usdc: Decimal
+    position_size_base: Decimal
+    funding_rate: Decimal
+
+
+class AccountOrderUpdateEvent(DomainModel):
+    event_type: Literal["account_order_update"] = "account_order_update"
+    header: EventHeader
+    venue_order_id: Annotated[str, Field(min_length=1, max_length=128)]
+    client_order_id: Annotated[str, Field(min_length=1, max_length=128)] | None = None
+    side: OrderSide
+    limit_price: PositiveDecimal
+    remaining_size: NonNegativeDecimal
+    original_size: PositiveDecimal
+    status: Annotated[str, Field(min_length=1, max_length=64)]
+    reduce_only: bool
+
+
+class AccountFillEvent(DomainModel):
+    event_type: Literal["account_fill"] = "account_fill"
+    header: EventHeader
+    venue_order_id: Annotated[str, Field(min_length=1, max_length=128)]
+    trade_id: Annotated[str, Field(min_length=1, max_length=128)]
+    side: OrderSide
+    price: PositiveDecimal
+    size: PositiveDecimal
+    liquidity: Literal["maker", "taker"]
+    fee: Decimal
+    fee_token: Annotated[str, Field(min_length=1, max_length=32)]
+    closed_pnl: Decimal
+    transaction_hash: Annotated[str, Field(min_length=1, max_length=256)]
+
+
+class PositionSnapshotEvent(DomainModel):
+    event_type: Literal["position_snapshot"] = "position_snapshot"
+    header: EventHeader
+    size_base: Decimal
+    entry_price: PositiveDecimal | None = None
+    unrealized_pnl_usd: Decimal
+    leverage: PositiveDecimal
+    liquidation_price: PositiveDecimal | None = None
+    margin_used_usd: NonNegativeDecimal | None = None
 
 
 class DataCapabilities(DomainModel):
@@ -145,4 +229,9 @@ type MarketEvent = (
     | MarkPriceEvent
     | IndexPriceEvent
     | AccountLiquidationEvent
+    | LiquidationFillEvent
+    | FundingPaymentEvent
+    | AccountOrderUpdateEvent
+    | AccountFillEvent
+    | PositionSnapshotEvent
 )

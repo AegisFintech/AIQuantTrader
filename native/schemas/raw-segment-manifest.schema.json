@@ -1,0 +1,126 @@
+{
+  "$defs": {
+    "SegmentFinalizationReason": {
+      "enum": [
+        "rotation",
+        "disconnect",
+        "shutdown",
+        "stale_feed",
+        "disk_pressure",
+        "error"
+      ],
+      "title": "SegmentFinalizationReason",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "compressed_bytes": {
+      "minimum": 0,
+      "title": "Compressed Bytes",
+      "type": "integer"
+    },
+    "compressed_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Compressed Sha256",
+      "type": "string"
+    },
+    "connection_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "title": "Connection Id",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "ended_at_ns": {
+      "minimum": 0,
+      "title": "Ended At Ns",
+      "type": "integer"
+    },
+    "finalization_reason": {
+      "$ref": "#/$defs/SegmentFinalizationReason"
+    },
+    "instrument_id": {
+      "const": "BTC-USD-PERP.HYPERLIQUID",
+      "default": "BTC-USD-PERP.HYPERLIQUID",
+      "title": "Instrument Id",
+      "type": "string"
+    },
+    "network": {
+      "enum": [
+        "testnet",
+        "mainnet"
+      ],
+      "title": "Network",
+      "type": "string"
+    },
+    "payload_bytes": {
+      "minimum": 0,
+      "title": "Payload Bytes",
+      "type": "integer"
+    },
+    "record_count": {
+      "minimum": 0,
+      "title": "Record Count",
+      "type": "integer"
+    },
+    "recorder_version": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "title": "Recorder Version",
+      "type": "string"
+    },
+    "records_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Records Sha256",
+      "type": "string"
+    },
+    "relative_path": {
+      "pattern": "^[A-Za-z0-9_./=:-]+$",
+      "title": "Relative Path",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "segment_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "title": "Segment Id",
+      "type": "string"
+    },
+    "started_at_ns": {
+      "minimum": 0,
+      "title": "Started At Ns",
+      "type": "integer"
+    },
+    "venue": {
+      "const": "HYPERLIQUID",
+      "default": "HYPERLIQUID",
+      "title": "Venue",
+      "type": "string"
+    }
+  },
+  "required": [
+    "segment_id",
+    "network",
+    "relative_path",
+    "connection_id",
+    "started_at_ns",
+    "ended_at_ns",
+    "record_count",
+    "payload_bytes",
+    "compressed_bytes",
+    "compressed_sha256",
+    "records_sha256",
+    "recorder_version",
+    "finalization_reason",
+    "created_at"
+  ],
+  "title": "RawSegmentManifest",
+  "type": "object"
+}

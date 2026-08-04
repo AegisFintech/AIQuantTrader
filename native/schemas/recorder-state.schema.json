@@ -1,0 +1,107 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "connection_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Connection Id"
+    },
+    "current_segment_id": {
+      "anyOf": [
+        {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Current Segment Id"
+    },
+    "environment": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "title": "Environment",
+      "type": "string"
+    },
+    "heartbeat_ts_ns": {
+      "minimum": 0,
+      "title": "Heartbeat Ts Ns",
+      "type": "integer"
+    },
+    "last_error_code": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Error Code"
+    },
+    "last_frame_ts_ns": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Frame Ts Ns"
+    },
+    "network": {
+      "enum": [
+        "testnet",
+        "mainnet"
+      ],
+      "title": "Network",
+      "type": "string"
+    },
+    "reconnect_count": {
+      "minimum": 0,
+      "title": "Reconnect Count",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "enum": [
+        "starting",
+        "connected",
+        "reconnecting",
+        "stopped",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "environment",
+    "network",
+    "heartbeat_ts_ns",
+    "reconnect_count"
+  ],
+  "title": "RecorderState",
+  "type": "object"
+}

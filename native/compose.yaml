@@ -45,6 +45,82 @@ services:
         max-file: "3"
         max-size: 10m
 
+  market-data-recorder:
+    profiles: ["market-data"]
+    image: aiquanttrader-native-foundation:0.1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["aqt-market-data"]
+    command:
+      - record
+      - --config-dir
+      - /etc/aiquanttrader-native
+      - --environment
+      - ${AQT_NATIVE_ENVIRONMENT:-paper}
+    user: "65532:65532"
+    read_only: true
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 20s
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - native-data:/var/lib/aiquanttrader/data
+      - native-state:/var/lib/aiquanttrader/state
+    ports:
+      - "127.0.0.1:9109:9109"
+    healthcheck:
+      test:
+        - CMD
+        - aqt-market-data
+        - healthcheck
+        - --state-root
+        - /var/lib/aiquanttrader/state
+        - --stale-after-seconds
+        - "30"
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-file: "3"
+        max-size: 10m
+
+  market-data-normalizer:
+    profiles: ["market-data"]
+    image: aiquanttrader-native-foundation:0.1.0
+    entrypoint: ["aqt-market-data"]
+    command:
+      - normalize-pending
+      - --data-root
+      - /var/lib/aiquanttrader/data
+      - --state-root
+      - /var/lib/aiquanttrader/state
+      - --poll-seconds
+      - "5"
+    user: "65532:65532"
+    read_only: true
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - native-data:/var/lib/aiquanttrader/data
+      - native-state:/var/lib/aiquanttrader/state
+    logging:
+      driver: json-file
+      options:
+        max-file: "3"
+        max-size: 10m
+
 volumes:
   native-data:
     name: aiquanttrader-native-data

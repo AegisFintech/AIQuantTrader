@@ -3,9 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from aiquanttrader_native.config import ConfigLoadError, load_config
-from aiquanttrader_native.config.models import DeploymentMode, ExchangeNetwork
+from aiquanttrader_native.config.models import DeploymentMode, ExchangeNetwork, MarketDataConfig
 
 ACCOUNT = "0x" + "1" * 40
 HASH = "a" * 64
@@ -253,3 +254,18 @@ def test_symlinked_environment_cannot_escape_config_root(tmp_path: Path) -> None
 def test_missing_environment_file_is_explicit(config_dir: Path) -> None:
     with pytest.raises(ConfigLoadError, match="required config file is missing"):
         load_config(config_dir, "missing", environ={})
+
+
+def test_market_data_configuration_is_bounded_and_secret_referenced(config_dir: Path) -> None:
+    paper = load_config(config_dir, "paper", environ={}).settings
+    assert paper.market_data.enabled is True
+    assert paper.execution.enabled is False
+
+    with pytest.raises(ValidationError, match="unique"):
+        MarketDataConfig(public_channels=("trades", "trades"))
+    with pytest.raises(ValidationError, match="at least one"):
+        MarketDataConfig(public_channels=())
+    with pytest.raises(ValidationError, match="initial reconnect"):
+        MarketDataConfig(reconnect_initial_ms=1_000, reconnect_max_ms=500)
+    with pytest.raises(ValidationError, match="below /run/secrets"):
+        MarketDataConfig(tardis_api_key_secret_path=Path("/tmp/key"))

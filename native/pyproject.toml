@@ -11,7 +11,12 @@ requires-python = "==3.12.*"
 license = {text = "MIT"}
 authors = [{name = "Aegis Fintech"}]
 dependencies = [
+  "duckdb==1.5.4",
+  "prometheus-client==0.25.0",
+  "pyarrow==25.0.0",
   "pydantic==2.13.4",
+  "websockets==17.0.1",
+  "zstandard==0.25.0",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +30,7 @@ research = [
 
 [project.scripts]
 aqt-native = "aiquanttrader_native.cli:main"
+aqt-market-data = "aiquanttrader_native.market_data.cli:main"
 
 [dependency-groups]
 dev = [
@@ -71,6 +77,10 @@ strict = true
 plugins = ["pydantic.mypy"]
 files = ["src", "tests"]
 warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
 
 [tool.pydantic-mypy]
 init_forbid_extra = true

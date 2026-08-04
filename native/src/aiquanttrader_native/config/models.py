@@ -92,6 +92,43 @@ class ExecutionConfig(FrozenModel):
     unknown_order_timeout_ms: int = Field(default=5_000, ge=1_000, le=60_000)
 
 
+class MarketDataConfig(FrozenModel):
+    enabled: bool = False
+    public_channels: tuple[Literal["l2Book", "trades", "bbo", "activeAssetCtx"], ...] = (
+        "l2Book",
+        "trades",
+        "bbo",
+        "activeAssetCtx",
+    )
+    segment_duration_seconds: int = Field(default=3_600, ge=60, le=3_600)
+    sync_every_records: int = Field(default=100, ge=1, le=10_000)
+    stale_after_seconds: int = Field(default=15, ge=5, le=120)
+    ping_interval_seconds: int = Field(default=30, ge=5, le=50)
+    max_frame_bytes: int = Field(default=8_388_608, ge=65_536, le=67_108_864)
+    reconnect_initial_ms: int = Field(default=250, ge=50, le=5_000)
+    reconnect_max_ms: int = Field(default=5_000, ge=250, le=60_000)
+    reconnect_jitter_fraction: Decimal = Field(default=Decimal("0.2"), ge=0, le=1)
+    outbound_messages_per_minute: int = Field(default=120, ge=1, le=2_000)
+    minimum_free_bytes: int = Field(default=5_368_709_120, ge=67_108_864)
+    minimum_free_fraction: Decimal = Field(default=Decimal("0.10"), gt=0, le=Decimal("0.50"))
+    metrics_host: str = "0.0.0.0"
+    metrics_port: int = Field(default=9109, ge=1024, le=65535)
+    tardis_api_key_secret_path: Path | None = None
+
+    @model_validator(mode="after")
+    def validate_recorder_bounds(self) -> Self:
+        if len(set(self.public_channels)) != len(self.public_channels):
+            raise ValueError("market-data channels must be unique")
+        if not self.public_channels:
+            raise ValueError("at least one market-data channel is required")
+        if self.reconnect_initial_ms > self.reconnect_max_ms:
+            raise ValueError("initial reconnect delay cannot exceed maximum reconnect delay")
+        if self.ping_interval_seconds >= 60:
+            raise ValueError("application ping interval must remain below venue idle timeout")
+        _validate_secret_reference(self.tardis_api_key_secret_path)
+        return self
+
+
 class RiskLimits(FrozenModel):
     """Deployment limits clamped to application-level hard ceilings."""
 
@@ -158,6 +195,7 @@ class NativeSettings(FrozenModel):
     instrument: InstrumentConfig = InstrumentConfig()
     exchange: ExchangeConfig
     execution: ExecutionConfig = ExecutionConfig()
+    market_data: MarketDataConfig = MarketDataConfig()
     risk: RiskLimits = RiskLimits()
     storage: StorageConfig = StorageConfig()
     observability: ObservabilityConfig = ObservabilityConfig()

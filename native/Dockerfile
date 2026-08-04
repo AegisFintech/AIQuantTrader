@@ -31,7 +31,7 @@ COPY --chown=65532:65532 configs /etc/aiquanttrader-native
 USER 65532:65532
 WORKDIR /var/lib/aiquanttrader
 
-EXPOSE 9108
+EXPOSE 9108 9109
 
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
     CMD ["aqt-native", "healthcheck", "--url", "http://127.0.0.1:9108/health/ready"]
