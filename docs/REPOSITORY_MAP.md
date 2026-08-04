@@ -179,6 +179,7 @@ Current Phase 9 production-admission ownership:
 |---|---|
 | `native/src/aiquanttrader_native/governance/` | Ed25519 artifact verification, explicit anti-replay admission, wallet/account/capital binding, and frozen canary evidence. |
 | `native/compose.mainnet.yaml` | Exact-image controller/trading/sentinel topology with separated wallet mounts. |
+| `native/compose.rehearsal.yaml` | Explicit exact-image testnet dress rehearsal with separated testnet wallet mounts and release identity metadata. |
 | `native/configs/production/` | Frozen production-admission evidence policies; never credentials or enabled execution. |
 | `native/observability/grafana/dashboards/production-governance.json` | Admission, expiry, capital, denial, and emergency-cancel views. |
 | `docs/operations/MAINNET_CANARY_RUNBOOK.md` | Two-person preflight, verify/admit, canary drills, evidence, incident, and scale procedure. |
@@ -187,6 +188,13 @@ Current Phase 9 production-admission ownership:
 Phase 9 code gates do not establish empirical acceptance. No signed release,
 mainnet funding/order, production scale, `mt5-final` tag, or MT5 retirement is
 performed by the repository implementation.
+
+The Phase 9 release-evidence increment adds typed final-testnet observations,
+the frozen complete scenario evaluator, exact target-behavior fingerprints,
+and deterministic unsigned bundle preparation. `governance/bundle.py` rejects
+incompatible artifacts and evidence before offline signing; it contains no
+signer or admission action. See
+`docs/migration/PHASE_9_RELEASE_EVIDENCE.md`.
 
 ## Current Legacy System Topology
 
@@ -231,6 +239,7 @@ currently provide:
 | Normal execution | `native/src/aiquanttrader_native/execution/`; only `RiskManagedExecutionStrategy` may call Nautilus order APIs. |
 | Emergency control | `native/src/aiquanttrader_native/sentinel/`; independent SDK control wallet, dead-man renewal, and cancel-all only. |
 | Testnet deployment | `native/compose.testnet.yaml`; trading and control secrets are mounted into different processes. |
+| Final release rehearsal | `native/compose.rehearsal.yaml`; exact digest and target behavior are exercised on testnet before unsigned bundle preparation. |
 | Backtesting | `native/src/aiquanttrader_native/backtest/`; causal HftBacktest replay, Nautilus-object parity, scenario stress, and guarded validation. |
 | BTC research | `native/src/aiquanttrader_native/{features,strategies,research}/`; causal features, pure strategy kernels, native tabular models, bounded search, controls, drift, and an automation-ceiling registry. |
 | Paper trading | `native/src/aiquanttrader_native/paper/`; live public data through production kernels/risk into a credential-free simulator and immutable evidence journal. |

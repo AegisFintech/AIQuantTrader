@@ -1,0 +1,19 @@
+flowchart LR
+    candidate["Frozen candidate<br/>commit + image + artifacts"]
+    fingerprint["Target behavior fingerprint<br/>credential-free"]
+    rehearsal["Exact-image testnet rehearsal<br/>separate testnet wallets"]
+    evidence["Retained real observations<br/>15 required scenarios"]
+    evaluator["Frozen testnet evaluator"]
+    boundary["AWAITING_CANARY_APPROVAL"]
+    prepare["Semantic bundle preparation<br/>atomic + unsigned"]
+    review["Independent human review"]
+    signer["Offline Ed25519 signer<br/>outside production host"]
+    admission["Verify + explicit admission<br/>existing Phase 9 boundary"]
+    mainnet["Minimum-capital canary"]
+
+    candidate --> fingerprint --> rehearsal --> evidence --> evaluator
+    evaluator -->|all gates pass| boundary --> prepare --> review --> signer --> admission --> mainnet
+    evaluator -->|any gate fails| halt["HALT / repair / new observation"]
+
+    research["Research automation"] -. "cannot sign or admit" .-> boundary
+    mainnetkey["Mainnet wallet secrets"] -. "absent" .-> rehearsal

@@ -7,7 +7,14 @@ from aiquanttrader_native.governance.models import (
     DeploymentAdmissionRecord,
     DeploymentAdmissionState,
     DeploymentArtifactManifest,
+    DeploymentModelSelection,
     DetachedApprovalSignature,
+    ReleaseBundleReceipt,
+    ReleaseBundleSpec,
+    TestnetDressRehearsalObservation,
+    TestnetDressRehearsalPolicy,
+    TestnetDressRehearsalReport,
+    TestnetEvidenceGate,
     VerifiedDeploymentAdmission,
 )
 
@@ -18,6 +25,13 @@ __all__ = [
     "DeploymentAdmissionRecord",
     "DeploymentAdmissionState",
     "DeploymentArtifactManifest",
+    "DeploymentModelSelection",
     "DetachedApprovalSignature",
+    "ReleaseBundleReceipt",
+    "ReleaseBundleSpec",
+    "TestnetDressRehearsalObservation",
+    "TestnetDressRehearsalPolicy",
+    "TestnetDressRehearsalReport",
+    "TestnetEvidenceGate",
     "VerifiedDeploymentAdmission",
 ]

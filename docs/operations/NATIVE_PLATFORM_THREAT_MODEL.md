@@ -40,6 +40,8 @@ dataset lineage, and operational availability.
 | Model/schema mismatch | Invalid decisions | Hash-bound feature schema, safe model format, startup compatibility checks | Fail startup, retain approved champion |
 | Research leakage/overfit | Loss after promotion | Purged validation, untouched holdout, negative controls, immutable datasets, frozen gates | Paper/shadow failure, reject challenger, drift monitoring |
 | Approval forgery or replay | Unauthorized production deployment | Offline Ed25519 signature, configured public-key fingerprint, exact artifact/account/wallet/capital binding, expiring approval, durable one-use ledger | Independent startup verification, per-command ledger check, revoke/rollback |
+| Fabricated or selectively omitted rehearsal evidence | Unsafe release appears validated | Frozen complete scenario enum, typed counts, evidence hashes, exact artifact/config binding, no-mainnet-key assertion, independent review | Failed testnet gate, retained venue/journal comparison, halt before signing |
+| Partial or mixed-generation release bundle | Reviewer signs inconsistent artifacts | New absolute output path, bounded non-symlink reads, semantic cross-checks, mode-0600 atomic directory write and receipt hashes | Preparation failure and temporary-directory cleanup; rebuild from immutable sources |
 | Controller compromise | Unauthorized runtime authority | Controller has no wallet, verification and admission are separate actions, trading and sentinel independently reverify | Admission transition audit, wallet-role and heartbeat mismatch, halt/cancel |
 | Master/vault confusion | Orders or capital applied to the wrong account | Signed master and optional vault identities, independent address verification, account-equity capital clamp | Reconciliation failure, capital-limit denial, two-person venue check |
 | Configuration tampering | Relaxed risk or wrong account | Signed policy, hard clamps, unknown-key rejection, two-person preflight | Startup failure, configuration fingerprint alert |
@@ -65,6 +67,8 @@ dataset lineage, and operational availability.
 - Expiry, rollback, revoke, or ledger mismatch cannot block cancellation but
   cannot authorize submit or replace.
 - Passing canary evidence cannot create production or capital authority.
+- Passing testnet evidence cannot create a signature, admission, funding, or
+  execution authority.
 
 ## Required exercises before mainnet
 

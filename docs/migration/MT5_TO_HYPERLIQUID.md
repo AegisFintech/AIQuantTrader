@@ -214,8 +214,10 @@ Migration action: successful automation stops at `AWAITING_APPROVAL`.
 
 Implementation note: the cryptographic approval, anti-replay admission,
 runtime guards, conservative canary bounds, exact-image topology, evidence
-policy, and runbooks are implemented. Mainnet activation, empirical acceptance,
-production scale, and legacy retirement remain pending and separately approved.
+policy, frozen final-testnet scenario evaluator, target-behavior fingerprint,
+unsigned bundle preparation, and runbooks are implemented. Mainnet activation,
+empirical acceptance, offline signing, production scale, and legacy retirement
+remain pending and separately approved.
 
 Deliverables:
 

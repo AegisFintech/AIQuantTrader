@@ -57,6 +57,9 @@ boundary:
   account/vault, wallet roles, capital, risk, expiry, and rollback;
 - a durable anti-replay admission ledger checked independently by execution and
   the sentinel, conservative canary hard caps, and frozen canary evidence gates.
+- a frozen complete final-testnet evaluator, exact target-behavior fingerprint,
+  and atomic semantic preparation of unsigned release bundles for offline
+  review and signing.
 
 The Phase 6 strategies are research candidates and are wired only into the
 credential-free Phase 7 simulator, not the exchange node. The exchange order
@@ -210,3 +213,24 @@ a control path. See
 [`SHADOW_DEPLOYMENT_RUNBOOK.md`](../docs/operations/SHADOW_DEPLOYMENT_RUNBOOK.md)
 for launch, kill, host/disk/clock/recorder/observer drills, replay comparison,
 evidence, and rollback.
+
+## Final testnet evidence and unsigned release
+
+Render the proposed canary behavior from a complete root-owned release spec:
+
+```bash
+uv run aqt-governance release-fingerprint --config-dir configs \
+  --environment canary --spec /secure/release/canary-release.toml \
+  --output /secure/release/behavior-configuration.json
+```
+
+Run that exact image with `compose.rehearsal.yaml`, retain real evidence for all
+15 lifecycle scenarios, and evaluate the typed observation with
+`configs/production/testnet-dress-rehearsal-v1.toml`. A passing report stops at
+`awaiting_canary_approval`.
+
+`aqt-governance prepare-release` then cross-checks every artifact and evidence
+identity and atomically emits a mode-0600 unsigned bundle. It has no signing or
+admission capability. See
+[`PHASE_9_RELEASE_EVIDENCE.md`](../docs/migration/PHASE_9_RELEASE_EVIDENCE.md)
+and [`MAINNET_CANARY_RUNBOOK.md`](../docs/operations/MAINNET_CANARY_RUNBOOK.md).

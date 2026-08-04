@@ -18,6 +18,7 @@ only the standard BTC perpetual, represented as
 - `docs/migration/PHASE_7_PAPER.md`
 - `docs/migration/PHASE_8_SHADOW.md`
 - `docs/migration/PHASE_9_PRODUCTION_ADMISSION.md`
+- `docs/migration/PHASE_9_RELEASE_EVIDENCE.md`
 - `docs/operations/NATIVE_PLATFORM_THREAT_MODEL.md`
 - `docs/operations/NATIVE_RELEASE_CHECKLIST.md`
 - `docs/operations/EXECUTION_RISK_RUNBOOK.md`
@@ -61,6 +62,9 @@ Migration rules:
 - Every checked-in overlay must remain execution-disabled. Never create, sign,
   admit, fund, or activate a mainnet release merely because the Phase 9 code is
   present.
+- Final-testnet evidence must come from the exact immutable image and complete
+  frozen scenario matrix. The evaluator and unsigned bundle preparer do not
+  collect evidence, sign approvals, admit deployments, or authorize mainnet.
 - Phase 8 shadow must keep the decision engine at `network_mode: none`, ingress
   read-only, and all account/wallet/signer/execution-client capability absent.
   A passing shadow report stops at `AWAITING_APPROVAL` and never authorizes

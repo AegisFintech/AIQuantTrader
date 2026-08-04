@@ -148,6 +148,19 @@ class DeploymentApproval(DomainModel):
             self.vault_address.lower() == self.account_address.lower()
         ):
             raise ValueError("vault and master account identities must be different")
+        identities = {
+            address.lower()
+            for address in (
+                self.account_address,
+                self.vault_address,
+                self.trading_wallet_address,
+                self.control_wallet_address,
+            )
+            if address is not None
+        }
+        expected_identities = 4 if self.vault_address is not None else 3
+        if len(identities) != expected_identities:
+            raise ValueError("account, vault, and wallet identities must be distinct")
         if self.deployment_id == self.rollback_deployment_id:
             raise ValueError("rollback target must differ from the approved deployment")
         if self.stage is PromotionStage.APPROVED_CANARY:
