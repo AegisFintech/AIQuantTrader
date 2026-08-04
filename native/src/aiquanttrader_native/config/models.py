@@ -90,6 +90,31 @@ class ExecutionConfig(FrozenModel):
     max_inflight_requests: int = Field(default=20, ge=1, le=100)
     reconcile_on_startup: bool = True
     unknown_order_timeout_ms: int = Field(default=5_000, ge=1_000, le=60_000)
+    approval_ttl_ms: int = Field(default=250, ge=50, le=1_000)
+    heartbeat_interval_ms: int = Field(default=1_000, ge=250, le=5_000)
+    adapter_http_timeout_seconds: int = Field(default=10, ge=2, le=60)
+    adapter_ws_post_timeout_seconds: int = Field(default=10, ge=2, le=60)
+    normalize_prices: bool = True
+    include_builder_attribution: bool = False
+
+
+class SentinelConfig(FrozenModel):
+    enabled: bool = False
+    poll_interval_ms: int = Field(default=1_000, ge=250, le=5_000)
+    heartbeat_stale_after_ms: int = Field(default=5_000, ge=2_000, le=30_000)
+    deadman_timeout_ms: int = Field(default=20_000, ge=10_000, le=120_000)
+    deadman_renew_interval_ms: int = Field(default=5_000, ge=1_000, le=30_000)
+    cancel_retry_count: int = Field(default=3, ge=1, le=10)
+    metrics_host: str = "0.0.0.0"
+    metrics_port: int = Field(default=9_111, ge=1_024, le=65_535)
+
+    @model_validator(mode="after")
+    def validate_deadman_timing(self) -> Self:
+        if self.deadman_renew_interval_ms >= self.deadman_timeout_ms - 5_000:
+            raise ValueError("dead-man renewal must leave at least five seconds of safety margin")
+        if self.poll_interval_ms >= self.heartbeat_stale_after_ms:
+            raise ValueError("sentinel polling must be faster than the heartbeat stale threshold")
+        return self
 
 
 class MarketDataConfig(FrozenModel):
@@ -135,10 +160,13 @@ class RiskLimits(FrozenModel):
     daily_loss_fraction: Decimal = Field(default=Decimal("0.005"), gt=0, le=Decimal("0.02"))
     max_drawdown_fraction: Decimal = Field(default=Decimal("0.01"), gt=0, le=Decimal("0.05"))
     max_leverage: Decimal = Field(default=Decimal("1.0"), gt=0, le=Decimal("5.0"))
+    max_order_size_base: Decimal = Field(default=Decimal("0.005"), gt=0, le=Decimal("1"))
+    max_position_size_base: Decimal = Field(default=Decimal("0.02"), gt=0, le=Decimal("2"))
     max_order_notional_usd: Decimal = Field(default=Decimal("250"), gt=0, le=Decimal("10000"))
     max_inventory_notional_usd: Decimal = Field(default=Decimal("1000"), gt=0, le=Decimal("50000"))
     max_open_orders: int = Field(default=4, ge=1, le=20)
     max_orders_per_second: int = Field(default=5, ge=1, le=10)
+    max_cancels_per_second: int = Field(default=10, ge=1, le=20)
     public_data_stale_after_ms: int = Field(default=1_500, ge=500, le=10_000)
     private_data_stale_after_ms: int = Field(default=3_000, ge=1_000, le=30_000)
 
@@ -146,6 +174,8 @@ class RiskLimits(FrozenModel):
     def order_must_fit_inventory_limit(self) -> Self:
         if self.max_order_notional_usd > self.max_inventory_notional_usd:
             raise ValueError("max order notional cannot exceed max inventory notional")
+        if self.max_order_size_base > self.max_position_size_base:
+            raise ValueError("max order size cannot exceed max position size")
         return self
 
 
@@ -165,6 +195,8 @@ class StorageConfig(FrozenModel):
 class ObservabilityConfig(FrozenModel):
     health_host: str = "0.0.0.0"
     health_port: int = Field(default=9108, ge=1024, le=65535)
+    execution_metrics_host: str = "0.0.0.0"
+    execution_metrics_port: int = Field(default=9_110, ge=1_024, le=65_535)
 
 
 class ApprovalConfig(FrozenModel):
@@ -195,6 +227,7 @@ class NativeSettings(FrozenModel):
     instrument: InstrumentConfig = InstrumentConfig()
     exchange: ExchangeConfig
     execution: ExecutionConfig = ExecutionConfig()
+    sentinel: SentinelConfig = SentinelConfig()
     market_data: MarketDataConfig = MarketDataConfig()
     risk: RiskLimits = RiskLimits()
     storage: StorageConfig = StorageConfig()
@@ -227,14 +260,53 @@ class NativeSettings(FrozenModel):
                 raise ValueError("enabled execution requires an account address")
             if self.exchange.trading_wallet_secret_path is None:
                 raise ValueError("enabled execution requires a trading-wallet secret reference")
+            if not self.sentinel.enabled:
+                raise ValueError("enabled execution requires the independent safety sentinel")
+            if not self.execution.reconcile_on_startup:
+                raise ValueError("enabled execution requires startup reconciliation")
 
-        if self.execution.enabled and self.exchange.network is ExchangeNetwork.MAINNET:
-            if self.mode not in {DeploymentMode.CANARY, DeploymentMode.PRODUCTION}:
-                raise ValueError("mainnet execution is restricted to canary and production modes")
+        if self.sentinel.enabled:
+            if self.mode not in {
+                DeploymentMode.TESTNET,
+                DeploymentMode.CANARY,
+                DeploymentMode.PRODUCTION,
+            }:
+                raise ValueError("the safety sentinel is restricted to execution environments")
+            if self.exchange.account_address is None:
+                raise ValueError("enabled sentinel requires an account address")
             if self.exchange.control_wallet_secret_path is None:
-                raise ValueError("mainnet execution requires an independent control wallet")
-            if not self.approval.complete_for(self.mode):
-                raise ValueError("mainnet execution requires a complete artifact-bound approval")
+                raise ValueError("enabled sentinel requires a control-wallet secret reference")
+
+        if self.execution.enabled or self.sentinel.enabled:
+            if self.exchange.network is ExchangeNetwork.MAINNET:
+                raise ValueError(
+                    "mainnet wallets and execution remain unavailable until Phase 9 "
+                    "cryptographic approval verification"
+                )
+            expected_http = (
+                "https://api.hyperliquid-testnet.xyz"
+                if self.exchange.network is ExchangeNetwork.TESTNET
+                else "https://api.hyperliquid.xyz"
+            )
+            expected_ws = f"wss://{expected_http.removeprefix('https://')}/ws"
+            if str(self.exchange.http_url).rstrip("/") != expected_http:
+                raise ValueError("execution requires the canonical Hyperliquid HTTP endpoint")
+            if str(self.exchange.websocket_url).rstrip("/") != expected_ws:
+                raise ValueError("execution requires the canonical Hyperliquid WebSocket endpoint")
+            prefix = (
+                "/run/secrets/testnet-"
+                if self.exchange.network is ExchangeNetwork.TESTNET
+                else "/run/secrets/mainnet-"
+            )
+            references = (
+                self.exchange.trading_wallet_secret_path,
+                self.exchange.control_wallet_secret_path,
+            )
+            for reference in references:
+                if reference is not None and not str(reference).startswith(prefix):
+                    raise ValueError(
+                        f"{self.exchange.network.value} wallet references must use {prefix} names"
+                    )
 
         return self
 

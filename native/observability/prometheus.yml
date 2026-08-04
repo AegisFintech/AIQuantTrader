@@ -6,3 +6,9 @@ scrape_configs:
   - job_name: aiquanttrader-market-data
     static_configs:
       - targets: ["market-data-recorder:9109"]
+  - job_name: aiquanttrader-execution
+    static_configs:
+      - targets: ["trading-node:9110"]
+  - job_name: aiquanttrader-sentinel
+    static_configs:
+      - targets: ["safety-sentinel:9111"]

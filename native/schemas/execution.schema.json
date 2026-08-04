@@ -1,0 +1,615 @@
+{
+  "$defs": {
+    "ExecutionJournalEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "client_order_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Order Id"
+        },
+        "detail": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Detail",
+          "type": "string"
+        },
+        "event_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Event Id",
+          "type": "string"
+        },
+        "event_ts_ns": {
+          "minimum": 0,
+          "title": "Event Ts Ns",
+          "type": "integer"
+        },
+        "filled_quantity_base": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Filled Quantity Base"
+        },
+        "intent_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "risk",
+            "nautilus",
+            "reconciliation",
+            "operator"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/ExecutionState"
+        },
+        "venue_order_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Venue Order Id"
+        }
+      },
+      "required": [
+        "event_id",
+        "intent_id",
+        "state",
+        "event_ts_ns",
+        "detail",
+        "source"
+      ],
+      "title": "ExecutionJournalEvent",
+      "type": "object"
+    },
+    "ExecutionState": {
+      "enum": [
+        "pending_submit",
+        "submitted",
+        "accepted",
+        "partially_filled",
+        "filled",
+        "pending_modify",
+        "pending_cancel",
+        "canceled",
+        "rejected",
+        "denied",
+        "unknown"
+      ],
+      "title": "ExecutionState",
+      "type": "string"
+    },
+    "OrderIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "created_ts_ns": {
+          "minimum": 0,
+          "title": "Created Ts Ns",
+          "type": "integer"
+        },
+        "instrument_id": {
+          "const": "BTC-USD-PERP.HYPERLIQUID",
+          "default": "BTC-USD-PERP.HYPERLIQUID",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "intent_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/OrderKind"
+        },
+        "limit_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit Price"
+        },
+        "post_only": {
+          "default": false,
+          "title": "Post Only",
+          "type": "boolean"
+        },
+        "quantity_base": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Quantity Base"
+        },
+        "rationale": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "reduce_only": {
+          "default": false,
+          "title": "Reduce Only",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "side": {
+          "$ref": "#/$defs/OrderSide"
+        },
+        "strategy_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "time_in_force": {
+          "$ref": "#/$defs/TimeInForce",
+          "default": "gtc"
+        }
+      },
+      "required": [
+        "intent_id",
+        "strategy_id",
+        "side",
+        "kind",
+        "quantity_base",
+        "created_ts_ns",
+        "rationale"
+      ],
+      "title": "OrderIntent",
+      "type": "object"
+    },
+    "OrderKind": {
+      "enum": [
+        "limit",
+        "market"
+      ],
+      "title": "OrderKind",
+      "type": "string"
+    },
+    "OrderSide": {
+      "enum": [
+        "buy",
+        "sell"
+      ],
+      "title": "OrderSide",
+      "type": "string"
+    },
+    "RiskDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed": {
+          "title": "Allowed",
+          "type": "boolean"
+        },
+        "approval_signature": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approval Signature"
+        },
+        "decision_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Decision Id",
+          "type": "string"
+        },
+        "expires_ts_ns": {
+          "minimum": 0,
+          "title": "Expires Ts Ns",
+          "type": "integer"
+        },
+        "intent_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Intent Sha256",
+          "type": "string"
+        },
+        "issued_ts_ns": {
+          "minimum": 0,
+          "title": "Issued Ts Ns",
+          "type": "integer"
+        },
+        "limits_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Limits Sha256",
+          "type": "string"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "#/$defs/RiskReason"
+          },
+          "minItems": 1,
+          "title": "Reasons",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Sha256",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/RiskState"
+        }
+      },
+      "required": [
+        "decision_id",
+        "intent_sha256",
+        "snapshot_sha256",
+        "limits_sha256",
+        "state",
+        "allowed",
+        "reasons",
+        "issued_ts_ns",
+        "expires_ts_ns"
+      ],
+      "title": "RiskDecision",
+      "type": "object"
+    },
+    "RiskReason": {
+      "enum": [
+        "approved",
+        "operator_kill",
+        "flatten_requested",
+        "exchange_disconnected",
+        "reconciliation_incomplete",
+        "public_data_stale",
+        "private_data_stale",
+        "invalid_account_state",
+        "daily_loss_limit",
+        "drawdown_limit",
+        "order_size_limit",
+        "order_notional_limit",
+        "position_limit",
+        "inventory_limit",
+        "leverage_limit",
+        "open_order_limit",
+        "inflight_request_limit",
+        "order_rate_limit",
+        "reduce_only_required",
+        "not_position_reducing",
+        "intent_too_old",
+        "invalid_timestamp"
+      ],
+      "title": "RiskReason",
+      "type": "string"
+    },
+    "RiskSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "account_equity_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Account Equity Usd"
+        },
+        "day_start_equity_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Day Start Equity Usd"
+        },
+        "exchange_connected": {
+          "title": "Exchange Connected",
+          "type": "boolean"
+        },
+        "flatten_requested": {
+          "default": false,
+          "title": "Flatten Requested",
+          "type": "boolean"
+        },
+        "high_water_equity_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "High Water Equity Usd"
+        },
+        "leverage": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Leverage"
+        },
+        "mark_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Mark Price"
+        },
+        "open_order_count": {
+          "minimum": 0,
+          "title": "Open Order Count",
+          "type": "integer"
+        },
+        "operator_kill": {
+          "default": false,
+          "title": "Operator Kill",
+          "type": "boolean"
+        },
+        "pending_buy_base": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Pending Buy Base"
+        },
+        "pending_sell_base": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Pending Sell Base"
+        },
+        "position_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Position Base"
+        },
+        "private_data_ts_ns": {
+          "minimum": 0,
+          "title": "Private Data Ts Ns",
+          "type": "integer"
+        },
+        "public_data_ts_ns": {
+          "minimum": 0,
+          "title": "Public Data Ts Ns",
+          "type": "integer"
+        },
+        "reconciliation_complete": {
+          "title": "Reconciliation Complete",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "snapshot_ts_ns": {
+          "minimum": 0,
+          "title": "Snapshot Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "snapshot_ts_ns",
+        "public_data_ts_ns",
+        "private_data_ts_ns",
+        "mark_price",
+        "position_base",
+        "account_equity_usd",
+        "day_start_equity_usd",
+        "high_water_equity_usd",
+        "leverage",
+        "open_order_count",
+        "exchange_connected",
+        "reconciliation_complete"
+      ],
+      "title": "RiskSnapshot",
+      "type": "object"
+    },
+    "RiskState": {
+      "enum": [
+        "active",
+        "reduce_only",
+        "cancel_only",
+        "halted",
+        "flattening"
+      ],
+      "title": "RiskState",
+      "type": "string"
+    },
+    "TimeInForce": {
+      "enum": [
+        "gtc",
+        "ioc"
+      ],
+      "title": "TimeInForce",
+      "type": "string"
+    },
+    "TradingHeartbeat": {
+      "additionalProperties": false,
+      "properties": {
+        "account_address": {
+          "pattern": "^0x[0-9a-fA-F]{40}$",
+          "title": "Account Address",
+          "type": "string"
+        },
+        "config_fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Config Fingerprint",
+          "type": "string"
+        },
+        "environment": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Environment",
+          "type": "string"
+        },
+        "execution_healthy": {
+          "title": "Execution Healthy",
+          "type": "boolean"
+        },
+        "heartbeat_ts_ns": {
+          "minimum": 0,
+          "title": "Heartbeat Ts Ns",
+          "type": "integer"
+        },
+        "operator_kill": {
+          "title": "Operator Kill",
+          "type": "boolean"
+        },
+        "process_id": {
+          "exclusiveMinimum": 0,
+          "title": "Process Id",
+          "type": "integer"
+        },
+        "reconciliation_complete": {
+          "title": "Reconciliation Complete",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "process_id",
+        "heartbeat_ts_ns",
+        "environment",
+        "account_address",
+        "execution_healthy",
+        "reconciliation_complete",
+        "operator_kill",
+        "config_fingerprint"
+      ],
+      "title": "TradingHeartbeat",
+      "type": "object"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/OrderIntent"
+    },
+    {
+      "$ref": "#/$defs/RiskSnapshot"
+    },
+    {
+      "$ref": "#/$defs/RiskDecision"
+    },
+    {
+      "$ref": "#/$defs/ExecutionJournalEvent"
+    },
+    {
+      "$ref": "#/$defs/TradingHeartbeat"
+    }
+  ]
+}
