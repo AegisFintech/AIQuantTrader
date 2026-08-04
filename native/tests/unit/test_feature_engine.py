@@ -43,6 +43,7 @@ def market_state(
 def trade(sequence: int, side: AggressorSide, price: str, size: str) -> KernelTrade:
     return KernelTrade(
         exchange_ts_ns=(sequence + 1) * 1_000,
+        observed_ts_ns=(sequence + 1) * 1_000 + 100,
         price=Decimal(price),
         size=Decimal(size),
         aggressor=side,

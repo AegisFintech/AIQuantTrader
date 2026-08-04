@@ -60,6 +60,26 @@ def test_execution_and_control_wallets_are_process_isolated(project_root: Path) 
     assert "mainnet" not in overlay
 
 
+def test_paper_service_has_no_wallet_secret_or_exchange_order_capability(
+    project_root: Path,
+) -> None:
+    compose = (project_root / "compose.yaml").read_text(encoding="utf-8")
+    service = compose.split("  paper-trader:", 1)[1].split("\nvolumes:", 1)[0]
+    assert "secrets:" not in service
+    assert "/run/secrets" not in service
+    assert "trading-wallet" not in service
+    assert 'entrypoint: ["aqt-paper"]' in service
+
+    paper_root = project_root / "src" / "aiquanttrader_native" / "paper"
+    prohibited = ("from hyperliquid.", "HyperliquidLiveExecClientFactory", "submit_order(")
+    offenders = [
+        path.relative_to(project_root)
+        for path in paper_root.rglob("*.py")
+        if any(token in path.read_text(encoding="utf-8") for token in prohibited)
+    ]
+    assert offenders == []
+
+
 def test_testnet_compose_overlay_renders_when_docker_is_available(project_root: Path) -> None:
     if shutil.which("docker") is None:
         pytest.skip("Docker Compose is unavailable")

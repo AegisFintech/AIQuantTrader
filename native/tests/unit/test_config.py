@@ -219,6 +219,39 @@ def test_unknown_override_is_rejected(config_dir: Path) -> None:
         )
 
 
+def test_paper_mode_rejects_every_exchange_identity_or_wallet_reference(
+    config_dir: Path,
+) -> None:
+    for name, value in (
+        ("AQT_NATIVE__EXCHANGE__ACCOUNT_ADDRESS", ACCOUNT),
+        (
+            "AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH",
+            "/run/secrets/mainnet-trading-wallet",
+        ),
+        (
+            "AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH",
+            "/run/secrets/mainnet-control-wallet",
+        ),
+    ):
+        with pytest.raises(ConfigLoadError, match="paper mode forbids"):
+            load_config(config_dir, "paper", environ={name: value})
+
+
+def test_paper_engine_requires_paper_mode_and_public_data(config_dir: Path) -> None:
+    with pytest.raises(ConfigLoadError, match="only in paper mode"):
+        load_config(
+            config_dir,
+            "research",
+            environ={"AQT_NATIVE__PAPER__ENABLED": "true"},
+        )
+    with pytest.raises(ConfigLoadError, match="requires public market data"):
+        load_config(
+            config_dir,
+            "paper",
+            environ={"AQT_NATIVE__MARKET_DATA__ENABLED": "false"},
+        )
+
+
 def test_malformed_structured_override_is_rejected(config_dir: Path) -> None:
     with pytest.raises(ConfigLoadError, match="invalid structured environment value"):
         load_config(
@@ -291,7 +324,10 @@ def test_missing_environment_file_is_explicit(config_dir: Path) -> None:
 def test_market_data_configuration_is_bounded_and_secret_referenced(config_dir: Path) -> None:
     paper = load_config(config_dir, "paper", environ={}).settings
     assert paper.market_data.enabled is True
+    assert paper.market_data.sync_every_records == 1
     assert paper.execution.enabled is False
+    assert paper.paper.scenario_path == Path("paper/baseline-v1.toml")
+    assert paper.paper.sensitivity_scenario_paths == (Path("paper/pessimistic-v1.toml"),)
 
     with pytest.raises(ValidationError, match="unique"):
         MarketDataConfig(public_channels=("trades", "trades"))

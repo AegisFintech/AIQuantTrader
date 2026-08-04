@@ -121,6 +121,54 @@ services:
         max-file: "3"
         max-size: 10m
 
+  paper-trader:
+    profiles: ["paper"]
+    image: aiquanttrader-native-foundation:0.1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["aqt-paper"]
+    command:
+      - run
+      - --config-dir
+      - /etc/aiquanttrader-native
+      - --environment
+      - paper
+      - --code-identity
+      - ${AQT_NATIVE_CODE_IDENTITY:-unreviewed-local}
+    user: "65532:65532"
+    read_only: true
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - native-data:/var/lib/aiquanttrader/data
+      - native-state:/var/lib/aiquanttrader/state
+    ports:
+      - "127.0.0.1:9112:9112"
+    healthcheck:
+      test:
+        - CMD
+        - aqt-paper
+        - healthcheck
+        - --state-root
+        - /var/lib/aiquanttrader/state
+        - --stale-after-ms
+        - "5000"
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-file: "3"
+        max-size: 10m
+
 volumes:
   native-data:
     name: aiquanttrader-native-data

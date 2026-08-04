@@ -13,11 +13,12 @@ authorized by the architecture approval alone, and automated research may not
 promote a model into production. Until the Phase 9 cutover is separately
 approved, the deployed runtime remains the MT5 demo system described below.
 
-Phases 2-6 now provide the isolated native foundation, raw-first Hyperliquid
+Phases 2-7 now provide the isolated native foundation, raw-first Hyperliquid
 market-data path, fail-closed execution/risk path, causal BTC replay and
-validation, and the first native BTC feature/strategy/research framework. Phase 4 uses
-NautilusTrader as the sole ordinary order owner and a separately credentialed
-Hyperliquid SDK sentinel for exchange dead-man and emergency cancellation. See
+validation, BTC feature/strategy/research framework, and credential-free live
+paper trading. Phase 4 uses NautilusTrader as the sole ordinary exchange-order
+owner and a separately credentialed Hyperliquid SDK sentinel for exchange
+dead-man and emergency cancellation. See
 [`docs/migration/PHASE_4_EXECUTION_RISK.md`](docs/migration/PHASE_4_EXECUTION_RISK.md)
 and [`docs/operations/EXECUTION_RISK_RUNBOOK.md`](docs/operations/EXECUTION_RISK_RUNBOOK.md).
 All checked-in environments remain execution-disabled; credentialed testnet
@@ -41,6 +42,16 @@ candidates and are not connected to the native execution node. Automation has
 no human approval capability and stops at `AWAITING_APPROVAL`. See
 [`docs/migration/PHASE_6_RESEARCH.md`](docs/migration/PHASE_6_RESEARCH.md) and
 [`docs/operations/RESEARCH_RUNBOOK.md`](docs/operations/RESEARCH_RUNBOOK.md).
+
+Phase 7 runs those exact feature/strategy kernels and the hard risk authority
+on the live public feed, terminating approved intents in a deterministic
+market-by-price simulator. Raw data, decisions, fills, PnL/inventory, restart
+state, markouts, drift, and drills are retained. Paper configuration and its
+container reject exchange accounts and wallet references. The checked-in fill
+scenarios remain uncalibrated, so paper promotion must fail until retained
+calibration, sensitivity, sample/regime, drill, and observation gates pass. See
+[`docs/migration/PHASE_7_PAPER.md`](docs/migration/PHASE_7_PAPER.md) and
+[`docs/operations/PAPER_TRADING_RUNBOOK.md`](docs/operations/PAPER_TRADING_RUNBOOK.md).
 
 ## Current deployed runtime
 

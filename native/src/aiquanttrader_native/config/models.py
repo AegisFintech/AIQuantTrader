@@ -154,6 +154,43 @@ class MarketDataConfig(FrozenModel):
         return self
 
 
+def _validate_relative_config_reference(value: Path) -> Path:
+    if value.is_absolute() or ".." in value.parts or value == Path():
+        raise ValueError("paper configuration references must be relative and cannot traverse")
+    return value
+
+
+class PaperConfig(FrozenModel):
+    enabled: bool = False
+    strategy_id: Literal["avellaneda-stoikov-v1", "order-flow-scalper-v1"] = "order-flow-scalper-v1"
+    scenario_path: Path = Path("paper/baseline-v1.toml")
+    sensitivity_scenario_paths: tuple[Path, ...] = (Path("paper/pessimistic-v1.toml"),)
+    feature_config_path: Path = Path("features/microstructure-v1.toml")
+    strategy_config_path: Path = Path("strategies/order-flow-scalper-v1.toml")
+    evidence_policy_path: Path = Path("paper/evidence-v1.toml")
+    initial_equity_usd: Decimal = Field(default=Decimal("100000"), gt=0, le=Decimal("10000000"))
+    watchdog_interval_ms: int = Field(default=250, ge=50, le=5_000)
+    status_stale_after_ms: int = Field(default=5_000, ge=1_000, le=30_000)
+    markout_horizon_ms: int = Field(default=1_000, ge=100, le=60_000)
+    metrics_host: str = "0.0.0.0"
+    metrics_port: int = Field(default=9_112, ge=1_024, le=65_535)
+
+    @model_validator(mode="after")
+    def validate_references(self) -> Self:
+        references = (
+            self.scenario_path,
+            *self.sensitivity_scenario_paths,
+            self.feature_config_path,
+            self.strategy_config_path,
+            self.evidence_policy_path,
+        )
+        for reference in references:
+            _validate_relative_config_reference(reference)
+        if len(set(self.sensitivity_scenario_paths)) != len(self.sensitivity_scenario_paths):
+            raise ValueError("paper sensitivity scenarios must be unique")
+        return self
+
+
 class RiskLimits(FrozenModel):
     """Deployment limits clamped to application-level hard ceilings."""
 
@@ -229,6 +266,7 @@ class NativeSettings(FrozenModel):
     execution: ExecutionConfig = ExecutionConfig()
     sentinel: SentinelConfig = SentinelConfig()
     market_data: MarketDataConfig = MarketDataConfig()
+    paper: PaperConfig = PaperConfig()
     risk: RiskLimits = RiskLimits()
     storage: StorageConfig = StorageConfig()
     observability: ObservabilityConfig = ObservabilityConfig()
@@ -247,6 +285,27 @@ class NativeSettings(FrozenModel):
             and self.exchange.network is not ExchangeNetwork.MAINNET
         ):
             raise ValueError("canary and production modes require mainnet")
+
+        if self.mode is DeploymentMode.PAPER and not self.execution.enabled:
+            if any(
+                value is not None
+                for value in (
+                    self.exchange.account_address,
+                    self.exchange.trading_wallet_secret_path,
+                    self.exchange.control_wallet_secret_path,
+                )
+            ):
+                raise ValueError("paper mode forbids exchange accounts and wallet references")
+            if self.sentinel.enabled:
+                raise ValueError("paper mode cannot enable the exchange safety sentinel")
+
+        if self.paper.enabled:
+            if self.mode is not DeploymentMode.PAPER:
+                raise ValueError("the paper engine can run only in paper mode")
+            if not self.market_data.enabled:
+                raise ValueError("the paper engine requires public market data")
+            if self.execution.enabled:
+                raise ValueError("the paper engine cannot enable execution")
 
         if self.execution.enabled:
             allowed = {

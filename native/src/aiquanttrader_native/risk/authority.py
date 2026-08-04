@@ -140,6 +140,12 @@ class RiskAuthority:
             approval_signature=signature,
         )
 
+    def state(self, snapshot: RiskSnapshot) -> tuple[RiskState, tuple[RiskReason, ...]]:
+        """Expose the same synchronous state assessment used during order evaluation."""
+
+        state, reasons = self._state(snapshot, self._clock_ns())
+        return state, tuple(reasons)
+
     def consume(self, decision: RiskDecision, intent: OrderIntent, snapshot: RiskSnapshot) -> None:
         now = self._clock_ns()
         if not decision.allowed or decision.approval_signature is None:

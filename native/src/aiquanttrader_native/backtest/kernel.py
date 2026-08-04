@@ -33,9 +33,16 @@ class KernelBookLevel(DomainModel):
 
 class KernelTrade(DomainModel):
     exchange_ts_ns: int = Field(ge=0)
+    observed_ts_ns: int = Field(ge=0)
     price: Annotated[Decimal, Field(gt=0)]
     size: Annotated[Decimal, Field(gt=0)]
     aggressor: AggressorSide
+
+    @model_validator(mode="after")
+    def validate_causal_timestamp(self) -> Self:
+        if self.observed_ts_ns < self.exchange_ts_ns:
+            raise ValueError("kernel trade cannot be observed before its exchange event")
+        return self
 
 
 class KernelMarketState(DomainModel):
@@ -56,6 +63,8 @@ class KernelMarketState(DomainModel):
             raise ValueError("book timestamp cannot follow the latest state event")
         if any(trade.exchange_ts_ns > self.exchange_ts_ns for trade in self.trades):
             raise ValueError("trade timestamp cannot follow the latest state event")
+        if any(trade.observed_ts_ns > self.observed_ts_ns for trade in self.trades):
+            raise ValueError("trade receipt cannot follow the containing market state")
         if self.bids != tuple(sorted(self.bids, key=lambda level: level.price, reverse=True)):
             raise ValueError("kernel bids must be descending")
         if self.asks != tuple(sorted(self.asks, key=lambda level: level.price)):
@@ -156,6 +165,7 @@ def hft_market_states(
                 trades.append(
                     KernelTrade(
                         exchange_ts_ns=int(row["exch_ts"]),
+                        observed_ts_ns=local_ts,
                         price=Decimal(str(price)),
                         size=Decimal(str(quantity)),
                         aggressor=aggressor,
@@ -242,6 +252,7 @@ def nautilus_market_states(
                 trades.append(
                     KernelTrade(
                         exchange_ts_ns=int(trade.ts_event),
+                        observed_ts_ns=local_ts,
                         price=Decimal(str(trade.price)),
                         size=Decimal(str(trade.size)),
                         aggressor=aggressor,

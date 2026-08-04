@@ -7,7 +7,7 @@ perpetual platform. During migration it deliberately uses the import package
 
 The package currently provides the Phase 2 foundation, Phase 3 public market
 data path, Phase 4 fail-closed execution/risk path, Phase 5 causal backtesting
-framework, and Phase 6 BTC research/strategy framework:
+framework, Phase 6 BTC research/strategy framework, and Phase 7 paper path:
 
 - typed, fail-closed deployment configuration;
 - versioned market-data, feature, experiment, and deployment schemas;
@@ -40,9 +40,16 @@ framework, and Phase 6 BTC research/strategy framework:
   schema/hash validation, bounded validation search, and negative controls;
 - immutable single-writer research registry, full champion-challenger gates,
   drift reports, automation ceiling, metrics contract, and Grafana dashboard.
+- raw-first live public events driving the same feature, strategy, and hard-risk
+  code with no exchange account or wallet capability;
+- deterministic market-by-price paper queue/fill execution, cash/inventory/PnL,
+  fees, funding, latency, markouts, and scenario lineage;
+- transactional SQLite restart continuity, cancel-on-resume, stale/kill
+  handling, frozen sample/regime/drift/drill evidence, and a paper dashboard.
 
-The Phase 6 strategies are research candidates and are not wired into the
-exchange node. The exchange order path remains disabled in every checked-in
+The Phase 6 strategies are research candidates and are wired only into the
+credential-free Phase 7 simulator, not the exchange node. The exchange order
+path remains disabled in every checked-in
 environment. Configuration accepts only secret file references. Phase 4
 permits explicit testnet runtime enablement only; enabled mainnet wallets are
 rejected until Phase 9 implements cryptographic artifact-approval verification.
@@ -146,3 +153,23 @@ advance a passing challenger only to `AWAITING_APPROVAL`; the CLI has no human
 approval actor. See
 [`PHASE_6_RESEARCH.md`](../docs/migration/PHASE_6_RESEARCH.md) and
 [`RESEARCH_RUNBOOK.md`](../docs/operations/RESEARCH_RUNBOOK.md).
+
+## Paper trading
+
+Validate the credential-free paper config and render its isolated container:
+
+```bash
+uv run aqt-native validate-config --config-dir configs --environment paper
+docker compose --profile paper config --quiet
+AQT_NATIVE_CODE_IDENTITY="$(git rev-parse HEAD)" \
+  docker compose --profile paper up --build paper-trader
+```
+
+The paper service owns raw capture; do not start `market-data-recorder` against
+the same state volume. It durably syncs each raw frame before the live consumer
+and accepts only conservative risk-adverse, zero-synthetic-feed-delay paper
+scenarios. The checked-in scenarios are uncalibrated and therefore cannot pass
+`aqt-paper evidence`. Procedures, drills, sensitivity rules, and rollback are in
+[`PAPER_TRADING_RUNBOOK.md`](../docs/operations/PAPER_TRADING_RUNBOOK.md).
+`aqt-paper replay` verifies finalized raw segments and runs required sensitivity
+scenarios through the same consumer path without network access.

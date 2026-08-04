@@ -12,3 +12,6 @@ scrape_configs:
   - job_name: aiquanttrader-sentinel
     static_configs:
       - targets: ["safety-sentinel:9111"]
+  - job_name: aiquanttrader-paper
+    static_configs:
+      - targets: ["paper-trader:9112"]

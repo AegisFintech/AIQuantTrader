@@ -65,6 +65,14 @@ class IncrementalFeatureEngine:
         self._last_spread_bps: float | None = None
         self._samples = 0
 
+    @property
+    def sample_count(self) -> int:
+        return self._samples
+
+    @property
+    def ready(self) -> bool:
+        return self._samples >= self.config.warmup_samples
+
     def update(
         self,
         market: KernelMarketState,

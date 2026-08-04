@@ -270,6 +270,42 @@ def test_recorder_archives_before_parse_and_catalogs_exclusion(tmp_path: Path) -
     assert state.status == "stopped"
 
 
+def test_live_consumer_runs_only_after_raw_frame_is_flushed(tmp_path: Path) -> None:
+    async def scenario() -> None:
+        stop = asyncio.Event()
+        socket = FakeSocket(b'{"channel":"pong"}', stop)
+        observed: list[str] = []
+
+        async def consume(frame: object) -> None:
+            partials = list((tmp_path / "data" / "raw").rglob("*.partial"))
+            assert len(partials) == 1
+            assert partials[0].stat().st_size > 0
+            observed.append(type(frame).__name__)
+
+        with ManifestCatalog(tmp_path / "state" / "catalog.duckdb") as catalog:
+            recorder = MarketDataRecorder(
+                websocket_url="wss://api.hyperliquid.xyz/ws",
+                network="mainnet",
+                environment="paper",
+                config=MarketDataConfig(
+                    enabled=True,
+                    sync_every_records=1,
+                    minimum_free_bytes=67_108_864,
+                    minimum_free_fraction=Decimal("0.01"),
+                ),
+                data_root=tmp_path / "data",
+                state_root=tmp_path / "state",
+                catalog=catalog,
+                metrics=RecorderMetrics.create(),
+                socket_factory=lambda _url, _size: FakeSocketContext(socket),
+                frame_consumer=consume,
+            )
+            await recorder.run(stop)
+        assert observed == ["ParsedFrame"]
+
+    asyncio.run(scenario())
+
+
 def test_disk_pressure_is_fail_closed(tmp_path: Path) -> None:
     config = MarketDataConfig(
         enabled=True,

@@ -1,0 +1,1643 @@
+{
+  "$defs": {
+    "CalibrationState": {
+      "enum": [
+        "uncalibrated",
+        "calibrated"
+      ],
+      "title": "CalibrationState",
+      "type": "string"
+    },
+    "OrderIntent": {
+      "additionalProperties": false,
+      "properties": {
+        "created_ts_ns": {
+          "minimum": 0,
+          "title": "Created Ts Ns",
+          "type": "integer"
+        },
+        "instrument_id": {
+          "const": "BTC-USD-PERP.HYPERLIQUID",
+          "default": "BTC-USD-PERP.HYPERLIQUID",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "intent_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/OrderKind"
+        },
+        "limit_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Limit Price"
+        },
+        "post_only": {
+          "default": false,
+          "title": "Post Only",
+          "type": "boolean"
+        },
+        "quantity_base": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Quantity Base"
+        },
+        "rationale": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "reduce_only": {
+          "default": false,
+          "title": "Reduce Only",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "side": {
+          "$ref": "#/$defs/OrderSide"
+        },
+        "strategy_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "time_in_force": {
+          "$ref": "#/$defs/TimeInForce",
+          "default": "gtc"
+        }
+      },
+      "required": [
+        "intent_id",
+        "strategy_id",
+        "side",
+        "kind",
+        "quantity_base",
+        "created_ts_ns",
+        "rationale"
+      ],
+      "title": "OrderIntent",
+      "type": "object"
+    },
+    "OrderKind": {
+      "enum": [
+        "limit",
+        "market"
+      ],
+      "title": "OrderKind",
+      "type": "string"
+    },
+    "OrderSide": {
+      "enum": [
+        "buy",
+        "sell"
+      ],
+      "title": "OrderSide",
+      "type": "string"
+    },
+    "PaperAccountState": {
+      "additionalProperties": false,
+      "properties": {
+        "average_entry_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Average Entry Price"
+        },
+        "cash_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Cash Usd"
+        },
+        "day_start_equity_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Day Start Equity Usd"
+        },
+        "equity_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Equity Usd"
+        },
+        "fees_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Fees Usd"
+        },
+        "funding_pnl_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Funding Pnl Usd"
+        },
+        "high_water_equity_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "High Water Equity Usd"
+        },
+        "last_funding_settlement_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Funding Settlement Ns"
+        },
+        "mark_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Mark Price"
+        },
+        "position_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Position Base"
+        },
+        "realized_trading_pnl_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Realized Trading Pnl Usd"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "updated_ts_ns": {
+          "minimum": 0,
+          "title": "Updated Ts Ns",
+          "type": "integer"
+        },
+        "utc_day": {
+          "minimum": 0,
+          "title": "Utc Day",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cash_usd",
+        "mark_price",
+        "equity_usd",
+        "day_start_equity_usd",
+        "high_water_equity_usd",
+        "utc_day",
+        "updated_ts_ns"
+      ],
+      "title": "PaperAccountState",
+      "type": "object"
+    },
+    "PaperDecisionRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_ts_ns": {
+          "minimum": 0,
+          "title": "Decision Ts Ns",
+          "type": "integer"
+        },
+        "feature_snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Snapshot Sha256",
+          "type": "string"
+        },
+        "independent": {
+          "title": "Independent",
+          "type": "boolean"
+        },
+        "intent": {
+          "$ref": "#/$defs/OrderIntent"
+        },
+        "record_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Record Id",
+          "type": "string"
+        },
+        "risk_decision": {
+          "$ref": "#/$defs/RiskDecision"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sequence": {
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "strategy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Strategy Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_id",
+        "sequence",
+        "decision_ts_ns",
+        "feature_snapshot_sha256",
+        "strategy_id",
+        "intent",
+        "risk_decision",
+        "independent"
+      ],
+      "title": "PaperDecisionRecord",
+      "type": "object"
+    },
+    "PaperEngineCheckpoint": {
+      "additionalProperties": false,
+      "properties": {
+        "checkpoint_ts_ns": {
+          "minimum": 0,
+          "title": "Checkpoint Ts Ns",
+          "type": "integer"
+        },
+        "funding_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Funding Rate"
+        },
+        "last_independent_decision_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Independent Decision Ts Ns"
+        },
+        "next_funding_settlement_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Funding Settlement Ns"
+        },
+        "run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sequence": {
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "strategy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "strategy_memory_json": {
+          "maxLength": 65536,
+          "minLength": 2,
+          "title": "Strategy Memory Json",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "sequence",
+        "checkpoint_ts_ns",
+        "strategy_id",
+        "strategy_memory_json"
+      ],
+      "title": "PaperEngineCheckpoint",
+      "type": "object"
+    },
+    "PaperEvidencePolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_independence_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Decision Independence Ns",
+          "type": "integer"
+        },
+        "drift_baseline_samples": {
+          "default": 1000,
+          "minimum": 20,
+          "title": "Drift Baseline Samples",
+          "type": "integer"
+        },
+        "drift_evaluation_interval_samples": {
+          "default": 100,
+          "minimum": 1,
+          "title": "Drift Evaluation Interval Samples",
+          "type": "integer"
+        },
+        "drift_window_samples": {
+          "default": 1000,
+          "minimum": 20,
+          "title": "Drift Window Samples",
+          "type": "integer"
+        },
+        "frozen_at_ns": {
+          "minimum": 0,
+          "title": "Frozen At Ns",
+          "type": "integer"
+        },
+        "maximum_adverse_markout_bps": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Adverse Markout Bps"
+        },
+        "maximum_denial_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Denial Fraction"
+        },
+        "maximum_drawdown_fraction": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "maximum": 1.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Drawdown Fraction"
+        },
+        "maximum_feature_psi": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0.2",
+          "title": "Maximum Feature Psi"
+        },
+        "maximum_standardized_mean_shift": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "1",
+          "title": "Maximum Standardized Mean Shift"
+        },
+        "minimum_fills": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Fills",
+          "type": "integer"
+        },
+        "minimum_independent_decisions": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Independent Decisions",
+          "type": "integer"
+        },
+        "minimum_observation_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Observation Ns",
+          "type": "integer"
+        },
+        "minimum_regimes": {
+          "default": 3,
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Minimum Regimes",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "require_positive_post_cost_pnl": {
+          "default": true,
+          "title": "Require Positive Post Cost Pnl",
+          "type": "boolean"
+        },
+        "required_drills": {
+          "default": [
+            "restart",
+            "stale_data",
+            "daily_loss",
+            "drawdown",
+            "operator_kill",
+            "observability"
+          ],
+          "items": {
+            "enum": [
+              "restart",
+              "stale_data",
+              "daily_loss",
+              "drawdown",
+              "operator_kill",
+              "observability"
+            ],
+            "type": "string"
+          },
+          "title": "Required Drills",
+          "type": "array"
+        },
+        "required_sensitivity_scenarios": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Required Sensitivity Scenarios",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_id",
+        "frozen_at_ns",
+        "minimum_observation_ns",
+        "minimum_independent_decisions",
+        "decision_independence_ns",
+        "minimum_fills",
+        "maximum_drawdown_fraction",
+        "maximum_denial_fraction",
+        "maximum_adverse_markout_bps",
+        "required_sensitivity_scenarios"
+      ],
+      "title": "PaperEvidencePolicy",
+      "type": "object"
+    },
+    "PaperEvidenceReport": {
+      "additionalProperties": false,
+      "properties": {
+        "approved_decisions": {
+          "minimum": 0,
+          "title": "Approved Decisions",
+          "type": "integer"
+        },
+        "calibration_state": {
+          "$ref": "#/$defs/CalibrationState"
+        },
+        "code_identity": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Code Identity",
+          "type": "string"
+        },
+        "completed_drills": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "type": "string"
+          },
+          "title": "Completed Drills",
+          "type": "array"
+        },
+        "config_fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Config Fingerprint",
+          "type": "string"
+        },
+        "denied_decisions": {
+          "minimum": 0,
+          "title": "Denied Decisions",
+          "type": "integer"
+        },
+        "drift_evaluated": {
+          "title": "Drift Evaluated",
+          "type": "boolean"
+        },
+        "ending_position_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Ending Position Base"
+        },
+        "feature_config_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Config Sha256",
+          "type": "string"
+        },
+        "fills": {
+          "minimum": 0,
+          "title": "Fills",
+          "type": "integer"
+        },
+        "gates": {
+          "items": {
+            "$ref": "#/$defs/PaperGateResult"
+          },
+          "title": "Gates",
+          "type": "array"
+        },
+        "generated_ts_ns": {
+          "minimum": 0,
+          "title": "Generated Ts Ns",
+          "type": "integer"
+        },
+        "independent_decisions": {
+          "minimum": 0,
+          "title": "Independent Decisions",
+          "type": "integer"
+        },
+        "invalidating_events": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "type": "string"
+          },
+          "title": "Invalidating Events",
+          "type": "array"
+        },
+        "markouts": {
+          "minimum": 0,
+          "title": "Markouts",
+          "type": "integer"
+        },
+        "maximum_drawdown_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Drawdown Fraction"
+        },
+        "maximum_feature_psi": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Feature Psi"
+        },
+        "maximum_standardized_mean_shift": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Standardized Mean Shift"
+        },
+        "mean_adverse_markout_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Mean Adverse Markout Bps"
+        },
+        "observation_ended_ts_ns": {
+          "minimum": 0,
+          "title": "Observation Ended Ts Ns",
+          "type": "integer"
+        },
+        "observation_ns": {
+          "minimum": 0,
+          "title": "Observation Ns",
+          "type": "integer"
+        },
+        "observation_started_ts_ns": {
+          "minimum": 0,
+          "title": "Observation Started Ts Ns",
+          "type": "integer"
+        },
+        "open_orders": {
+          "minimum": 0,
+          "title": "Open Orders",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "post_cost_pnl_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Post Cost Pnl Usd"
+        },
+        "promotion_eligible": {
+          "title": "Promotion Eligible",
+          "type": "boolean"
+        },
+        "regimes": {
+          "items": {
+            "$ref": "#/$defs/VolatilityRegime"
+          },
+          "title": "Regimes",
+          "type": "array"
+        },
+        "report_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Report Id",
+          "type": "string"
+        },
+        "run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "run_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Run Manifest Sha256",
+          "type": "string"
+        },
+        "scenario_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "scenario_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sensitivity_scenarios": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "type": "string"
+          },
+          "title": "Sensitivity Scenarios",
+          "type": "array"
+        },
+        "strategy_config_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Strategy Config Sha256",
+          "type": "string"
+        },
+        "strategy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Strategy Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "report_id",
+        "run_id",
+        "run_manifest_sha256",
+        "generated_ts_ns",
+        "policy_id",
+        "policy_sha256",
+        "code_identity",
+        "config_fingerprint",
+        "feature_config_sha256",
+        "strategy_config_sha256",
+        "strategy_id",
+        "scenario_id",
+        "scenario_sha256",
+        "calibration_state",
+        "observation_started_ts_ns",
+        "observation_ended_ts_ns",
+        "observation_ns",
+        "independent_decisions",
+        "approved_decisions",
+        "denied_decisions",
+        "fills",
+        "markouts",
+        "ending_position_base",
+        "open_orders",
+        "regimes",
+        "post_cost_pnl_usd",
+        "maximum_drawdown_fraction",
+        "mean_adverse_markout_bps",
+        "drift_evaluated",
+        "maximum_feature_psi",
+        "maximum_standardized_mean_shift",
+        "sensitivity_scenarios",
+        "completed_drills",
+        "invalidating_events",
+        "gates",
+        "promotion_eligible"
+      ],
+      "title": "PaperEvidenceReport",
+      "type": "object"
+    },
+    "PaperFill": {
+      "additionalProperties": false,
+      "properties": {
+        "decision_latency_ns": {
+          "minimum": 0,
+          "title": "Decision Latency Ns",
+          "type": "integer"
+        },
+        "fee_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Fee Usd"
+        },
+        "fill_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Fill Id",
+          "type": "string"
+        },
+        "fill_ts_ns": {
+          "minimum": 0,
+          "title": "Fill Ts Ns",
+          "type": "integer"
+        },
+        "intent_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "maker": {
+          "title": "Maker",
+          "type": "boolean"
+        },
+        "paper_order_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Paper Order Id",
+          "type": "string"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Price"
+        },
+        "quantity_base": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Quantity Base"
+        },
+        "scenario_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "scenario_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "side": {
+          "$ref": "#/$defs/OrderSide"
+        },
+        "strategy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Strategy Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fill_id",
+        "paper_order_id",
+        "intent_id",
+        "strategy_id",
+        "side",
+        "quantity_base",
+        "price",
+        "fee_usd",
+        "maker",
+        "fill_ts_ns",
+        "decision_latency_ns",
+        "scenario_id",
+        "scenario_sha256"
+      ],
+      "title": "PaperFill",
+      "type": "object"
+    },
+    "PaperGateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "actual": {
+          "title": "Actual",
+          "type": "string"
+        },
+        "gate": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Gate",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "required": {
+          "title": "Required",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gate",
+        "passed",
+        "actual",
+        "required"
+      ],
+      "title": "PaperGateResult",
+      "type": "object"
+    },
+    "PaperMarkout": {
+      "additionalProperties": false,
+      "properties": {
+        "fill_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Fill Id",
+          "type": "string"
+        },
+        "horizon_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Horizon Ns",
+          "type": "integer"
+        },
+        "mark_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Mark Price"
+        },
+        "observed_ts_ns": {
+          "minimum": 0,
+          "title": "Observed Ts Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "signed_markout_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Signed Markout Bps"
+        }
+      },
+      "required": [
+        "fill_id",
+        "horizon_ns",
+        "observed_ts_ns",
+        "mark_price",
+        "signed_markout_bps"
+      ],
+      "title": "PaperMarkout",
+      "type": "object"
+    },
+    "PaperOrder": {
+      "additionalProperties": false,
+      "properties": {
+        "accepted_ts_ns": {
+          "minimum": 0,
+          "title": "Accepted Ts Ns",
+          "type": "integer"
+        },
+        "cancel_effective_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cancel Effective Ts Ns"
+        },
+        "effective_ts_ns": {
+          "minimum": 0,
+          "title": "Effective Ts Ns",
+          "type": "integer"
+        },
+        "filled_quantity_base": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Filled Quantity Base"
+        },
+        "intent": {
+          "$ref": "#/$defs/OrderIntent"
+        },
+        "paper_order_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Paper Order Id",
+          "type": "string"
+        },
+        "queue_ahead_base": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Queue Ahead Base"
+        },
+        "rejection_reason": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rejection Reason"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/PaperOrderState"
+        },
+        "updated_ts_ns": {
+          "minimum": 0,
+          "title": "Updated Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "paper_order_id",
+        "intent",
+        "state",
+        "accepted_ts_ns",
+        "effective_ts_ns",
+        "updated_ts_ns"
+      ],
+      "title": "PaperOrder",
+      "type": "object"
+    },
+    "PaperOrderState": {
+      "enum": [
+        "pending_activation",
+        "resting",
+        "partially_filled",
+        "pending_cancel",
+        "filled",
+        "canceled",
+        "rejected"
+      ],
+      "title": "PaperOrderState",
+      "type": "string"
+    },
+    "PaperRunManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "code_identity": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Code Identity",
+          "type": "string"
+        },
+        "config_fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Config Fingerprint",
+          "type": "string"
+        },
+        "credential_capability": {
+          "const": "none",
+          "default": "none",
+          "title": "Credential Capability",
+          "type": "string"
+        },
+        "environment": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Environment",
+          "type": "string"
+        },
+        "evidence_policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Evidence Policy Sha256",
+          "type": "string"
+        },
+        "feature_config_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Config Sha256",
+          "type": "string"
+        },
+        "run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "scenario_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "scenario_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_ts_ns": {
+          "minimum": 0,
+          "title": "Started Ts Ns",
+          "type": "integer"
+        },
+        "strategy_config_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Strategy Config Sha256",
+          "type": "string"
+        },
+        "strategy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Strategy Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "environment",
+        "started_ts_ns",
+        "code_identity",
+        "config_fingerprint",
+        "feature_config_sha256",
+        "strategy_config_sha256",
+        "scenario_id",
+        "scenario_sha256",
+        "evidence_policy_sha256",
+        "strategy_id"
+      ],
+      "title": "PaperRunManifest",
+      "type": "object"
+    },
+    "PaperRuntimeStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "account": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaperAccountState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "calibration_state": {
+          "$ref": "#/$defs/CalibrationState"
+        },
+        "config_fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Config Fingerprint",
+          "type": "string"
+        },
+        "decisions": {
+          "minimum": 0,
+          "title": "Decisions",
+          "type": "integer"
+        },
+        "environment": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Environment",
+          "type": "string"
+        },
+        "feature_ready": {
+          "title": "Feature Ready",
+          "type": "boolean"
+        },
+        "feed_connected": {
+          "title": "Feed Connected",
+          "type": "boolean"
+        },
+        "fills": {
+          "minimum": 0,
+          "title": "Fills",
+          "type": "integer"
+        },
+        "heartbeat_ts_ns": {
+          "minimum": 0,
+          "title": "Heartbeat Ts Ns",
+          "type": "integer"
+        },
+        "last_error_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Error Code"
+        },
+        "last_public_data_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Public Data Ts Ns"
+        },
+        "open_orders": {
+          "minimum": 0,
+          "title": "Open Orders",
+          "type": "integer"
+        },
+        "operator_kill": {
+          "title": "Operator Kill",
+          "type": "boolean"
+        },
+        "run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "scenario_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "scenario_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "starting",
+            "warming",
+            "ready",
+            "degraded",
+            "stopped",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "strategy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Strategy Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "run_id",
+        "environment",
+        "heartbeat_ts_ns",
+        "feed_connected",
+        "feature_ready",
+        "operator_kill",
+        "scenario_id",
+        "scenario_sha256",
+        "calibration_state",
+        "strategy_id",
+        "config_fingerprint",
+        "open_orders",
+        "decisions",
+        "fills"
+      ],
+      "title": "PaperRuntimeStatus",
+      "type": "object"
+    },
+    "RiskDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed": {
+          "title": "Allowed",
+          "type": "boolean"
+        },
+        "approval_signature": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Approval Signature"
+        },
+        "decision_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Decision Id",
+          "type": "string"
+        },
+        "expires_ts_ns": {
+          "minimum": 0,
+          "title": "Expires Ts Ns",
+          "type": "integer"
+        },
+        "intent_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Intent Sha256",
+          "type": "string"
+        },
+        "issued_ts_ns": {
+          "minimum": 0,
+          "title": "Issued Ts Ns",
+          "type": "integer"
+        },
+        "limits_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Limits Sha256",
+          "type": "string"
+        },
+        "reasons": {
+          "items": {
+            "$ref": "#/$defs/RiskReason"
+          },
+          "minItems": 1,
+          "title": "Reasons",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Snapshot Sha256",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/RiskState"
+        }
+      },
+      "required": [
+        "decision_id",
+        "intent_sha256",
+        "snapshot_sha256",
+        "limits_sha256",
+        "state",
+        "allowed",
+        "reasons",
+        "issued_ts_ns",
+        "expires_ts_ns"
+      ],
+      "title": "RiskDecision",
+      "type": "object"
+    },
+    "RiskReason": {
+      "enum": [
+        "approved",
+        "operator_kill",
+        "flatten_requested",
+        "exchange_disconnected",
+        "reconciliation_incomplete",
+        "public_data_stale",
+        "private_data_stale",
+        "invalid_account_state",
+        "daily_loss_limit",
+        "drawdown_limit",
+        "order_size_limit",
+        "order_notional_limit",
+        "position_limit",
+        "inventory_limit",
+        "leverage_limit",
+        "open_order_limit",
+        "inflight_request_limit",
+        "order_rate_limit",
+        "reduce_only_required",
+        "not_position_reducing",
+        "intent_too_old",
+        "invalid_timestamp"
+      ],
+      "title": "RiskReason",
+      "type": "string"
+    },
+    "RiskState": {
+      "enum": [
+        "active",
+        "reduce_only",
+        "cancel_only",
+        "halted",
+        "flattening"
+      ],
+      "title": "RiskState",
+      "type": "string"
+    },
+    "TimeInForce": {
+      "enum": [
+        "gtc",
+        "ioc"
+      ],
+      "title": "TimeInForce",
+      "type": "string"
+    },
+    "VolatilityRegime": {
+      "enum": [
+        "warmup",
+        "low",
+        "normal",
+        "high"
+      ],
+      "title": "VolatilityRegime",
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/PaperOrder"
+    },
+    {
+      "$ref": "#/$defs/PaperFill"
+    },
+    {
+      "$ref": "#/$defs/PaperAccountState"
+    },
+    {
+      "$ref": "#/$defs/PaperDecisionRecord"
+    },
+    {
+      "$ref": "#/$defs/PaperRunManifest"
+    },
+    {
+      "$ref": "#/$defs/PaperEngineCheckpoint"
+    },
+    {
+      "$ref": "#/$defs/PaperEvidencePolicy"
+    },
+    {
+      "$ref": "#/$defs/PaperEvidenceReport"
+    },
+    {
+      "$ref": "#/$defs/PaperRuntimeStatus"
+    },
+    {
+      "$ref": "#/$defs/PaperMarkout"
+    }
+  ]
+}

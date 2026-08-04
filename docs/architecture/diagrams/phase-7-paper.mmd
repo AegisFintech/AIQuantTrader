@@ -1,0 +1,49 @@
+flowchart LR
+    HL[Hyperliquid public WebSocket]
+
+    subgraph PaperContainer[Non-root read-only paper container]
+        RAW[Raw-first recorder]
+        PARSE[Strict BTC normalizer]
+        STATE[Causal L2 and trade assembler]
+        FEAT[Production feature engine]
+        STRAT[Production strategy kernel]
+        RISK[Synchronous hard risk authority]
+        SIM[Deterministic MBP paper exchange]
+        DRIFT[Run-frozen online drift monitor]
+        WATCH[Stale and operator-kill watchdog]
+    end
+
+    subgraph Durable[Writable state and data volumes]
+        ARCHIVE[(Immutable raw segments)]
+        JOURNAL[(SQLite decisions, orders, fills, account, checkpoints)]
+        KILL[Persistent operator kill]
+        STATUS[Atomic health status]
+    end
+
+    HL --> RAW
+    RAW -->|append, flush, fdatasync before callback| ARCHIVE
+    RAW --> PARSE
+    PARSE --> STATE
+    STATE --> FEAT
+    FEAT --> STRAT
+    FEAT --> DRIFT
+    STRAT --> RISK
+    RISK -->|single-use approval| SIM
+    SIM --> JOURNAL
+    DRIFT --> JOURNAL
+    KILL --> RISK
+    WATCH --> RISK
+    WATCH --> SIM
+    WATCH --> STATUS
+
+    PROM[Prometheus] --> GRAF[Grafana paper dashboard]
+    FEAT --> PROM
+    RISK --> PROM
+    SIM --> PROM
+    DRIFT --> PROM
+
+    KEY[Exchange account or wallet]
+    KEY -. forbidden by config, compose, and tests .-> PaperContainer
+
+    classDef forbidden fill:#5b1a1a,color:#fff,stroke:#ff6b6b,stroke-width:2px;
+    class KEY forbidden;
