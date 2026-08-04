@@ -186,6 +186,12 @@ after satisfying the frozen paper policy and sample-size requirements.
 
 ### Phase 8: Shadow trading
 
+Implementation status: code and automated isolation/replay/fault gates are
+complete. Empirical acceptance remains pending exact-image production-host
+deployment, calibrated scenarios, required samples/regimes and drills, and the
+minimum observation window. See
+[`PHASE_8_SHADOW.md`](PHASE_8_SHADOW.md).
+
 Deliverables:
 
 - production image, configuration, features, strategy, and risk path running on

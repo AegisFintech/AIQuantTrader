@@ -156,7 +156,7 @@ class MarketDataConfig(FrozenModel):
 
 def _validate_relative_config_reference(value: Path) -> Path:
     if value.is_absolute() or ".." in value.parts or value == Path():
-        raise ValueError("paper configuration references must be relative and cannot traverse")
+        raise ValueError("validation configuration references must be relative and cannot traverse")
     return value
 
 
@@ -188,6 +188,45 @@ class PaperConfig(FrozenModel):
             _validate_relative_config_reference(reference)
         if len(set(self.sensitivity_scenario_paths)) != len(self.sensitivity_scenario_paths):
             raise ValueError("paper sensitivity scenarios must be unique")
+        return self
+
+
+class ShadowConfig(FrozenModel):
+    enabled: bool = False
+    strategy_id: Literal["avellaneda-stoikov-v1", "order-flow-scalper-v1"] = "order-flow-scalper-v1"
+    scenario_path: Path = Path("paper/baseline-v1.toml")
+    sensitivity_scenario_paths: tuple[Path, ...] = (Path("paper/pessimistic-v1.toml"),)
+    feature_config_path: Path = Path("features/microstructure-v1.toml")
+    strategy_config_path: Path = Path("strategies/order-flow-scalper-v1.toml")
+    engine_policy_path: Path = Path("paper/evidence-v1.toml")
+    evidence_policy_path: Path = Path("shadow/evidence-v1.toml")
+    initial_equity_usd: Decimal = Field(default=Decimal("100000"), gt=0, le=Decimal("10000000"))
+    watchdog_interval_ms: int = Field(default=250, ge=50, le=5_000)
+    health_sample_interval_ms: int = Field(default=1_000, ge=250, le=10_000)
+    ingress_poll_interval_ms: int = Field(default=10, ge=1, le=1_000)
+    ingress_batch_size: int = Field(default=100, ge=1, le=10_000)
+    maximum_ingress_lag_ms: int = Field(default=1_500, ge=100, le=30_000)
+    maximum_clock_skew_ms: int = Field(default=250, ge=10, le=5_000)
+    status_stale_after_ms: int = Field(default=5_000, ge=1_000, le=30_000)
+    markout_horizon_ms: int = Field(default=1_000, ge=100, le=60_000)
+    metrics_port: int = Field(default=9_113, ge=1_024, le=65_535)
+
+    @model_validator(mode="after")
+    def validate_references(self) -> Self:
+        references = (
+            self.scenario_path,
+            *self.sensitivity_scenario_paths,
+            self.feature_config_path,
+            self.strategy_config_path,
+            self.engine_policy_path,
+            self.evidence_policy_path,
+        )
+        for reference in references:
+            _validate_relative_config_reference(reference)
+        if len(set(self.sensitivity_scenario_paths)) != len(self.sensitivity_scenario_paths):
+            raise ValueError("shadow sensitivity scenarios must be unique")
+        if self.health_sample_interval_ms < self.watchdog_interval_ms:
+            raise ValueError("shadow health sampling cannot be faster than the watchdog")
         return self
 
 
@@ -267,6 +306,7 @@ class NativeSettings(FrozenModel):
     sentinel: SentinelConfig = SentinelConfig()
     market_data: MarketDataConfig = MarketDataConfig()
     paper: PaperConfig = PaperConfig()
+    shadow: ShadowConfig = ShadowConfig()
     risk: RiskLimits = RiskLimits()
     storage: StorageConfig = StorageConfig()
     observability: ObservabilityConfig = ObservabilityConfig()
@@ -274,6 +314,16 @@ class NativeSettings(FrozenModel):
 
     @model_validator(mode="after")
     def enforce_deployment_boundary(self) -> Self:
+        if self.paper.enabled and self.shadow.enabled:
+            raise ValueError("paper and shadow engines cannot be enabled together")
+
+        if self.execution.enabled and self.mode in {
+            DeploymentMode.RESEARCH,
+            DeploymentMode.PAPER,
+            DeploymentMode.SHADOW,
+        }:
+            raise ValueError("research, paper, and shadow modes cannot enable execution")
+
         if (
             self.mode is DeploymentMode.TESTNET
             and self.exchange.network is not ExchangeNetwork.TESTNET
@@ -286,7 +336,7 @@ class NativeSettings(FrozenModel):
         ):
             raise ValueError("canary and production modes require mainnet")
 
-        if self.mode is DeploymentMode.PAPER and not self.execution.enabled:
+        if self.mode in {DeploymentMode.PAPER, DeploymentMode.SHADOW}:
             if any(
                 value is not None
                 for value in (
@@ -295,9 +345,13 @@ class NativeSettings(FrozenModel):
                     self.exchange.control_wallet_secret_path,
                 )
             ):
-                raise ValueError("paper mode forbids exchange accounts and wallet references")
+                raise ValueError(
+                    f"{self.mode.value} mode forbids exchange accounts and wallet references"
+                )
             if self.sentinel.enabled:
-                raise ValueError("paper mode cannot enable the exchange safety sentinel")
+                raise ValueError(
+                    f"{self.mode.value} mode cannot enable the exchange safety sentinel"
+                )
 
         if self.paper.enabled:
             if self.mode is not DeploymentMode.PAPER:
@@ -306,6 +360,14 @@ class NativeSettings(FrozenModel):
                 raise ValueError("the paper engine requires public market data")
             if self.execution.enabled:
                 raise ValueError("the paper engine cannot enable execution")
+
+        if self.shadow.enabled:
+            if self.mode is not DeploymentMode.SHADOW:
+                raise ValueError("the shadow engine can run only in shadow mode")
+            if not self.market_data.enabled:
+                raise ValueError("the shadow gateway requires public market data")
+            if self.execution.enabled:
+                raise ValueError("the shadow engine cannot enable execution")
 
         if self.execution.enabled:
             allowed = {

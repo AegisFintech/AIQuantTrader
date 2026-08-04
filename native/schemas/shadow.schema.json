@@ -1,0 +1,2312 @@
+{
+  "$defs": {
+    "AccountEventHeader": {
+      "additionalProperties": false,
+      "properties": {
+        "account_address": {
+          "anyOf": [
+            {
+              "pattern": "^0x[0-9a-fA-F]{40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Account Address"
+        },
+        "connection_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Connection Id",
+          "type": "string"
+        },
+        "event_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Event Id",
+          "type": "string"
+        },
+        "event_ts_ns": {
+          "minimum": 0,
+          "title": "Event Ts Ns",
+          "type": "integer"
+        },
+        "event_ts_source": {
+          "$ref": "#/$defs/TimestampSource",
+          "default": "exchange"
+        },
+        "receive_ts_ns": {
+          "minimum": 0,
+          "title": "Receive Ts Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/EventSource",
+          "default": "hyperliquid_websocket"
+        },
+        "source_record_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Record Id"
+        },
+        "venue": {
+          "const": "HYPERLIQUID",
+          "default": "HYPERLIQUID",
+          "title": "Venue",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "event_ts_ns",
+        "receive_ts_ns",
+        "connection_id"
+      ],
+      "title": "AccountEventHeader",
+      "type": "object"
+    },
+    "AccountFillEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "closed_pnl": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Closed Pnl"
+        },
+        "event_type": {
+          "const": "account_fill",
+          "default": "account_fill",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "fee": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Fee"
+        },
+        "fee_token": {
+          "maxLength": 32,
+          "minLength": 1,
+          "title": "Fee Token",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "liquidity": {
+          "enum": [
+            "maker",
+            "taker"
+          ],
+          "title": "Liquidity",
+          "type": "string"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Price"
+        },
+        "side": {
+          "$ref": "#/$defs/OrderSide"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Size"
+        },
+        "trade_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Trade Id",
+          "type": "string"
+        },
+        "transaction_hash": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Transaction Hash",
+          "type": "string"
+        },
+        "venue_order_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Venue Order Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "header",
+        "venue_order_id",
+        "trade_id",
+        "side",
+        "price",
+        "size",
+        "liquidity",
+        "fee",
+        "fee_token",
+        "closed_pnl",
+        "transaction_hash"
+      ],
+      "title": "AccountFillEvent",
+      "type": "object"
+    },
+    "AccountLiquidationEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "account_liquidation",
+          "default": "account_liquidation",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/AccountEventHeader"
+        },
+        "liquidated_account_value_usd": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Liquidated Account Value Usd"
+        },
+        "liquidated_notional_usd": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Liquidated Notional Usd"
+        },
+        "liquidated_user_address": {
+          "pattern": "^0x[0-9a-fA-F]{40}$",
+          "title": "Liquidated User Address",
+          "type": "string"
+        },
+        "liquidation_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Liquidation Id",
+          "type": "string"
+        },
+        "liquidator_address": {
+          "pattern": "^0x[0-9a-fA-F]{40}$",
+          "title": "Liquidator Address",
+          "type": "string"
+        }
+      },
+      "required": [
+        "header",
+        "liquidation_id",
+        "liquidator_address",
+        "liquidated_user_address",
+        "liquidated_notional_usd",
+        "liquidated_account_value_usd"
+      ],
+      "title": "AccountLiquidationEvent",
+      "type": "object"
+    },
+    "AccountOrderUpdateEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "client_order_id": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Client Order Id"
+        },
+        "event_type": {
+          "const": "account_order_update",
+          "default": "account_order_update",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "limit_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Limit Price"
+        },
+        "original_size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Original Size"
+        },
+        "reduce_only": {
+          "title": "Reduce Only",
+          "type": "boolean"
+        },
+        "remaining_size": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Remaining Size"
+        },
+        "side": {
+          "$ref": "#/$defs/OrderSide"
+        },
+        "status": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Status",
+          "type": "string"
+        },
+        "venue_order_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Venue Order Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "header",
+        "venue_order_id",
+        "side",
+        "limit_price",
+        "remaining_size",
+        "original_size",
+        "status",
+        "reduce_only"
+      ],
+      "title": "AccountOrderUpdateEvent",
+      "type": "object"
+    },
+    "AggressorSide": {
+      "enum": [
+        "buyer",
+        "seller",
+        "unknown"
+      ],
+      "title": "AggressorSide",
+      "type": "string"
+    },
+    "BboEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "ask_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Ask Price"
+        },
+        "ask_size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Ask Size"
+        },
+        "bid_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Bid Price"
+        },
+        "bid_size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Bid Size"
+        },
+        "event_type": {
+          "const": "bbo",
+          "default": "bbo",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        }
+      },
+      "required": [
+        "header",
+        "bid_price",
+        "bid_size",
+        "ask_price",
+        "ask_size"
+      ],
+      "title": "BboEvent",
+      "type": "object"
+    },
+    "BookLevel": {
+      "additionalProperties": false,
+      "properties": {
+        "order_count": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Order Count"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Price"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Size"
+        }
+      },
+      "required": [
+        "price",
+        "size"
+      ],
+      "title": "BookLevel",
+      "type": "object"
+    },
+    "CalibrationState": {
+      "enum": [
+        "uncalibrated",
+        "calibrated"
+      ],
+      "title": "CalibrationState",
+      "type": "string"
+    },
+    "EventHeader": {
+      "additionalProperties": false,
+      "properties": {
+        "connection_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Connection Id",
+          "type": "string"
+        },
+        "event_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Event Id",
+          "type": "string"
+        },
+        "event_ts_ns": {
+          "minimum": 0,
+          "title": "Event Ts Ns",
+          "type": "integer"
+        },
+        "event_ts_source": {
+          "$ref": "#/$defs/TimestampSource",
+          "default": "exchange"
+        },
+        "instrument_id": {
+          "const": "BTC-USD-PERP.HYPERLIQUID",
+          "default": "BTC-USD-PERP.HYPERLIQUID",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "receive_ts_ns": {
+          "minimum": 0,
+          "title": "Receive Ts Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source": {
+          "$ref": "#/$defs/EventSource",
+          "default": "hyperliquid_websocket"
+        },
+        "source_record_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Record Id"
+        },
+        "venue": {
+          "const": "HYPERLIQUID",
+          "default": "HYPERLIQUID",
+          "title": "Venue",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "event_ts_ns",
+        "receive_ts_ns",
+        "connection_id"
+      ],
+      "title": "EventHeader",
+      "type": "object"
+    },
+    "EventSource": {
+      "enum": [
+        "hyperliquid_websocket",
+        "tardis_csv"
+      ],
+      "title": "EventSource",
+      "type": "string"
+    },
+    "FundingEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "funding",
+          "default": "funding",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "funding_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Funding Rate"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "next_funding_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Funding Ts Ns"
+        }
+      },
+      "required": [
+        "header",
+        "funding_rate"
+      ],
+      "title": "FundingEvent",
+      "type": "object"
+    },
+    "FundingPaymentEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "amount_usdc": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Amount Usdc"
+        },
+        "event_type": {
+          "const": "funding_payment",
+          "default": "funding_payment",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "funding_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Funding Rate"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "position_size_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Position Size Base"
+        }
+      },
+      "required": [
+        "header",
+        "amount_usdc",
+        "position_size_base",
+        "funding_rate"
+      ],
+      "title": "FundingPaymentEvent",
+      "type": "object"
+    },
+    "IndexPriceEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "index_price",
+          "default": "index_price",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "index_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Index Price"
+        }
+      },
+      "required": [
+        "header",
+        "index_price"
+      ],
+      "title": "IndexPriceEvent",
+      "type": "object"
+    },
+    "L2BookSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "asks": {
+          "items": {
+            "$ref": "#/$defs/BookLevel"
+          },
+          "minItems": 1,
+          "title": "Asks",
+          "type": "array"
+        },
+        "bids": {
+          "items": {
+            "$ref": "#/$defs/BookLevel"
+          },
+          "minItems": 1,
+          "title": "Bids",
+          "type": "array"
+        },
+        "event_type": {
+          "const": "l2_book",
+          "default": "l2_book",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "is_snapshot": {
+          "const": true,
+          "default": true,
+          "title": "Is Snapshot",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "header",
+        "bids",
+        "asks"
+      ],
+      "title": "L2BookSnapshot",
+      "type": "object"
+    },
+    "LiquidationFillEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "liquidation_fill",
+          "default": "liquidation_fill",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "liquidated_user_address": {
+          "anyOf": [
+            {
+              "pattern": "^0x[0-9a-fA-F]{40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Liquidated User Address"
+        },
+        "method": {
+          "enum": [
+            "market",
+            "backstop"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Price"
+        },
+        "side": {
+          "$ref": "#/$defs/OrderSide"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Size"
+        },
+        "trade_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Trade Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "header",
+        "side",
+        "price",
+        "size",
+        "trade_id",
+        "method"
+      ],
+      "title": "LiquidationFillEvent",
+      "type": "object"
+    },
+    "MarkPriceEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "mark_price",
+          "default": "mark_price",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "mark_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Mark Price"
+        }
+      },
+      "required": [
+        "header",
+        "mark_price"
+      ],
+      "title": "MarkPriceEvent",
+      "type": "object"
+    },
+    "MarketEvent": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/L2BookSnapshot"
+        },
+        {
+          "$ref": "#/$defs/BboEvent"
+        },
+        {
+          "$ref": "#/$defs/TradeEvent"
+        },
+        {
+          "$ref": "#/$defs/FundingEvent"
+        },
+        {
+          "$ref": "#/$defs/OpenInterestEvent"
+        },
+        {
+          "$ref": "#/$defs/MarkPriceEvent"
+        },
+        {
+          "$ref": "#/$defs/IndexPriceEvent"
+        },
+        {
+          "$ref": "#/$defs/AccountLiquidationEvent"
+        },
+        {
+          "$ref": "#/$defs/LiquidationFillEvent"
+        },
+        {
+          "$ref": "#/$defs/FundingPaymentEvent"
+        },
+        {
+          "$ref": "#/$defs/AccountOrderUpdateEvent"
+        },
+        {
+          "$ref": "#/$defs/AccountFillEvent"
+        },
+        {
+          "$ref": "#/$defs/PositionSnapshotEvent"
+        }
+      ]
+    },
+    "OpenInterestEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "open_interest",
+          "default": "open_interest",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "open_interest_base": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Open Interest Base"
+        }
+      },
+      "required": [
+        "header",
+        "open_interest_base"
+      ],
+      "title": "OpenInterestEvent",
+      "type": "object"
+    },
+    "OrderSide": {
+      "enum": [
+        "buy",
+        "sell"
+      ],
+      "title": "OrderSide",
+      "type": "string"
+    },
+    "PaperAccountState": {
+      "additionalProperties": false,
+      "properties": {
+        "average_entry_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Average Entry Price"
+        },
+        "cash_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Cash Usd"
+        },
+        "day_start_equity_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Day Start Equity Usd"
+        },
+        "equity_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Equity Usd"
+        },
+        "fees_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Fees Usd"
+        },
+        "funding_pnl_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Funding Pnl Usd"
+        },
+        "high_water_equity_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "High Water Equity Usd"
+        },
+        "last_funding_settlement_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Funding Settlement Ns"
+        },
+        "mark_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Mark Price"
+        },
+        "position_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Position Base"
+        },
+        "realized_trading_pnl_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Realized Trading Pnl Usd"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "updated_ts_ns": {
+          "minimum": 0,
+          "title": "Updated Ts Ns",
+          "type": "integer"
+        },
+        "utc_day": {
+          "minimum": 0,
+          "title": "Utc Day",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "cash_usd",
+        "mark_price",
+        "equity_usd",
+        "day_start_equity_usd",
+        "high_water_equity_usd",
+        "utc_day",
+        "updated_ts_ns"
+      ],
+      "title": "PaperAccountState",
+      "type": "object"
+    },
+    "PositionSnapshotEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "entry_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entry Price"
+        },
+        "event_type": {
+          "const": "position_snapshot",
+          "default": "position_snapshot",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "leverage": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Leverage"
+        },
+        "liquidation_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Liquidation Price"
+        },
+        "margin_used_usd": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Margin Used Usd"
+        },
+        "size_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Size Base"
+        },
+        "unrealized_pnl_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Unrealized Pnl Usd"
+        }
+      },
+      "required": [
+        "header",
+        "size_base",
+        "unrealized_pnl_usd",
+        "leverage"
+      ],
+      "title": "PositionSnapshotEvent",
+      "type": "object"
+    },
+    "ShadowDeterminismReport": {
+      "additionalProperties": false,
+      "properties": {
+        "command_mismatches": {
+          "minimum": 0,
+          "title": "Command Mismatches",
+          "type": "integer"
+        },
+        "compared_commands": {
+          "minimum": 0,
+          "title": "Compared Commands",
+          "type": "integer"
+        },
+        "compared_decisions": {
+          "minimum": 0,
+          "title": "Compared Decisions",
+          "type": "integer"
+        },
+        "decision_mismatches": {
+          "minimum": 0,
+          "title": "Decision Mismatches",
+          "type": "integer"
+        },
+        "generated_ts_ns": {
+          "minimum": 0,
+          "title": "Generated Ts Ns",
+          "type": "integer"
+        },
+        "replay_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Replay Manifest Sha256",
+          "type": "string"
+        },
+        "replay_run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Replay Run Id",
+          "type": "string"
+        },
+        "report_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Report Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Manifest Sha256",
+          "type": "string"
+        },
+        "source_run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Source Run Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "report_id",
+        "source_run_id",
+        "replay_run_id",
+        "source_manifest_sha256",
+        "replay_manifest_sha256",
+        "compared_decisions",
+        "decision_mismatches",
+        "compared_commands",
+        "command_mismatches",
+        "generated_ts_ns"
+      ],
+      "title": "ShadowDeterminismReport",
+      "type": "object"
+    },
+    "ShadowEvidencePolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "frozen_at_ns": {
+          "minimum": 0,
+          "title": "Frozen At Ns",
+          "type": "integer"
+        },
+        "maximum_adverse_markout_bps": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Adverse Markout Bps"
+        },
+        "maximum_cycle_latency_p99_ms": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Cycle Latency P99 Ms"
+        },
+        "maximum_denial_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Denial Fraction"
+        },
+        "maximum_drawdown_fraction": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "maximum": 1.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Drawdown Fraction"
+        },
+        "maximum_feature_psi": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Feature Psi"
+        },
+        "maximum_ingress_latency_p99_ms": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Ingress Latency P99 Ms"
+        },
+        "maximum_standardized_mean_shift": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Standardized Mean Shift"
+        },
+        "minimum_availability_fraction": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "maximum": 1.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Minimum Availability Fraction"
+        },
+        "minimum_determinism_decisions": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Determinism Decisions",
+          "type": "integer"
+        },
+        "minimum_fills": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Fills",
+          "type": "integer"
+        },
+        "minimum_independent_decisions": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Independent Decisions",
+          "type": "integer"
+        },
+        "minimum_observation_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Observation Ns",
+          "type": "integer"
+        },
+        "minimum_regimes": {
+          "default": 3,
+          "maximum": 3,
+          "minimum": 1,
+          "title": "Minimum Regimes",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "require_calibrated_scenario": {
+          "default": true,
+          "title": "Require Calibrated Scenario",
+          "type": "boolean"
+        },
+        "require_positive_post_cost_pnl": {
+          "default": true,
+          "title": "Require Positive Post Cost Pnl",
+          "type": "boolean"
+        },
+        "required_drills": {
+          "items": {
+            "enum": [
+              "host_reboot",
+              "disk_pressure",
+              "clock_degradation",
+              "recorder_failure",
+              "observability_failure",
+              "operator_kill"
+            ],
+            "type": "string"
+          },
+          "title": "Required Drills",
+          "type": "array"
+        },
+        "required_sensitivity_scenarios": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Required Sensitivity Scenarios",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_id",
+        "frozen_at_ns",
+        "minimum_observation_ns",
+        "minimum_independent_decisions",
+        "minimum_fills",
+        "minimum_availability_fraction",
+        "maximum_ingress_latency_p99_ms",
+        "maximum_cycle_latency_p99_ms",
+        "maximum_drawdown_fraction",
+        "maximum_denial_fraction",
+        "maximum_adverse_markout_bps",
+        "maximum_feature_psi",
+        "maximum_standardized_mean_shift",
+        "minimum_determinism_decisions",
+        "required_sensitivity_scenarios",
+        "required_drills"
+      ],
+      "title": "ShadowEvidencePolicy",
+      "type": "object"
+    },
+    "ShadowEvidenceReport": {
+      "additionalProperties": false,
+      "properties": {
+        "approved_decisions": {
+          "minimum": 0,
+          "title": "Approved Decisions",
+          "type": "integer"
+        },
+        "availability_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Availability Fraction"
+        },
+        "awaiting_human_approval": {
+          "title": "Awaiting Human Approval",
+          "type": "boolean"
+        },
+        "calibration_state": {
+          "$ref": "#/$defs/CalibrationState"
+        },
+        "code_identity": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Code Identity",
+          "type": "string"
+        },
+        "commands": {
+          "minimum": 0,
+          "title": "Commands",
+          "type": "integer"
+        },
+        "completed_drills": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "type": "string"
+          },
+          "title": "Completed Drills",
+          "type": "array"
+        },
+        "config_fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Config Fingerprint",
+          "type": "string"
+        },
+        "cycle_latency_p99_ms": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Cycle Latency P99 Ms"
+        },
+        "denied_decisions": {
+          "minimum": 0,
+          "title": "Denied Decisions",
+          "type": "integer"
+        },
+        "determinism_report_id": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Determinism Report Id"
+        },
+        "engine_policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Engine Policy Sha256",
+          "type": "string"
+        },
+        "feature_config_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Config Sha256",
+          "type": "string"
+        },
+        "fills": {
+          "minimum": 0,
+          "title": "Fills",
+          "type": "integer"
+        },
+        "gates": {
+          "items": {
+            "$ref": "#/$defs/ShadowGateResult"
+          },
+          "title": "Gates",
+          "type": "array"
+        },
+        "generated_ts_ns": {
+          "minimum": 0,
+          "title": "Generated Ts Ns",
+          "type": "integer"
+        },
+        "image_identity": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Image Identity",
+          "type": "string"
+        },
+        "independent_decisions": {
+          "minimum": 0,
+          "title": "Independent Decisions",
+          "type": "integer"
+        },
+        "ingress_latency_p99_ms": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Ingress Latency P99 Ms"
+        },
+        "invalidating_events": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "type": "string"
+          },
+          "title": "Invalidating Events",
+          "type": "array"
+        },
+        "markouts": {
+          "minimum": 0,
+          "title": "Markouts",
+          "type": "integer"
+        },
+        "maximum_drawdown_fraction": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Drawdown Fraction"
+        },
+        "maximum_feature_psi": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Feature Psi"
+        },
+        "maximum_standardized_mean_shift": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maximum Standardized Mean Shift"
+        },
+        "mean_adverse_markout_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Mean Adverse Markout Bps"
+        },
+        "observation_ns": {
+          "minimum": 0,
+          "title": "Observation Ns",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "post_cost_pnl_usd": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Post Cost Pnl Usd"
+        },
+        "regimes": {
+          "items": {
+            "$ref": "#/$defs/VolatilityRegime"
+          },
+          "title": "Regimes",
+          "type": "array"
+        },
+        "report_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Report Id",
+          "type": "string"
+        },
+        "run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "run_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Run Manifest Sha256",
+          "type": "string"
+        },
+        "scenario_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "scenario_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sensitivity_scenarios": {
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+            "type": "string"
+          },
+          "title": "Sensitivity Scenarios",
+          "type": "array"
+        },
+        "strategy_config_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Strategy Config Sha256",
+          "type": "string"
+        },
+        "submit_commands": {
+          "minimum": 0,
+          "title": "Submit Commands",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "report_id",
+        "run_id",
+        "run_manifest_sha256",
+        "generated_ts_ns",
+        "policy_id",
+        "policy_sha256",
+        "image_identity",
+        "code_identity",
+        "config_fingerprint",
+        "feature_config_sha256",
+        "strategy_config_sha256",
+        "engine_policy_sha256",
+        "scenario_id",
+        "scenario_sha256",
+        "calibration_state",
+        "observation_ns",
+        "independent_decisions",
+        "approved_decisions",
+        "denied_decisions",
+        "commands",
+        "submit_commands",
+        "fills",
+        "markouts",
+        "regimes",
+        "availability_fraction",
+        "ingress_latency_p99_ms",
+        "cycle_latency_p99_ms",
+        "post_cost_pnl_usd",
+        "maximum_drawdown_fraction",
+        "mean_adverse_markout_bps",
+        "maximum_feature_psi",
+        "maximum_standardized_mean_shift",
+        "sensitivity_scenarios",
+        "completed_drills",
+        "invalidating_events",
+        "gates",
+        "awaiting_human_approval"
+      ],
+      "title": "ShadowEvidenceReport",
+      "type": "object"
+    },
+    "ShadowGateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "actual": {
+          "title": "Actual",
+          "type": "string"
+        },
+        "gate": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Gate",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "required": {
+          "title": "Required",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gate",
+        "passed",
+        "actual",
+        "required"
+      ],
+      "title": "ShadowGateResult",
+      "type": "object"
+    },
+    "ShadowGatewayStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "credential_capability": {
+          "const": "none",
+          "default": "none",
+          "title": "Credential Capability",
+          "type": "string"
+        },
+        "heartbeat_ts_ns": {
+          "minimum": 0,
+          "title": "Heartbeat Ts Ns",
+          "type": "integer"
+        },
+        "last_error_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Error Code"
+        },
+        "last_ingress_sequence": {
+          "minimum": 0,
+          "title": "Last Ingress Sequence",
+          "type": "integer"
+        },
+        "last_receive_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Receive Ts Ns"
+        },
+        "raw_first": {
+          "const": true,
+          "default": true,
+          "title": "Raw First",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "starting",
+            "ready",
+            "reconnecting",
+            "stopped",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "heartbeat_ts_ns",
+        "last_ingress_sequence"
+      ],
+      "title": "ShadowGatewayStatus",
+      "type": "object"
+    },
+    "ShadowIngressEnvelope": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Channel",
+          "type": "string"
+        },
+        "events": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/MarketEvent"
+          },
+          "title": "Events",
+          "type": "array"
+        },
+        "is_control": {
+          "default": false,
+          "title": "Is Control",
+          "type": "boolean"
+        },
+        "receive_ts_ns": {
+          "minimum": 0,
+          "title": "Receive Ts Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "written_ts_ns": {
+          "minimum": 0,
+          "title": "Written Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "channel",
+        "receive_ts_ns",
+        "written_ts_ns"
+      ],
+      "title": "ShadowIngressEnvelope",
+      "type": "object"
+    },
+    "ShadowRuntimeStatus": {
+      "additionalProperties": false,
+      "properties": {
+        "account": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaperAccountState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "calibration_state": {
+          "$ref": "#/$defs/CalibrationState"
+        },
+        "command_sink": {
+          "const": "counterfactual_only",
+          "default": "counterfactual_only",
+          "title": "Command Sink",
+          "type": "string"
+        },
+        "commands": {
+          "minimum": 0,
+          "title": "Commands",
+          "type": "integer"
+        },
+        "config_fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Config Fingerprint",
+          "type": "string"
+        },
+        "credential_capability": {
+          "const": "none",
+          "default": "none",
+          "title": "Credential Capability",
+          "type": "string"
+        },
+        "decisions": {
+          "minimum": 0,
+          "title": "Decisions",
+          "type": "integer"
+        },
+        "feature_ready": {
+          "title": "Feature Ready",
+          "type": "boolean"
+        },
+        "feed_connected": {
+          "title": "Feed Connected",
+          "type": "boolean"
+        },
+        "fills": {
+          "minimum": 0,
+          "title": "Fills",
+          "type": "integer"
+        },
+        "heartbeat_ts_ns": {
+          "minimum": 0,
+          "title": "Heartbeat Ts Ns",
+          "type": "integer"
+        },
+        "image_identity": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Image Identity",
+          "type": "string"
+        },
+        "ingress_lag_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ingress Lag Ns"
+        },
+        "ip_network_capability": {
+          "const": "none",
+          "default": "none",
+          "title": "Ip Network Capability",
+          "type": "string"
+        },
+        "last_error_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Error Code"
+        },
+        "last_ingress_sequence": {
+          "minimum": 0,
+          "title": "Last Ingress Sequence",
+          "type": "integer"
+        },
+        "last_public_data_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Public Data Ts Ns"
+        },
+        "open_orders": {
+          "minimum": 0,
+          "title": "Open Orders",
+          "type": "integer"
+        },
+        "operator_kill": {
+          "title": "Operator Kill",
+          "type": "boolean"
+        },
+        "run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "scenario_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "scenario_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "starting",
+            "warming",
+            "ready",
+            "degraded",
+            "stopped",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "strategy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Strategy Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "run_id",
+        "heartbeat_ts_ns",
+        "last_ingress_sequence",
+        "feed_connected",
+        "feature_ready",
+        "operator_kill",
+        "strategy_id",
+        "scenario_id",
+        "scenario_sha256",
+        "calibration_state",
+        "config_fingerprint",
+        "image_identity",
+        "open_orders",
+        "decisions",
+        "commands",
+        "fills"
+      ],
+      "title": "ShadowRuntimeStatus",
+      "type": "object"
+    },
+    "TimestampSource": {
+      "enum": [
+        "exchange",
+        "receive"
+      ],
+      "title": "TimestampSource",
+      "type": "string"
+    },
+    "TradeEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "aggressor": {
+          "$ref": "#/$defs/AggressorSide"
+        },
+        "event_type": {
+          "const": "trade",
+          "default": "trade",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Price"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Size"
+        },
+        "trade_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Trade Id",
+          "type": "string"
+        },
+        "transaction_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transaction Hash"
+        }
+      },
+      "required": [
+        "header",
+        "trade_id",
+        "price",
+        "size",
+        "aggressor"
+      ],
+      "title": "TradeEvent",
+      "type": "object"
+    },
+    "VolatilityRegime": {
+      "enum": [
+        "warmup",
+        "low",
+        "normal",
+        "high"
+      ],
+      "title": "VolatilityRegime",
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/ShadowIngressEnvelope"
+    },
+    {
+      "$ref": "#/$defs/ShadowGatewayStatus"
+    },
+    {
+      "$ref": "#/$defs/ShadowRuntimeStatus"
+    },
+    {
+      "$ref": "#/$defs/ShadowEvidencePolicy"
+    },
+    {
+      "$ref": "#/$defs/ShadowDeterminismReport"
+    },
+    {
+      "$ref": "#/$defs/ShadowEvidenceReport"
+    }
+  ]
+}

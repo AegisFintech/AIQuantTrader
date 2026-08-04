@@ -43,7 +43,7 @@ Native migration authority order:
 
 ## Native Migration Topology
 
-Phases 2-7 implement the native contracts, public BTC data, fail-closed testnet
+Phases 2-8 implement the native contracts, public BTC data, fail-closed testnet
 execution, causal replay/validation, research strategy paths, and
 credential-free paper under `native/` and `rust/`.
 Phase 3 connects only to public market data. Phase 4 is the only native path
@@ -156,6 +156,23 @@ has yet met the frozen samples, regimes, sensitivity, drills, drift, economics,
 and recommended observation window. Paper mode rejects every exchange account
 and wallet reference and cannot instantiate an exchange execution client.
 
+Current Phase 8 shadow ownership:
+
+| Path | Responsibility |
+|---|---|
+| `native/src/aiquanttrader_native/shadow/{gateway,ingress}.py` | Raw-first public-only gateway and durable checksummed one-way ingress. |
+| `native/src/aiquanttrader_native/shadow/{service,sink,security}.py` | No-network production kernel/risk runner, atomic counterfactual command boundary, and route proof. |
+| `native/src/aiquanttrader_native/shadow/{audit,evidence}.py` | Availability/latency/fault evidence, deterministic replay comparison, and frozen human-gated report. |
+| `native/src/aiquanttrader_native/shadow/{metrics,observer,cli}.py` | Atomic metrics handoff, read-only observer, lifecycle, kill, replay, compare, drill, and evidence operations. |
+| `native/compose.shadow.yaml` | Exact-image gateway/engine/observer topology; engine uses `network_mode: none` and read-only ingress. |
+| `docs/operations/SHADOW_DEPLOYMENT_RUNBOOK.md` | Production-host launch, isolation proof, drills, replay, evidence, incident, and rollback. |
+
+Phase 8 implementation gates are automated. Acceptance remains pending because
+the checked-in execution scenarios are uncalibrated and no intended-host
+shadow run has yet passed seven days, samples/regimes, exact replay,
+availability/latency/economics/drift, and every retained fault drill. A passing
+report can only enter `AWAITING_APPROVAL`.
+
 ## Current Legacy System Topology
 
 ```text
@@ -188,7 +205,7 @@ MQL5 EA. The dashboard is read-only. No PM2 process currently writes
 ## Parallel Linux-native migration
 
 The `native/` tree is an isolated, Docker-managed BTC perpetual replacement
-under construction. It is not part of the active PM2/MT5 runtime. Phases 2-7
+under construction. It is not part of the active PM2/MT5 runtime. Phases 2-8
 currently provide:
 
 | Area | Native ownership |
@@ -202,6 +219,7 @@ currently provide:
 | Backtesting | `native/src/aiquanttrader_native/backtest/`; causal HftBacktest replay, Nautilus-object parity, scenario stress, and guarded validation. |
 | BTC research | `native/src/aiquanttrader_native/{features,strategies,research}/`; causal features, pure strategy kernels, native tabular models, bounded search, controls, drift, and an automation-ceiling registry. |
 | Paper trading | `native/src/aiquanttrader_native/paper/`; live public data through production kernels/risk into a credential-free simulator and immutable evidence journal. |
+| Shadow deployment | `native/src/aiquanttrader_native/shadow/`; public gateway into a no-network decision engine, recorded-only commands, replay comparison, and human-gated evidence. |
 
 Phase 4 code is implemented but is not accepted until the credentialed testnet
 scenario matrix and kill/dead-man drills in

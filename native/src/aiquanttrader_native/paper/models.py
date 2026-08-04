@@ -134,6 +134,40 @@ class PaperDecisionRecord(DomainModel):
     independent: bool
 
 
+class PaperCommandKind(StrEnum):
+    SUBMIT = "submit"
+    CANCEL = "cancel"
+    CANCEL_ALL = "cancel_all"
+
+
+class PaperExecutionCommand(DomainModel):
+    """Exact approved command captured before the non-exchange execution sink."""
+
+    schema_version: Literal[1] = 1
+    command_id: Identifier
+    sequence: int = Field(ge=0)
+    command_ts_ns: int = Field(ge=0)
+    kind: PaperCommandKind
+    intent_id: Identifier
+    strategy_id: Identifier
+    intent: OrderIntent | None = None
+    risk_decision_id: Identifier | None = None
+    feature_snapshot_sha256: Sha256 | None = None
+    source_sequence: int | None = Field(default=None, ge=1)
+    sink: Literal["counterfactual_only"] = "counterfactual_only"
+
+    @model_validator(mode="after")
+    def validate_command(self) -> Self:
+        if self.kind is PaperCommandKind.SUBMIT:
+            if self.intent is None or self.risk_decision_id is None:
+                raise ValueError("submit command requires its exact intent and risk approval")
+            if self.intent.intent_id != self.intent_id:
+                raise ValueError("submit command intent identity does not match")
+        elif self.intent is not None or self.risk_decision_id is not None:
+            raise ValueError("cancel commands cannot claim a submit intent or risk approval")
+        return self
+
+
 class PaperRunManifest(DomainModel):
     schema_version: Literal[1] = 1
     run_id: Identifier
@@ -148,6 +182,8 @@ class PaperRunManifest(DomainModel):
     evidence_policy_sha256: Sha256
     strategy_id: Identifier
     credential_capability: Literal["none"] = "none"
+    image_identity: Annotated[str, Field(min_length=1, max_length=256)] | None = None
+    source_start_sequence: int = Field(default=0, ge=0)
 
 
 class PaperEngineCheckpoint(DomainModel):
@@ -160,6 +196,7 @@ class PaperEngineCheckpoint(DomainModel):
     last_independent_decision_ts_ns: int | None = Field(default=None, ge=0)
     funding_rate: Decimal = Decimal("0")
     next_funding_settlement_ns: int | None = Field(default=None, ge=0)
+    source_sequence: int | None = Field(default=None, ge=1)
 
 
 class PaperEvidencePolicy(DomainModel):

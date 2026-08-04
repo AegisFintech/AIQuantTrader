@@ -13,10 +13,11 @@ authorized by the architecture approval alone, and automated research may not
 promote a model into production. Until the Phase 9 cutover is separately
 approved, the deployed runtime remains the MT5 demo system described below.
 
-Phases 2-7 now provide the isolated native foundation, raw-first Hyperliquid
+Phases 2-8 now provide the isolated native foundation, raw-first Hyperliquid
 market-data path, fail-closed execution/risk path, causal BTC replay and
 validation, BTC feature/strategy/research framework, and credential-free live
-paper trading. Phase 4 uses NautilusTrader as the sole ordinary exchange-order
+paper trading, and network-isolated shadow deployment. Phase 4 uses
+NautilusTrader as the sole ordinary exchange-order
 owner and a separately credentialed Hyperliquid SDK sentinel for exchange
 dead-man and emergency cancellation. See
 [`docs/migration/PHASE_4_EXECUTION_RISK.md`](docs/migration/PHASE_4_EXECUTION_RISK.md)
@@ -52,6 +53,16 @@ scenarios remain uncalibrated, so paper promotion must fail until retained
 calibration, sensitivity, sample/regime, drill, and observation gates pass. See
 [`docs/migration/PHASE_7_PAPER.md`](docs/migration/PHASE_7_PAPER.md) and
 [`docs/operations/PAPER_TRADING_RUNBOOK.md`](docs/operations/PAPER_TRADING_RUNBOOK.md).
+
+Phase 8 splits the live public gateway from a `network_mode: none` decision
+engine. The engine verifies checksummed read-only ingress, runs the exact
+production feature/strategy/risk path, records every counterfactual command,
+and exports through a read-only observer. It has no wallet, signer, account
+identity, execution client, or IP default route. See
+[`docs/migration/PHASE_8_SHADOW.md`](docs/migration/PHASE_8_SHADOW.md) and the
+[`shadow runbook`](docs/operations/SHADOW_DEPLOYMENT_RUNBOOK.md). Empirical
+acceptance remains pending calibrated scenarios, production-host fault drills,
+required samples/regimes, and the minimum seven-day observation.
 
 ## Current deployed runtime
 

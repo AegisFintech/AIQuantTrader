@@ -15,11 +15,15 @@ only the standard BTC perpetual, represented as
 - `docs/migration/PHASE_4_EXECUTION_RISK.md`
 - `docs/migration/PHASE_5_BACKTESTING.md`
 - `docs/migration/PHASE_6_RESEARCH.md`
+- `docs/migration/PHASE_7_PAPER.md`
+- `docs/migration/PHASE_8_SHADOW.md`
 - `docs/operations/NATIVE_PLATFORM_THREAT_MODEL.md`
 - `docs/operations/NATIVE_RELEASE_CHECKLIST.md`
 - `docs/operations/EXECUTION_RISK_RUNBOOK.md`
 - `docs/operations/BACKTESTING_RUNBOOK.md`
 - `docs/operations/RESEARCH_RUNBOOK.md`
+- `docs/operations/PAPER_TRADING_RUNBOOK.md`
+- `docs/operations/SHADOW_DEPLOYMENT_RUNBOOK.md`
 
 Migration rules:
 
@@ -50,6 +54,10 @@ Migration rules:
 - Phase 4 application configuration must reject enabled mainnet wallets even
   when approval-file references are present. Removing that lock belongs to the
   separately reviewed Phase 9 cryptographic approval implementation.
+- Phase 8 shadow must keep the decision engine at `network_mode: none`, ingress
+  read-only, and all account/wallet/signer/execution-client capability absent.
+  A passing shadow report stops at `AWAITING_APPROVAL` and never authorizes
+  mainnet execution.
 
 ## Legacy runtime mandate
 

@@ -1,0 +1,129 @@
+name: aiquanttrader-shadow
+
+x-shadow-hardening: &shadow-hardening
+  image: ${AQT_NATIVE_IMAGE_REPOSITORY:?set AQT_NATIVE_IMAGE_REPOSITORY}@${AQT_NATIVE_IMAGE_DIGEST:?set AQT_NATIVE_IMAGE_DIGEST}
+  user: "65532:65532"
+  read_only: true
+  init: true
+  restart: unless-stopped
+  cap_drop: ["ALL"]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+  logging:
+    driver: json-file
+    options:
+      max-file: "3"
+      max-size: 10m
+
+services:
+  shadow-gateway:
+    <<: *shadow-hardening
+    entrypoint: ["aqt-shadow"]
+    command:
+      - gateway
+      - --config-dir
+      - /etc/aiquanttrader-native
+      - --environment
+      - shadow
+      - --ingress-path
+      - /var/lib/aiquanttrader/ingress/frames.sqlite3
+    stop_grace_period: 30s
+    volumes:
+      - shadow-data:/var/lib/aiquanttrader/data
+      - shadow-gateway-state:/var/lib/aiquanttrader/state
+      - shadow-ingress:/var/lib/aiquanttrader/ingress
+    ports:
+      - "127.0.0.1:9109:9109"
+    healthcheck:
+      test:
+        - CMD
+        - aqt-market-data
+        - healthcheck
+        - --state-root
+        - /var/lib/aiquanttrader/state
+        - --stale-after-seconds
+        - "30"
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+  shadow-engine:
+    <<: *shadow-hardening
+    entrypoint: ["aqt-shadow"]
+    command:
+      - run
+      - --config-dir
+      - /etc/aiquanttrader-native
+      - --environment
+      - shadow
+      - --code-identity
+      - ${AQT_NATIVE_CODE_IDENTITY:?set AQT_NATIVE_CODE_IDENTITY}
+      - --image-identity
+      - ${AQT_NATIVE_IMAGE_DIGEST:?set AQT_NATIVE_IMAGE_DIGEST to sha256:<digest>}
+      - --ingress-path
+      - /var/lib/aiquanttrader/ingress/frames.sqlite3
+    network_mode: none
+    stop_grace_period: 30s
+    depends_on:
+      shadow-gateway:
+        condition: service_healthy
+    volumes:
+      - shadow-state:/var/lib/aiquanttrader/state
+      - shadow-ingress:/var/lib/aiquanttrader/ingress:ro
+    healthcheck:
+      test:
+        - CMD
+        - aqt-shadow
+        - healthcheck
+        - --state-root
+        - /var/lib/aiquanttrader/state
+        - --stale-after-ms
+        - "5000"
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 60s
+
+  shadow-observer:
+    <<: *shadow-hardening
+    entrypoint: ["aqt-shadow"]
+    command:
+      - observe
+      - --state-root
+      - /var/lib/aiquanttrader/state
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9113"
+      - --stale-after-ms
+      - "5000"
+    depends_on:
+      shadow-engine:
+        condition: service_healthy
+    volumes:
+      - shadow-state:/var/lib/aiquanttrader/state:ro
+    ports:
+      - "127.0.0.1:9113:9113"
+    healthcheck:
+      test:
+        - CMD
+        - aqt-native
+        - healthcheck
+        - --url
+        - http://127.0.0.1:9113/health/ready
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  shadow-data:
+    name: aiquanttrader-shadow-data
+  shadow-gateway-state:
+    name: aiquanttrader-shadow-gateway-state
+  shadow-ingress:
+    name: aiquanttrader-shadow-ingress
+  shadow-state:
+    name: aiquanttrader-shadow-state

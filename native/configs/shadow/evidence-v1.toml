@@ -1,0 +1,27 @@
+schema_version = 1
+policy_id = "btc-shadow-evidence-v1"
+frozen_at_ns = 1785772800000000000
+minimum_observation_ns = 604800000000000
+minimum_independent_decisions = 1000
+minimum_fills = 500
+minimum_regimes = 3
+minimum_availability_fraction = "0.999"
+maximum_ingress_latency_p99_ms = "250"
+maximum_cycle_latency_p99_ms = "10"
+maximum_drawdown_fraction = "0.01"
+maximum_denial_fraction = "0.25"
+maximum_adverse_markout_bps = "3"
+maximum_feature_psi = "0.2"
+maximum_standardized_mean_shift = "1"
+minimum_determinism_decisions = 1000
+require_positive_post_cost_pnl = true
+require_calibrated_scenario = true
+required_sensitivity_scenarios = ["hyperliquid-btc-paper-pessimistic-v1"]
+required_drills = [
+  "host_reboot",
+  "disk_pressure",
+  "clock_degradation",
+  "recorder_failure",
+  "observability_failure",
+  "operator_kill",
+]
