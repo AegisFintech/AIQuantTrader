@@ -302,6 +302,15 @@
       "title": "PaperAccountState",
       "type": "object"
     },
+    "PaperCommandKind": {
+      "enum": [
+        "submit",
+        "cancel",
+        "cancel_all"
+      ],
+      "title": "PaperCommandKind",
+      "type": "string"
+    },
     "PaperDecisionRecord": {
       "additionalProperties": false,
       "properties": {
@@ -422,6 +431,19 @@
           "minimum": 0,
           "title": "Sequence",
           "type": "integer"
+        },
+        "source_sequence": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Sequence"
         },
         "strategy_id": {
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
@@ -918,6 +940,112 @@
       "title": "PaperEvidenceReport",
       "type": "object"
     },
+    "PaperExecutionCommand": {
+      "additionalProperties": false,
+      "description": "Exact approved command captured before the non-exchange execution sink.",
+      "properties": {
+        "command_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Command Id",
+          "type": "string"
+        },
+        "command_ts_ns": {
+          "minimum": 0,
+          "title": "Command Ts Ns",
+          "type": "integer"
+        },
+        "feature_snapshot_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Feature Snapshot Sha256"
+        },
+        "intent": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OrderIntent"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "intent_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Intent Id",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/PaperCommandKind"
+        },
+        "risk_decision_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Risk Decision Id"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sequence": {
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "sink": {
+          "const": "counterfactual_only",
+          "default": "counterfactual_only",
+          "title": "Sink",
+          "type": "string"
+        },
+        "source_sequence": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Sequence"
+        },
+        "strategy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Strategy Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "command_id",
+        "sequence",
+        "command_ts_ns",
+        "kind",
+        "intent_id",
+        "strategy_id"
+      ],
+      "title": "PaperExecutionCommand",
+      "type": "object"
+    },
     "PaperFill": {
       "additionalProperties": false,
       "properties": {
@@ -1270,6 +1398,20 @@
           "title": "Feature Config Sha256",
           "type": "string"
         },
+        "image_identity": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Image Identity"
+        },
         "run_id": {
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
           "title": "Run Id",
@@ -1289,6 +1431,12 @@
           "const": 1,
           "default": 1,
           "title": "Schema Version",
+          "type": "integer"
+        },
+        "source_start_sequence": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Source Start Sequence",
           "type": "integer"
         },
         "started_ts_ns": {
@@ -1638,6 +1786,9 @@
     },
     {
       "$ref": "#/$defs/PaperMarkout"
+    },
+    {
+      "$ref": "#/$defs/PaperExecutionCommand"
     }
   ]
 }

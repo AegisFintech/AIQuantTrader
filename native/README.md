@@ -7,7 +7,8 @@ perpetual platform. During migration it deliberately uses the import package
 
 The package currently provides the Phase 2 foundation, Phase 3 public market
 data path, Phase 4 fail-closed execution/risk path, Phase 5 causal backtesting
-framework, Phase 6 BTC research/strategy framework, and Phase 7 paper path:
+framework, Phase 6 BTC research/strategy framework, Phase 7 paper path, and
+Phase 8 network-isolated shadow path:
 
 - typed, fail-closed deployment configuration;
 - versioned market-data, feature, experiment, and deployment schemas;
@@ -46,6 +47,11 @@ framework, Phase 6 BTC research/strategy framework, and Phase 7 paper path:
   fees, funding, latency, markouts, and scenario lineage;
 - transactional SQLite restart continuity, cancel-on-resume, stale/kill
   handling, frozen sample/regime/drift/drill evidence, and a paper dashboard.
+- a public-only raw-first gateway feeding checksummed durable ingress into a
+  `network_mode: none` shadow engine with no wallet, signer, or execution
+  client;
+- atomic counterfactual submit/cancel commands, exact retained-ingress replay,
+  operational latency/availability/fault evidence, and a read-only observer.
 
 The Phase 6 strategies are research candidates and are wired only into the
 credential-free Phase 7 simulator, not the exchange node. The exchange order
@@ -173,3 +179,23 @@ scenarios. The checked-in scenarios are uncalibrated and therefore cannot pass
 [`PAPER_TRADING_RUNBOOK.md`](../docs/operations/PAPER_TRADING_RUNBOOK.md).
 `aqt-paper replay` verifies finalized raw segments and runs required sensitivity
 scenarios through the same consumer path without network access.
+
+## Shadow deployment
+
+Render the exact-image, split-network Phase 8 stack:
+
+```bash
+export AQT_NATIVE_IMAGE_REPOSITORY='registry.example/aiquanttrader-native'
+export AQT_NATIVE_IMAGE_DIGEST='sha256:<digest>'
+export AQT_NATIVE_CODE_IDENTITY="$(git rev-parse HEAD)"
+docker compose -f compose.shadow.yaml config --quiet
+```
+
+Only `shadow-gateway` has internet access. `shadow-engine` has
+`network_mode: none`, a read-only ingress volume, no secret/account mount, and
+an application startup proof that no IP default route exists.
+`shadow-observer` reads status/Prometheus files from the engine volume without
+a control path. See
+[`SHADOW_DEPLOYMENT_RUNBOOK.md`](../docs/operations/SHADOW_DEPLOYMENT_RUNBOOK.md)
+for launch, kill, host/disk/clock/recorder/observer drills, replay comparison,
+evidence, and rollback.

@@ -17,6 +17,7 @@ from aiquanttrader_native.paper.models import (
     PaperAccountState,
     PaperDecisionRecord,
     PaperEngineCheckpoint,
+    PaperExecutionCommand,
     PaperFill,
     PaperMarkout,
     PaperOrder,
@@ -49,6 +50,9 @@ class PaperJournalStatistics:
     maximum_standardized_mean_shift: Decimal
     completed_drills: tuple[str, ...]
     invalidating_events: tuple[str, ...]
+    commands: int = 0
+    submit_commands: int = 0
+    feature_samples: int = 0
 
 
 class PaperJournal:
@@ -102,6 +106,17 @@ class PaperJournal:
                 independent INTEGER NOT NULL,
                 record_json TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS commands (
+                command_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL REFERENCES runs(run_id),
+                sequence INTEGER NOT NULL,
+                command_ts_ns INTEGER NOT NULL,
+                kind TEXT NOT NULL,
+                intent_id TEXT NOT NULL,
+                source_sequence INTEGER,
+                command_json TEXT NOT NULL,
+                UNIQUE(run_id, sequence)
+            );
             CREATE TABLE IF NOT EXISTS account_snapshots (
                 sequence INTEGER PRIMARY KEY AUTOINCREMENT,
                 run_id TEXT NOT NULL REFERENCES runs(run_id),
@@ -153,6 +168,7 @@ class PaperJournal:
             );
             CREATE INDEX IF NOT EXISTS idx_orders_run_state ON orders(run_id, state);
             CREATE INDEX IF NOT EXISTS idx_decisions_run_ts ON decisions(run_id, decision_ts_ns);
+            CREATE INDEX IF NOT EXISTS idx_commands_run_ts ON commands(run_id, command_ts_ns);
             CREATE INDEX IF NOT EXISTS idx_accounts_run_ts
                 ON account_snapshots(run_id, snapshot_ts_ns);
             """
@@ -233,8 +249,10 @@ class PaperJournal:
         orders: Sequence[PaperOrder],
         fills: Sequence[PaperFill],
         account: PaperAccountState,
+        commands: Sequence[PaperExecutionCommand] = (),
     ) -> None:
         with self._transaction() as connection:
+            self._insert_commands(connection, run_id, commands)
             for order in orders:
                 connection.execute(
                     """
@@ -277,10 +295,12 @@ class PaperJournal:
         markouts: Sequence[PaperMarkout],
         checkpoint: PaperEngineCheckpoint,
         drift_report: DriftReport | None,
+        commands: Sequence[PaperExecutionCommand] = (),
     ) -> None:
         """Commit one causal market-state transition as a single durability unit."""
 
         with self._transaction() as connection:
+            self._insert_commands(connection, run_id, commands)
             for order in orders:
                 connection.execute(
                     """
@@ -483,6 +503,30 @@ class PaperJournal:
             else PaperEngineCheckpoint.model_validate_json(row["checkpoint_json"])
         )
 
+    def next_command_sequence(self, run_id: str) -> int:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT COALESCE(MAX(sequence), -1) + 1 AS next FROM commands WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+        return int(row["next"])
+
+    def commands(self, run_id: str) -> tuple[PaperExecutionCommand, ...]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT command_json FROM commands WHERE run_id = ? ORDER BY sequence",
+                (run_id,),
+            ).fetchall()
+        return tuple(PaperExecutionCommand.model_validate_json(row["command_json"]) for row in rows)
+
+    def decisions(self, run_id: str) -> tuple[PaperDecisionRecord, ...]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT record_json FROM decisions WHERE run_id = ? ORDER BY decision_ts_ns, rowid",
+                (run_id,),
+            ).fetchall()
+        return tuple(PaperDecisionRecord.model_validate_json(row["record_json"]) for row in rows)
+
     def pending_markout_fills(self, run_id: str, horizon_ns: int) -> tuple[PaperFill, ...]:
         with self._lock:
             rows = self._connection.execute(
@@ -587,6 +631,19 @@ class PaperJournal:
                 """,
                 (run_id, *INVALIDATING_EVENT_KINDS),
             ).fetchall()
+            command_counts = self._connection.execute(
+                """
+                SELECT COUNT(*) AS total,
+                    COALESCE(SUM(CASE WHEN kind = 'submit' THEN 1 ELSE 0 END), 0) AS submits
+                FROM commands WHERE run_id = ?
+                """,
+                (run_id,),
+            ).fetchone()
+            feature_count = int(
+                self._connection.execute(
+                    "SELECT COUNT(*) AS count FROM features WHERE run_id = ?", (run_id,)
+                ).fetchone()["count"]
+            )
         if not account_rows:
             raise ValueError("paper run has no account snapshots")
         equities = [Decimal(row["equity_usd"]) for row in account_rows]
@@ -637,6 +694,9 @@ class PaperJournal:
             ),
             completed_drills=tuple(str(row["drill"]) for row in drills),
             invalidating_events=tuple(str(row["kind"]) for row in invalidating_events),
+            commands=int(command_counts["total"]),
+            submit_commands=int(command_counts["submits"]),
+            feature_samples=feature_count,
         )
 
     def fill(self, fill_id: str) -> PaperFill | None:
@@ -680,3 +740,29 @@ class PaperJournal:
                 account.model_dump_json(),
             ),
         )
+
+    @staticmethod
+    def _insert_commands(
+        connection: sqlite3.Connection,
+        run_id: str,
+        commands: Sequence[PaperExecutionCommand],
+    ) -> None:
+        for command in commands:
+            connection.execute(
+                """
+                INSERT INTO commands(
+                    command_id, run_id, sequence, command_ts_ns, kind, intent_id,
+                    source_sequence, command_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    command.command_id,
+                    run_id,
+                    command.sequence,
+                    command.command_ts_ns,
+                    command.kind.value,
+                    command.intent_id,
+                    command.source_sequence,
+                    command.model_dump_json(),
+                ),
+            )

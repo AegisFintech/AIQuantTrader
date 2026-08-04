@@ -1,0 +1,48 @@
+flowchart LR
+    HL[Hyperliquid public WebSocket]
+
+    subgraph Gateway[Public gateway - internet network]
+        REC[Strict public-only recorder]
+        RAW[(Raw Zstandard archive)]
+        INGRESS[(Durable checksummed SQLite ingress)]
+    end
+
+    subgraph Engine[Shadow engine - network_mode none]
+        VERIFY[Sequence, hash, lag, and clock verification]
+        STATE[Causal L2 and trade assembler]
+        FEAT[Production feature engine]
+        STRAT[Production strategy kernel]
+        RISK[Synchronous hard risk authority]
+        SINK[Counterfactual-only command sink]
+        SIM[Calibrated MBP simulator]
+        JOURNAL[(Atomic decisions, commands, fills, checkpoints)]
+        AUDIT[(Latency, health, drills, comparison evidence)]
+    end
+
+    subgraph Observer[Read-only observer sidecar]
+        STATUS[Status and Prometheus file reader]
+        HTTP[Health and metrics HTTP]
+    end
+
+    HL --> REC
+    REC -->|append and fdatasync first| RAW
+    REC -->|validated public frame| INGRESS
+    INGRESS -->|read-only volume| VERIFY
+    VERIFY --> STATE --> FEAT --> STRAT --> RISK --> SINK
+    SINK --> SIM --> JOURNAL
+    SINK --> JOURNAL
+    VERIFY --> AUDIT
+    JOURNAL --> STATUS --> HTTP
+    AUDIT --> STATUS
+
+    REPLAY[Fresh retained-ingress replay] --> COMPARE[Decision and command comparison]
+    RAW --> REPLAY
+    COMPARE --> AUDIT
+
+    KEY[Wallet, account identity, signer, or execution client]
+    ROUTE[IP default route]
+    KEY -. forbidden by config, compose, and tests .-> Engine
+    ROUTE -. absent and verified from procfs .-> Engine
+
+    classDef forbidden fill:#5b1a1a,color:#fff,stroke:#ff6b6b,stroke-width:2px;
+    class KEY,ROUTE forbidden;

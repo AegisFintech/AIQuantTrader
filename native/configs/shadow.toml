@@ -8,3 +8,10 @@ websocket_url = "wss://api.hyperliquid.xyz/ws"
 
 [execution]
 enabled = false
+
+[market_data]
+enabled = true
+sync_every_records = 1
+
+[shadow]
+enabled = true

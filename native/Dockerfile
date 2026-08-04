@@ -51,7 +51,7 @@ FROM runtime-base AS runtime
 
 COPY --from=builder --chown=65532:65532 /opt/aiquanttrader/.venv /opt/aiquanttrader/.venv
 
-EXPOSE 9108 9109 9110 9111 9112
+EXPOSE 9108 9109 9110 9111 9112 9113
 
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
     CMD ["aqt-native", "healthcheck", "--url", "http://127.0.0.1:9108/health/ready"]

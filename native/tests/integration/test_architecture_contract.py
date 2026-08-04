@@ -80,6 +80,49 @@ def test_paper_service_has_no_wallet_secret_or_exchange_order_capability(
     assert offenders == []
 
 
+def test_shadow_engine_has_no_network_secret_or_exchange_order_capability(
+    project_root: Path,
+) -> None:
+    compose = (project_root / "compose.shadow.yaml").read_text(encoding="utf-8")
+    engine = compose.split("  shadow-engine:", 1)[1].split("  shadow-observer:", 1)[0]
+    gateway = compose.split("  shadow-gateway:", 1)[1].split("  shadow-engine:", 1)[0]
+    observer = compose.split("  shadow-observer:", 1)[1].split("\nvolumes:", 1)[0]
+
+    assert "network_mode: none" in engine
+    assert "shadow-ingress:/var/lib/aiquanttrader/ingress:ro" in engine
+    assert "ports:" not in engine
+    assert "secrets:" not in engine
+    assert "/run/secrets" not in engine
+    assert "shadow-gateway-state:/var/lib/aiquanttrader/state" in gateway
+    assert "shadow-state:/var/lib/aiquanttrader/state" not in gateway
+    assert "shadow-state:/var/lib/aiquanttrader/state:ro" in observer
+    assert "AQT_NATIVE_IMAGE_DIGEST" in engine
+
+    engine_modules = ("service.py", "sink.py", "security.py")
+    prohibited = (
+        "from hyperliquid.",
+        "from nautilus_trader.adapters.hyperliquid",
+        "HyperliquidLiveExecClientFactory",
+        "submit_order(",
+        "websockets.connect",
+    )
+    shadow_root = project_root / "src" / "aiquanttrader_native" / "shadow"
+    offenders = [
+        name
+        for name in engine_modules
+        if any(token in (shadow_root / name).read_text(encoding="utf-8") for token in prohibited)
+    ]
+    assert offenders == []
+
+    dashboard = json.loads(
+        (project_root / "observability/grafana/dashboards/shadow-trading.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert dashboard["uid"] == "aqt-shadow-trading"
+    assert any("network_egress_capability" in str(panel) for panel in dashboard["panels"])
+
+
 def test_testnet_compose_overlay_renders_when_docker_is_available(project_root: Path) -> None:
     if shutil.which("docker") is None:
         pytest.skip("Docker Compose is unavailable")
@@ -101,6 +144,32 @@ def test_testnet_compose_overlay_renders_when_docker_is_available(project_root: 
             "compose.testnet.yaml",
             "--profile",
             "execution-testnet",
+            "config",
+            "--quiet",
+        ],
+        cwd=project_root,
+        env=environment,
+        check=True,
+    )
+
+
+def test_shadow_compose_renders_exact_image_when_docker_is_available(project_root: Path) -> None:
+    if shutil.which("docker") is None:
+        pytest.skip("Docker Compose is unavailable")
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "AQT_NATIVE_IMAGE_REPOSITORY": "registry.invalid/aiquanttrader-native",
+            "AQT_NATIVE_IMAGE_DIGEST": "sha256:" + "a" * 64,
+            "AQT_NATIVE_CODE_IDENTITY": "ci-contract",
+        }
+    )
+    subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            "compose.shadow.yaml",
             "config",
             "--quiet",
         ],

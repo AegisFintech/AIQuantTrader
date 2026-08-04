@@ -1,0 +1,72 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Shadow isolation and readiness",
+      "type": "stat",
+      "targets": [
+        {"expr": "aqt_shadow_feed_connected", "legendFormat": "feed"},
+        {"expr": "aqt_shadow_feature_ready", "legendFormat": "features"},
+        {"expr": "aqt_shadow_network_egress_capability", "legendFormat": "IP egress (must be 0)"}
+      ],
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0}
+    },
+    {
+      "id": 2,
+      "title": "Counterfactual account",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "aqt_shadow_counterfactual_equity_usd", "legendFormat": "equity"},
+        {"expr": "aqt_shadow_counterfactual_position_base", "legendFormat": "BTC position"},
+        {"expr": "aqt_shadow_counterfactual_open_orders", "legendFormat": "orders"}
+      ],
+      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 0}
+    },
+    {
+      "id": 3,
+      "title": "Recorded-only commands",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (kind) (rate(aqt_shadow_commands_total[5m]))", "legendFormat": "{{kind}}"}
+      ],
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 0}
+    },
+    {
+      "id": 4,
+      "title": "Ingress p99 latency",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "histogram_quantile(0.99, sum by (le) (rate(aqt_shadow_ingress_latency_seconds_bucket[5m])))", "legendFormat": "p99"}
+      ],
+      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 6}
+    },
+    {
+      "id": 5,
+      "title": "Decision-cycle p99 latency",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "histogram_quantile(0.99, sum by (le) (rate(aqt_shadow_cycle_latency_seconds_bucket[5m])))", "legendFormat": "p99"}
+      ],
+      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 6}
+    },
+    {
+      "id": 6,
+      "title": "Risk decisions",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "sum by (result) (rate(aqt_shadow_risk_decisions_total[5m]))", "legendFormat": "{{result}}"}
+      ],
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 13}
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["aiquanttrader", "shadow", "btc"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "timezone": "utc",
+  "title": "AIQuantTrader BTC Shadow",
+  "uid": "aqt-shadow-trading",
+  "version": 1
+}

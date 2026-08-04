@@ -46,6 +46,7 @@ from aiquanttrader_native.paper.models import (
     PaperEngineCheckpoint,
     PaperEvidencePolicy,
     PaperEvidenceReport,
+    PaperExecutionCommand,
     PaperFill,
     PaperMarkout,
     PaperOrder,
@@ -63,6 +64,14 @@ from aiquanttrader_native.research.models import (
     ResearchExperimentManifest,
     SearchPolicy,
     SearchReceipt,
+)
+from aiquanttrader_native.shadow.models import (
+    ShadowDeterminismReport,
+    ShadowEvidencePolicy,
+    ShadowEvidenceReport,
+    ShadowGatewayStatus,
+    ShadowIngressEnvelope,
+    ShadowRuntimeStatus,
 )
 
 SchemaFactory = Callable[[], dict[str, Any]]
@@ -119,6 +128,7 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | PaperEvidenceReport
         | PaperRuntimeStatus
         | PaperMarkout
+        | PaperExecutionCommand
     ).json_schema(),
     "raw-segment-manifest.schema.json": lambda: _model_schema(RawSegmentManifest),
     "recorder-state.schema.json": lambda: _model_schema(RecorderState),
@@ -133,6 +143,14 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | ChampionChallengerReport
         | DriftReport
         | ResearchExperimentManifest
+    ).json_schema(),
+    "shadow.schema.json": lambda: TypeAdapter(
+        ShadowIngressEnvelope
+        | ShadowGatewayStatus
+        | ShadowRuntimeStatus
+        | ShadowEvidencePolicy
+        | ShadowDeterminismReport
+        | ShadowEvidenceReport
     ).json_schema(),
     "tardis-file-manifest.schema.json": lambda: _model_schema(TardisFileManifest),
 }

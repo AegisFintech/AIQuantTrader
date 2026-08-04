@@ -9,7 +9,7 @@ from typing import Any
 
 from aiquanttrader_native.backtest.kernel import KernelMarketState
 from aiquanttrader_native.config.models import ExecutionConfig, RiskLimits
-from aiquanttrader_native.domain.execution import RiskReason, RiskSnapshot, RiskState
+from aiquanttrader_native.domain.execution import OrderIntent, RiskReason, RiskSnapshot, RiskState
 from aiquanttrader_native.domain.market import OrderSide
 from aiquanttrader_native.features.engine import IncrementalFeatureEngine
 from aiquanttrader_native.features.models import InventoryState, MicrostructureSnapshot
@@ -17,8 +17,10 @@ from aiquanttrader_native.paper.config import PaperArtifacts
 from aiquanttrader_native.paper.drift import PaperDriftMonitor
 from aiquanttrader_native.paper.journal import PaperJournal
 from aiquanttrader_native.paper.models import (
+    PaperCommandKind,
     PaperDecisionRecord,
     PaperEngineCheckpoint,
+    PaperExecutionCommand,
     PaperFill,
     PaperMarkout,
     PaperOrder,
@@ -53,6 +55,7 @@ class PaperEngineCycle:
     drift_report: DriftReport | None
     risk_state: RiskState
     risk_reasons: tuple[RiskReason, ...]
+    commands: tuple[PaperExecutionCommand, ...]
 
 
 class PaperTradingEngine:
@@ -96,6 +99,7 @@ class PaperTradingEngine:
         )
         resumed = journal.begin_run(manifest, self.simulator.account)
         self.resumed = resumed
+        self._command_sequence = journal.next_command_sequence(manifest.run_id)
         policy = artifacts.evidence_policy
         self._drift_monitor = PaperDriftMonitor(
             policy,
@@ -114,6 +118,7 @@ class PaperTradingEngine:
         self._next_funding_ns = (
             None if checkpoint is None else checkpoint.next_funding_settlement_ns
         )
+        self._source_sequence = None if checkpoint is None else checkpoint.source_sequence
         self._pending_markouts: dict[str, PaperFill] = {
             fill.fill_id: fill
             for fill in journal.pending_markout_fills(manifest.run_id, markout_horizon_ns)
@@ -127,11 +132,13 @@ class PaperTradingEngine:
         )
         if resumed:
             pending = self.simulator.request_cancel_all(requested_ts_ns=started_ts_ns)
+            commands = self._cancel_commands(pending, PaperCommandKind.CANCEL_ALL, started_ts_ns)
             self.journal.record_cycle(
                 manifest.run_id,
                 orders=pending,
                 fills=(),
                 account=self.simulator.account,
+                commands=commands,
             )
             self.journal.record_event(
                 manifest.run_id,
@@ -182,7 +189,12 @@ class PaperTradingEngine:
         *,
         mark_price: Decimal | None = None,
         feed_connected: bool = True,
+        source_sequence: int | None = None,
     ) -> PaperEngineCycle:
+        if source_sequence is not None and (
+            self._source_sequence is not None and source_sequence <= self._source_sequence
+        ):
+            raise ValueError("paper source sequences must be strictly increasing")
         if (
             self._last_market is not None
             and market.observed_ts_ns <= self._last_market.observed_ts_ns
@@ -191,6 +203,7 @@ class PaperTradingEngine:
         self._now_ns = market.observed_ts_ns
         self._last_market = market
         self._feed_connected = feed_connected
+        self._source_sequence = source_sequence
         self._settle_funding_if_due(mark_price or self.simulator.account.mark_price)
         simulation = self.simulator.advance(market, mark_price=mark_price)
         for fill in simulation.fills:
@@ -201,9 +214,14 @@ class PaperTradingEngine:
         risk_snapshot = self._risk_snapshot()
         risk_state, risk_reasons = self._authority.state(risk_snapshot)
         changed_orders: list[PaperOrder] = list(simulation.orders)
+        commands: list[PaperExecutionCommand] = []
         if risk_state is not RiskState.ACTIVE:
-            changed_orders.extend(
-                self.simulator.request_cancel_all(requested_ts_ns=market.observed_ts_ns)
+            risk_canceled = self.simulator.request_cancel_all(requested_ts_ns=market.observed_ts_ns)
+            changed_orders.extend(risk_canceled)
+            commands.extend(
+                self._cancel_commands(
+                    risk_canceled, PaperCommandKind.CANCEL_ALL, market.observed_ts_ns
+                )
             )
             self._record_economic_drills(risk_reasons, market.observed_ts_ns)
 
@@ -221,11 +239,18 @@ class PaperTradingEngine:
         )
         self._memory = transition.memory
         for intent_id in transition.decision.cancel_intent_ids:
-            canceled = self.simulator.request_cancel(
+            canceled_order = self.simulator.request_cancel(
                 intent_id, requested_ts_ns=market.observed_ts_ns
             )
-            if canceled is not None:
-                changed_orders.append(canceled)
+            if canceled_order is not None:
+                changed_orders.append(canceled_order)
+                commands.append(
+                    self._cancel_command(
+                        canceled_order,
+                        PaperCommandKind.CANCEL,
+                        market.observed_ts_ns,
+                    )
+                )
 
         records: list[PaperDecisionRecord] = []
         for intent in transition.decision.submit:
@@ -249,6 +274,14 @@ class PaperTradingEngine:
             records.append(record)
             if decision.allowed:
                 self._authority.consume(decision, intent, snapshot)
+                commands.append(
+                    self._submit_command(
+                        intent=intent,
+                        risk_decision_id=decision.decision_id,
+                        feature_snapshot_sha256=features.sha256(),
+                        command_ts_ns=market.observed_ts_ns,
+                    )
+                )
                 changed_orders.append(
                     self.simulator.submit(intent, accepted_ts_ns=market.observed_ts_ns)
                 )
@@ -264,6 +297,7 @@ class PaperTradingEngine:
             markouts=markouts,
             checkpoint=checkpoint,
             drift_report=drift_report,
+            commands=commands,
         )
         self._decision_count += len(records)
         self._fill_count += len(simulation.fills)
@@ -276,6 +310,7 @@ class PaperTradingEngine:
             drift_report=drift_report,
             risk_state=risk_state,
             risk_reasons=risk_reasons,
+            commands=tuple(commands),
         )
 
     def watchdog(self, now_ts_ns: int, *, recorder_connected: bool) -> tuple[RiskReason, ...]:
@@ -292,11 +327,13 @@ class PaperTradingEngine:
         if stale or not recorder_connected or kill_active:
             requested = self.simulator.request_cancel_all(requested_ts_ns=now_ts_ns)
         if elapsed or requested:
+            commands = self._cancel_commands(requested, PaperCommandKind.CANCEL_ALL, now_ts_ns)
             self.journal.record_cycle(
                 self.manifest.run_id,
                 orders=(*elapsed, *requested),
                 fills=(),
                 account=self.simulator.account,
+                commands=commands,
             )
         if self._last_market is None:
             return ()
@@ -400,7 +437,63 @@ class PaperTradingEngine:
             last_independent_decision_ts_ns=self._last_independent_ts_ns,
             funding_rate=self._funding_rate,
             next_funding_settlement_ns=self._next_funding_ns,
+            source_sequence=self._source_sequence,
         )
+
+    def _submit_command(
+        self,
+        *,
+        intent: OrderIntent,
+        risk_decision_id: str,
+        feature_snapshot_sha256: str,
+        command_ts_ns: int,
+    ) -> PaperExecutionCommand:
+        sequence = self._command_sequence
+        self._command_sequence += 1
+        identity = hashlib.sha256(
+            f"{manifest_identity(self.manifest)}:{sequence}:submit:{intent.intent_id}".encode()
+        ).hexdigest()[:32]
+        return PaperExecutionCommand(
+            command_id=f"command-{identity}",
+            sequence=sequence,
+            command_ts_ns=command_ts_ns,
+            kind=PaperCommandKind.SUBMIT,
+            intent_id=intent.intent_id,
+            strategy_id=intent.strategy_id,
+            intent=intent,
+            risk_decision_id=risk_decision_id,
+            feature_snapshot_sha256=feature_snapshot_sha256,
+            source_sequence=self._source_sequence,
+        )
+
+    def _cancel_command(
+        self,
+        order: PaperOrder,
+        kind: PaperCommandKind,
+        command_ts_ns: int,
+    ) -> PaperExecutionCommand:
+        sequence = self._command_sequence
+        self._command_sequence += 1
+        identity = hashlib.sha256(
+            f"{manifest_identity(self.manifest)}:{sequence}:{kind.value}:{order.intent.intent_id}".encode()
+        ).hexdigest()[:32]
+        return PaperExecutionCommand(
+            command_id=f"command-{identity}",
+            sequence=sequence,
+            command_ts_ns=command_ts_ns,
+            kind=kind,
+            intent_id=order.intent.intent_id,
+            strategy_id=order.intent.strategy_id,
+            source_sequence=self._source_sequence,
+        )
+
+    def _cancel_commands(
+        self,
+        orders: tuple[PaperOrder, ...],
+        kind: PaperCommandKind,
+        command_ts_ns: int,
+    ) -> tuple[PaperExecutionCommand, ...]:
+        return tuple(self._cancel_command(order, kind, command_ts_ns) for order in orders)
 
     def _is_independent(self, ts_ns: int) -> bool:
         previous = self._last_independent_ts_ns

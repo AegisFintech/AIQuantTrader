@@ -20,6 +20,8 @@ dataset lineage, and operational availability.
 6. Research environment to governance artifacts.
 7. Human approver to production deployment controller.
 8. Prometheus/Grafana/Alertmanager to operator notification channels.
+9. Public shadow gateway to the no-network shadow engine through checksummed,
+   read-only durable ingress.
 
 ## Threats and controls
 
@@ -44,6 +46,8 @@ dataset lineage, and operational availability.
 | Clock drift | Invalid ordering/latency | Host time synchronization and monotonic timestamps | Drift metrics, reject research window, halt if operational threshold exceeded |
 | Metrics/log cardinality attack | Observability outage | Bounded labels, IDs only in structured logs, retention limits | Scrape/storage alerts, preserve trading hot path, recover monitoring |
 | Operator mistake | Wrong venue/account/capital | Environment banners, allowlisted instrument, signed policy, two-person mainnet checklist | Immediate kill, cancel/flatten, incident review |
+| Shadow mode escape | Unapproved order reaches the venue | No account/wallet/signer, engine `network_mode: none`, no default route, read-only one-way ingress, recorded-only sink | Startup route proof, static architecture tests, zero egress metric, invalidate run |
+| Shadow ingress mutation/gap | False decision or misleading evidence | Raw-first archive, full-synchronous local sequence, SHA-256 per envelope, read-only engine mount | Fatal sequence/hash check, retained replay, run-integrity failure |
 
 ## Failure invariants
 
