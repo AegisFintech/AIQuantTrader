@@ -16,6 +16,13 @@ from aiquanttrader_native.domain.data import (
     RecorderState,
     TardisFileManifest,
 )
+from aiquanttrader_native.domain.execution import (
+    ExecutionJournalEvent,
+    OrderIntent,
+    RiskDecision,
+    RiskSnapshot,
+    TradingHeartbeat,
+)
 from aiquanttrader_native.domain.features import FeatureSnapshot
 from aiquanttrader_native.domain.governance import DeploymentApproval, ExperimentManifest
 from aiquanttrader_native.domain.market import DataCapabilities, MarketEvent
@@ -42,6 +49,9 @@ SCHEMAS: dict[str, SchemaFactory] = {
     "data-capabilities.schema.json": DataCapabilities.model_json_schema,
     "deployment-approval.schema.json": lambda: _model_schema(DeploymentApproval),
     "experiment.schema.json": lambda: _model_schema(ExperimentManifest),
+    "execution.schema.json": lambda: TypeAdapter(
+        OrderIntent | RiskSnapshot | RiskDecision | ExecutionJournalEvent | TradingHeartbeat
+    ).json_schema(),
     "features.schema.json": lambda: _model_schema(FeatureSnapshot),
     "market-data.schema.json": lambda: TypeAdapter(MarketEvent).json_schema(),
     "dataset-manifest.schema.json": lambda: _model_schema(DatasetManifest),

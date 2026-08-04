@@ -1,0 +1,24 @@
+flowchart LR
+    K[Pure strategy kernels] -->|OrderIntent| G[Risk-managed Nautilus gateway]
+    S[Account and feed snapshot] --> R[Synchronous risk authority]
+    O[Persistent operator kill] --> R
+    G --> R
+    R -->|single-use HMAC approval| G
+    R -->|stable denial reason| J[(SQLite WAL execution journal)]
+    G -->|approved submit modify cancel| N[Nautilus Hyperliquid adapter]
+    N --> H[Hyperliquid testnet - Phase 4]
+    N -->|order fill position events| G
+    G --> J
+    J -->|unresolved CLOID only| X[Reconciliation monitor]
+    X --> N
+
+    G -->|atomic heartbeat| HB[Shared state volume]
+    HB --> T[Independent safety sentinel]
+    C[Control API wallet] --> T
+    W[Trading API wallet] --> N
+    T -->|scheduleCancel renew| H
+    T -->|cancel all on failure| H
+
+    R --> P[Prometheus]
+    T --> P
+    P --> D[Grafana]

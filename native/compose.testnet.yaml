@@ -1,0 +1,91 @@
+name: aiquanttrader-native-testnet
+
+x-execution-security: &execution-security
+  user: "65532:65532"
+  read_only: true
+  init: true
+  restart: unless-stopped
+  stop_grace_period: 30s
+  cap_drop: ["ALL"]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+  logging:
+    driver: json-file
+    options:
+      max-file: "3"
+      max-size: 10m
+
+x-testnet-environment: &testnet-environment
+  AQT_NATIVE__EXCHANGE__ACCOUNT_ADDRESS: ${AQT_TESTNET_ACCOUNT_ADDRESS:?set testnet account}
+  AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH: /run/secrets/testnet-trading-wallet
+  AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH: /run/secrets/testnet-control-wallet
+  AQT_NATIVE__EXECUTION__ENABLED: "true"
+  AQT_NATIVE__SENTINEL__ENABLED: "true"
+
+services:
+  trading-node:
+    <<: *execution-security
+    profiles: ["execution-testnet"]
+    image: aiquanttrader-native-foundation:0.1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    entrypoint: ["aqt-execution"]
+    command: ["run", "--config-dir", "/etc/aiquanttrader-native", "--environment", "testnet"]
+    environment: *testnet-environment
+    volumes:
+      - native-data:/var/lib/aiquanttrader/data
+      - native-state:/var/lib/aiquanttrader/state
+    secrets:
+      - source: testnet_trading_wallet
+        target: testnet-trading-wallet
+    ports:
+      - "127.0.0.1:9110:9110"
+    healthcheck:
+      test:
+        - CMD
+        - aqt-execution
+        - healthcheck
+        - --config-dir
+        - /etc/aiquanttrader-native
+        - --environment
+        - testnet
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+  safety-sentinel:
+    <<: *execution-security
+    profiles: ["execution-testnet"]
+    image: aiquanttrader-native-foundation:0.1.0
+    entrypoint: ["aqt-sentinel"]
+    command: ["--config-dir", "/etc/aiquanttrader-native", "--environment", "testnet"]
+    environment: *testnet-environment
+    volumes:
+      - native-state:/var/lib/aiquanttrader/state:ro
+    secrets:
+      - source: testnet_control_wallet
+        target: testnet-control-wallet
+    ports:
+      - "127.0.0.1:9111:9111"
+    healthcheck:
+      test:
+        - CMD
+        - aqt-sentinel
+        - --healthcheck
+        - --config-dir
+        - /etc/aiquanttrader-native
+        - --environment
+        - testnet
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+secrets:
+  testnet_trading_wallet:
+    file: ${AQT_TESTNET_TRADING_WALLET_FILE:?set trading wallet file}
+  testnet_control_wallet:
+    file: ${AQT_TESTNET_CONTROL_WALLET_FILE:?set control wallet file}

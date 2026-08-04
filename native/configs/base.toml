@@ -17,6 +17,22 @@ enabled = false
 max_inflight_requests = 20
 reconcile_on_startup = true
 unknown_order_timeout_ms = 5000
+approval_ttl_ms = 250
+heartbeat_interval_ms = 1000
+adapter_http_timeout_seconds = 10
+adapter_ws_post_timeout_seconds = 10
+normalize_prices = true
+include_builder_attribution = false
+
+[sentinel]
+enabled = false
+poll_interval_ms = 1000
+heartbeat_stale_after_ms = 5000
+deadman_timeout_ms = 20000
+deadman_renew_interval_ms = 5000
+cancel_retry_count = 3
+metrics_host = "0.0.0.0"
+metrics_port = 9111
 
 [market_data]
 enabled = false
@@ -39,10 +55,13 @@ metrics_port = 9109
 daily_loss_fraction = "0.005"
 max_drawdown_fraction = "0.01"
 max_leverage = "1.0"
+max_order_size_base = "0.005"
+max_position_size_base = "0.02"
 max_order_notional_usd = "250"
 max_inventory_notional_usd = "1000"
 max_open_orders = 4
 max_orders_per_second = 5
+max_cancels_per_second = 10
 public_data_stale_after_ms = 1500
 private_data_stale_after_ms = 3000
 
@@ -53,5 +72,7 @@ state_root = "/var/lib/aiquanttrader/state"
 [observability]
 health_host = "0.0.0.0"
 health_port = 9108
+execution_metrics_host = "0.0.0.0"
+execution_metrics_port = 9110
 
 [approval]

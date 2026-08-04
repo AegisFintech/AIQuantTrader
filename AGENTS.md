@@ -11,8 +11,11 @@ only the standard BTC perpetual, represented as
 - `docs/migration/PHASE_ACCEPTANCE_GATES.md`
 - `docs/migration/FILE_DISPOSITION.md`
 - `docs/migration/PHASE_2_FOUNDATION.md`
+- `docs/migration/PHASE_3_MARKET_DATA.md`
+- `docs/migration/PHASE_4_EXECUTION_RISK.md`
 - `docs/operations/NATIVE_PLATFORM_THREAT_MODEL.md`
 - `docs/operations/NATIVE_RELEASE_CHECKLIST.md`
+- `docs/operations/EXECUTION_RISK_RUNBOOK.md`
 
 Migration rules:
 
@@ -36,9 +39,13 @@ Migration rules:
 - Until Phase 9 retirement, native Python belongs under
   `native/src/aiquanttrader_native`; do not introduce native dependencies into
   the deployed legacy `aiquanttrader` package. See ADR 0008.
-- Checked-in native environment overlays must keep execution disabled. Mainnet
-  order submission remains unavailable until its later implementation includes
-  signed approval verification and all preceding gates have passed.
+- Checked-in native environment overlays must keep execution disabled. The
+  Phase 4 order path does not authorize testnet acceptance or mainnet use;
+  credentialed testnet drills, all preceding gates, and artifact-bound signed
+  approval remain mandatory.
+- Phase 4 application configuration must reject enabled mainnet wallets even
+  when approval-file references are present. Removing that lock belongs to the
+  separately reviewed Phase 9 cryptographic approval implementation.
 
 ## Legacy runtime mandate
 
@@ -52,6 +59,9 @@ AIQuantTrader is now an MT5-first autonomous demo-trading repo. Trade and optimi
 - Native public-data runbook: `docs/operations/MARKET_DATA_RUNBOOK.md`. The
   recorder and normalizer are isolated from the deployed MT5 processes and
   cannot submit orders. Phase 3 acceptance remains gated on a sustained soak.
+- Native execution/risk runbook: `docs/operations/EXECUTION_RISK_RUNBOOK.md`.
+  Only the isolated testnet overlay may mount wallets during Phase 4 evidence
+  collection, and trading/control wallets must remain process-separated.
 - Active EA: `broker/mt5/AIQuantTraderBridgeEA.mq5` (v2.00)
 - EA Modules: `broker/mt5/RiskManagement.mqh`, `SmartMoney.mqh`, `BridgeIO.mqh`
 - Runtime process list: `ecosystem.config.js`

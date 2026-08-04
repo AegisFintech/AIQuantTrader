@@ -12,6 +12,8 @@ license = {text = "MIT"}
 authors = [{name = "Aegis Fintech"}]
 dependencies = [
   "duckdb==1.5.4",
+  "hyperliquid-python-sdk==0.24.0",
+  "nautilus-trader==1.230.0",
   "prometheus-client==0.25.0",
   "pyarrow==25.0.0",
   "pydantic==2.13.4",
@@ -20,10 +22,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-execution = [
-  "hyperliquid-python-sdk==0.24.0",
-  "nautilus-trader==1.230.0",
-]
 research = [
   "hftbacktest==2.4.4",
 ]
@@ -31,6 +29,8 @@ research = [
 [project.scripts]
 aqt-native = "aiquanttrader_native.cli:main"
 aqt-market-data = "aiquanttrader_native.market_data.cli:main"
+aqt-execution = "aiquanttrader_native.execution.cli:main"
+aqt-sentinel = "aiquanttrader_native.sentinel.cli:main"
 
 [dependency-groups]
 dev = [
@@ -80,6 +80,10 @@ warn_unreachable = true
 
 [[tool.mypy.overrides]]
 module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["nautilus_trader", "nautilus_trader.*", "hyperliquid", "hyperliquid.*"]
 ignore_missing_imports = true
 
 [tool.pydantic-mypy]

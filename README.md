@@ -13,12 +13,15 @@ authorized by the architecture approval alone, and automated research may not
 promote a model into production. Until the Phase 9 cutover is separately
 approved, the deployed runtime remains the MT5 demo system described below.
 
-Phase 2 now provides a non-trading native foundation: typed fail-closed
-configuration, versioned event schemas, governance contracts, locked Python and
-Rust toolchains, and a hardened container baseline. See
-[`docs/migration/PHASE_2_FOUNDATION.md`](docs/migration/PHASE_2_FOUNDATION.md).
-No market-data connection, order submission, or production deployment is
-enabled by this foundation.
+Phases 2-4 now provide the isolated native foundation, raw-first Hyperliquid
+market-data path, and a fail-closed execution/risk path. Phase 4 uses
+NautilusTrader as the sole ordinary order owner and a separately credentialed
+Hyperliquid SDK sentinel for exchange dead-man and emergency cancellation. See
+[`docs/migration/PHASE_4_EXECUTION_RISK.md`](docs/migration/PHASE_4_EXECUTION_RISK.md)
+and [`docs/operations/EXECUTION_RISK_RUNBOOK.md`](docs/operations/EXECUTION_RISK_RUNBOOK.md).
+All checked-in environments remain execution-disabled; credentialed testnet
+acceptance evidence is still required. Phase 4 configuration rejects enabled
+mainnet wallets; no mainnet deployment is authorized.
 
 ## Current deployed runtime
 

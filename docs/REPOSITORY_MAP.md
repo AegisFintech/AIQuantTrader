@@ -127,6 +127,29 @@ There is no active Python order executor. Automatic orders originate inside the
 MQL5 EA. The dashboard is read-only. No PM2 process currently writes
 `aiquanttrader_commands.csv`.
 
+## Parallel Linux-native migration
+
+The `native/` tree is an isolated, Docker-managed BTC perpetual replacement
+under construction. It is not part of the active PM2/MT5 runtime. Phases 2-4
+currently provide:
+
+| Area | Native ownership |
+|---|---|
+| Deployment policy | `native/src/aiquanttrader_native/config/`; checked configs reject unknown keys and keep execution disabled. |
+| Public market data | `native/src/aiquanttrader_native/market_data/`; independent raw-first Hyperliquid recorder and normalizer. |
+| Hard risk | `native/src/aiquanttrader_native/risk/`; synchronous approval authority and persistent operator kill. |
+| Normal execution | `native/src/aiquanttrader_native/execution/`; only `RiskManagedExecutionStrategy` may call Nautilus order APIs. |
+| Emergency control | `native/src/aiquanttrader_native/sentinel/`; independent SDK control wallet, dead-man renewal, and cancel-all only. |
+| Testnet deployment | `native/compose.testnet.yaml`; trading and control secrets are mounted into different processes. |
+
+Phase 4 code is implemented but is not accepted until the credentialed testnet
+scenario matrix and kill/dead-man drills in
+`docs/operations/EXECUTION_RISK_RUNBOOK.md` are retained and reviewed. No
+native mainnet order path is authorized: Phase 4 application configuration
+rejects enabled mainnet wallets even when approval-file references are present.
+Native work must not modify or restart the MT5 runtime unless the owner
+separately requests it.
+
 ## Live Trading Path
 
 ### MQL5 ownership

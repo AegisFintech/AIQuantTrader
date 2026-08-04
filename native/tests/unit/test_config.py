@@ -6,7 +6,12 @@ import pytest
 from pydantic import ValidationError
 
 from aiquanttrader_native.config import ConfigLoadError, load_config
-from aiquanttrader_native.config.models import DeploymentMode, ExchangeNetwork, MarketDataConfig
+from aiquanttrader_native.config.models import (
+    DeploymentMode,
+    ExchangeNetwork,
+    MarketDataConfig,
+    SentinelConfig,
+)
 
 ACCOUNT = "0x" + "1" * 40
 HASH = "a" * 64
@@ -57,12 +62,36 @@ def test_testnet_execution_can_be_explicitly_enabled(config_dir: Path) -> None:
             "AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH": (
                 "/run/secrets/testnet-trading-wallet"
             ),
+            "AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH": (
+                "/run/secrets/testnet-control-wallet"
+            ),
             "AQT_NATIVE__EXECUTION__ENABLED": "true",
+            "AQT_NATIVE__SENTINEL__ENABLED": "true",
         },
     )
 
     assert bundle.settings.can_submit_orders
     assert bundle.settings.exchange.account_address == ACCOUNT
+
+
+def test_testnet_execution_requires_startup_reconciliation(config_dir: Path) -> None:
+    with pytest.raises(ConfigLoadError, match="startup reconciliation"):
+        load_config(
+            config_dir,
+            "testnet",
+            environ={
+                "AQT_NATIVE__EXCHANGE__ACCOUNT_ADDRESS": ACCOUNT,
+                "AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH": (
+                    "/run/secrets/testnet-trading-wallet"
+                ),
+                "AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH": (
+                    "/run/secrets/testnet-control-wallet"
+                ),
+                "AQT_NATIVE__EXECUTION__ENABLED": "true",
+                "AQT_NATIVE__EXECUTION__RECONCILE_ON_STARTUP": "false",
+                "AQT_NATIVE__SENTINEL__ENABLED": "true",
+            },
+        )
 
 
 @pytest.mark.parametrize("environment", ["research", "paper", "shadow"])
@@ -75,12 +104,13 @@ def test_non_execution_modes_cannot_be_overridden(config_dir: Path, environment:
                 "AQT_NATIVE__EXCHANGE__ACCOUNT_ADDRESS": ACCOUNT,
                 "AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH": ("/run/secrets/trading-wallet"),
                 "AQT_NATIVE__EXECUTION__ENABLED": "true",
+                "AQT_NATIVE__SENTINEL__ENABLED": "true",
             },
         )
 
 
-def test_mainnet_execution_requires_complete_approval(config_dir: Path) -> None:
-    with pytest.raises(ConfigLoadError, match="complete artifact-bound approval"):
+def test_mainnet_execution_is_unavailable_during_phase_4(config_dir: Path) -> None:
+    with pytest.raises(ConfigLoadError, match="remain unavailable until Phase 9"):
         load_config(
             config_dir,
             "canary",
@@ -93,36 +123,36 @@ def test_mainnet_execution_requires_complete_approval(config_dir: Path) -> None:
                     "/run/secrets/mainnet-control-wallet"
                 ),
                 "AQT_NATIVE__EXECUTION__ENABLED": "true",
+                "AQT_NATIVE__SENTINEL__ENABLED": "true",
             },
         )
 
 
-def test_canary_accepts_complete_artifact_bound_approval(config_dir: Path) -> None:
-    bundle = load_config(
-        config_dir,
-        "canary",
-        environ={
-            "AQT_NATIVE__APPROVAL__APPROVAL_ID": "approval-001",
-            "AQT_NATIVE__APPROVAL__ARTIFACT_MANIFEST_SHA256": HASH,
-            "AQT_NATIVE__APPROVAL__MANIFEST_PATH": "/run/secrets/canary-manifest",
-            "AQT_NATIVE__APPROVAL__PUBLIC_KEY_PATH": "/run/secrets/approver-public-key",
-            "AQT_NATIVE__APPROVAL__SIGNATURE_PATH": "/run/secrets/canary-signature",
-            "AQT_NATIVE__EXCHANGE__ACCOUNT_ADDRESS": ACCOUNT,
-            "AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH": (
-                "/run/secrets/mainnet-control-wallet"
-            ),
-            "AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH": (
-                "/run/secrets/mainnet-trading-wallet"
-            ),
-            "AQT_NATIVE__EXECUTION__ENABLED": "true",
-        },
-    )
+def test_canary_rejects_even_complete_approval_until_phase_9(config_dir: Path) -> None:
+    with pytest.raises(ConfigLoadError, match="remain unavailable until Phase 9"):
+        load_config(
+            config_dir,
+            "canary",
+            environ={
+                "AQT_NATIVE__APPROVAL__APPROVAL_ID": "approval-001",
+                "AQT_NATIVE__APPROVAL__ARTIFACT_MANIFEST_SHA256": HASH,
+                "AQT_NATIVE__APPROVAL__MANIFEST_PATH": "/run/secrets/canary-manifest",
+                "AQT_NATIVE__APPROVAL__PUBLIC_KEY_PATH": "/run/secrets/approver-public-key",
+                "AQT_NATIVE__APPROVAL__SIGNATURE_PATH": "/run/secrets/canary-signature",
+                "AQT_NATIVE__EXCHANGE__ACCOUNT_ADDRESS": ACCOUNT,
+                "AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH": (
+                    "/run/secrets/mainnet-control-wallet"
+                ),
+                "AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH": (
+                    "/run/secrets/mainnet-trading-wallet"
+                ),
+                "AQT_NATIVE__EXECUTION__ENABLED": "true",
+                "AQT_NATIVE__SENTINEL__ENABLED": "true",
+            },
+        )
 
-    assert bundle.settings.can_submit_orders
-    assert bundle.settings.approval.approval_id == "approval-001"
 
-
-def test_production_requires_separate_scale_approval(config_dir: Path) -> None:
+def test_production_approval_cannot_bypass_phase_9_lock(config_dir: Path) -> None:
     environ = {
         "AQT_NATIVE__APPROVAL__APPROVAL_ID": "approval-001",
         "AQT_NATIVE__APPROVAL__ARTIFACT_MANIFEST_SHA256": HASH,
@@ -133,12 +163,14 @@ def test_production_requires_separate_scale_approval(config_dir: Path) -> None:
         "AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH": ("/run/secrets/mainnet-control-wallet"),
         "AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH": ("/run/secrets/mainnet-trading-wallet"),
         "AQT_NATIVE__EXECUTION__ENABLED": "true",
+        "AQT_NATIVE__SENTINEL__ENABLED": "true",
     }
-    with pytest.raises(ConfigLoadError, match="complete artifact-bound approval"):
+    with pytest.raises(ConfigLoadError, match="remain unavailable until Phase 9"):
         load_config(config_dir, "production", environ=environ)
 
     environ["AQT_NATIVE__APPROVAL__SCALE_APPROVAL_ID"] = "scale-001"
-    assert load_config(config_dir, "production", environ=environ).settings.can_submit_orders
+    with pytest.raises(ConfigLoadError, match="remain unavailable until Phase 9"):
+        load_config(config_dir, "production", environ=environ)
 
 
 @pytest.mark.parametrize(
@@ -269,3 +301,37 @@ def test_market_data_configuration_is_bounded_and_secret_referenced(config_dir: 
         MarketDataConfig(reconnect_initial_ms=1_000, reconnect_max_ms=500)
     with pytest.raises(ValidationError, match="below /run/secrets"):
         MarketDataConfig(tardis_api_key_secret_path=Path("/tmp/key"))
+
+
+def test_execution_wallet_names_and_endpoints_are_environment_scoped(config_dir: Path) -> None:
+    base = {
+        "AQT_NATIVE__EXCHANGE__ACCOUNT_ADDRESS": ACCOUNT,
+        "AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH": ("/run/secrets/testnet-trading-wallet"),
+        "AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH": ("/run/secrets/testnet-control-wallet"),
+        "AQT_NATIVE__EXECUTION__ENABLED": "true",
+        "AQT_NATIVE__SENTINEL__ENABLED": "true",
+    }
+    with pytest.raises(ConfigLoadError, match=r"testnet-.*names"):
+        load_config(
+            config_dir,
+            "testnet",
+            environ={
+                **base,
+                "AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH": (
+                    "/run/secrets/mainnet-control-wallet"
+                ),
+            },
+        )
+    with pytest.raises(ConfigLoadError, match="canonical Hyperliquid HTTP"):
+        load_config(
+            config_dir,
+            "testnet",
+            environ={**base, "AQT_NATIVE__EXCHANGE__HTTP_URL": "https://example.com"},
+        )
+
+
+def test_sentinel_timing_is_fail_closed() -> None:
+    with pytest.raises(ValidationError, match="five seconds"):
+        SentinelConfig(deadman_timeout_ms=10_000, deadman_renew_interval_ms=5_000)
+    with pytest.raises(ValidationError, match="polling"):
+        SentinelConfig(poll_interval_ms=5_000, heartbeat_stale_after_ms=5_000)

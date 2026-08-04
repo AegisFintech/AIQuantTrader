@@ -1,0 +1,110 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+      "id": 1,
+      "targets": [{"expr": "aqt_sentinel_trading_node_healthy", "refId": "A"}],
+      "title": "Sentinel view of node health",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+      "id": 2,
+      "targets": [{"expr": "aqt_sentinel_trading_heartbeat_age_seconds", "refId": "A"}],
+      "title": "Trading heartbeat age",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "id": 3,
+      "targets": [
+        {"expr": "sum by (result, state, reason) (increase(aqt_execution_risk_decisions_total[15m]))", "refId": "A"}
+      ],
+      "title": "Risk decisions",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "id": 4,
+      "targets": [
+        {"expr": "sum by (state) (increase(aqt_execution_order_events_total[15m]))", "refId": "A"},
+        {"expr": "sum by (result) (increase(aqt_sentinel_emergency_cancel_total[15m]))", "refId": "B"}
+      ],
+      "title": "Order lifecycle and emergency cancels",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 12},
+      "id": 5,
+      "targets": [
+        {"expr": "histogram_quantile(0.99, sum by (le) (rate(aqt_execution_risk_decision_latency_seconds_bucket[5m])))", "refId": "A"}
+      ],
+      "title": "Risk decision p99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 12},
+      "id": 6,
+      "targets": [
+        {"expr": "histogram_quantile(0.99, sum by (le, operation) (rate(aqt_execution_journal_commit_latency_seconds_bucket[5m])))", "refId": "A"}
+      ],
+      "title": "Journal commit p99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 12},
+      "id": 7,
+      "targets": [
+        {"expr": "histogram_quantile(0.99, sum by (le, operation, result) (rate(aqt_execution_adapter_command_latency_seconds_bucket[5m])))", "refId": "A"}
+      ],
+      "title": "Adapter command p99",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 4, "w": 12, "x": 0, "y": 20},
+      "id": 8,
+      "targets": [
+        {"expr": "aqt_execution_unresolved_commands", "refId": "A"},
+        {"expr": "aqt_execution_reconciliation_complete", "refId": "B"}
+      ],
+      "title": "Reconciliation and unresolved commands",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 41,
+  "tags": ["aiquanttrader", "execution", "risk"],
+  "templating": {
+    "list": [
+      {
+        "current": {"text": "Prometheus", "value": "Prometheus"},
+        "label": "Prometheus",
+        "name": "DS_PROMETHEUS",
+        "query": "prometheus",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "AIQuantTrader Execution and Risk",
+  "uid": "aqt-execution-risk",
+  "version": 1
+}
