@@ -1,0 +1,42 @@
+flowchart LR
+    HL[Hyperliquid REST and WebSocket]
+    TD[Tardis historical data]
+    OP[Operator]
+
+    subgraph Production
+        TN[Nautilus trading node]
+        MR[Market-data recorder]
+        SS[Independent safety sentinel]
+        PM[Prometheus]
+    end
+
+    subgraph Storage
+        RA[Immutable raw archive]
+        PQ[Validated Parquet catalog]
+        DB[DuckDB metadata and analytics]
+        EJ[Execution event journal]
+    end
+
+    subgraph Research_and_Governance[Research and governance]
+        RW[Research workers]
+        GR[Experiment and deployment registry]
+        HA[Human approval boundary]
+    end
+
+    HL <--> TN
+    HL --> MR
+    SS --> HL
+    MR --> RA
+    RA --> PQ
+    TD --> PQ
+    PQ --> RW
+    TN --> EJ
+    EJ --> DB
+    RW --> GR
+    GR --> HA
+    OP --> HA
+    OP --> SS
+    HA --> TN
+    TN --> PM
+    MR --> PM
+    SS --> PM

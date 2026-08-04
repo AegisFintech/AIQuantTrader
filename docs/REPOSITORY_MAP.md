@@ -1,6 +1,6 @@
 # AIQuantTrader Repository Map
 
-Last verified: 2026-07-14
+Last verified: 2026-08-04
 
 Use this document as the first navigation aid for repo work. It identifies the
 active runtime, code ownership boundaries, data flows, and known validation
@@ -8,9 +8,17 @@ gaps. It is a map, not a substitute for reading the exact files being changed.
 
 ## Authority and Scope
 
-The current mandate is MT5 demo trading for `XAUUSD` only.
+The repository has two explicitly separate states:
 
-Authority order:
+- **Deployed legacy state:** MT5 demo trading for `XAUUSD` only. The existing
+  MQL5, Wine, PM2, Common Files, and XAU instructions remain authoritative for
+  that runtime until Phase 9 retirement.
+- **Approved target state:** Linux-native trading of
+  `BTC-USD-PERP.HYPERLIQUID` through NautilusTrader and Hyperliquid. Target
+  approval does not authorize mainnet trading or automatic production
+  promotion.
+
+Legacy authority order:
 
 1. `AGENTS.md` for owner directives and change rules.
 2. `broker/mt5/AIQuantTraderBridgeEA.mq5` and its three `.mqh` modules for live
@@ -24,7 +32,42 @@ Authority order:
 `CLAUDE.md` and `QUANT_ROADMAP.md` contain useful historical analysis, but they
 are point-in-time documents and are not runtime truth.
 
-## System Topology
+Native migration authority order:
+
+1. `AGENTS.md` for migration and production-approval rules.
+2. `docs/architecture/TARGET_ARCHITECTURE.md` and the accepted ADRs.
+3. `docs/migration/PHASE_ACCEPTANCE_GATES.md` for completion criteria.
+4. `docs/operations/NATIVE_PLATFORM_THREAT_MODEL.md` and
+   `docs/operations/NATIVE_RELEASE_CHECKLIST.md` for security and release.
+5. Phase implementation and runbooks after they are merged.
+
+## Target Native Topology
+
+No target trading implementation exists at architecture-ratification time. The
+planned ownership boundaries are:
+
+```text
+Hyperliquid public/private APIs
+|- Nautilus trading node
+|  `- features -> strategies -> synchronous risk -> execution
+|- independent raw market-data recorder
+|  `- raw segments -> validated Parquet -> Nautilus catalog
+`- independent SDK safety sentinel
+   `- dead-man renewal and emergency cancellation only
+
+Tardis + local capture
+`- research workers -> HftBacktest + Nautilus parity
+   `- experiment registry -> paper -> shadow -> human approval -> canary
+
+Prometheus -> Grafana + Alertmanager
+DuckDB -> manifests, experiments, deployments, and offline analytics only
+```
+
+See `docs/architecture/diagrams/` for the system, live-order, and promotion
+flows. The native hot path must not depend on DuckDB, Parquet, Grafana, or a
+remote message broker.
+
+## Current Legacy System Topology
 
 ```text
 PM2

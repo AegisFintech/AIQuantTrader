@@ -1,5 +1,10 @@
 # AIQuantTrader Release Checklist
 
+This checklist remains authoritative only for the deployed MT5/XAUUSD runtime
+during the parallel migration. Native Hyperliquid releases use
+[`operations/NATIVE_RELEASE_CHECKLIST.md`](operations/NATIVE_RELEASE_CHECKLIST.md)
+and cannot enter mainnet without the phase gates and signed human approval.
+
 Run these steps **in order** before any change to the MT5 EA source, the
 risk model, or the bridge protocol. The order matters: an early
 `pm2 restart` on broken code breaks the live demo.

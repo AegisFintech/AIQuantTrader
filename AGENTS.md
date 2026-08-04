@@ -1,6 +1,39 @@
 # AIQuantTrader Agent Guide
 
-## Operating mandate
+## Migration mandate
+
+The approved target is a Linux-native, Hyperliquid-based platform that trades
+only the standard BTC perpetual, represented as
+`BTC-USD-PERP.HYPERLIQUID`. Follow these documents before native-platform work:
+
+- `docs/architecture/TARGET_ARCHITECTURE.md`
+- `docs/migration/MT5_TO_HYPERLIQUID.md`
+- `docs/migration/PHASE_ACCEPTANCE_GATES.md`
+- `docs/migration/FILE_DISPOSITION.md`
+- `docs/operations/NATIVE_PLATFORM_THREAT_MODEL.md`
+- `docs/operations/NATIVE_RELEASE_CHECKLIST.md`
+
+Migration rules:
+
+- Build the native platform alongside the existing MT5 runtime; do not port or
+  reuse XAU strategies as native BTC alpha.
+- Native research, paper, and shadow automation may create challengers and
+  advance them only as far as `AWAITING_APPROVAL`.
+- No model, strategy, configuration, capital increase, or risk relaxation may
+  enter native production without a signed human approval bound to the exact
+  artifacts and deployment policy.
+- The architecture migration does not authorize mainnet trading. Mainnet begins
+  only in Phase 9 after all preceding acceptance gates and a separate canary
+  approval pass.
+- Keep native trading, control, research, and legacy MT5 credentials and process
+  ownership separate.
+- Do not delete or disable legacy components until the Phase 9 archival and
+  retirement procedure is approved and completed.
+- When migration and legacy instructions differ, apply migration instructions
+  only to native-platform files and legacy instructions only to the deployed
+  MT5 runtime.
+
+## Legacy runtime mandate
 
 AIQuantTrader is now an MT5-first autonomous demo-trading repo. Trade and optimize only:
 

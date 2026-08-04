@@ -1,0 +1,28 @@
+sequenceDiagram
+    participant H as Hyperliquid
+    participant N as Nautilus adapter
+    participant F as Feature engine
+    participant S as Strategy
+    participant R as Risk authority
+    participant E as Execution manager
+    participant J as Event journal
+
+    H->>N: L2/trade/context event
+    N->>F: Typed market event
+    F->>F: Validate freshness and update causal state
+    F->>S: Versioned feature snapshot
+    S->>R: Order intent with rationale
+    R->>R: Account, exposure, limits, health, kill state
+    alt Rejected or halted
+        R-->>S: Denial with stable reason code
+        R->>J: Persist decision and denial
+    else Accepted
+        R->>E: Approved bounded command
+        E->>J: Persist submit intent
+        E->>N: Submit/cancel/modify
+        N->>H: Signed exchange action
+        H-->>N: Ack/reject/fill
+        N-->>E: Typed execution event
+        E->>R: Reconcile orders, position, PnL, margin
+        E->>J: Persist execution event
+    end

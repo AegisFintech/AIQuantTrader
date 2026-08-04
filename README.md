@@ -1,6 +1,21 @@
 # AIQuantTrader
 
-AIQuantTrader is an MT5-first autonomous demo-trading repo for exactly one symbol:
+## Migration status
+
+AIQuantTrader is migrating to a Linux-native BTC perpetual platform using
+Hyperliquid, NautilusTrader, HftBacktest, Tardis data, Parquet/DuckDB, and
+Prometheus/Grafana. The approved target and safety boundaries are documented in
+[`docs/architecture/TARGET_ARCHITECTURE.md`](docs/architecture/TARGET_ARCHITECTURE.md)
+and [`docs/migration/MT5_TO_HYPERLIQUID.md`](docs/migration/MT5_TO_HYPERLIQUID.md).
+
+The migration is a parallel replacement. No native production trading is
+authorized by the architecture approval alone, and automated research may not
+promote a model into production. Until the Phase 9 cutover is separately
+approved, the deployed runtime remains the MT5 demo system described below.
+
+## Current deployed runtime
+
+The current runtime is MT5-first autonomous demo trading for exactly one symbol:
 
 - `XAUUSD`
 
@@ -154,9 +169,16 @@ rm -rf .runtime
 ./install.sh
 ```
 
-## Guardrails
+## Legacy runtime guardrails
 
+- These guardrails remain authoritative for the deployed MT5 runtime until its
+  Phase 9 retirement.
 - Demo-only unless the owner explicitly says otherwise.
 - Trade only `XAUUSD`.
 - Keep PM2 as the service manager.
 - Do not commit `.env`, `.runtime/`, `logs/`, or `state/`.
+
+The native platform has separate scope, phase gates, and release controls in
+[`docs/migration/PHASE_ACCEPTANCE_GATES.md`](docs/migration/PHASE_ACCEPTANCE_GATES.md)
+and
+[`docs/operations/NATIVE_RELEASE_CHECKLIST.md`](docs/operations/NATIVE_RELEASE_CHECKLIST.md).
