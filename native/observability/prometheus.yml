@@ -1,0 +1,8 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: aiquanttrader-market-data
+    static_configs:
+      - targets: ["market-data-recorder:9109"]

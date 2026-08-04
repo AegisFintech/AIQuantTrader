@@ -18,6 +18,23 @@ max_inflight_requests = 20
 reconcile_on_startup = true
 unknown_order_timeout_ms = 5000
 
+[market_data]
+enabled = false
+public_channels = ["l2Book", "trades", "bbo", "activeAssetCtx"]
+segment_duration_seconds = 3600
+sync_every_records = 100
+stale_after_seconds = 15
+ping_interval_seconds = 30
+max_frame_bytes = 8388608
+reconnect_initial_ms = 250
+reconnect_max_ms = 5000
+reconnect_jitter_fraction = "0.2"
+outbound_messages_per_minute = 120
+minimum_free_bytes = 5368709120
+minimum_free_fraction = "0.10"
+metrics_host = "0.0.0.0"
+metrics_port = 9109
+
 [risk]
 daily_loss_fraction = "0.005"
 max_drawdown_fraction = "0.01"

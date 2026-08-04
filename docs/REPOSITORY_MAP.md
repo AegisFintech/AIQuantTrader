@@ -43,9 +43,9 @@ Native migration authority order:
 
 ## Native Migration Topology
 
-Phase 2 implements the non-trading contracts and toolchain under `native/` and
-`rust/`. It does not connect to market data or submit orders. The planned
-runtime ownership boundaries are:
+Phases 2 and 3 implement the non-trading contracts, toolchain, and public BTC
+data path under `native/` and `rust/`. Phase 3 connects only to public market
+data and cannot submit orders. The runtime ownership boundaries are:
 
 ```text
 Hyperliquid public/private APIs
@@ -79,6 +79,24 @@ Current native foundation ownership:
 | `native/Dockerfile`, `native/compose.yaml` | Non-root, read-only-compatible foundation container. |
 | `rust/` | Pinned performance boundary; a Cargo workspace requires benchmark evidence and a real first crate. |
 | `.github/workflows/native-ci.yml` | Native lock, lint, type, test, schema, dependency, secret, Rust, and image gates. |
+
+Current Phase 3 market-data ownership:
+
+| Path | Responsibility |
+|---|---|
+| `native/src/aiquanttrader_native/market_data/recorder.py` | Raw-first public Hyperliquid WebSocket capture, reconnect, stale-feed and disk guards. |
+| `native/src/aiquanttrader_native/market_data/raw.py` | Framed Zstandard segments, exact payload hashes, footer verification, incomplete recovery. |
+| `native/src/aiquanttrader_native/market_data/protocol.py` | Strict BTC public and account-event normalization without invented liquidation coverage. |
+| `native/src/aiquanttrader_native/market_data/storage.py` | Deterministic typed Parquet and research dataset quality admission. |
+| `native/src/aiquanttrader_native/market_data/normalizer.py` | Independent pending-segment normalization and quarantine worker. |
+| `native/src/aiquanttrader_native/market_data/tardis.py` | Immutable Tardis gzip acquisition and dataset-specific CSV validation. |
+| `native/src/aiquanttrader_native/market_data/catalog.py` | Process-exclusive DuckDB manifest catalogs; never in the frame hot path. |
+| `native/observability/` | Recorder Prometheus scrape and initial Grafana dashboard provisioning. |
+| `docs/operations/MARKET_DATA_RUNBOOK.md` | Start, health, recovery, Tardis, dataset, soak, incident, and rollback procedures. |
+
+The Phase 3 code gates are implemented. Phase 3 must not be marked accepted
+until the runbook's sustained public-feed soak finishes and every observed gap
+is classified.
 
 ## Current Legacy System Topology
 

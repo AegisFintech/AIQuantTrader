@@ -1,0 +1,113 @@
+{
+  "$defs": {
+    "DatasetGap": {
+      "additionalProperties": false,
+      "properties": {
+        "classification": {
+          "$ref": "#/$defs/GapClassification"
+        },
+        "duration_ns": {
+          "minimum": 0,
+          "title": "Duration Ns",
+          "type": "integer"
+        },
+        "end_ts_ns": {
+          "minimum": 0,
+          "title": "End Ts Ns",
+          "type": "integer"
+        },
+        "next_segment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Next Segment Id",
+          "type": "string"
+        },
+        "previous_segment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Previous Segment Id",
+          "type": "string"
+        },
+        "start_ts_ns": {
+          "minimum": 0,
+          "title": "Start Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_ts_ns",
+        "end_ts_ns",
+        "duration_ns",
+        "classification",
+        "previous_segment_id",
+        "next_segment_id"
+      ],
+      "title": "DatasetGap",
+      "type": "object"
+    },
+    "GapClassification": {
+      "enum": [
+        "planned_rotation",
+        "recorder_restart",
+        "venue_disconnect",
+        "stale_feed_recovery",
+        "disk_pressure",
+        "unexplained"
+      ],
+      "title": "GapClassification",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "dataset_id": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Dataset Id",
+      "type": "string"
+    },
+    "gaps": {
+      "items": {
+        "$ref": "#/$defs/DatasetGap"
+      },
+      "title": "Gaps",
+      "type": "array"
+    },
+    "market_wide_liquidations_available": {
+      "const": false,
+      "default": false,
+      "title": "Market Wide Liquidations Available",
+      "type": "boolean"
+    },
+    "normalized_manifest_sha256s": {
+      "items": {
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "title": "Normalized Manifest Sha256S",
+      "type": "array"
+    },
+    "policy_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Policy Sha256",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "dataset_id",
+    "normalized_manifest_sha256s",
+    "policy_sha256",
+    "gaps",
+    "created_at"
+  ],
+  "title": "DatasetManifest",
+  "type": "object"
+}

@@ -1,0 +1,87 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "byte_count": {
+      "minimum": 1,
+      "title": "Byte Count",
+      "type": "integer"
+    },
+    "compressed_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Compressed Sha256",
+      "type": "string"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "data_type": {
+      "enum": [
+        "incremental_book_L2",
+        "book_snapshot_25",
+        "quotes",
+        "trades",
+        "derivative_ticker"
+      ],
+      "title": "Data Type",
+      "type": "string"
+    },
+    "date": {
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "title": "Date",
+      "type": "string"
+    },
+    "exchange": {
+      "const": "hyperliquid",
+      "default": "hyperliquid",
+      "title": "Exchange",
+      "type": "string"
+    },
+    "gzip_valid": {
+      "const": true,
+      "default": true,
+      "title": "Gzip Valid",
+      "type": "boolean"
+    },
+    "relative_path": {
+      "pattern": "^[A-Za-z0-9_./=:-]+$",
+      "title": "Relative Path",
+      "type": "string"
+    },
+    "row_count": {
+      "minimum": 0,
+      "title": "Row Count",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_url": {
+      "pattern": "^https://datasets\\.tardis\\.dev/",
+      "title": "Source Url",
+      "type": "string"
+    },
+    "symbol": {
+      "const": "BTC",
+      "default": "BTC",
+      "title": "Symbol",
+      "type": "string"
+    }
+  },
+  "required": [
+    "data_type",
+    "date",
+    "relative_path",
+    "byte_count",
+    "compressed_sha256",
+    "row_count",
+    "source_url",
+    "created_at"
+  ],
+  "title": "TardisFileManifest",
+  "type": "object"
+}

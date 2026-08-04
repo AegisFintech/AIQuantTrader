@@ -1,0 +1,24 @@
+flowchart LR
+    HL[Hyperliquid public WebSocket] -->|l2Book / trades / bbo / activeAssetCtx| R[Raw recorder]
+    R -->|append + flush before parse| RAW[(Hourly framed Zstandard segments)]
+    R -->|bounded labels| PROM[Prometheus endpoint :9109]
+    R -->|heartbeat| STATE[Atomic recorder state]
+    R -. after finalization .-> RC[(Raw DuckDB catalog)]
+
+    RAW --> N[Independent normalizer]
+    N -->|verify hashes + footer| VERIFY{Admissible?}
+    VERIFY -->|yes| PQ[(Typed Parquet partitions)]
+    VERIFY -->|no| Q[(Quarantine)]
+    PQ --> NM[Immutable normalized manifests]
+    NM --> NC[(Normalized DuckDB catalog)]
+
+    T[Tardis datasets] -->|HTTPS + gzip/CSV validation| HIST[(Immutable historical files)]
+    HIST --> TC[(Tardis DuckDB catalog)]
+
+    NM --> GATE{Dataset quality policy}
+    RC --> GATE
+    GATE -->|classified gaps only| RESEARCH[Research and replay loaders]
+    GATE -->|unexplained / over limit| REJECT[Reject dataset]
+
+    PRIVATE[Private user feeds] -. account-only liquidation events .-> FUTURE[Phase 4 trading node]
+    NOTE[Market-wide liquidations unavailable] --- GATE

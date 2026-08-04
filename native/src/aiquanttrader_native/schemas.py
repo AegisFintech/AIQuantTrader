@@ -9,6 +9,13 @@ from typing import Any
 
 from pydantic import TypeAdapter
 
+from aiquanttrader_native.domain.data import (
+    DatasetManifest,
+    NormalizedSegmentManifest,
+    RawSegmentManifest,
+    RecorderState,
+    TardisFileManifest,
+)
 from aiquanttrader_native.domain.features import FeatureSnapshot
 from aiquanttrader_native.domain.governance import DeploymentApproval, ExperimentManifest
 from aiquanttrader_native.domain.market import DataCapabilities, MarketEvent
@@ -17,7 +24,16 @@ SchemaFactory = Callable[[], dict[str, Any]]
 
 
 def _model_schema(
-    model: type[FeatureSnapshot | DeploymentApproval | ExperimentManifest],
+    model: type[
+        DatasetManifest
+        | DeploymentApproval
+        | ExperimentManifest
+        | FeatureSnapshot
+        | NormalizedSegmentManifest
+        | RawSegmentManifest
+        | RecorderState
+        | TardisFileManifest
+    ],
 ) -> dict[str, Any]:
     return model.model_json_schema()
 
@@ -28,6 +44,11 @@ SCHEMAS: dict[str, SchemaFactory] = {
     "experiment.schema.json": lambda: _model_schema(ExperimentManifest),
     "features.schema.json": lambda: _model_schema(FeatureSnapshot),
     "market-data.schema.json": lambda: TypeAdapter(MarketEvent).json_schema(),
+    "dataset-manifest.schema.json": lambda: _model_schema(DatasetManifest),
+    "normalized-segment-manifest.schema.json": lambda: _model_schema(NormalizedSegmentManifest),
+    "raw-segment-manifest.schema.json": lambda: _model_schema(RawSegmentManifest),
+    "recorder-state.schema.json": lambda: _model_schema(RecorderState),
+    "tardis-file-manifest.schema.json": lambda: _model_schema(TardisFileManifest),
 }
 
 

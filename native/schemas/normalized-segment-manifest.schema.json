@@ -1,0 +1,183 @@
+{
+  "$defs": {
+    "NormalizedFileManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_count": {
+          "minimum": 1,
+          "title": "Byte Count",
+          "type": "integer"
+        },
+        "event_type": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Event Type",
+          "type": "string"
+        },
+        "file_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "File Sha256",
+          "type": "string"
+        },
+        "relative_path": {
+          "pattern": "^[A-Za-z0-9_./=:-]+$",
+          "title": "Relative Path",
+          "type": "string"
+        },
+        "row_count": {
+          "minimum": 1,
+          "title": "Row Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "event_type",
+        "relative_path",
+        "row_count",
+        "byte_count",
+        "file_sha256"
+      ],
+      "title": "NormalizedFileManifest",
+      "type": "object"
+    },
+    "QualityIssue": {
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "maxLength": 64,
+          "minLength": 1,
+          "title": "Channel",
+          "type": "string"
+        },
+        "code": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "event_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Event Ts Ns"
+        },
+        "kind": {
+          "$ref": "#/$defs/QualityIssueKind"
+        },
+        "payload_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Payload Sha256"
+        },
+        "receive_ts_ns": {
+          "minimum": 0,
+          "title": "Receive Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "receive_ts_ns",
+        "channel",
+        "code"
+      ],
+      "title": "QualityIssue",
+      "type": "object"
+    },
+    "QualityIssueKind": {
+      "enum": [
+        "schema_error",
+        "duplicate",
+        "timestamp_regression",
+        "crossed_book",
+        "silence",
+        "reconnect",
+        "cadence_anomaly",
+        "disk_pressure",
+        "unexplained_gap"
+      ],
+      "title": "QualityIssueKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    },
+    "event_count": {
+      "minimum": 0,
+      "title": "Event Count",
+      "type": "integer"
+    },
+    "excluded_frame_count": {
+      "minimum": 0,
+      "title": "Excluded Frame Count",
+      "type": "integer"
+    },
+    "files": {
+      "items": {
+        "$ref": "#/$defs/NormalizedFileManifest"
+      },
+      "title": "Files",
+      "type": "array"
+    },
+    "issues": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/QualityIssue"
+      },
+      "title": "Issues",
+      "type": "array"
+    },
+    "normalizer_version": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "title": "Normalizer Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_segment_id": {
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "title": "Source Segment Id",
+      "type": "string"
+    },
+    "source_segment_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Segment Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_segment_id",
+    "source_segment_sha256",
+    "normalizer_version",
+    "files",
+    "event_count",
+    "excluded_frame_count",
+    "created_at"
+  ],
+  "title": "NormalizedSegmentManifest",
+  "type": "object"
+}

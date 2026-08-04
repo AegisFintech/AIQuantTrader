@@ -49,6 +49,9 @@ AIQuantTrader is now an MT5-first autonomous demo-trading repo. Trade and optimi
 ## Source of truth
 
 - Repository navigation map: `docs/REPOSITORY_MAP.md` (read this before broad rescans)
+- Native public-data runbook: `docs/operations/MARKET_DATA_RUNBOOK.md`. The
+  recorder and normalizer are isolated from the deployed MT5 processes and
+  cannot submit orders. Phase 3 acceptance remains gated on a sustained soak.
 - Active EA: `broker/mt5/AIQuantTraderBridgeEA.mq5` (v2.00)
 - EA Modules: `broker/mt5/RiskManagement.mqh`, `SmartMoney.mqh`, `BridgeIO.mqh`
 - Runtime process list: `ecosystem.config.js`

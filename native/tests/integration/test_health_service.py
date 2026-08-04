@@ -108,7 +108,7 @@ def test_cli_show_config_and_schema_export(
     assert main(["export-schemas", "--output", str(tmp_path)]) == 0
     exported = json.loads(capsys.readouterr().out)
     assert exported["status"] == "valid"
-    assert len(exported["schemas"]) == 5
+    assert len(exported["schemas"]) == 10
 
 
 def test_cli_reports_invalid_configuration(
