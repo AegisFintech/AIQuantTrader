@@ -16,7 +16,7 @@ approved, the deployed runtime remains the MT5 demo system described below.
 Phases 2-9 now provide the isolated native foundation, raw-first Hyperliquid
 market-data path, fail-closed execution/risk path, causal BTC replay and
 validation, BTC feature/strategy/research framework, and credential-free live
-paper trading, and network-isolated shadow deployment. Phase 4 uses
+paper trading, plus network-isolated shadow deployment. Phase 4 uses
 NautilusTrader as the sole ordinary exchange-order
 owner and a separately credentialed Hyperliquid SDK sentinel for exchange
 dead-man and emergency cancellation. See
@@ -26,8 +26,12 @@ All checked-in environments remain execution-disabled; credentialed testnet
 acceptance evidence is still required. Phase 9 adds cryptographically signed,
 artifact-bound, explicit canary/production admission, durable anti-replay
 state, independent wallet-role verification, capital clamps, and an exact-image
-mainnet topology. It does not activate mainnet or retire MT5. See
-[`docs/migration/PHASE_9_PRODUCTION_ADMISSION.md`](docs/migration/PHASE_9_PRODUCTION_ADMISSION.md)
+mainnet topology. The release-evidence increment adds an exact-image final
+testnet rehearsal, frozen complete scenario report, target-behavior fingerprint,
+and deterministic unsigned bundle preparation. None of these signs, admits,
+funds, or activates mainnet, and MT5 is not retired. See
+[`docs/migration/PHASE_9_PRODUCTION_ADMISSION.md`](docs/migration/PHASE_9_PRODUCTION_ADMISSION.md),
+[`docs/migration/PHASE_9_RELEASE_EVIDENCE.md`](docs/migration/PHASE_9_RELEASE_EVIDENCE.md),
 and
 [`docs/operations/MAINNET_CANARY_RUNBOOK.md`](docs/operations/MAINNET_CANARY_RUNBOOK.md).
 

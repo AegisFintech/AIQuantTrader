@@ -84,6 +84,54 @@ case.
 Partial fill is market-dependent; repeat a bounded IOC/passive scenario until a
 real partial fill occurs. Do not synthesize a pass from a unit test.
 
+## Final exact-release dress rehearsal
+
+Phase 9 repeats the complete matrix with the immutable release image. Use
+`compose.rehearsal.yaml`, not the development build overlay. The target
+behavior fingerprint comes from `aqt-governance release-fingerprint`; testnet
+account and wallet identities replace mainnet identities, while code, image,
+dependency lock, dataset/model/feature/strategy artifacts, risk, and all other
+behavior remain bound to the proposed release.
+
+Set the exact digest, commit, fingerprint, testnet account, two testnet secret
+file paths, and every risk override from the release specification. Do not
+mount or reference a mainnet credential:
+
+```bash
+docker compose -f compose.rehearsal.yaml \
+  --profile release-rehearsal config --quiet
+docker compose -f compose.rehearsal.yaml \
+  --profile release-rehearsal up -d rehearsal-sentinel rehearsal-trading-node
+```
+
+Inspect the rendered configuration and container mounts. The image must be
+`repository@sha256:...`, there must be no build context, the trading node must
+mount only the testnet trading wallet, and the sentinel only the testnet control
+wallet. Confirm the release commit, image, and behavior metadata inside both
+containers without displaying either secret file.
+
+Retain one evidence hash per required scenario plus the raw venue export,
+private/public event journal, order journal, reconciliation records, metrics,
+alerts, container inspection, final account/open-order state, and proof that no
+mainnet credential was present. Construct
+`TestnetDressRehearsalObservation` according to
+`native/schemas/governance.schema.json`; counts must reconcile, wallet roles
+must be distinct, unknown outcomes must all be resolved, and the final position
+and open-order count must be zero. Evaluate it only with the policy frozen
+before the run:
+
+```bash
+aqt-governance evaluate-testnet \
+  --observation /secure/release/testnet-observation.json \
+  --policy configs/production/testnet-dress-rehearsal-v1.toml \
+  --output /secure/release/testnet-evidence.json
+```
+
+The evaluator reports each gate and exits nonzero on a failure. A pass stops at
+`awaiting_canary_approval`; it does not sign a release, authorize funding, or
+permit mainnet execution. Stop the rehearsal using the planned-stop sequence
+and preserve its volumes until independent review is complete.
+
 ## Operator kill
 
 Activate before investigating any inconsistent state:

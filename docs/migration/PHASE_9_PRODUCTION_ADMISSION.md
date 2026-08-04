@@ -28,6 +28,9 @@ order, retire MT5, or claim that Phases 3-8 have passed their empirical gates.
   a separately approved production deployment;
 - frozen canary evidence gates which can produce only
   `awaiting_production_approval`;
+- frozen final-testnet evidence gates which require the complete 15-scenario
+  lifecycle matrix and can produce only `awaiting_canary_approval`;
+- semantic, atomic preparation of a deterministic unsigned release bundle;
 - an exact-digest Compose topology with process-separated trading and control
   wallets and a credential-free admission controller.
 
@@ -35,11 +38,14 @@ Every checked-in environment still has `execution.enabled = false`.
 
 ## Admission sequence
 
-1. Complete and review every preceding phase gate and the exact-image testnet
+1. Complete and review every preceding phase gate. Render the proposed target
+   behavior fingerprint and run the exact image through the frozen testnet
    dress rehearsal.
-2. Assemble immutable evidence artifacts under one read-only root.
-3. Produce the manifest and schema-v2 approval. Canonicalize the approval, then
-   sign those exact bytes with the offline Ed25519 approval key.
+2. Evaluate retained real observations. A pass stops at
+   `awaiting_canary_approval` and carries no execution authority.
+3. Prepare the semantic, hash-bound unsigned bundle under a new output path.
+   Independently review it, then sign the exact approval bytes with the offline
+   Ed25519 approval key.
 4. A credential-free controller verifies the signature, all artifact bytes,
    configured risk, image, commit, dependency lock, account, capital, expiry,
    and rollback identity.
@@ -91,4 +97,6 @@ flatten through the venue control plane when required.
 
 See the [mainnet runbook](../operations/MAINNET_CANARY_RUNBOOK.md),
 [retirement runbook](../operations/LEGACY_RETIREMENT_RUNBOOK.md), and
-[architecture diagram](../architecture/diagrams/phase-9-production-admission.mmd).
+[admission diagram](../architecture/diagrams/phase-9-production-admission.mmd).
+The preceding preparation boundary is specified in
+[Phase 9 release evidence](PHASE_9_RELEASE_EVIDENCE.md).

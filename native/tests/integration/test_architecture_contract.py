@@ -92,6 +92,30 @@ def test_mainnet_overlay_is_exact_image_admission_gated_and_wallet_isolated(
     assert len(dashboard["panels"]) >= 6
 
 
+def test_release_rehearsal_is_exact_image_testnet_only_and_wallet_isolated(
+    project_root: Path,
+) -> None:
+    overlay = (project_root / "compose.rehearsal.yaml").read_text(encoding="utf-8")
+    trading = overlay.split("  rehearsal-trading-node:", 1)[1].split("  rehearsal-sentinel:", 1)[0]
+    sentinel = overlay.split("  rehearsal-sentinel:", 1)[1].split("\nsecrets:", 1)[0]
+
+    assert "@${AQT_REHEARSAL_IMAGE_DIGEST:" in overlay
+    assert "build:" not in overlay
+    assert 'profiles: ["release-rehearsal"]' in trading
+    assert 'profiles: ["release-rehearsal"]' in sentinel
+    assert '"--environment", "testnet"' in trading
+    assert '"--environment", "testnet"' in sentinel
+    assert "AQT_RELEASE_COMMIT_SHA" in overlay
+    assert "AQT_RELEASE_BEHAVIOR_SHA256" in overlay
+    assert "source: rehearsal_trading_wallet" in trading
+    assert "source: rehearsal_control_wallet" not in trading
+    assert "source: rehearsal_control_wallet" in sentinel
+    assert "source: rehearsal_trading_wallet" not in sentinel
+    assert "rehearsal-state:/var/lib/aiquanttrader/state:ro" in sentinel
+    assert "rehearsal-data:/var/lib/aiquanttrader/data" not in sentinel
+    assert "mainnet" not in overlay.lower()
+
+
 def test_paper_service_has_no_wallet_secret_or_exchange_order_capability(
     project_root: Path,
 ) -> None:
@@ -240,6 +264,40 @@ def test_mainnet_compose_renders_exact_image_when_docker_is_available(project_ro
             "compose.mainnet.yaml",
             "--profile",
             "mainnet-live",
+            "config",
+            "--quiet",
+        ],
+        cwd=project_root,
+        env=environment,
+        check=True,
+    )
+
+
+def test_rehearsal_compose_renders_exact_image_when_docker_is_available(
+    project_root: Path,
+) -> None:
+    if shutil.which("docker") is None:
+        pytest.skip("Docker Compose is unavailable")
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "AQT_REHEARSAL_IMAGE_REPOSITORY": "registry.invalid/aiquanttrader-native",
+            "AQT_REHEARSAL_IMAGE_DIGEST": "sha256:" + "a" * 64,
+            "AQT_REHEARSAL_COMMIT_SHA": "b" * 40,
+            "AQT_REHEARSAL_BEHAVIOR_SHA256": "c" * 64,
+            "AQT_REHEARSAL_ACCOUNT_ADDRESS": "0x" + "1" * 40,
+            "AQT_REHEARSAL_TRADING_WALLET_FILE": "/tmp/rehearsal-trading-wallet",
+            "AQT_REHEARSAL_CONTROL_WALLET_FILE": "/tmp/rehearsal-control-wallet",
+        }
+    )
+    subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            "compose.rehearsal.yaml",
+            "--profile",
+            "release-rehearsal",
             "config",
             "--quiet",
         ],

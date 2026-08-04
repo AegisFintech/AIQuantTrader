@@ -46,7 +46,13 @@ from aiquanttrader_native.governance.models import (
     CanaryObservation,
     DeploymentAdmissionRecord,
     DeploymentArtifactManifest,
+    DeploymentModelSelection,
     DetachedApprovalSignature,
+    ReleaseBundleReceipt,
+    ReleaseBundleSpec,
+    TestnetDressRehearsalObservation,
+    TestnetDressRehearsalPolicy,
+    TestnetDressRehearsalReport,
     VerifiedDeploymentAdmission,
 )
 from aiquanttrader_native.paper.models import (
@@ -131,6 +137,12 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | CanaryEvidencePolicy
         | CanaryObservation
         | CanaryEvidenceReport
+        | TestnetDressRehearsalPolicy
+        | TestnetDressRehearsalObservation
+        | TestnetDressRehearsalReport
+        | DeploymentModelSelection
+        | ReleaseBundleSpec
+        | ReleaseBundleReceipt
     ).json_schema(),
     "market-data.schema.json": lambda: TypeAdapter(MarketEvent).json_schema(),
     "dataset-manifest.schema.json": lambda: _model_schema(DatasetManifest),

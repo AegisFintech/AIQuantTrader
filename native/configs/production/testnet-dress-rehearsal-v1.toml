@@ -1,0 +1,25 @@
+schema_version = 1
+policy_id = "btc-final-testnet-rehearsal-v1"
+frozen_at_ns = 1785772800000000000
+minimum_observation_ns = 3600000000000
+minimum_orders = 15
+minimum_fills = 4
+minimum_cancel_all_confirmations = 2
+minimum_deadman_cancellations = 1
+required_scenarios = [
+  "passive_post_only",
+  "crossing_post_only_reject",
+  "non_marketable_ioc",
+  "marketable_ioc",
+  "cancel_replace",
+  "partial_fill_cancel",
+  "reduce_only",
+  "duplicate_intent",
+  "unknown_outcome_reconciliation",
+  "node_restart_reconciliation",
+  "stale_data_kill",
+  "loss_drawdown_reduce_only",
+  "operator_kill",
+  "trading_node_death",
+  "sentinel_death",
+]

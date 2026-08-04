@@ -1,0 +1,104 @@
+name: aiquanttrader-native-release-rehearsal
+
+x-rehearsal-security: &rehearsal-security
+  user: "65532:65532"
+  read_only: true
+  init: true
+  restart: "no"
+  stop_grace_period: 30s
+  cap_drop: ["ALL"]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m
+  logging:
+    driver: json-file
+    options:
+      max-file: "3"
+      max-size: 10m
+
+x-rehearsal-image: &rehearsal-image
+  image: ${AQT_REHEARSAL_IMAGE_REPOSITORY:?set immutable image repository}@${AQT_REHEARSAL_IMAGE_DIGEST:?set sha256 image digest}
+
+x-rehearsal-environment: &rehearsal-environment
+  AQT_RELEASE_COMMIT_SHA: ${AQT_REHEARSAL_COMMIT_SHA:?set exact 40-character commit}
+  AQT_RELEASE_IMAGE_DIGEST: ${AQT_REHEARSAL_IMAGE_DIGEST:?set sha256 image digest}
+  AQT_RELEASE_BEHAVIOR_SHA256: ${AQT_REHEARSAL_BEHAVIOR_SHA256:?set target behavior fingerprint}
+  AQT_NATIVE__EXCHANGE__ACCOUNT_ADDRESS: ${AQT_REHEARSAL_ACCOUNT_ADDRESS:?set testnet account}
+  AQT_NATIVE__EXCHANGE__VAULT_ADDRESS: ${AQT_REHEARSAL_VAULT_ADDRESS:-null}
+  AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH: /run/secrets/testnet-trading-wallet
+  AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH: /run/secrets/testnet-control-wallet
+  AQT_NATIVE__EXECUTION__ENABLED: "true"
+  AQT_NATIVE__SENTINEL__ENABLED: "true"
+  AQT_NATIVE__RISK__MAX_LEVERAGE: ${AQT_REHEARSAL_MAX_LEVERAGE:-1}
+  AQT_NATIVE__RISK__MAX_ORDER_SIZE_BASE: ${AQT_REHEARSAL_MAX_ORDER_SIZE_BASE:-0.002}
+  AQT_NATIVE__RISK__MAX_POSITION_SIZE_BASE: ${AQT_REHEARSAL_MAX_POSITION_SIZE_BASE:-0.01}
+  AQT_NATIVE__RISK__MAX_ORDER_NOTIONAL_USD: ${AQT_REHEARSAL_MAX_ORDER_NOTIONAL_USD:-100}
+  AQT_NATIVE__RISK__MAX_INVENTORY_NOTIONAL_USD: ${AQT_REHEARSAL_MAX_INVENTORY_NOTIONAL_USD:-500}
+  AQT_NATIVE__RISK__MAX_OPEN_ORDERS: ${AQT_REHEARSAL_MAX_OPEN_ORDERS:-2}
+  AQT_NATIVE__RISK__MAX_ORDERS_PER_SECOND: ${AQT_REHEARSAL_MAX_ORDERS_PER_SECOND:-2}
+
+services:
+  rehearsal-trading-node:
+    <<: [*rehearsal-security, *rehearsal-image]
+    profiles: ["release-rehearsal"]
+    entrypoint: ["aqt-execution"]
+    command: ["run", "--config-dir", "/etc/aiquanttrader-native", "--environment", "testnet"]
+    environment: *rehearsal-environment
+    volumes:
+      - rehearsal-data:/var/lib/aiquanttrader/data
+      - rehearsal-state:/var/lib/aiquanttrader/state
+    secrets:
+      - source: rehearsal_trading_wallet
+        target: testnet-trading-wallet
+    ports:
+      - "127.0.0.1:9120:9110"
+    healthcheck:
+      test:
+        - CMD
+        - aqt-execution
+        - healthcheck
+        - --config-dir
+        - /etc/aiquanttrader-native
+        - --environment
+        - testnet
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+
+  rehearsal-sentinel:
+    <<: [*rehearsal-security, *rehearsal-image]
+    profiles: ["release-rehearsal"]
+    entrypoint: ["aqt-sentinel"]
+    command: ["--config-dir", "/etc/aiquanttrader-native", "--environment", "testnet"]
+    environment: *rehearsal-environment
+    volumes:
+      - rehearsal-state:/var/lib/aiquanttrader/state:ro
+    secrets:
+      - source: rehearsal_control_wallet
+        target: testnet-control-wallet
+    ports:
+      - "127.0.0.1:9121:9111"
+    healthcheck:
+      test:
+        - CMD
+        - aqt-sentinel
+        - --healthcheck
+        - --config-dir
+        - /etc/aiquanttrader-native
+        - --environment
+        - testnet
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+secrets:
+  rehearsal_trading_wallet:
+    file: ${AQT_REHEARSAL_TRADING_WALLET_FILE:?set testnet trading wallet file}
+  rehearsal_control_wallet:
+    file: ${AQT_REHEARSAL_CONTROL_WALLET_FILE:?set testnet control wallet file}
+
+volumes:
+  rehearsal-data:
+  rehearsal-state:

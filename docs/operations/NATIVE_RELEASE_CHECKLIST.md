@@ -21,6 +21,8 @@ checklist while MT5 remains deployed.
   verification pass.
 - [ ] Raw/normalized schemas and configuration migrations are compatible.
 - [ ] The exact image passed the stage-specific testnet or shadow rehearsal.
+- [ ] The release behavior fingerprint was rendered before final testnet and
+  matches the retained report and unsigned bundle receipt.
 
 ## 3. Validate market data and time
 
@@ -57,6 +59,13 @@ checklist while MT5 remains deployed.
 - [ ] The dependency lock and every manifest-bound artifact hash match bytes in
   the read-only release bundle.
 - [ ] The approval has not been reused for a different release or capital level.
+- [ ] The complete 15-scenario final-testnet report passed with real retained
+  evidence, flat final state, resolved unknown outcomes, and no mainnet key.
+- [ ] The unsigned bundle was created at a new path, all receipt hashes and
+  modes were checked, and no signature/private key was produced on the host.
+- [ ] The offline signer signed the exact unchanged
+  `deployment-approval.unsigned.json` bytes; the final approval is byte-for-byte
+  identical before detached-signature verification.
 - [ ] The credential-free controller explicitly admitted the verified identity;
   execution and sentinel independently observe the same active ledger record.
 - [ ] Production promotion and capital increase remain impossible for research

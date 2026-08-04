@@ -120,6 +120,12 @@ retained evidence and human approval.
 - A non-expired signed approval binds the exact image, commit, dataset, model,
   configuration, account, capital, limits, and rollback target.
 - The exact release passes a final testnet dress rehearsal.
+- The final-testnet report covers every frozen lifecycle scenario, binds the
+  exact commit, image, lock, dataset, model selection, feature schema, strategy,
+  risk policy, and target behavior, and records that no mainnet credential was
+  present.
+- Unsigned bundle preparation rejects any artifact/evidence mismatch and stops
+  before signature or admission; a separate offline signature is mandatory.
 - Account, subaccount, API wallet, and instrument are verified independently.
 - Initial capital and hard limits equal the approved canary values.
 - Dead-man cancellation, sentinel, reconciliation, alerts, backups, and operator

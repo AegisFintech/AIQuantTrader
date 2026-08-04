@@ -19,15 +19,67 @@ Record the exact 40-character commit and `sha256:` image digest. Pull by digest,
 scan it, and run the complete testnet rehearsal without rebuilding. Confirm the
 approval expires within seven days and the rollback deployment is available.
 
+## Freeze and rehearse the exact release
+
+Create a root-owned, mode-0600 TOML release specification outside the
+repository. Validate it against `ReleaseBundleSpec` in
+`native/schemas/governance.schema.json`. It must contain the stage, unique
+deployment and approval IDs, rollback deployment, exact commit/image, mainnet
+account/vault and distinct wallet addresses, capital, approver, timezone-aware
+approval/expiry no more than seven days apart, complete risk limits, and
+absolute paths to every immutable source artifact. Production additionally
+requires `prior_approval_id` and an absolute `canary_evidence` path.
+
+Render the enabled target behavior without loading ambient environment
+variables or a credential:
+
+```bash
+aqt-governance release-fingerprint --config-dir native/configs \
+  --environment canary --spec /secure/release/canary-release.toml \
+  --output /secure/release/behavior-configuration.json
+```
+
+Record the printed SHA-256. Run the exact digest on testnet with
+`native/compose.rehearsal.yaml` as described in the execution-risk runbook.
+Build the typed observation only from retained venue, order journal, metric,
+and drill evidence. Evaluate it against the policy frozen before the run:
+
+```bash
+aqt-governance evaluate-testnet \
+  --observation /secure/release/testnet-observation.json \
+  --policy native/configs/production/testnet-dress-rehearsal-v1.toml \
+  --output /secure/release/testnet-evidence.json
+```
+
+Exit status zero and `awaiting_canary_approval=true` mean only that the bundle
+may receive independent review. A failed or incomplete report must not be
+edited into a pass; correct the cause and collect a new observation.
+
+Prepare the unsigned directory at a path which does not already exist:
+
+```bash
+aqt-governance prepare-release --config-dir native/configs \
+  --environment canary --spec /secure/release/canary-release.toml \
+  --output-dir /secure/release/canary-release-unsigned
+```
+
+The command rejects incompatible strategy/model/schema/lock identities,
+unpassed or mismatched evidence, excess capital/inventory, ambiguous files, and
+stage/rollback errors. It never reads a signing key and never writes admission
+state.
+
 ## Approval bundle
 
 The read-only bundle contains:
 
 ```text
 deployment-approval.json
+deployment-approval.unsigned.json
 deployment-approval.sig.json
 artifact-manifest.json
 approver-ed25519.pub.pem
+behavior-configuration.json
+release-bundle-receipt.json
 artifacts/
   uv.lock
   dataset-manifest.json
@@ -41,9 +93,17 @@ artifacts/
 
 Production approval adds `canary-evidence.json`. The detached signature envelope
 contains `algorithm=ed25519`, key ID, canonical approval SHA-256, and the base64
-64-byte signature. Use `aqt-governance canonicalize-approval` before offline
-signing. Sign the output bytes exactly; the command deliberately emits no
-trailing newline.
+64-byte signature. Transfer `deployment-approval.unsigned.json` to the offline
+approver, review it against the receipt and artifacts, and sign those exact
+bytes. Place the unchanged bytes in the final bundle as
+`deployment-approval.json`; a rename or byte-for-byte copy is allowed, but
+re-serialization is not. The offline approver returns only the approval,
+detached signature envelope, and reviewed public key. Never transfer the
+private key to the release or production host.
+
+`aqt-governance canonicalize-approval` remains available for independently
+assembled legacy inputs. Do not run it over preparer output because the
+preparer has already emitted canonical bytes and the receipt binds them.
 
 Mount the completed directory read-only. Set Compose inputs from a root-owned,
 mode-0600 environment file; inspect rendered configuration without printing
