@@ -1,0 +1,538 @@
+{
+  "$defs": {
+    "AccountLiquidationEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "account_liquidation",
+          "default": "account_liquidation",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "is_adl": {
+          "default": false,
+          "title": "Is Adl",
+          "type": "boolean"
+        },
+        "liquidation_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Liquidation Id",
+          "type": "string"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Price"
+        },
+        "side": {
+          "$ref": "#/$defs/OrderSide"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Size"
+        }
+      },
+      "required": [
+        "header",
+        "side",
+        "price",
+        "size",
+        "liquidation_id"
+      ],
+      "title": "AccountLiquidationEvent",
+      "type": "object"
+    },
+    "AggressorSide": {
+      "enum": [
+        "buyer",
+        "seller",
+        "unknown"
+      ],
+      "title": "AggressorSide",
+      "type": "string"
+    },
+    "BboEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "ask_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Ask Price"
+        },
+        "ask_size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Ask Size"
+        },
+        "bid_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Bid Price"
+        },
+        "bid_size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Bid Size"
+        },
+        "event_type": {
+          "const": "bbo",
+          "default": "bbo",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        }
+      },
+      "required": [
+        "header",
+        "bid_price",
+        "bid_size",
+        "ask_price",
+        "ask_size"
+      ],
+      "title": "BboEvent",
+      "type": "object"
+    },
+    "BookLevel": {
+      "additionalProperties": false,
+      "properties": {
+        "order_count": {
+          "minimum": 1,
+          "title": "Order Count",
+          "type": "integer"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Price"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Size"
+        }
+      },
+      "required": [
+        "price",
+        "size",
+        "order_count"
+      ],
+      "title": "BookLevel",
+      "type": "object"
+    },
+    "EventHeader": {
+      "additionalProperties": false,
+      "properties": {
+        "connection_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Connection Id",
+          "type": "string"
+        },
+        "event_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Event Id",
+          "type": "string"
+        },
+        "event_ts_ns": {
+          "minimum": 0,
+          "title": "Event Ts Ns",
+          "type": "integer"
+        },
+        "instrument_id": {
+          "const": "BTC-USD-PERP.HYPERLIQUID",
+          "default": "BTC-USD-PERP.HYPERLIQUID",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "receive_ts_ns": {
+          "minimum": 0,
+          "title": "Receive Ts Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "venue": {
+          "const": "HYPERLIQUID",
+          "default": "HYPERLIQUID",
+          "title": "Venue",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "event_ts_ns",
+        "receive_ts_ns",
+        "connection_id"
+      ],
+      "title": "EventHeader",
+      "type": "object"
+    },
+    "FundingEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "funding",
+          "default": "funding",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "funding_rate": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Funding Rate"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "next_funding_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Next Funding Ts Ns"
+        }
+      },
+      "required": [
+        "header",
+        "funding_rate"
+      ],
+      "title": "FundingEvent",
+      "type": "object"
+    },
+    "IndexPriceEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "index_price",
+          "default": "index_price",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "index_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Index Price"
+        }
+      },
+      "required": [
+        "header",
+        "index_price"
+      ],
+      "title": "IndexPriceEvent",
+      "type": "object"
+    },
+    "L2BookSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "asks": {
+          "items": {
+            "$ref": "#/$defs/BookLevel"
+          },
+          "minItems": 1,
+          "title": "Asks",
+          "type": "array"
+        },
+        "bids": {
+          "items": {
+            "$ref": "#/$defs/BookLevel"
+          },
+          "minItems": 1,
+          "title": "Bids",
+          "type": "array"
+        },
+        "event_type": {
+          "const": "l2_book",
+          "default": "l2_book",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "is_snapshot": {
+          "const": true,
+          "default": true,
+          "title": "Is Snapshot",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "header",
+        "bids",
+        "asks"
+      ],
+      "title": "L2BookSnapshot",
+      "type": "object"
+    },
+    "MarkPriceEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "mark_price",
+          "default": "mark_price",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "mark_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Mark Price"
+        }
+      },
+      "required": [
+        "header",
+        "mark_price"
+      ],
+      "title": "MarkPriceEvent",
+      "type": "object"
+    },
+    "OpenInterestEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "event_type": {
+          "const": "open_interest",
+          "default": "open_interest",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "open_interest_base": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Open Interest Base"
+        }
+      },
+      "required": [
+        "header",
+        "open_interest_base"
+      ],
+      "title": "OpenInterestEvent",
+      "type": "object"
+    },
+    "OrderSide": {
+      "enum": [
+        "buy",
+        "sell"
+      ],
+      "title": "OrderSide",
+      "type": "string"
+    },
+    "TradeEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "aggressor": {
+          "$ref": "#/$defs/AggressorSide"
+        },
+        "event_type": {
+          "const": "trade",
+          "default": "trade",
+          "title": "Event Type",
+          "type": "string"
+        },
+        "header": {
+          "$ref": "#/$defs/EventHeader"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Price"
+        },
+        "size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Size"
+        },
+        "trade_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Trade Id",
+          "type": "string"
+        },
+        "transaction_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transaction Hash"
+        }
+      },
+      "required": [
+        "header",
+        "trade_id",
+        "price",
+        "size",
+        "aggressor"
+      ],
+      "title": "TradeEvent",
+      "type": "object"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/L2BookSnapshot"
+    },
+    {
+      "$ref": "#/$defs/BboEvent"
+    },
+    {
+      "$ref": "#/$defs/TradeEvent"
+    },
+    {
+      "$ref": "#/$defs/FundingEvent"
+    },
+    {
+      "$ref": "#/$defs/OpenInterestEvent"
+    },
+    {
+      "$ref": "#/$defs/MarkPriceEvent"
+    },
+    {
+      "$ref": "#/$defs/IndexPriceEvent"
+    },
+    {
+      "$ref": "#/$defs/AccountLiquidationEvent"
+    }
+  ]
+}

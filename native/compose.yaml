@@ -1,0 +1,52 @@
+name: aiquanttrader-native
+
+services:
+  foundation:
+    image: aiquanttrader-native-foundation:0.1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      - serve-health
+      - --config-dir
+      - /etc/aiquanttrader-native
+      - --environment
+      - ${AQT_NATIVE_ENVIRONMENT:-paper}
+    user: "65532:65532"
+    read_only: true
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 10s
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - native-data:/var/lib/aiquanttrader/data
+      - native-state:/var/lib/aiquanttrader/state
+    ports:
+      - "127.0.0.1:9108:9108"
+    healthcheck:
+      test:
+        - CMD
+        - aqt-native
+        - healthcheck
+        - --url
+        - http://127.0.0.1:9108/health/ready
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-file: "3"
+        max-size: 10m
+
+volumes:
+  native-data:
+    name: aiquanttrader-native-data
+  native-state:
+    name: aiquanttrader-native-state

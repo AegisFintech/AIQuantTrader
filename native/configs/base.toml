@@ -1,0 +1,40 @@
+config_version = 1
+environment = "base"
+mode = "research"
+
+[instrument]
+venue = "HYPERLIQUID"
+instrument_id = "BTC-USD-PERP.HYPERLIQUID"
+raw_symbol = "BTC"
+
+[exchange]
+network = "testnet"
+http_url = "https://api.hyperliquid-testnet.xyz"
+websocket_url = "wss://api.hyperliquid-testnet.xyz/ws"
+
+[execution]
+enabled = false
+max_inflight_requests = 20
+reconcile_on_startup = true
+unknown_order_timeout_ms = 5000
+
+[risk]
+daily_loss_fraction = "0.005"
+max_drawdown_fraction = "0.01"
+max_leverage = "1.0"
+max_order_notional_usd = "250"
+max_inventory_notional_usd = "1000"
+max_open_orders = 4
+max_orders_per_second = 5
+public_data_stale_after_ms = 1500
+private_data_stale_after_ms = 3000
+
+[storage]
+data_root = "/var/lib/aiquanttrader/data"
+state_root = "/var/lib/aiquanttrader/state"
+
+[observability]
+health_host = "0.0.0.0"
+health_port = 9108
+
+[approval]

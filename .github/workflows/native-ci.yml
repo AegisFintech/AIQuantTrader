@@ -1,0 +1,125 @@
+name: Native platform CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/native-ci.yml"
+      - "docs/**"
+      - "native/**"
+      - "rust/**"
+      - "Makefile"
+      - "scripts/check_secrets.sh"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/native-ci.yml"
+      - "docs/**"
+      - "native/**"
+      - "rust/**"
+      - "Makefile"
+      - "scripts/check_secrets.sh"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python contracts and configuration
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install pinned uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.29"
+          python-version: "3.12.13"
+          working-directory: native
+          enable-cache: true
+
+      - name: Verify lock and install development environment
+        working-directory: native
+        run: |
+          uv lock --check
+          uv sync --frozen --group dev
+
+      - name: Lint and format
+        working-directory: native
+        run: |
+          uv run --frozen ruff format --check src tests scripts
+          uv run --frozen ruff check src tests scripts
+
+      - name: Type check
+        working-directory: native
+        run: uv run --frozen mypy
+
+      - name: Test with branch coverage
+        working-directory: native
+        run: uv run --frozen pytest --cov
+
+      - name: Verify checked-in schemas
+        working-directory: native
+        run: uv run --frozen aqt-native export-schemas --output schemas --check
+
+      - name: Audit Python dependencies
+        working-directory: native
+        run: |
+          uv export --frozen --all-extras --no-dev --no-emit-project \
+            --output-file /tmp/aiquanttrader-native-audit.txt
+          uv run --frozen pip-audit \
+            --requirement /tmp/aiquanttrader-native-audit.txt
+
+      - name: Check repository documentation
+        working-directory: native
+        run: uv run --frozen python scripts/check_repository_docs.py
+
+      - name: Scan repository for committed secrets
+        run: ./scripts/check_secrets.sh
+
+  rust:
+    name: Rust toolchain boundary
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install 1.96.0 --profile minimal --component clippy,rustfmt
+
+      - name: Verify pinned pre-workspace contract
+        run: |
+          rustc +1.96.0 --version
+          cargo +1.96.0 --version
+          test "$(find rust -name Cargo.toml -print -quit)" = ""
+          test "$(find rust -name Cargo.lock -print -quit)" = ""
+
+  container:
+    name: Container security contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    needs: python
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Build pinned foundation image
+        run: docker build --tag aiquanttrader-native-foundation:ci native
+
+      - name: Verify image identity and fail-closed configuration
+        run: |
+          test "$(docker image inspect --format '{{.Config.User}}' aiquanttrader-native-foundation:ci)" = "65532:65532"
+          docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            aiquanttrader-native-foundation:ci \
+            validate-config --config-dir /etc/aiquanttrader-native --environment paper
+
+      - name: Verify Compose policy
+        working-directory: native
+        run: docker compose config --quiet

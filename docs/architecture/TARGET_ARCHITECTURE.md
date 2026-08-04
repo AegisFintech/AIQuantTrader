@@ -316,6 +316,12 @@ measurements depend on it. Production and research credentials are distinct.
 The trading wallet, control wallet, and read-only data credentials have the
 minimum permissions required for their services.
 
+During the parallel migration, native Python is isolated under
+`native/src/aiquanttrader_native` so its dependency graph cannot alter the
+deployed MT5 package. The final `src/aiquanttrader` topology shown in this
+document is established only during the Phase 9 legacy-removal cutover. ADR 0008
+records this temporary package boundary and its removal condition.
+
 ## Performance policy
 
 The initial book cadence and one-instrument scope do not justify a custom Rust
