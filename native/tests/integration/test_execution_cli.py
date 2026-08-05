@@ -7,6 +7,8 @@ from unittest.mock import Mock
 
 import pytest
 
+from aiquanttrader_native.acceptance.audit import OperationalEvidenceLog
+from aiquanttrader_native.acceptance.models import AcceptanceComponent
 from aiquanttrader_native.config import load_config
 from aiquanttrader_native.execution.cli import main as execution_main
 from aiquanttrader_native.execution.heartbeat import HeartbeatPublisher
@@ -73,6 +75,10 @@ def test_execution_cli_wires_lifecycle_without_exposing_secret(
 
     assert execution_main(["run", "--config-dir", str(config_dir), "--environment", "testnet"]) == 0
     builder.assert_called_once()
+    operational_log = builder.call_args.kwargs["operational_log"]
+    assert isinstance(operational_log, OperationalEvidenceLog)
+    assert operational_log.component is AcceptanceComponent.EXECUTION
+    assert operational_log.path == tmp_path / "state" / "execution" / "acceptance-events.jsonl"
     runner.assert_called_once()
     journal.close.assert_called_once()
 
@@ -133,9 +139,8 @@ def test_sentinel_cli_builds_independent_control_process(
         Mock(return_value=client),
     )
     sentinel = Mock()
-    monkeypatch.setattr(
-        "aiquanttrader_native.sentinel.cli.SafetySentinel", Mock(return_value=sentinel)
-    )
+    sentinel_builder = Mock(return_value=sentinel)
+    monkeypatch.setattr("aiquanttrader_native.sentinel.cli.SafetySentinel", sentinel_builder)
 
     class ImmediateStop:
         def wait(self, timeout: float) -> bool:
@@ -145,7 +150,24 @@ def test_sentinel_cli_builds_independent_control_process(
             pass
 
     monkeypatch.setattr("aiquanttrader_native.sentinel.cli.threading.Event", ImmediateStop)
-    assert sentinel_main(["--config-dir", str(config_dir), "--environment", "testnet"]) == 0
+    evidence_path = (tmp_path / "sentinel-audit" / "events.jsonl").resolve()
+    assert (
+        sentinel_main(
+            [
+                "--config-dir",
+                str(config_dir),
+                "--environment",
+                "testnet",
+                "--operational-evidence-path",
+                str(evidence_path),
+            ]
+        )
+        == 0
+    )
+    operational_log = sentinel_builder.call_args.kwargs["operational_log"]
+    assert isinstance(operational_log, OperationalEvidenceLog)
+    assert operational_log.component is AcceptanceComponent.SENTINEL
+    assert operational_log.path == evidence_path
     sentinel.step.assert_not_called()
 
 

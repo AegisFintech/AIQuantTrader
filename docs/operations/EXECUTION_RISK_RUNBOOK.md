@@ -118,7 +118,8 @@ account and wallet identities replace mainnet identities, while code, image,
 dependency lock, dataset/model/feature/strategy artifacts, risk, and all other
 behavior remain bound to the proposed release.
 
-Set the exact digest, commit, fingerprint, testnet account, two testnet secret
+Set a new `AQT_REHEARSAL_ID`, plus the exact digest, commit, fingerprint,
+testnet account, two testnet secret
 file paths, `AQT_REHEARSAL_LIVE_STRATEGY_ID` from the release strategy artifact,
 `AQT_REHEARSAL_STRATEGY_CONFIG_FILE` pointing to those exact artifact bytes,
 and every risk override from the release specification. Compose mounts that
@@ -137,16 +138,125 @@ Inspect the rendered configuration and container mounts. The image must be
 mount only the testnet trading wallet, and the sentinel only the testnet control
 wallet. Confirm the release commit, image, and behavior metadata inside both
 containers without displaying either secret file.
+The rehearsal ID creates three uniquely named volumes. Confirm they did not
+exist before the run. Never reuse an ID or delete an older reviewed rehearsal
+to obtain empty state.
 
-Retain one evidence hash per required scenario plus the raw venue export,
-private/public event journal, order journal, reconciliation records, metrics,
-alerts, container inspection, final account/open-order state, and proof that no
-mainnet credential was present. Construct
-`TestnetDressRehearsalObservation` according to
-`native/schemas/governance.schema.json`; counts must reconcile, wallet roles
-must be distinct, unknown outcomes must all be resolved, and the final position
-and open-order count must be zero. Evaluate it only with the policy frozen
-before the run:
+During the run, preserve `state/execution/acceptance-events.jsonl` from the
+execution state volume and `acceptance-events.jsonl` from the sentinel-owned
+evidence volume mounted at `/var/lib/aiquanttrader/sentinel-state`. The shared
+execution state remains read-only inside the sentinel. These are canonical
+predecessor-hashed operational streams and must not be edited, concatenated, or
+shared between processes. Capture raw venue exports, Prometheus snapshots,
+process lifecycle, kill audit, and rendered mount/config inspection without
+copying any secret content.
+
+After the planned stop, build a new mode-`0700` evidence directory. It has a
+closed inventory; names under `raw/` are operator-chosen and bound by the
+manifest, while control and scenario names are fixed:
+
+```text
+testnet-rehearsal-<id>/
+|- run-manifest.json
+|- operational-facts.json
+|- final-venue-state.json
+|- scenarios/
+|  |- passive_post_only.json
+|  |- crossing_post_only_reject.json
+|  |- non_marketable_ioc.json
+|  |- marketable_ioc.json
+|  |- cancel_replace.json
+|  |- partial_fill_cancel.json
+|  |- reduce_only.json
+|  |- duplicate_intent.json
+|  |- unknown_outcome_reconciliation.json
+|  |- node_restart_reconciliation.json
+|  |- stale_data_kill.json
+|  |- loss_drawdown_reduce_only.json
+|  |- operator_kill.json
+|  |- trading_node_death.json
+|  `- sentinel_death.json
+`- raw/
+   |- execution-journal.sqlite3
+   |- execution-events.jsonl
+   |- sentinel-events.jsonl
+   |- execution-metrics.prom
+   |- sentinel-metrics.prom
+   |- venue-orders.json
+   |- venue-fills.json
+   |- venue-account.json
+   |- kill-switch.audit.jsonl
+   |- process-events.jsonl
+   `- compose-inspection.txt
+```
+
+The raw inventory must bind exactly one artifact for each
+`EvidenceCategory` in `native/schemas/acceptance.schema.json`. Do not leave
+notes, WAL/SHM files, temporary downloads, or unrelated logs inside the bundle.
+Copy the execution database only after its owner has stopped and the SQLite WAL
+has checkpointed; validate the copy independently before deleting nothing from
+the preserved state volume.
+
+The assembler requires these exact `check_id` values. Additional checks are
+allowed, but none of these may be omitted:
+
+| Scenario file | Required check IDs |
+|---|---|
+| `passive_post_only` | `post_only_rested`, `client_order_identity`, `cancel_confirmed` |
+| `crossing_post_only_reject` | `venue_rejected`, `no_fill` |
+| `non_marketable_ioc` | `ioc_terminal`, `no_false_acceptance` |
+| `marketable_ioc` | `fill_accounted`, `remainder_terminal` |
+| `cancel_replace` | `old_leg_terminal`, `replacement_identity`, `no_overlap` |
+| `partial_fill_cancel` | `cumulative_fill_exact`, `residual_cancel_confirmed` |
+| `reduce_only` | `absolute_position_reduced`, `increase_denied` |
+| `duplicate_intent` | `local_duplicate_denied`, `single_venue_order` |
+| `unknown_outcome_reconciliation` | `unknown_recorded`, `reconciled_by_client_id`, `not_resubmitted` |
+| `node_restart_reconciliation` | `reconciliation_precedes_approval`, `orders_fills_position_match`, `no_duplicate_order` |
+| `stale_data_kill` | `new_exposure_denied`, `cancel_available` |
+| `loss_drawdown_reduce_only` | `new_exposure_denied`, `bounded_reduce_only_available` |
+| `operator_kill` | `approval_halted`, `cancel_all_confirmed` |
+| `trading_node_death` | `sentinel_detected_failure`, `cancel_all_confirmed`, `deadman_observed` |
+| `sentinel_death` | `scheduled_cancel_fired`, `fired_within_bound` |
+
+Each check's `actual` and `required` fields must state the reviewed observation
+and criterion. A generic statement that evidence was retained is not a valid
+substitute. The two `cancel_all_confirmed` checks count only when the matching
+execution/sentinel audit action also succeeded.
+
+Create all control files with the canonical domain JSON serialization and one
+trailing newline. `run-manifest.json` binds the exact commit, image, lock,
+dataset, model selection, feature schema, strategy, risk, target behavior,
+account/vault, distinct wallet addresses, run interval, and every raw file's
+path, size, digest, and capture interval. Each scenario file records explicit
+checks, invalidating events, and the raw artifact paths used for that result.
+`final-venue-state.json` must be a real post-stop testnet account snapshot.
+
+`operational-facts.json` records reviewed facts not safely derivable from the
+local journal: reconciliation failures, risk breaches, actual exchange
+dead-man cancellations, and absence of a mainnet credential. Bind it to the
+venue-account, process-event, and configuration-inspection artifacts. Reviewers
+must compare those claims with the raw sources; a typed zero is not proof by
+itself.
+
+Assemble and independently reproduce the observation without mounting either
+wallet:
+
+```bash
+aqt-acceptance assemble \
+  --evidence-root /secure/release/testnet-rehearsal-<id> \
+  --output /secure/release/testnet-observation.json
+aqt-acceptance verify \
+  --evidence-root /secure/release/testnet-rehearsal-<id> \
+  --observation /secure/release/testnet-observation.json
+```
+
+Assembly checks the complete inventory twice, raw hashes and intervals, every
+scenario's required category lineage, SQLite integrity and lifecycle facts,
+operational hash chains, account identity, and final state. It rejects a live,
+extra, missing, mutable, noncanonical, traversing, symlinked, or writable
+bundle. Output is a new mode-`0600` file and is never overwritten.
+
+Evaluate the resulting observation only with the policy frozen before the run:
 
 ```bash
 aqt-governance evaluate-testnet \
@@ -155,7 +265,8 @@ aqt-governance evaluate-testnet \
   --output /secure/release/testnet-evidence.json
 ```
 
-The evaluator reports each gate and exits nonzero on a failure. A pass stops at
+The assembler does not decide whether the rehearsal passed. The evaluator
+reports each gate and exits nonzero on a failure. A pass stops at
 `awaiting_canary_approval`; it does not sign a release, authorize funding, or
 permit mainnet execution. Stop the rehearsal using the planned-stop sequence
 and preserve its volumes until independent review is complete.
@@ -219,6 +330,10 @@ rollback.
 2. Confirm position is flat or document the accepted residual inventory risk.
 3. Stop the trading node, then the sentinel.
 4. Preserve the state volume. Do not delete WAL files or the kill audit.
+
+After the owner processes have stopped, export a stable journal copy for the
+acceptance bundle. Keep the original volume, WAL, and kill audit unchanged until
+the observation and its independent verification are complete.
 
 The sentinel deliberately does not disarm the scheduled exchange cancellation
 on shutdown. This favors cancel safety over retaining unattended resting orders.

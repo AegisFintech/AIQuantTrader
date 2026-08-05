@@ -2,6 +2,10 @@
 
 Status: implementation complete; credentialed testnet acceptance evidence pending.
 
+The stopped-run evidence assembler and operational audit increment are
+documented in
+[`PHASE_4_TESTNET_ACCEPTANCE_EVIDENCE.md`](PHASE_4_TESTNET_ACCEPTANCE_EVIDENCE.md).
+
 Phase 4 adds the first exchange-order-capable native code. Every checked-in
 environment remains execution-disabled. The legacy MT5 process list, EA,
 credentials, and XAUUSD behavior are unchanged.
@@ -74,6 +78,9 @@ docs/
 - A corrupt operator-kill file fails closed. Activations and clears are atomic,
   mode `0600`, and append to a separately fsynced audit file. The authority
   reads this operator-owned state itself; strategy input cannot clear it.
+- Execution and sentinel safety transitions are appended to separate canonical,
+  fsynced, predecessor-hashed operational evidence streams. Logging is bounded
+  to lifecycle and safety transitions rather than market ticks.
 - Phase 4's testnet-only boundary originally rejected enabled mainnet wallets.
   Phase 9 replaces that blanket lock only for canary/production configurations
   which pass exact artifact-bound signature verification and explicit durable
@@ -158,9 +165,12 @@ the raw proposal was sent unchanged.
 3. Run the testnet deployment and the full scenario matrix in the execution
    runbook, retaining journal, Prometheus, adapter logs, commit, lock, and image
    digest.
-4. Demonstrate process death, stale/malformed heartbeat, persistent operator
+4. Stop cleanly, build the strict evidence directory, and use
+   `aqt-acceptance assemble` plus `verify` to produce the canonical governance
+   observation.
+5. Demonstrate process death, stale/malformed heartbeat, persistent operator
    kill, dead-man expiry, and restart reconciliation.
-5. Do not enable canary/mainnet. Phase 4 rejects an enabled mainnet path; Phase
+6. Do not enable canary/mainnet. Phase 4 rejects an enabled mainnet path; Phase
    9 must implement artifact-bound cryptographic approval after the intervening
    paper, shadow, and promotion gates pass.
 
@@ -189,6 +199,9 @@ Automated now:
   durable daily/high-water equity behavior;
 - secret-file validation, wallet mount separation, canonical endpoint binding,
   crash-safe heartbeat/kill state, dead-man renewal, and emergency cancel;
+- hash-linked execution/sentinel operational evidence, strict stopped-bundle
+  inventory, read-only SQLite derivation, complete scenario lineage, and
+  deterministic write-once observation assembly;
 - strict typing, schema export, non-root/read-only containers, metrics, and
   more than 90% native test coverage.
 

@@ -1,0 +1,20 @@
+flowchart LR
+    VN[Hyperliquid testnet exports] --> RAW[Bounded raw evidence]
+    EX[Execution journal and audit] --> RAW
+    SE[Sentinel audit and metrics] --> RAW
+    OP[Process, kill, and mount inspection] --> RAW
+
+    RAW --> MAN[Hash-bound run manifest]
+    MAN --> COL[Credential-free acceptance assembler]
+    SC[15 typed scenario records] --> COL
+    FS[Final flat venue state] --> COL
+    OF[Reviewed operational facts] --> COL
+
+    COL --> OBS[Canonical testnet observation]
+    OBS --> EV[Frozen-policy evaluator]
+    EV -->|fail| HALT[Retain evidence and investigate]
+    EV -->|pass| REVIEW[Independent human review]
+    REVIEW --> BUNDLE[Unsigned release preparation]
+
+    COL -. no network, wallet, or signer .-> HALT
+    EV -. cannot sign, admit, or deploy .-> HALT

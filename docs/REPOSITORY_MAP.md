@@ -110,11 +110,15 @@ Current Phase 4/6 live strategy and execution ownership:
 | `native/src/aiquanttrader_native/execution/node.py` | Pinned Hyperliquid node, live-pipeline construction, and synchronous client-connectivity probe. |
 | `native/src/aiquanttrader_native/risk/` | Unbypassable synchronous limits, single-use approvals, and persistent operator kill. |
 | `native/src/aiquanttrader_native/sentinel/` | Independently credentialed dead-man renewal and emergency cancel-only process. |
+| `native/src/aiquanttrader_native/acceptance/` | Credential-free, deterministic assembly and verification of stopped, hash-bound testnet rehearsal evidence. |
 | `native/configs/base.toml` (`live_strategy`) | Disabled exact feature/strategy selection and bounded fee/slippage assumptions. |
 | `docs/operations/EXECUTION_RISK_RUNBOOK.md` | Credentialed testnet matrix, live-pipeline checks, incidents, and rollback. |
 
-Phase 4/6 code convergence is automated, but execution remains disabled in all
-checked-in environments. Acceptance still requires real testnet lifecycle,
+Phase 4/6 code convergence and offline acceptance assembly are automated, but
+execution remains disabled in all checked-in environments. The trading node
+and sentinel durably emit separate hash-linked operational streams; the
+assembler derives locally provable journal facts and rejects incomplete,
+mutable, or undeclared evidence. Acceptance still requires real testnet lifecycle,
 latency, restart, stale/disconnect, unknown-outcome, dead-man, economic-baseline,
 and strategy evidence. Mainnet additionally consumes the signed bundle's exact
 strategy artifact; this does not create or activate an approval.
@@ -209,12 +213,16 @@ performed by the repository implementation.
 
 The Phase 9 release-evidence increment adds typed final-testnet observations,
 the frozen complete scenario evaluator, exact target-behavior fingerprints,
-and deterministic unsigned bundle preparation. `governance/bundle.py` rejects
+and deterministic unsigned bundle preparation. The Phase 4 acceptance
+assembler now creates those observations from retained evidence without
+network, wallet, signer, evaluation, or admission capability.
+`governance/bundle.py` rejects
 incompatible artifacts and evidence before offline signing, binds the live
 strategy identity into target behavior, and verifies that the image-resident
 feature configuration matches shadow evidence; it contains no signer or
 admission action. See
-`docs/migration/PHASE_9_RELEASE_EVIDENCE.md`.
+`docs/migration/PHASE_9_RELEASE_EVIDENCE.md` and
+`docs/migration/PHASE_4_TESTNET_ACCEPTANCE_EVIDENCE.md`.
 
 ## Current Legacy System Topology
 

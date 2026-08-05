@@ -64,10 +64,17 @@ services:
     profiles: ["execution-testnet"]
     image: aiquanttrader-native-foundation:0.1.0
     entrypoint: ["aqt-sentinel"]
-    command: ["--config-dir", "/etc/aiquanttrader-native", "--environment", "testnet"]
+    command:
+      - --config-dir
+      - /etc/aiquanttrader-native
+      - --environment
+      - testnet
+      - --operational-evidence-path
+      - /var/lib/aiquanttrader/sentinel-state/acceptance-events.jsonl
     environment: *testnet-environment
     volumes:
       - native-state:/var/lib/aiquanttrader/state:ro
+      - testnet-sentinel-evidence:/var/lib/aiquanttrader/sentinel-state
     secrets:
       - source: testnet_control_wallet
         target: testnet-control-wallet
@@ -92,3 +99,6 @@ secrets:
     file: ${AQT_TESTNET_TRADING_WALLET_FILE:?set trading wallet file}
   testnet_control_wallet:
     file: ${AQT_TESTNET_CONTROL_WALLET_FILE:?set control wallet file}
+
+volumes:
+  testnet-sentinel-evidence:

@@ -15,6 +15,8 @@ from pathlib import Path
 
 from prometheus_client import start_http_server
 
+from aiquanttrader_native.acceptance.audit import OperationalEvidenceLog
+from aiquanttrader_native.acceptance.models import AcceptanceComponent
 from aiquanttrader_native.config import ConfigLoadError, load_config
 from aiquanttrader_native.execution.secrets import private_key_address, read_private_key
 from aiquanttrader_native.governance.approval import (
@@ -37,6 +39,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--code-identity")
     parser.add_argument("--image-identity")
     parser.add_argument("--dependency-lock-path", type=Path)
+    parser.add_argument("--operational-evidence-path", type=Path)
     return parser
 
 
@@ -108,6 +111,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             metrics=metrics,
             admission=admission,
             admission_guard=admission_guard,
+            operational_log=OperationalEvidenceLog(
+                args.operational_evidence_path
+                or settings.storage.state_root / "sentinel" / "acceptance-events.jsonl",
+                component=AcceptanceComponent.SENTINEL,
+            ),
         )
         stop = threading.Event()
 

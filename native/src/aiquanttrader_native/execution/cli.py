@@ -12,6 +12,8 @@ from pathlib import Path
 
 from prometheus_client import start_http_server
 
+from aiquanttrader_native.acceptance.audit import OperationalEvidenceLog
+from aiquanttrader_native.acceptance.models import AcceptanceComponent
 from aiquanttrader_native.config import ConfigLoadError, load_config
 from aiquanttrader_native.execution.heartbeat import (
     HeartbeatPublisher,
@@ -146,6 +148,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 admission_guard = DeploymentAdmissionGuard(admission_ledger, admission)
                 admission_guard.require_active()
             journal = ExecutionJournal(state_root / "execution" / "journal.sqlite3")
+            operational_log = OperationalEvidenceLog(
+                state_root / "execution" / "acceptance-events.jsonl",
+                component=AcceptanceComponent.EXECUTION,
+            )
             mark_stale_submissions(
                 journal,
                 cutoff_ts_ns=time.time_ns()
@@ -192,6 +198,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     if admission is None or approval_paths is None
                     else _approved_strategy_path(approval_paths.artifact_root, admission)
                 ),
+                operational_log=operational_log,
             )
             try:
                 run_trading_node(

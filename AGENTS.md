@@ -13,6 +13,7 @@ only the standard BTC perpetual, represented as
 - `docs/migration/PHASE_2_FOUNDATION.md`
 - `docs/migration/PHASE_3_MARKET_DATA.md`
 - `docs/migration/PHASE_4_EXECUTION_RISK.md`
+- `docs/migration/PHASE_4_TESTNET_ACCEPTANCE_EVIDENCE.md`
 - `docs/migration/PHASE_5_BACKTESTING.md`
 - `docs/migration/PHASE_6_RESEARCH.md`
 - `docs/migration/PHASE_7_PAPER.md`
@@ -63,8 +64,11 @@ Migration rules:
   admit, fund, or activate a mainnet release merely because the Phase 9 code is
   present.
 - Final-testnet evidence must come from the exact immutable image and complete
-  frozen scenario matrix. The evaluator and unsigned bundle preparer do not
-  collect evidence, sign approvals, admit deployments, or authorize mainnet.
+  frozen scenario matrix. `aqt-acceptance` may assemble and verify only a
+  stopped, retained, hash-bound evidence directory; it has no wallet, network,
+  signer, evaluator, admission, or deployment capability. The evaluator and
+  unsigned bundle preparer do not sign approvals, admit deployments, or
+  authorize mainnet.
 - Phase 8 shadow must keep the decision engine at `network_mode: none`, ingress
   read-only, and all account/wallet/signer/execution-client capability absent.
   A passing shadow report stops at `AWAITING_APPROVAL` and never authorizes
@@ -85,6 +89,10 @@ AIQuantTrader is now an MT5-first autonomous demo-trading repo. Trade and optimi
 - Native execution/risk runbook: `docs/operations/EXECUTION_RISK_RUNBOOK.md`.
   Only the isolated testnet overlay may mount wallets during Phase 4 evidence
   collection, and trading/control wallets must remain process-separated.
+- Native final-testnet evidence assembler:
+  `docs/migration/PHASE_4_TESTNET_ACCEPTANCE_EVIDENCE.md`. Execution and
+  sentinel operational audit streams are runtime evidence; preserve them with
+  the stopped SQLite journal and never edit a reviewed evidence bundle.
 - Native live-strategy convergence:
   `docs/migration/PHASE_4_6_LIVE_STRATEGY_CONVERGENCE.md`. Shared feature and
   strategy kernels may reach Nautilus only through the risk-managed execution
