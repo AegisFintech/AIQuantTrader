@@ -81,6 +81,9 @@ and Phase 10 evidence-only legacy-retirement boundary:
 - derived final MT5 state from raw retained trade-report, broker-export,
   MT5-status, pause-file, and five-surface command-writer evidence with
   cross-source reconciliation and bounded freshness.
+- cross-bundle retirement-readiness assembly with a shared retirement identity,
+  dual immutable-root replay, completion-time authority/freshness checks, and
+  mandatory source replay during readiness report evaluation.
 
 The Phase 6 strategy kernels are now wired into the sole Phase 4 exchange
 gateway, but the exchange order path remains disabled in every checked-in

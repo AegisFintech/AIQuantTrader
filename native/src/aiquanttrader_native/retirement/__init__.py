@@ -25,6 +25,10 @@ from aiquanttrader_native.retirement.models import (
     RetirementReadinessObservation,
     RetirementReadinessReport,
 )
+from aiquanttrader_native.retirement.readiness import (
+    assemble_retirement_readiness_observation,
+    verify_retirement_readiness_observation,
+)
 
 __all__ = [
     "DisabledObservation",
@@ -36,10 +40,12 @@ __all__ = [
     "assemble_legacy_archive_manifest",
     "assemble_legacy_final_state",
     "assemble_native_production_observation",
+    "assemble_retirement_readiness_observation",
     "evaluate_disabled_observation",
     "evaluate_retirement_readiness",
     "load_retirement_policy",
     "verify_legacy_archive_manifest",
     "verify_legacy_final_state",
     "verify_native_production_observation",
+    "verify_retirement_readiness_observation",
 ]

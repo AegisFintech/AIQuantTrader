@@ -1824,14 +1824,19 @@
           "title": "Renewal Count",
           "type": "integer"
         },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
         "risk_breaches": {
           "minimum": 0,
           "title": "Risk Breaches",
           "type": "integer"
         },
         "schema_version": {
-          "const": 2,
-          "default": 2,
+          "const": 3,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -1852,6 +1857,7 @@
         }
       },
       "required": [
+        "retirement_id",
         "policy_id",
         "policy_sha256",
         "deployment_id",

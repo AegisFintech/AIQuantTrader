@@ -98,6 +98,7 @@ def _readiness() -> RetirementReadinessObservation:
         retirement_id="retirement-test-001",
         observed_ts_ns=400,
         native=NativeProductionObservation(
+            retirement_id="retirement-test-001",
             policy_id=_policy().policy_id,
             policy_sha256=_policy().sha256(),
             deployment_id="native-production-001",
@@ -407,25 +408,6 @@ def test_retirement_evidence_cli_writes_reports_and_validates_cleanup(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     policy = project_root / "configs" / "retirement" / "evidence-v1.toml"
-    readiness_path = tmp_path / "readiness-observation.json"
-    readiness_report = tmp_path / "readiness-report.json"
-    readiness_path.write_bytes(_readiness().canonical_bytes())
-    assert (
-        retirement_main(
-            [
-                "evaluate-readiness",
-                "--observation",
-                str(readiness_path),
-                "--policy",
-                str(policy),
-                "--output",
-                str(readiness_report),
-            ]
-        )
-        == 1
-    )
-    assert readiness_report.is_file()
-
     disabled_path = tmp_path / "disabled-observation.json"
     disabled_report = tmp_path / "disabled-report.json"
     disabled_path.write_bytes(_disabled().canonical_bytes())

@@ -1,0 +1,20 @@
+flowchart LR
+    N[Immutable native-production root] --> V[verify-native replay<br/>pinned Ed25519 trust root]
+    NO[NativeProductionObservation v3<br/>retirement identity + terminal authority] --> V
+    L[Immutable legacy archive root] --> F[verify-final-state replay<br/>archive + raw source reconciliation]
+    AM[LegacyArchiveManifest v2] --> F
+    FS[LegacyFinalState v2] --> F
+    P[Frozen retirement and scan policies] --> V
+    P --> F
+
+    V --> A[assemble-readiness]
+    F --> A
+    A --> C{Same retirement identity,<br/>authority active, final state current?}
+    C -- no --> X[Fail closed<br/>no observation or report]
+    C -- yes --> O[Canonical RetirementReadinessObservation]
+    O --> R[evaluate-readiness<br/>replays both roots again]
+    R --> G{All 14 gates pass?}
+    G -- no --> H[Not ready<br/>no action authority]
+    G -- yes --> W[AWAITING STOP APPROVAL]
+
+    B[No wallet, broker, exchange, network,<br/>signer, PM2, stop, pause or delete capability] -. security boundary .- A

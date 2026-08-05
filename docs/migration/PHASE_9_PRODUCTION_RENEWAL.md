@@ -119,11 +119,13 @@ cannot revive it.
 
 ## Evidence and Phase 10 binding
 
-`NativeProductionObservation` now records the terminal authorization identity,
-renewal count, and authorization expiry. Its expiry must follow the observation
-end; an unrenewed observation must terminate at the original admission identity,
-while a renewed observation must bind the final renewal. The retained native
-evidence bundle must include the ordered renewal history and ledger transitions.
+`NativeProductionObservation` records the terminal authorization identity,
+renewal count, authorization expiry, and Phase 10 retirement identity. Its
+expiry must follow the observation end; an unrenewed observation must terminate
+at the original admission identity, while a renewed observation must bind the
+final renewal. The retained native evidence bundle must include the ordered
+renewal history and ledger transitions. Schema v3 adds the retirement identity
+so readiness assembly cannot mix otherwise valid native and legacy cases.
 
 This enables but does not satisfy the 30-day Phase 10 gate. Mainnet activation,
 the empirical observation, retirement readiness, and both retirement approvals

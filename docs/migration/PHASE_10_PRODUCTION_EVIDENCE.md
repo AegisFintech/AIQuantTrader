@@ -72,9 +72,10 @@ The assembler independently:
    including both boundaries, with no gap over the frozen five-minute policy;
 7. validates the reviewed incident register and the frozen check set for all
    four drills; and
-8. emits the policy identity, signer identity, ordered authorization-chain
-   hash, terminal authorization/expiry, operational sample coverage, derived
-   failure counts, manifest hash, and complete bundle hash.
+8. emits the schema-v3 observation with the manifest retirement identity,
+   policy identity, signer identity, ordered authorization-chain hash, terminal
+   authorization/expiry, operational sample coverage, derived failure counts,
+   manifest hash, and complete bundle hash.
 
 Independent verification also uses the host clock. It rejects an observation
 dated after verification and any authorization that is no longer active at
@@ -120,6 +121,8 @@ aqt-retirement verify-native \
 The assembly output path is fail-on-exist, mode `0600`, atomic, and outside the
 immutable evidence root.
 Verification reassembles every fact and requires byte-equivalent typed output.
+The retirement identity is later required to match the legacy archive during
+`assemble-readiness`; deployment identity alone is not a retirement-case key.
 
 ## Failure and rollback
 

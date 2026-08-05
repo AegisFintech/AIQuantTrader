@@ -328,6 +328,14 @@ surfaces are reconciled under a five-minute capture-skew and one-hour freshness
 policy. The schema-v2 result has no live or action capability. See
 [`diagrams/phase-10-final-state.mmd`](diagrams/phase-10-final-state.mmd).
 
+Retirement readiness is independently assembled only after replaying both the
+native-production and legacy evidence roots. The schema-v3 native observation
+carries the retirement identity, cross-bundle identities must match, and the
+observation timestamp is taken only after authority and final-state freshness
+are rechecked. Report evaluation repeats the same source replay and remains
+action-free. See
+[`diagrams/phase-10-readiness-assembly.mmd`](diagrams/phase-10-readiness-assembly.mmd).
+
 Promotion gates are frozen before an experiment begins and evaluate post-cost
 PnL, drawdown and tail loss, consistency, inventory exposure, fill calibration,
 maker ratio, markouts, latency, operational failures, and drift. Prediction
