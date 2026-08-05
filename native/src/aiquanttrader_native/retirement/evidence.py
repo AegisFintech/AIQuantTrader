@@ -58,6 +58,11 @@ def evaluate_retirement_readiness(
         observation.native.policy_id == policy.policy_id
         and observation.native.policy_sha256 == policy.sha256()
     )
+    archive_scan_policy_bound = (
+        observation.archive.credential_scan_policy_id == policy.archive_credential_scan_policy_id
+        and observation.archive.credential_scan_policy_sha256
+        == policy.archive_credential_scan_policy_sha256
+    )
     gates = (
         _readiness_gate(
             RetirementReadinessGate.POLICY_FROZEN,
@@ -121,9 +126,17 @@ def evaluate_retirement_readiness(
         ),
         _readiness_gate(
             RetirementReadinessGate.ARCHIVE_NO_CREDENTIALS,
-            observation.archive.contains_credentials is False,
-            observation.archive.contains_credentials,
-            False,
+            observation.archive.contains_credentials is False and archive_scan_policy_bound,
+            (
+                f"contains_credentials={observation.archive.contains_credentials},"
+                f"scan_policy={observation.archive.credential_scan_policy_id},"
+                f"scan_policy_sha256={observation.archive.credential_scan_policy_sha256}"
+            ),
+            (
+                f"contains_credentials=False,"
+                f"scan_policy={policy.archive_credential_scan_policy_id},"
+                f"scan_policy_sha256={policy.archive_credential_scan_policy_sha256}"
+            ),
         ),
         _readiness_gate(
             RetirementReadinessGate.FINAL_TAG,

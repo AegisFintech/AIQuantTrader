@@ -16,6 +16,12 @@ from aiquanttrader_native.retirement.approval import (
     RetirementApprovalPaths,
     verify_retirement_approval,
 )
+from aiquanttrader_native.retirement.archive import (
+    assemble_legacy_archive_manifest,
+    load_legacy_archive_credential_scan_policy,
+    load_legacy_archive_manifest,
+    verify_legacy_archive_manifest,
+)
 from aiquanttrader_native.retirement.collector import (
     assemble_native_production_observation,
     load_native_production_observation,
@@ -55,6 +61,18 @@ def _parser() -> argparse.ArgumentParser:
     verify_native.add_argument("--policy", type=Path, required=True)
     verify_native.add_argument("--approval-key-id", required=True)
     verify_native.add_argument("--approval-public-key-sha256", required=True)
+
+    assemble_archive = commands.add_parser("assemble-archive")
+    assemble_archive.add_argument("--evidence-root", type=Path, required=True)
+    assemble_archive.add_argument("--policy", type=Path, required=True)
+    assemble_archive.add_argument("--credential-scan-policy", type=Path, required=True)
+    assemble_archive.add_argument("--output", type=Path, required=True)
+
+    verify_archive = commands.add_parser("verify-archive")
+    verify_archive.add_argument("--evidence-root", type=Path, required=True)
+    verify_archive.add_argument("--manifest", type=Path, required=True)
+    verify_archive.add_argument("--policy", type=Path, required=True)
+    verify_archive.add_argument("--credential-scan-policy", type=Path, required=True)
 
     readiness = commands.add_parser("evaluate-readiness")
     readiness.add_argument("--observation", type=Path, required=True)
@@ -119,6 +137,31 @@ def main(argv: Sequence[str] | None = None) -> int:
                 expected_public_key_sha256=args.approval_public_key_sha256,
             )
             print(verified_native.model_dump_json())
+            return 0
+
+        if args.command == "assemble-archive":
+            archive_manifest = assemble_legacy_archive_manifest(
+                args.evidence_root,
+                policy=load_retirement_policy(args.policy),
+                credential_scan_policy=load_legacy_archive_credential_scan_policy(
+                    args.credential_scan_policy
+                ),
+            )
+            _atomic_write_new(args.output, archive_manifest.canonical_bytes() + b"\n")
+            print(archive_manifest.model_dump_json())
+            return 0
+
+        if args.command == "verify-archive":
+            archive_manifest = load_legacy_archive_manifest(args.manifest)
+            verified_archive = verify_legacy_archive_manifest(
+                args.evidence_root,
+                archive_manifest,
+                policy=load_retirement_policy(args.policy),
+                credential_scan_policy=load_legacy_archive_credential_scan_policy(
+                    args.credential_scan_policy
+                ),
+            )
+            print(verified_archive.model_dump_json())
             return 0
 
         if args.command == "evaluate-readiness":

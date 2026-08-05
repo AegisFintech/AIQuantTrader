@@ -298,15 +298,22 @@ class LegacyArchiveArtifact(DomainModel):
 
 
 class LegacyArchiveManifest(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     retirement_id: Identifier
     created_ts_ns: int = Field(ge=0)
+    assembled_ts_ns: int = Field(ge=0)
     retention_expires_ts_ns: int = Field(gt=0)
     source_commit_sha: GitCommit
     final_tag_name: Literal["mt5-final"] = "mt5-final"
     final_tag_commit_sha: GitCommit
     contains_credentials: Literal[False] = False
     restore_test_passed: Literal[True] = True
+    credential_scan_policy_id: Identifier
+    credential_scan_policy_sha256: Sha256
+    evidence_manifest_sha256: Sha256
+    evidence_bundle_sha256: Sha256
+    restore_evidence_sha256: Sha256
+    final_tag_evidence_sha256: Sha256
     artifacts: tuple[LegacyArchiveArtifact, ...] = Field(
         min_length=len(REQUIRED_ARCHIVE_ARTIFACTS),
         max_length=len(REQUIRED_ARCHIVE_ARTIFACTS),
@@ -314,6 +321,8 @@ class LegacyArchiveManifest(DomainModel):
 
     @model_validator(mode="after")
     def inventory_and_tag_are_exact(self) -> Self:
+        if self.assembled_ts_ns < self.created_ts_ns:
+            raise ValueError("legacy archive assembly cannot predate archive creation")
         if self.retention_expires_ts_ns <= self.created_ts_ns:
             raise ValueError("legacy archive retention must end after archive creation")
         if self.final_tag_commit_sha != self.source_commit_sha:
@@ -326,6 +335,216 @@ class LegacyArchiveManifest(DomainModel):
             raise ValueError("legacy archive artifact paths must be unique")
         if any(artifact.captured_ts_ns > self.created_ts_ns for artifact in self.artifacts):
             raise ValueError("legacy archive artifact cannot be captured after manifest creation")
+        return self
+
+
+class LegacyArchiveControlKind(StrEnum):
+    RESTORE_EVIDENCE = "restore_evidence"
+    CREDENTIAL_SCAN_EVIDENCE = "credential_scan_evidence"
+    FINAL_TAG_EVIDENCE = "final_tag_evidence"
+
+
+REQUIRED_ARCHIVE_CONTROLS = frozenset(LegacyArchiveControlKind)
+
+
+class LegacyArchiveControlArtifact(DomainModel):
+    kind: LegacyArchiveControlKind
+    relative_path: Annotated[str, Field(min_length=1, max_length=512)]
+    content_sha256: Sha256
+    byte_count: int = Field(gt=0, le=16_777_216)
+    captured_ts_ns: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def path_is_bounded_to_controls(self) -> Self:
+        path = PurePosixPath(self.relative_path)
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or len(path.parts) < 2
+            or path.parts[0] != "controls"
+        ):
+            raise ValueError("legacy archive controls must be below controls/ without traversal")
+        return self
+
+
+class LegacyArchiveRestoreCheck(DomainModel):
+    kind: LegacyArchiveArtifactKind
+    source_sha256: Sha256
+    source_byte_count: int = Field(gt=0, le=1_099_511_627_776)
+    restored_sha256: Sha256
+    restored_byte_count: int = Field(gt=0, le=1_099_511_627_776)
+    restored: Literal[True] = True
+
+    @model_validator(mode="after")
+    def restored_bytes_match_source(self) -> Self:
+        if (
+            self.restored_sha256 != self.source_sha256
+            or self.restored_byte_count != self.source_byte_count
+        ):
+            raise ValueError("restored legacy archive bytes differ from their source")
+        return self
+
+
+class LegacyArchiveRestoreEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    started_ts_ns: int = Field(ge=0)
+    ended_ts_ns: int = Field(ge=0)
+    reviewed_ts_ns: int = Field(ge=0)
+    reviewer: Annotated[str, Field(min_length=1, max_length=256)]
+    isolated_restore_completed: Literal[True] = True
+    checks: tuple[LegacyArchiveRestoreCheck, ...] = Field(
+        min_length=len(REQUIRED_ARCHIVE_ARTIFACTS),
+        max_length=len(REQUIRED_ARCHIVE_ARTIFACTS),
+    )
+    invalidating_events: tuple[Identifier, ...] = ()
+
+    @model_validator(mode="after")
+    def interval_and_checks_are_exact(self) -> Self:
+        if self.ended_ts_ns <= self.started_ts_ns or self.reviewed_ts_ns < self.ended_ts_ns:
+            raise ValueError("legacy archive restore interval or review time is invalid")
+        kinds = [check.kind for check in self.checks]
+        if len(kinds) != len(set(kinds)) or set(kinds) != REQUIRED_ARCHIVE_ARTIFACTS:
+            raise ValueError("legacy archive restore must check every category exactly once")
+        if len(self.invalidating_events) != len(set(self.invalidating_events)):
+            raise ValueError("legacy archive restore invalidating events must be unique")
+        return self
+
+    @property
+    def passed(self) -> bool:
+        return not self.invalidating_events
+
+
+class LegacyCredentialDetector(StrEnum):
+    API_TOKEN = "api_token"
+    PASSWORD = "password"
+    PRIVATE_KEY = "private_key"
+    SEED_PHRASE = "seed_phrase"
+    SESSION_CREDENTIAL = "session_credential"
+
+
+REQUIRED_LEGACY_CREDENTIAL_DETECTORS = frozenset(LegacyCredentialDetector)
+
+
+class LegacyArchiveCredentialScanPolicy(DomainModel):
+    schema_version: Literal[1] = 1
+    policy_id: Identifier
+    recursive_archive_scan: Literal[True] = True
+    maximum_findings: Literal[0] = 0
+    required_detectors: tuple[LegacyCredentialDetector, ...] = Field(
+        min_length=len(REQUIRED_LEGACY_CREDENTIAL_DETECTORS),
+        max_length=len(REQUIRED_LEGACY_CREDENTIAL_DETECTORS),
+    )
+
+    @model_validator(mode="after")
+    def detectors_are_exact(self) -> Self:
+        if set(self.required_detectors) != REQUIRED_LEGACY_CREDENTIAL_DETECTORS:
+            raise ValueError("legacy credential scan policy must require every detector")
+        return self
+
+
+class LegacyArchiveCredentialScanCheck(DomainModel):
+    kind: LegacyArchiveArtifactKind
+    artifact_sha256: Sha256
+    recursive_scan_completed: Literal[True] = True
+    finding_count: Literal[0] = 0
+
+
+class LegacyArchiveCredentialScanEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    started_ts_ns: int = Field(ge=0)
+    ended_ts_ns: int = Field(ge=0)
+    reviewed_ts_ns: int = Field(ge=0)
+    reviewer: Annotated[str, Field(min_length=1, max_length=256)]
+    scanner_name: Annotated[str, Field(min_length=1, max_length=128)]
+    scanner_version: Annotated[str, Field(min_length=1, max_length=128)]
+    policy_id: Identifier
+    policy_sha256: Sha256
+    checks: tuple[LegacyArchiveCredentialScanCheck, ...] = Field(
+        min_length=len(REQUIRED_ARCHIVE_ARTIFACTS),
+        max_length=len(REQUIRED_ARCHIVE_ARTIFACTS),
+    )
+    findings: tuple[Identifier, ...] = ()
+
+    @model_validator(mode="after")
+    def interval_and_checks_are_exact(self) -> Self:
+        if self.ended_ts_ns <= self.started_ts_ns or self.reviewed_ts_ns < self.ended_ts_ns:
+            raise ValueError("legacy credential scan interval or review time is invalid")
+        kinds = [check.kind for check in self.checks]
+        if len(kinds) != len(set(kinds)) or set(kinds) != REQUIRED_ARCHIVE_ARTIFACTS:
+            raise ValueError("legacy credential scan must check every category exactly once")
+        if self.findings:
+            raise ValueError("legacy archive credential scan contains findings")
+        return self
+
+
+class LegacyFinalTagEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    captured_ts_ns: int = Field(ge=0)
+    source_commit_sha: GitCommit
+    final_tag_name: Literal["mt5-final"] = "mt5-final"
+    final_tag_commit_sha: GitCommit
+    annotated_tag: Literal[True] = True
+    tag_object_sha: GitCommit
+    verification_output_sha256: Sha256
+    reviewer: Annotated[str, Field(min_length=1, max_length=256)]
+
+    @model_validator(mode="after")
+    def tag_resolves_to_source(self) -> Self:
+        if self.final_tag_commit_sha != self.source_commit_sha:
+            raise ValueError("retained mt5-final tag does not resolve to the source commit")
+        if self.tag_object_sha == self.final_tag_commit_sha:
+            raise ValueError("retained mt5-final must be an annotated tag object")
+        return self
+
+
+class LegacyArchiveEvidenceManifest(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    created_ts_ns: int = Field(ge=0)
+    retention_expires_ts_ns: int = Field(gt=0)
+    source_commit_sha: GitCommit
+    final_tag_name: Literal["mt5-final"] = "mt5-final"
+    final_tag_commit_sha: GitCommit
+    contains_credentials: Literal[False] = False
+    artifacts: tuple[LegacyArchiveArtifact, ...] = Field(
+        min_length=len(REQUIRED_ARCHIVE_ARTIFACTS),
+        max_length=len(REQUIRED_ARCHIVE_ARTIFACTS),
+    )
+    controls: tuple[LegacyArchiveControlArtifact, ...] = Field(
+        min_length=len(REQUIRED_ARCHIVE_CONTROLS),
+        max_length=len(REQUIRED_ARCHIVE_CONTROLS),
+    )
+
+    @model_validator(mode="after")
+    def inventory_and_intervals_are_exact(self) -> Self:
+        if self.retention_expires_ts_ns <= self.created_ts_ns:
+            raise ValueError("legacy archive evidence retention must follow creation")
+        if self.final_tag_commit_sha != self.source_commit_sha:
+            raise ValueError("legacy archive evidence tag must resolve to source")
+        artifact_kinds = [artifact.kind for artifact in self.artifacts]
+        artifact_paths = [artifact.relative_path for artifact in self.artifacts]
+        control_kinds = [control.kind for control in self.controls]
+        control_paths = [control.relative_path for control in self.controls]
+        if (
+            len(artifact_kinds) != len(set(artifact_kinds))
+            or set(artifact_kinds) != REQUIRED_ARCHIVE_ARTIFACTS
+        ):
+            raise ValueError("legacy archive evidence category inventory is not exact")
+        if (
+            len(control_kinds) != len(set(control_kinds))
+            or set(control_kinds) != REQUIRED_ARCHIVE_CONTROLS
+        ):
+            raise ValueError("legacy archive evidence control inventory is not exact")
+        paths = (*artifact_paths, *control_paths)
+        if len(paths) != len(set(paths)):
+            raise ValueError("legacy archive evidence paths must be unique")
+        if any(item.captured_ts_ns > self.created_ts_ns for item in self.artifacts) or any(
+            item.captured_ts_ns > self.created_ts_ns for item in self.controls
+        ):
+            raise ValueError("legacy archive evidence cannot be captured after creation")
         return self
 
 
@@ -420,6 +639,8 @@ class RetirementReadinessObservation(DomainModel):
             raise ValueError("retirement readiness requires an active native authorization")
         if self.observed_ts_ns < self.archive.created_ts_ns:
             raise ValueError("retirement readiness cannot predate archive creation")
+        if self.observed_ts_ns < self.archive.assembled_ts_ns:
+            raise ValueError("retirement readiness cannot predate archive assembly")
         if self.observed_ts_ns < self.legacy.captured_ts_ns:
             raise ValueError("retirement readiness cannot predate final legacy state")
         by_kind = {artifact.kind: artifact for artifact in self.archive.artifacts}
@@ -444,6 +665,8 @@ class RetirementPolicy(DomainModel):
     maximum_native_operational_gap_ns: int = Field(gt=0)
     minimum_disabled_observation_ns: int = Field(gt=0)
     minimum_archive_retention_ns: int = Field(gt=0)
+    archive_credential_scan_policy_id: Identifier
+    archive_credential_scan_policy_sha256: Sha256
     required_archive_artifacts: tuple[LegacyArchiveArtifactKind, ...] = Field(
         min_length=len(REQUIRED_ARCHIVE_ARTIFACTS),
         max_length=len(REQUIRED_ARCHIVE_ARTIFACTS),

@@ -75,6 +75,9 @@ and Phase 10 evidence-only legacy-retirement boundary:
   checkpointed admission ledger, complete renewal chain, exact artifacts,
   hash-linked audits, typed risk reasons, bounded sentinel continuity,
   incidents, and four recovery drills.
+- exact legacy final-archive assembly over eleven immutable categories,
+  isolated restore equality, an externally frozen recursive zero-finding
+  credential scan, annotated `mt5-final` lineage, and remaining retention.
 
 The Phase 6 strategy kernels are now wired into the sole Phase 4 exchange
 gateway, but the exchange order path remains disabled in every checked-in
@@ -123,6 +126,12 @@ uv run aqt-retirement assemble-native \
   --approval-key-id <pinned-key-id> \
   --approval-public-key-sha256 <pinned-fingerprint> \
   --output /absolute/retained/native-production-observation.json
+
+uv run aqt-retirement assemble-archive \
+  --evidence-root /absolute/retained/legacy-final \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
+  --output /absolute/retained/legacy-archive-manifest.json
 ```
 
 Configuration never accepts a private key value. It accepts only absolute
@@ -137,6 +146,9 @@ revive expired authority.
 Phase 10 production-evidence assembly is specified in
 `../docs/migration/PHASE_10_PRODUCTION_EVIDENCE.md`; its output grants no stop
 or cleanup authority.
+Phase 10 legacy-archive assembly is specified in
+`../docs/migration/PHASE_10_LEGACY_ARCHIVE.md`; it does not collect live facts,
+create the final tag, or prove the broker account is flat.
 
 ## Execution and risk
 

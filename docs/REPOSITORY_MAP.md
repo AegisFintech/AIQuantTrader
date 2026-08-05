@@ -241,11 +241,14 @@ Current Phase 10 legacy-retirement ownership:
 | Path | Responsibility |
 |---|---|
 | `native/src/aiquanttrader_native/retirement/collector.py` | Credential-free exact-inventory reconstruction of signed production authority, renewal continuity, audits, incidents, drills, and native observation. |
+| `native/src/aiquanttrader_native/retirement/archive.py` | Credential-free exact-inventory assembly and independent replay of the final legacy archive, restore proof, recursive scan evidence, and annotated-tag lineage. |
 | `native/src/aiquanttrader_native/retirement/{models,evidence,approval}.py` | Immutable final-archive, terminal native-authorization observation, flat-MT5-state, disabled-window, scoped approval, and exact cleanup-manifest contracts. |
-| `native/configs/retirement/evidence-v1.toml` | Frozen 30-day native, five-minute operational-evidence gap, seven-day disabled, and 365-day archive-retention baseline. |
+| `native/configs/retirement/evidence-v1.toml` | Frozen 30-day native, five-minute operational-evidence gap, seven-day disabled, 365-day archive-retention baseline, and credential-scan policy identity. |
+| `native/configs/retirement/archive-credential-scan-v1.toml` | Frozen recursive detector and zero-finding contract for credential-free legacy archives. |
 | `native/schemas/retirement.schema.json` | Deterministic external contract for every Phase 10 evidence and approval record. |
 | `docs/migration/PHASE_10_LEGACY_RETIREMENT.md` | Two-approval architecture, repository delta, tests, migration, and rollback. |
 | `docs/migration/PHASE_10_PRODUCTION_EVIDENCE.md` | Native bundle layout, trust boundary, independent assembly, verification, tests, and rollback. |
+| `docs/migration/PHASE_10_LEGACY_ARCHIVE.md` | Exact archive bundle, restore, recursive scan, retention, annotated-tag, assembly, and replay procedure. |
 | `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md` | Final archive, exact disable, observation, cleanup approval, host cleanup, removal PR, and failure procedure. |
 
 Phase 10 code is evidence-only. `aqt-retirement` has no command or dependency
@@ -261,6 +264,11 @@ using the externally pinned signer identity. Successful sentinel dead-man
 samples must span the interval without a gap over five minutes; the assembler
 derives typed risk/reconciliation/critical counts rather than accepting them as
 operator-authored totals.
+The final legacy archive must likewise be independently assembled and replayed
+from all eleven category artifacts, isolated-restore evidence, a policy-pinned
+recursive zero-finding credential scan, and annotated `mt5-final` tag evidence.
+Its schema-v2 manifest binds those control artifacts and their source lineage;
+it does not prove final broker flatness or authorize a stop.
 
 ## Current Legacy System Topology
 

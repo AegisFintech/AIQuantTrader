@@ -330,7 +330,220 @@
       "title": "LegacyArchiveArtifactKind",
       "type": "string"
     },
-    "LegacyArchiveManifest": {
+    "LegacyArchiveControlArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_count": {
+          "exclusiveMinimum": 0,
+          "maximum": 16777216,
+          "title": "Byte Count",
+          "type": "integer"
+        },
+        "captured_ts_ns": {
+          "minimum": 0,
+          "title": "Captured Ts Ns",
+          "type": "integer"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/LegacyArchiveControlKind"
+        },
+        "relative_path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Relative Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "relative_path",
+        "content_sha256",
+        "byte_count",
+        "captured_ts_ns"
+      ],
+      "title": "LegacyArchiveControlArtifact",
+      "type": "object"
+    },
+    "LegacyArchiveControlKind": {
+      "enum": [
+        "restore_evidence",
+        "credential_scan_evidence",
+        "final_tag_evidence"
+      ],
+      "title": "LegacyArchiveControlKind",
+      "type": "string"
+    },
+    "LegacyArchiveCredentialScanCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Artifact Sha256",
+          "type": "string"
+        },
+        "finding_count": {
+          "const": 0,
+          "default": 0,
+          "title": "Finding Count",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/LegacyArchiveArtifactKind"
+        },
+        "recursive_scan_completed": {
+          "const": true,
+          "default": true,
+          "title": "Recursive Scan Completed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "kind",
+        "artifact_sha256"
+      ],
+      "title": "LegacyArchiveCredentialScanCheck",
+      "type": "object"
+    },
+    "LegacyArchiveCredentialScanEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/LegacyArchiveCredentialScanCheck"
+          },
+          "maxItems": 11,
+          "minItems": 11,
+          "title": "Checks",
+          "type": "array"
+        },
+        "ended_ts_ns": {
+          "minimum": 0,
+          "title": "Ended Ts Ns",
+          "type": "integer"
+        },
+        "findings": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "reviewed_ts_ns": {
+          "minimum": 0,
+          "title": "Reviewed Ts Ns",
+          "type": "integer"
+        },
+        "reviewer": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewer",
+          "type": "string"
+        },
+        "scanner_name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Scanner Name",
+          "type": "string"
+        },
+        "scanner_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Scanner Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_ts_ns": {
+          "minimum": 0,
+          "title": "Started Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "started_ts_ns",
+        "ended_ts_ns",
+        "reviewed_ts_ns",
+        "reviewer",
+        "scanner_name",
+        "scanner_version",
+        "policy_id",
+        "policy_sha256",
+        "checks"
+      ],
+      "title": "LegacyArchiveCredentialScanEvidence",
+      "type": "object"
+    },
+    "LegacyArchiveCredentialScanPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "maximum_findings": {
+          "const": 0,
+          "default": 0,
+          "title": "Maximum Findings",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "recursive_archive_scan": {
+          "const": true,
+          "default": true,
+          "title": "Recursive Archive Scan",
+          "type": "boolean"
+        },
+        "required_detectors": {
+          "items": {
+            "$ref": "#/$defs/LegacyCredentialDetector"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "title": "Required Detectors",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_id",
+        "required_detectors"
+      ],
+      "title": "LegacyArchiveCredentialScanPolicy",
+      "type": "object"
+    },
+    "LegacyArchiveEvidenceManifest": {
       "additionalProperties": false,
       "properties": {
         "artifacts": {
@@ -348,6 +561,15 @@
           "title": "Contains Credentials",
           "type": "boolean"
         },
+        "controls": {
+          "items": {
+            "$ref": "#/$defs/LegacyArchiveControlArtifact"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "title": "Controls",
+          "type": "array"
+        },
         "created_ts_ns": {
           "minimum": 0,
           "title": "Created Ts Ns",
@@ -363,12 +585,6 @@
           "default": "mt5-final",
           "title": "Final Tag Name",
           "type": "string"
-        },
-        "restore_test_passed": {
-          "const": true,
-          "default": true,
-          "title": "Restore Test Passed",
-          "type": "boolean"
         },
         "retention_expires_ts_ns": {
           "exclusiveMinimum": 0,
@@ -398,9 +614,241 @@
         "retention_expires_ts_ns",
         "source_commit_sha",
         "final_tag_commit_sha",
+        "artifacts",
+        "controls"
+      ],
+      "title": "LegacyArchiveEvidenceManifest",
+      "type": "object"
+    },
+    "LegacyArchiveManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/LegacyArchiveArtifact"
+          },
+          "maxItems": 11,
+          "minItems": 11,
+          "title": "Artifacts",
+          "type": "array"
+        },
+        "assembled_ts_ns": {
+          "minimum": 0,
+          "title": "Assembled Ts Ns",
+          "type": "integer"
+        },
+        "contains_credentials": {
+          "const": false,
+          "default": false,
+          "title": "Contains Credentials",
+          "type": "boolean"
+        },
+        "created_ts_ns": {
+          "minimum": 0,
+          "title": "Created Ts Ns",
+          "type": "integer"
+        },
+        "credential_scan_policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Credential Scan Policy Id",
+          "type": "string"
+        },
+        "credential_scan_policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Credential Scan Policy Sha256",
+          "type": "string"
+        },
+        "evidence_bundle_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Evidence Bundle Sha256",
+          "type": "string"
+        },
+        "evidence_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Evidence Manifest Sha256",
+          "type": "string"
+        },
+        "final_tag_commit_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Final Tag Commit Sha",
+          "type": "string"
+        },
+        "final_tag_evidence_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Final Tag Evidence Sha256",
+          "type": "string"
+        },
+        "final_tag_name": {
+          "const": "mt5-final",
+          "default": "mt5-final",
+          "title": "Final Tag Name",
+          "type": "string"
+        },
+        "restore_evidence_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Restore Evidence Sha256",
+          "type": "string"
+        },
+        "restore_test_passed": {
+          "const": true,
+          "default": true,
+          "title": "Restore Test Passed",
+          "type": "boolean"
+        },
+        "retention_expires_ts_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Retention Expires Ts Ns",
+          "type": "integer"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source_commit_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Source Commit Sha",
+          "type": "string"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "created_ts_ns",
+        "assembled_ts_ns",
+        "retention_expires_ts_ns",
+        "source_commit_sha",
+        "final_tag_commit_sha",
+        "credential_scan_policy_id",
+        "credential_scan_policy_sha256",
+        "evidence_manifest_sha256",
+        "evidence_bundle_sha256",
+        "restore_evidence_sha256",
+        "final_tag_evidence_sha256",
         "artifacts"
       ],
       "title": "LegacyArchiveManifest",
+      "type": "object"
+    },
+    "LegacyArchiveRestoreCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/LegacyArchiveArtifactKind"
+        },
+        "restored": {
+          "const": true,
+          "default": true,
+          "title": "Restored",
+          "type": "boolean"
+        },
+        "restored_byte_count": {
+          "exclusiveMinimum": 0,
+          "maximum": 1099511627776,
+          "title": "Restored Byte Count",
+          "type": "integer"
+        },
+        "restored_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Restored Sha256",
+          "type": "string"
+        },
+        "source_byte_count": {
+          "exclusiveMinimum": 0,
+          "maximum": 1099511627776,
+          "title": "Source Byte Count",
+          "type": "integer"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "source_sha256",
+        "source_byte_count",
+        "restored_sha256",
+        "restored_byte_count"
+      ],
+      "title": "LegacyArchiveRestoreCheck",
+      "type": "object"
+    },
+    "LegacyArchiveRestoreEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/LegacyArchiveRestoreCheck"
+          },
+          "maxItems": 11,
+          "minItems": 11,
+          "title": "Checks",
+          "type": "array"
+        },
+        "ended_ts_ns": {
+          "minimum": 0,
+          "title": "Ended Ts Ns",
+          "type": "integer"
+        },
+        "invalidating_events": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Invalidating Events",
+          "type": "array"
+        },
+        "isolated_restore_completed": {
+          "const": true,
+          "default": true,
+          "title": "Isolated Restore Completed",
+          "type": "boolean"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "reviewed_ts_ns": {
+          "minimum": 0,
+          "title": "Reviewed Ts Ns",
+          "type": "integer"
+        },
+        "reviewer": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewer",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_ts_ns": {
+          "minimum": 0,
+          "title": "Started Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "started_ts_ns",
+        "ended_ts_ns",
+        "reviewed_ts_ns",
+        "reviewer",
+        "checks"
+      ],
+      "title": "LegacyArchiveRestoreEvidence",
       "type": "object"
     },
     "LegacyCapability": {
@@ -553,6 +1001,17 @@
       "title": "LegacyCleanupTarget",
       "type": "object"
     },
+    "LegacyCredentialDetector": {
+      "enum": [
+        "api_token",
+        "password",
+        "private_key",
+        "seed_phrase",
+        "session_credential"
+      ],
+      "title": "LegacyCredentialDetector",
+      "type": "string"
+    },
     "LegacyFinalState": {
       "additionalProperties": false,
       "properties": {
@@ -631,6 +1090,76 @@
         "broker_account_state_sha256"
       ],
       "title": "LegacyFinalState",
+      "type": "object"
+    },
+    "LegacyFinalTagEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "annotated_tag": {
+          "const": true,
+          "default": true,
+          "title": "Annotated Tag",
+          "type": "boolean"
+        },
+        "captured_ts_ns": {
+          "minimum": 0,
+          "title": "Captured Ts Ns",
+          "type": "integer"
+        },
+        "final_tag_commit_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Final Tag Commit Sha",
+          "type": "string"
+        },
+        "final_tag_name": {
+          "const": "mt5-final",
+          "default": "mt5-final",
+          "title": "Final Tag Name",
+          "type": "string"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "reviewer": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewer",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source_commit_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Source Commit Sha",
+          "type": "string"
+        },
+        "tag_object_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Tag Object Sha",
+          "type": "string"
+        },
+        "verification_output_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Verification Output Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "captured_ts_ns",
+        "source_commit_sha",
+        "final_tag_commit_sha",
+        "tag_object_sha",
+        "verification_output_sha256",
+        "reviewer"
+      ],
+      "title": "LegacyFinalTagEvidence",
       "type": "object"
     },
     "NativeDrillCheck": {
@@ -1340,6 +1869,16 @@
     "RetirementPolicy": {
       "additionalProperties": false,
       "properties": {
+        "archive_credential_scan_policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Archive Credential Scan Policy Id",
+          "type": "string"
+        },
+        "archive_credential_scan_policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Archive Credential Scan Policy Sha256",
+          "type": "string"
+        },
         "frozen_at_ns": {
           "minimum": 0,
           "title": "Frozen At Ns",
@@ -1411,6 +1950,8 @@
         "maximum_native_operational_gap_ns",
         "minimum_disabled_observation_ns",
         "minimum_archive_retention_ns",
+        "archive_credential_scan_policy_id",
+        "archive_credential_scan_policy_sha256",
         "required_archive_artifacts",
         "required_disabled_capabilities",
         "required_native_drills"
@@ -1623,6 +2164,21 @@
   "anyOf": [
     {
       "$ref": "#/$defs/LegacyArchiveManifest"
+    },
+    {
+      "$ref": "#/$defs/LegacyArchiveEvidenceManifest"
+    },
+    {
+      "$ref": "#/$defs/LegacyArchiveRestoreEvidence"
+    },
+    {
+      "$ref": "#/$defs/LegacyArchiveCredentialScanPolicy"
+    },
+    {
+      "$ref": "#/$defs/LegacyArchiveCredentialScanEvidence"
+    },
+    {
+      "$ref": "#/$defs/LegacyFinalTagEvidence"
     },
     {
       "$ref": "#/$defs/LegacyCleanupManifest"

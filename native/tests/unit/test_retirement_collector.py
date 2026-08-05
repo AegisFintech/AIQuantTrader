@@ -84,6 +84,8 @@ def _policy() -> RetirementPolicy:
         maximum_native_operational_gap_ns=int(timedelta(days=11).total_seconds() * 1_000_000_000),
         minimum_disabled_observation_ns=1,
         minimum_archive_retention_ns=1,
+        archive_credential_scan_policy_id="credential-scan-test",
+        archive_credential_scan_policy_sha256="6" * 64,
         required_archive_artifacts=tuple(LegacyArchiveArtifactKind),
         required_disabled_capabilities=tuple(LegacyCapability),
         required_native_drills=tuple(RequiredNativeDrill),
@@ -103,6 +105,8 @@ def _policy_path(tmp_path: Path) -> Path:
                 f"maximum_native_operational_gap_ns = {policy.maximum_native_operational_gap_ns}",
                 "minimum_disabled_observation_ns = 1",
                 "minimum_archive_retention_ns = 1",
+                'archive_credential_scan_policy_id = "credential-scan-test"',
+                'archive_credential_scan_policy_sha256 = "' + "6" * 64 + '"',
                 "required_archive_artifacts = ["
                 + ",".join(f'"{item.value}"' for item in LegacyArchiveArtifactKind)
                 + "]",

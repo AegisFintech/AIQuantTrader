@@ -50,6 +50,8 @@ def _policy() -> RetirementPolicy:
         maximum_native_operational_gap_ns=50,
         minimum_disabled_observation_ns=100,
         minimum_archive_retention_ns=1_000,
+        archive_credential_scan_policy_id="credential-scan-test",
+        archive_credential_scan_policy_sha256="6" * 64,
         required_archive_artifacts=tuple(LegacyArchiveArtifactKind),
         required_disabled_capabilities=tuple(LegacyCapability),
         required_native_drills=tuple(RequiredNativeDrill),
@@ -74,9 +76,16 @@ def _archive() -> LegacyArchiveManifest:
     return LegacyArchiveManifest(
         retirement_id="retirement-test-001",
         created_ts_ns=200,
+        assembled_ts_ns=200,
         retention_expires_ts_ns=2_000,
         source_commit_sha=COMMIT,
         final_tag_commit_sha=COMMIT,
+        credential_scan_policy_id="credential-scan-test",
+        credential_scan_policy_sha256="6" * 64,
+        evidence_manifest_sha256="7" * 64,
+        evidence_bundle_sha256="8" * 64,
+        restore_evidence_sha256="9" * 64,
+        final_tag_evidence_sha256="0" * 64,
         artifacts=artifacts,
     )
 
@@ -247,6 +256,8 @@ def test_policy_loader_and_approval_scope_are_fail_closed(tmp_path: Path) -> Non
                 "maximum_native_operational_gap_ns = 50",
                 "minimum_disabled_observation_ns = 100",
                 "minimum_archive_retention_ns = 1000",
+                'archive_credential_scan_policy_id = "credential-scan-test"',
+                'archive_credential_scan_policy_sha256 = "' + "6" * 64 + '"',
                 "required_archive_artifacts = ["
                 + ",".join(f'"{item.value}"' for item in LegacyArchiveArtifactKind)
                 + "]",
