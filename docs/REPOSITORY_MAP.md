@@ -200,6 +200,7 @@ Current Phase 9 production-admission ownership:
 | Path | Responsibility |
 |---|---|
 | `native/src/aiquanttrader_native/governance/` | Ed25519 artifact verification, explicit anti-replay admission, wallet/account/capital binding, and frozen canary evidence. |
+| `native/src/aiquanttrader_native/governance/{approval,ledger}.py` | Chained seven-day production renewals which preserve the original admission and immutable release identity; schema-v1 ledgers migrate without an expiry extension. |
 | `native/compose.mainnet.yaml` | Exact-image controller/trading/sentinel topology with separated wallet mounts. |
 | `native/compose.rehearsal.yaml` | Explicit exact-image testnet dress rehearsal with separated testnet wallet mounts and release identity metadata. |
 | `native/configs/production/` | Frozen production-admission evidence policies; never credentials or enabled execution. |
@@ -209,6 +210,18 @@ Current Phase 9 production-admission ownership:
 Phase 9 code gates do not establish empirical acceptance. No signed release,
 mainnet funding/order, or production scale is performed by the repository
 implementation.
+
+Production authority no longer becomes structurally terminal after its first
+seven-day approval. A detached Ed25519 renewal must bind the current
+authorization and the unchanged deployment, admission, account/vault,
+artifacts, configuration, image, and capital before the unexpired schema-v2
+ledger atomically extends authority. Runtime startup may re-verify an expired
+original approval only when the same durable admission has a current chained
+authorization. Renewal cannot revive expiry or modify a release. See
+`docs/migration/PHASE_9_PRODUCTION_RENEWAL.md`.
+Schema-v1 records migrate without extending time but cannot renew because the
+old ledger did not retain the admitted trust-root fingerprint; they require a
+fresh release/admission sequence.
 
 The Phase 9 release-evidence increment adds typed final-testnet observations,
 the frozen complete scenario evaluator, exact target-behavior fingerprints,
@@ -227,7 +240,7 @@ Current Phase 10 legacy-retirement ownership:
 
 | Path | Responsibility |
 |---|---|
-| `native/src/aiquanttrader_native/retirement/` | Immutable final-archive, native-observation, flat-MT5-state, disabled-window, scoped approval, and exact cleanup-manifest contracts. |
+| `native/src/aiquanttrader_native/retirement/` | Immutable final-archive, terminal native-authorization observation, flat-MT5-state, disabled-window, scoped approval, and exact cleanup-manifest contracts. |
 | `native/configs/retirement/evidence-v1.toml` | Frozen 30-day native, seven-day disabled, 365-day archive-retention baseline. |
 | `native/schemas/retirement.schema.json` | Deterministic external contract for every Phase 10 evidence and approval record. |
 | `docs/migration/PHASE_10_LEGACY_RETIREMENT.md` | Two-approval architecture, repository delta, tests, migration, and rollback. |
@@ -238,6 +251,9 @@ that can stop services, touch brokers/exchanges, revoke credentials, remove
 packages, or delete files. No readiness/disabled evidence or action approval
 has been created, `mt5-final` has not been tagged, and the active MT5 runtime is
 unchanged.
+The 30-day native observation must retain the ordered renewal chain and end
+before the terminal production authorization expires; an authorization gap
+invalidates the observation window.
 
 ## Current Legacy System Topology
 

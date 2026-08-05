@@ -1,0 +1,17 @@
+flowchart LR
+    A[Active production admission<br/>deployment + admission + authorization A0] --> B[Offline review<br/>unchanged release and health]
+    B --> C[Canonical renewal R1<br/>binds A0 and later expiry]
+    C --> D[Offline Ed25519 signature]
+    D --> E[Controller re-verifies<br/>release bytes, identity, trust root, R1]
+    E --> F{Current admission still<br/>active and unexpired?}
+    F -->|No| H[Fail closed<br/>halted; new release required]
+    F -->|Yes| G[BEGIN IMMEDIATE<br/>compare immutable fields and A0]
+    G --> I[Record authorization A1<br/>expiry T1 and immutable history]
+    I --> J[Trading node hard-risk guard<br/>reads active ledger expiry]
+    I --> K[Sentinel and heartbeat<br/>share active ledger expiry]
+    J --> L[Next renewal must bind A1]
+    K --> L
+    L --> B
+
+    X[Revoke or rollback] --> H
+    Y[Expiry before renewal] --> H

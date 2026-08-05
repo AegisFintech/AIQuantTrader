@@ -12,10 +12,13 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from aiquanttrader_native.config import ConfigLoadError, load_config
+from aiquanttrader_native.config.models import DeploymentMode
 from aiquanttrader_native.domain.governance import DeploymentApproval
 from aiquanttrader_native.governance.approval import (
+    RenewalApprovalPaths,
     configured_artifact_paths,
     verify_deployment_admission,
+    verify_deployment_renewal,
 )
 from aiquanttrader_native.governance.bundle import (
     load_release_bundle_spec,
@@ -32,6 +35,7 @@ from aiquanttrader_native.governance.ledger import DeploymentAdmissionLedger
 from aiquanttrader_native.governance.models import (
     CanaryObservation,
     DeploymentAdmissionState,
+    DeploymentAuthorizationRenewal,
     TestnetDressRehearsalObservation,
 )
 
@@ -57,6 +61,17 @@ def _parser() -> argparse.ArgumentParser:
         command.add_argument("--actor", required=True)
         command.add_argument("--reason", required=True)
 
+    for name in ("verify-renewal", "renew"):
+        command = commands.add_parser(name)
+        _add_release_identity(command)
+        command.add_argument("--deployment-id", required=True)
+        command.add_argument("--renewal", type=Path, required=True)
+        command.add_argument("--signature", type=Path, required=True)
+        command.add_argument("--public-key", type=Path, required=True)
+        if name == "renew":
+            command.add_argument("--actor", required=True)
+            command.add_argument("--reason", required=True)
+
     evidence = commands.add_parser("evaluate-canary")
     _add_config(evidence)
     evidence.add_argument("--deployment-id", required=True)
@@ -81,6 +96,9 @@ def _parser() -> argparse.ArgumentParser:
     canonicalize = commands.add_parser("canonicalize-approval")
     canonicalize.add_argument("--input", type=Path, required=True)
     canonicalize.add_argument("--output", type=Path, required=True)
+    canonicalize_renewal = commands.add_parser("canonicalize-renewal")
+    canonicalize_renewal.add_argument("--input", type=Path, required=True)
+    canonicalize_renewal.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -103,6 +121,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             approval = DeploymentApproval.model_validate_json(args.input.read_bytes())
             _atomic_write(args.output, approval.canonical_bytes())
             print(json.dumps({"approval_sha256": approval.sha256()}, sort_keys=True))
+            return 0
+
+        if args.command == "canonicalize-renewal":
+            renewal = DeploymentAuthorizationRenewal.model_validate_json(args.input.read_bytes())
+            _atomic_write(args.output, renewal.canonical_bytes())
+            print(json.dumps({"renewal_sha256": renewal.sha256()}, sort_keys=True))
             return 0
 
         if args.command == "evaluate-testnet":
@@ -170,6 +194,55 @@ def main(argv: Sequence[str] | None = None) -> int:
             finally:
                 ledger.close()
             print(admitted_record.model_dump_json())
+            return 0
+
+        if args.command in {"verify-renewal", "renew"}:
+            if bundle.settings.mode is not DeploymentMode.PRODUCTION:
+                raise ValueError("deployment renewal is available only in production mode")
+            approval_config = bundle.settings.approval
+            if approval_config.public_key_id is None or approval_config.public_key_sha256 is None:
+                raise ValueError("deployment renewal trust root is not configured")
+            ledger = DeploymentAdmissionLedger(
+                ledger_path,
+                read_only=args.command == "verify-renewal",
+            )
+            try:
+                current = ledger.get(args.deployment_id)
+                if current is None:
+                    raise ValueError("deployment admission is not registered")
+                historical_admission = verify_deployment_admission(
+                    bundle,
+                    configured_artifact_paths(
+                        bundle,
+                        runtime_dependency_lock_path=args.dependency_lock_path,
+                    ),
+                    code_identity=args.code_identity,
+                    image_identity=args.image_identity,
+                    require_active_approval=False,
+                )
+                if historical_admission.admission_id != current.admission_id:
+                    raise ValueError("renewal release bundle does not match the admitted identity")
+                verified_renewal = verify_deployment_renewal(
+                    paths=RenewalApprovalPaths(
+                        renewal_path=args.renewal,
+                        signature_path=args.signature,
+                        public_key_path=args.public_key,
+                    ),
+                    current=current,
+                    expected_key_id=approval_config.public_key_id,
+                    expected_public_key_sha256=approval_config.public_key_sha256,
+                )
+                if args.command == "verify-renewal":
+                    print(verified_renewal.model_dump_json())
+                    return 0
+                renewed = ledger.renew(
+                    verified_renewal,
+                    actor=args.actor,
+                    reason=args.reason,
+                )
+            finally:
+                ledger.close()
+            print(renewed.model_dump_json())
             return 0
 
         read_only = args.command in {"status", "evaluate-canary"}

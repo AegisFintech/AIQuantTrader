@@ -297,6 +297,13 @@ code, container, dataset, configuration, feature schema, and model hashes;
 approver; expiry; capital ceiling; risk policy; and rollback target. Increasing
 capital after canary requires a separate approval.
 
+Production authority is renewed only through a short-lived detached Ed25519
+approval chained to the current durable authorization. Renewal preserves the
+deployment/admission, account/vault, artifacts, image, configuration, and
+capital exactly; it cannot revive an expired admission or carry a champion,
+risk, or capital change. This keeps weekly human review while allowing the same
+production admission to accumulate the continuous Phase 10 observation.
+
 Promotion gates are frozen before an experiment begins and evaluate post-cost
 PnL, drawdown and tail loss, consistency, inventory exposure, fill calibration,
 maker ratio, markouts, latency, operational failures, and drift. Prediction

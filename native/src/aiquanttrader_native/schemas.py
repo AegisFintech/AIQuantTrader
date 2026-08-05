@@ -55,6 +55,7 @@ from aiquanttrader_native.governance.models import (
     CanaryObservation,
     DeploymentAdmissionRecord,
     DeploymentArtifactManifest,
+    DeploymentAuthorizationRenewal,
     DeploymentModelSelection,
     DetachedApprovalSignature,
     ReleaseBundleReceipt,
@@ -63,6 +64,7 @@ from aiquanttrader_native.governance.models import (
     TestnetDressRehearsalPolicy,
     TestnetDressRehearsalReport,
     VerifiedDeploymentAdmission,
+    VerifiedDeploymentRenewal,
 )
 from aiquanttrader_native.paper.models import (
     PaperAccountState,
@@ -165,8 +167,10 @@ SCHEMAS: dict[str, SchemaFactory] = {
     ).json_schema(),
     "governance.schema.json": lambda: TypeAdapter(
         DeploymentArtifactManifest
+        | DeploymentAuthorizationRenewal
         | DetachedApprovalSignature
         | VerifiedDeploymentAdmission
+        | VerifiedDeploymentRenewal
         | DeploymentAdmissionRecord
         | CanaryEvidencePolicy
         | CanaryObservation

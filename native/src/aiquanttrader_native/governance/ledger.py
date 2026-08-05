@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 import threading
 from collections.abc import Iterator
@@ -16,9 +17,10 @@ from aiquanttrader_native.governance.models import (
     DeploymentAdmissionRecord,
     DeploymentAdmissionState,
     VerifiedDeploymentAdmission,
+    VerifiedDeploymentRenewal,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 class DeploymentAdmissionLedger:
@@ -62,6 +64,8 @@ class DeploymentAdmissionLedger:
                 deployment_id TEXT PRIMARY KEY,
                 approval_id TEXT NOT NULL UNIQUE,
                 admission_id TEXT NOT NULL UNIQUE,
+                authorization_id TEXT NOT NULL UNIQUE,
+                renewal_count INTEGER NOT NULL,
                 stage TEXT NOT NULL,
                 account_address TEXT NOT NULL,
                 vault_address TEXT,
@@ -78,9 +82,15 @@ class DeploymentAdmissionLedger:
                 actor TEXT NOT NULL,
                 reason TEXT NOT NULL
             );
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_admission
-                ON admissions(account_address, COALESCE(vault_address, ''), state)
-                WHERE state = 'active';
+            CREATE TABLE IF NOT EXISTS renewals (
+                authorization_id TEXT PRIMARY KEY,
+                renewal_id TEXT NOT NULL UNIQUE,
+                deployment_id TEXT NOT NULL REFERENCES admissions(deployment_id),
+                prior_authorization_id TEXT NOT NULL,
+                approved_at TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                renewal_json TEXT NOT NULL
+            );
             """
         )
         row = self._connection.execute(
@@ -91,8 +101,56 @@ class DeploymentAdmissionLedger:
                 "INSERT INTO metadata(key, value) VALUES ('schema_version', ?)",
                 (str(SCHEMA_VERSION),),
             )
+        elif int(row["value"]) == 1:
+            self._migrate_v1()
         elif int(row["value"]) != SCHEMA_VERSION:
             raise ValueError("deployment admission ledger schema is unsupported")
+        self._connection.execute(
+            """
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_one_active_admission
+            ON admissions(account_address, COALESCE(vault_address, ''), state)
+            WHERE state = 'active'
+            """
+        )
+
+    def _migrate_v1(self) -> None:
+        """Add renewable authorization identity without changing existing authority."""
+
+        with self._transaction() as connection:
+            connection.execute("ALTER TABLE admissions ADD COLUMN authorization_id TEXT")
+            connection.execute(
+                "ALTER TABLE admissions ADD COLUMN renewal_count INTEGER NOT NULL DEFAULT 0"
+            )
+            rows = connection.execute(
+                "SELECT deployment_id, admission_id, record_json FROM admissions"
+            ).fetchall()
+            for row in rows:
+                payload = json.loads(str(row["record_json"]))
+                payload["schema_version"] = 2
+                payload["authorization_id"] = str(row["admission_id"])
+                payload["renewal_count"] = 0
+                payload["approval_public_key_sha256"] = None
+                record = DeploymentAdmissionRecord.model_validate(payload)
+                connection.execute(
+                    """
+                    UPDATE admissions
+                    SET authorization_id = ?, renewal_count = ?, record_json = ?
+                    WHERE deployment_id = ?
+                    """,
+                    (
+                        record.authorization_id,
+                        record.renewal_count,
+                        record.model_dump_json(),
+                        record.deployment_id,
+                    ),
+                )
+            connection.execute(
+                "CREATE UNIQUE INDEX idx_admission_authorization ON admissions(authorization_id)"
+            )
+            connection.execute(
+                "UPDATE metadata SET value = ? WHERE key = 'schema_version'",
+                (str(SCHEMA_VERSION),),
+            )
 
     def _verify_schema(self) -> None:
         row = self._connection.execute(
@@ -164,6 +222,9 @@ class DeploymentAdmissionLedger:
                 deployment_id=approval.deployment_id,
                 approval_id=approval.approval_id,
                 admission_id=admission.admission_id,
+                authorization_id=admission.admission_id,
+                renewal_count=0,
+                approval_public_key_sha256=admission.public_key_sha256,
                 stage=approval.stage,
                 account_address=approval.account_address,
                 vault_address=approval.vault_address,
@@ -180,14 +241,17 @@ class DeploymentAdmissionLedger:
             connection.execute(
                 """
                 INSERT INTO admissions(
-                    deployment_id, approval_id, admission_id, stage, account_address,
-                    vault_address, state, expires_at, record_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    deployment_id, approval_id, admission_id, authorization_id,
+                    renewal_count, stage, account_address, vault_address, state,
+                    expires_at, record_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.deployment_id,
                     record.approval_id,
                     record.admission_id,
+                    record.authorization_id,
+                    record.renewal_count,
                     record.stage.value,
                     record.account_address.lower(),
                     None if record.vault_address is None else record.vault_address.lower(),
@@ -205,6 +269,124 @@ class DeploymentAdmissionLedger:
                 occurred_at=instant,
             )
         return record
+
+    def renew(
+        self,
+        renewal: VerifiedDeploymentRenewal,
+        *,
+        actor: str,
+        reason: str,
+        now: datetime | None = None,
+    ) -> DeploymentAdmissionRecord:
+        """Transactionally extend an unchanged, still-active production admission."""
+
+        self._require_writer()
+        instant = datetime.now(UTC) if now is None else now
+        _validate_transition_input(actor, reason, instant)
+        authority = renewal.renewal
+        if not authority.is_active(instant):
+            raise ValueError("cannot apply an inactive deployment renewal")
+        with self._transaction() as connection:
+            row = connection.execute(
+                "SELECT record_json FROM admissions WHERE deployment_id = ?",
+                (authority.deployment_id,),
+            ).fetchone()
+            if row is None:
+                raise ValueError("deployment admission is not registered")
+            current = DeploymentAdmissionRecord.model_validate_json(row["record_json"])
+            if current.state is not DeploymentAdmissionState.ACTIVE:
+                raise ValueError("only an active deployment admission can be renewed")
+            if current.stage is not PromotionStage.PRODUCTION:
+                raise ValueError("only production admissions can be renewed")
+            if instant >= current.expires_at:
+                raise ValueError("expired deployment admission cannot be renewed")
+            if authority.admission_id != current.admission_id:
+                raise ValueError("deployment renewal admission identity changed")
+            if authority.initial_approval_id != current.approval_id:
+                raise ValueError("deployment renewal initial approval changed")
+            if authority.prior_authorization_id != current.authorization_id:
+                raise ValueError("deployment renewal authorization chain is stale")
+            immutable_values: tuple[tuple[str, object, object], ...] = (
+                (
+                    "account_address",
+                    authority.account_address.lower(),
+                    current.account_address.lower(),
+                ),
+                (
+                    "vault_address",
+                    None if authority.vault_address is None else authority.vault_address.lower(),
+                    None if current.vault_address is None else current.vault_address.lower(),
+                ),
+                (
+                    "artifact_manifest_sha256",
+                    authority.artifact_manifest_sha256,
+                    current.artifact_manifest_sha256,
+                ),
+                (
+                    "approval_public_key_sha256",
+                    renewal.public_key_sha256,
+                    current.approval_public_key_sha256,
+                ),
+                (
+                    "configuration_sha256",
+                    authority.configuration_sha256,
+                    current.configuration_sha256,
+                ),
+                ("image_digest", authority.image_digest, current.image_digest),
+                ("capital_limit_usd", authority.capital_limit_usd, current.capital_limit_usd),
+            )
+            for field, actual, expected in immutable_values:
+                if actual != expected:
+                    raise ValueError(f"deployment renewal changed immutable field: {field}")
+            if authority.expires_at <= current.expires_at:
+                raise ValueError("deployment renewal does not extend expiry")
+            if authority.approved_at < current.admitted_at:
+                raise ValueError("deployment renewal predates admission")
+            if (
+                connection.execute(
+                    "SELECT 1 FROM renewals WHERE authorization_id = ?",
+                    (renewal.authorization_id,),
+                ).fetchone()
+                is not None
+            ):
+                raise ValueError("deployment renewal authorization has already been consumed")
+
+            updated = current.model_copy(
+                update={
+                    "authorization_id": renewal.authorization_id,
+                    "renewal_count": current.renewal_count + 1,
+                    "expires_at": authority.expires_at,
+                    "actor": actor,
+                    "reason": reason,
+                }
+            )
+            connection.execute(
+                """
+                INSERT INTO renewals(
+                    authorization_id, renewal_id, deployment_id, prior_authorization_id,
+                    approved_at, expires_at, renewal_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    renewal.authorization_id,
+                    authority.renewal_id,
+                    current.deployment_id,
+                    authority.prior_authorization_id,
+                    authority.approved_at.isoformat(),
+                    authority.expires_at.isoformat(),
+                    renewal.model_dump_json(),
+                ),
+            )
+            self._update_record(connection, updated)
+            self._insert_transition(
+                connection,
+                updated,
+                previous=current.state,
+                actor=actor,
+                reason=f"authorization renewed: {reason}",
+                occurred_at=instant,
+            )
+        return updated
 
     def deactivate(
         self,
@@ -262,7 +444,6 @@ class DeploymentAdmissionLedger:
             record.state is not DeploymentAdmissionState.ACTIVE
             or record.admission_id != admission.admission_id
             or record.approval_id != admission.approval.approval_id
-            or not admission.approval.is_active(instant)
             or instant >= record.expires_at
         ):
             raise ValueError("deployment admission is inactive, expired, or mismatched")
@@ -288,6 +469,19 @@ class DeploymentAdmissionLedger:
             None
             if row is None
             else DeploymentAdmissionRecord.model_validate_json(row["record_json"])
+        )
+
+    def renewal_history(self, deployment_id: str) -> tuple[VerifiedDeploymentRenewal, ...]:
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT renewal_json FROM renewals
+                WHERE deployment_id = ? ORDER BY approved_at, authorization_id
+                """,
+                (deployment_id,),
+            ).fetchall()
+        return tuple(
+            VerifiedDeploymentRenewal.model_validate_json(row["renewal_json"]) for row in rows
         )
 
     def close(self) -> None:
@@ -321,8 +515,20 @@ class DeploymentAdmissionLedger:
     @staticmethod
     def _update_record(connection: sqlite3.Connection, record: DeploymentAdmissionRecord) -> None:
         connection.execute(
-            "UPDATE admissions SET state = ?, record_json = ? WHERE deployment_id = ?",
-            (record.state.value, record.model_dump_json(), record.deployment_id),
+            """
+            UPDATE admissions
+            SET state = ?, authorization_id = ?, renewal_count = ?,
+                expires_at = ?, record_json = ?
+            WHERE deployment_id = ?
+            """,
+            (
+                record.state.value,
+                record.authorization_id,
+                record.renewal_count,
+                record.expires_at.isoformat(),
+                record.model_dump_json(),
+                record.deployment_id,
+            ),
         )
 
     @staticmethod
@@ -379,15 +585,25 @@ class DeploymentAdmissionGuard:
     def capital_limit_usd(self) -> Decimal:
         return self.admission.approval.capital_limit_usd
 
+    @property
+    def expires_at(self) -> datetime:
+        try:
+            record = self.ledger.get(self.admission.approval.deployment_id)
+        except (sqlite3.Error, ValueError):
+            record = None
+        return self.admission.approval.expires_at if record is None else record.expires_at
+
     def require_active(self, *, now: datetime | None = None) -> DeploymentAdmissionRecord:
         return self.ledger.require_active(self.admission, now=now)
 
     def is_active(self, *, now: datetime | None = None) -> bool:
+        return self.active_record(now=now) is not None
+
+    def active_record(self, *, now: datetime | None = None) -> DeploymentAdmissionRecord | None:
         try:
-            self.require_active(now=now)
-        except ValueError:
-            return False
-        return True
+            return self.require_active(now=now)
+        except (sqlite3.Error, ValueError):
+            return None
 
 
 def _validate_transition_input(actor: str, reason: str, instant: datetime) -> None:

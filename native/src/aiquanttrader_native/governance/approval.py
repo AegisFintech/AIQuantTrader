@@ -22,9 +22,13 @@ from aiquanttrader_native.config.models import (
 from aiquanttrader_native.domain.base import canonical_sha256
 from aiquanttrader_native.domain.governance import DeploymentApproval, PromotionStage
 from aiquanttrader_native.governance.models import (
+    DeploymentAdmissionRecord,
+    DeploymentAdmissionState,
     DeploymentArtifactManifest,
+    DeploymentAuthorizationRenewal,
     DetachedApprovalSignature,
     VerifiedDeploymentAdmission,
+    VerifiedDeploymentRenewal,
 )
 from aiquanttrader_native.risk.authority import limits_sha
 
@@ -45,6 +49,13 @@ class ApprovalArtifactPaths:
     public_key_path: Path
     artifact_root: Path
     runtime_dependency_lock_path: Path
+
+
+@dataclass(frozen=True, slots=True)
+class RenewalApprovalPaths:
+    renewal_path: Path
+    signature_path: Path
+    public_key_path: Path
 
 
 def configured_artifact_paths(
@@ -80,8 +91,14 @@ def verify_deployment_admission(
     now: datetime | None = None,
     wallet_role: Literal["trading", "control"] | None = None,
     wallet_address: str | None = None,
+    require_active_approval: bool = True,
 ) -> VerifiedDeploymentAdmission:
-    """Verify signature, artifact bytes, runtime identity, account, capital, and limits."""
+    """Verify signature, artifact bytes, runtime identity, account, capital, and limits.
+
+    Runtime processes may re-verify an expired original approval only when they
+    immediately require its unchanged admission identity from the durable ledger.
+    Controller verification and admission retain the active-approval requirement.
+    """
 
     instant = datetime.now(UTC) if now is None else now
     if instant.tzinfo is None:
@@ -120,7 +137,7 @@ def verify_deployment_admission(
     except ValueError as exc:
         raise ApprovalVerificationError("deployment approval Ed25519 signature is invalid") from exc
 
-    if not approval.is_active(instant):
+    if require_active_approval and not approval.is_active(instant):
         raise ApprovalVerificationError("deployment approval is not active")
     expected_stage = (
         PromotionStage.APPROVED_CANARY
@@ -215,6 +232,101 @@ def verify_deployment_admission(
             "admission_id": canonical_sha256(payload),
             "verified_at": instant.isoformat(),
             **payload,
+        }
+    )
+
+
+def verify_deployment_renewal(
+    *,
+    paths: RenewalApprovalPaths,
+    current: DeploymentAdmissionRecord,
+    expected_key_id: str,
+    expected_public_key_sha256: str,
+    now: datetime | None = None,
+) -> VerifiedDeploymentRenewal:
+    """Verify a short-lived, chained renewal for one unchanged production admission."""
+
+    instant = datetime.now(UTC) if now is None else now
+    if instant.tzinfo is None:
+        raise ApprovalVerificationError("renewal verification timestamp must be timezone-aware")
+    if current.state is not DeploymentAdmissionState.ACTIVE:
+        raise ApprovalVerificationError("deployment renewal requires an active admission")
+    if current.stage is not PromotionStage.PRODUCTION:
+        raise ApprovalVerificationError("only production admissions may be renewed")
+    if instant >= current.expires_at:
+        raise ApprovalVerificationError("expired deployment admission cannot be renewed")
+    if current.approval_public_key_sha256 is None:
+        raise ApprovalVerificationError("deployment admission has no renewal trust root")
+    if expected_public_key_sha256 != current.approval_public_key_sha256:
+        raise ApprovalVerificationError("renewal trust root differs from admitted release")
+
+    renewal = DeploymentAuthorizationRenewal.model_validate_json(
+        _read_regular(paths.renewal_path, maximum_bytes=MAX_APPROVAL_BYTES)
+    )
+    signature = DetachedApprovalSignature.model_validate_json(
+        _read_regular(paths.signature_path, maximum_bytes=MAX_APPROVAL_BYTES)
+    )
+    public_key = _load_public_key(
+        _read_regular(paths.public_key_path, maximum_bytes=MAX_PUBLIC_KEY_BYTES)
+    )
+    public_key_sha256 = hashlib.sha256(
+        public_key.export_key(format="DER", compress=False)
+    ).hexdigest()
+    if public_key_sha256 != expected_public_key_sha256:
+        raise ApprovalVerificationError("renewal public key fingerprint does not match config")
+    if signature.key_id != expected_key_id:
+        raise ApprovalVerificationError("renewal signature key identity does not match config")
+    if signature.approval_sha256 != renewal.sha256():
+        raise ApprovalVerificationError("renewal signature envelope binds different bytes")
+    try:
+        eddsa.new(public_key, "rfc8032").verify(
+            renewal.canonical_bytes(), signature.signature_bytes()
+        )
+    except ValueError as exc:
+        raise ApprovalVerificationError("deployment renewal Ed25519 signature is invalid") from exc
+    if not renewal.is_active(instant):
+        raise ApprovalVerificationError("deployment renewal is not active")
+
+    expected_values: tuple[tuple[str, object, object], ...] = (
+        ("deployment_id", renewal.deployment_id, current.deployment_id),
+        ("initial_approval_id", renewal.initial_approval_id, current.approval_id),
+        ("admission_id", renewal.admission_id, current.admission_id),
+        (
+            "prior_authorization_id",
+            renewal.prior_authorization_id,
+            current.authorization_id,
+        ),
+        ("stage", renewal.stage, current.stage),
+        ("account_address", renewal.account_address.lower(), current.account_address.lower()),
+        ("vault_address", _lower(renewal.vault_address), _lower(current.vault_address)),
+        (
+            "artifact_manifest_sha256",
+            renewal.artifact_manifest_sha256,
+            current.artifact_manifest_sha256,
+        ),
+        ("configuration_sha256", renewal.configuration_sha256, current.configuration_sha256),
+        ("image_digest", renewal.image_digest, current.image_digest),
+        ("capital_limit_usd", renewal.capital_limit_usd, current.capital_limit_usd),
+    )
+    for field, actual, expected in expected_values:
+        if actual != expected:
+            raise ApprovalVerificationError(f"deployment renewal mismatch: {field}")
+    if renewal.expires_at <= current.expires_at:
+        raise ApprovalVerificationError("deployment renewal must extend the authorization window")
+    if renewal.approved_at < current.admitted_at:
+        raise ApprovalVerificationError("deployment renewal predates the admission")
+
+    payload = {
+        "schema_version": 1,
+        "renewal": renewal.model_dump(mode="json"),
+        "public_key_sha256": public_key_sha256,
+        "signature_envelope_sha256": signature.sha256(),
+    }
+    return VerifiedDeploymentRenewal.model_validate(
+        {
+            **payload,
+            "authorization_id": canonical_sha256(payload),
+            "verified_at": instant.isoformat(),
         }
     )
 

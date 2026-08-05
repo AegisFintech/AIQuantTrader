@@ -18,6 +18,8 @@ order, retire MT5, or claim that Phases 3-8 have passed their empirical gates.
   account/vault;
 - an explicit controller action between successful verification and runtime
   authority;
+- schema-v2 ledger authorization identity plus short-lived, signed, chained
+  production renewal without release or capital mutation;
 - independent bundle, derived-wallet, and ledger checks in the trading node and
   safety sentinel;
 - an admission check immediately before every submit or replace. Cancellation
@@ -60,6 +62,10 @@ Every checked-in environment still has `execution.enabled = false`.
 8. Canary evidence is evaluated against the policy frozen before observation.
    Passing evidence cannot scale capital. It must be bound into a new production
    manifest and separately signed production approval.
+9. Production continuing past the initial approval expiry requires a signed
+   renewal chained to the current authorization. The controller re-verifies the
+   original release and the ledger applies the extension atomically; expiry is
+   not recoverable through renewal.
 
 ## Design decisions
 
@@ -72,12 +78,14 @@ Every checked-in environment still has `execution.enabled = false`.
 | Separate control wallet | Sentinel can cancel and renew dead-man protection without normal order APIs in its code surface. | One shared wallet reduces operations but defeats process and credential separation. | One additional lightweight process and SDK session. |
 | Capital clamp plus vault support | A canary cannot inherit a large master-account balance accidentally. | Policy-only notional limits do not bound all account-level failure modes. | One decimal comparison in synchronous risk evaluation. |
 | No automatic production promotion | Live economics and safety evidence still require human judgment. | Automatic scale-up conflicts with the governing mandate. | No hot-path cost. |
+| Chained production renewal | Seven-day approval expiry remains meaningful while continuous production and the 30-day retirement observation become possible. | Long-lived or indefinite approval weakens periodic review; weekly re-deployment breaks stable admission lineage. | One offline signature and local transaction per renewal; ordinary risk checks keep the same indexed ledger lookup. |
 
 ## Failure behavior
 
-An invalid or missing approval prevents process startup. An admission which
-becomes inactive marks the heartbeat unhealthy, denies submit/replace, stops
-dead-man renewal, and triggers repeated sentinel cancel-all attempts. It does
+An invalid or missing release identity or inactive ledger authorization
+prevents process startup. An admission which becomes inactive marks the
+heartbeat unhealthy, denies submit/replace, stops dead-man renewal, and triggers
+repeated sentinel cancel-all attempts. It does
 not automatically flatten a position because the sentinel deliberately has no
 order-placement capability. The account owner performs a reviewed emergency
 flatten through the venue control plane when required.
@@ -97,6 +105,7 @@ flatten through the venue control plane when required.
   for the final MT5 archival and retirement runbook.
 
 See the [mainnet runbook](../operations/MAINNET_CANARY_RUNBOOK.md),
+[production-renewal design](PHASE_9_PRODUCTION_RENEWAL.md),
 [retirement runbook](../operations/LEGACY_RETIREMENT_RUNBOOK.md),
 [Phase 10 retirement design](PHASE_10_LEGACY_RETIREMENT.md), and
 [admission diagram](../architecture/diagrams/phase-9-production-admission.mmd).

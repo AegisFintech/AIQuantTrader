@@ -59,6 +59,9 @@ checklist while MT5 remains deployed.
 - [ ] The dependency lock and every manifest-bound artifact hash match bytes in
   the read-only release bundle.
 - [ ] The approval has not been reused for a different release or capital level.
+- [ ] For continued production, the next signed renewal binds the current
+  authorization and unchanged admission/release/capital, is applied before
+  expiry, and its ledger/heartbeat/sentinel expiry values agree.
 - [ ] The complete 15-scenario final-testnet report passed with real retained
   evidence, flat final state, resolved unknown outcomes, and no mainnet key.
 - [ ] The unsigned bundle was created at a new path, all receipt hashes and

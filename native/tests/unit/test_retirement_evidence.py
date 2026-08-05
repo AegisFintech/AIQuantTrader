@@ -87,6 +87,9 @@ def _readiness() -> RetirementReadinessObservation:
         native=NativeProductionObservation(
             deployment_id="native-production-001",
             admission_id="1" * 64,
+            terminal_authorization_id="1" * 64,
+            renewal_count=0,
+            authorization_expires_ts_ns=500,
             production_approval_sha256="2" * 64,
             production_artifact_manifest_sha256="3" * 64,
             started_ts_ns=100,
@@ -448,6 +451,12 @@ def test_retirement_contracts_reject_inconsistent_intervals_inventories_and_repo
         NativeProductionObservation.model_validate(
             {**native.model_dump(), "ended_ts_ns": native.started_ts_ns}
         )
+    with pytest.raises(ValidationError, match="remain active"):
+        NativeProductionObservation.model_validate(
+            {**native.model_dump(), "authorization_expires_ts_ns": native.ended_ts_ns}
+        )
+    with pytest.raises(ValidationError, match="terminal renewal"):
+        NativeProductionObservation.model_validate({**native.model_dump(), "renewal_count": 1})
     with pytest.raises(ValidationError, match="every retirement drill"):
         NativeProductionObservation.model_validate(
             {

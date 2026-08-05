@@ -6,6 +6,7 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Callable
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, Protocol
 
@@ -46,6 +47,9 @@ from aiquanttrader_native.risk.authority import ApprovalError, RiskAuthority
 class AdmissionGuard(Protocol):
     @property
     def capital_limit_usd(self) -> Decimal: ...
+
+    @property
+    def expires_at(self) -> datetime: ...
 
     def require_active(self) -> object: ...
 
@@ -401,6 +405,7 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         active = self._admission_guard.is_active()
         self._metrics.set_deployment_admission(
             active=active,
+            expiry_seconds=self._admission_guard.expires_at.timestamp(),
             capital_limit_usd=float(self._admission_guard.capital_limit_usd),
         )
         return snapshot.model_copy(

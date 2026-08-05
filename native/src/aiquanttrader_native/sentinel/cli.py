@@ -84,6 +84,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 image_identity=args.image_identity,
                 wallet_role="control",
                 wallet_address=private_key_address(private_key),
+                require_active_approval=False,
             )
             admission_ledger = DeploymentAdmissionLedger(
                 settings.storage.state_root / "governance" / "admissions.sqlite3",

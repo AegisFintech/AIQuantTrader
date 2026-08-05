@@ -20,6 +20,7 @@ only the standard BTC perpetual, represented as
 - `docs/migration/PHASE_8_SHADOW.md`
 - `docs/migration/PHASE_9_PRODUCTION_ADMISSION.md`
 - `docs/migration/PHASE_9_RELEASE_EVIDENCE.md`
+- `docs/migration/PHASE_9_PRODUCTION_RENEWAL.md`
 - `docs/migration/PHASE_10_LEGACY_RETIREMENT.md`
 - `docs/operations/NATIVE_PLATFORM_THREAT_MODEL.md`
 - `docs/operations/NATIVE_RELEASE_CHECKLIST.md`
@@ -63,6 +64,10 @@ Migration rules:
   approval references. The credential-free controller, trading node, and
   sentinel must independently verify the exact signed bundle; execution also
   requires an explicit active anti-replay ledger admission.
+- Production authority may be extended only by a non-expired, signed Phase 9
+  renewal chained to the current ledger authorization. Renewal must preserve
+  the exact deployment, admission, account/vault, artifacts, configuration,
+  image, and capital; it cannot revive expired authority or change behavior.
 - Every checked-in overlay must remain execution-disabled. Never create, sign,
   admit, fund, or activate a mainnet release merely because the Phase 9 code is
   present.

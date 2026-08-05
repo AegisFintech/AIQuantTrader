@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
@@ -200,6 +201,7 @@ def test_gateway_denies_exposure_when_deployment_admission_is_inactive(
 ) -> None:
     class InactiveAdmission:
         capital_limit_usd = Decimal("1000")
+        expires_at = datetime.max.replace(tzinfo=UTC)
 
         @staticmethod
         def is_active() -> bool:
@@ -247,6 +249,7 @@ def test_gateway_fails_closed_when_admission_revokes_before_dispatch(
 ) -> None:
     class RevokedAdmission:
         capital_limit_usd = Decimal("10000")
+        expires_at = datetime.max.replace(tzinfo=UTC)
 
         @staticmethod
         def is_active() -> bool:

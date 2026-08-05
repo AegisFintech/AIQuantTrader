@@ -7,6 +7,7 @@ from aiquanttrader_native.governance.models import (
     DeploymentAdmissionRecord,
     DeploymentAdmissionState,
     DeploymentArtifactManifest,
+    DeploymentAuthorizationRenewal,
     DeploymentModelSelection,
     DetachedApprovalSignature,
     ReleaseBundleReceipt,
@@ -16,6 +17,7 @@ from aiquanttrader_native.governance.models import (
     TestnetDressRehearsalReport,
     TestnetEvidenceGate,
     VerifiedDeploymentAdmission,
+    VerifiedDeploymentRenewal,
 )
 
 __all__ = [
@@ -25,6 +27,7 @@ __all__ = [
     "DeploymentAdmissionRecord",
     "DeploymentAdmissionState",
     "DeploymentArtifactManifest",
+    "DeploymentAuthorizationRenewal",
     "DeploymentModelSelection",
     "DetachedApprovalSignature",
     "ReleaseBundleReceipt",
@@ -34,4 +37,5 @@ __all__ = [
     "TestnetDressRehearsalReport",
     "TestnetEvidenceGate",
     "VerifiedDeploymentAdmission",
+    "VerifiedDeploymentRenewal",
 ]

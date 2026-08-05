@@ -48,7 +48,8 @@ The `aiquanttrader_native.retirement` package provides:
 
 - an exact eleven-category, credential-free final archive manifest;
 - a native-production observation bound to its deployment, admission, approval,
-  artifact manifest, drills, and evidence bundle;
+  terminal chained authorization, renewal count/expiry, artifact manifest,
+  drills, and evidence bundle;
 - a final MT5 demo-account state with managed and unmanaged positions, pending
   orders, entry pause, command writers, and archived report hashes;
 - a thirteen-gate readiness report which can only await stop approval;
@@ -70,6 +71,8 @@ The contracts are exported in
 The v1 policy requires at least:
 
 - 30 days of stable native production after policy freeze;
+- an unbroken signed production-authorization chain whose terminal expiry is
+  later than the observation end;
 - every native rollback, backup/restore, alert-delivery, and operator-access
   drill;
 - zero critical incidents, reconciliation failures, or risk breaches in the
