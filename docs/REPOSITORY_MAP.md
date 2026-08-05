@@ -245,6 +245,7 @@ Current Phase 10 legacy-retirement ownership:
 | `native/src/aiquanttrader_native/retirement/final_state.py` | Credential-free reconstruction and replay of final MT5/broker/service state from raw evidence embedded in the verified archive. |
 | `native/src/aiquanttrader_native/retirement/readiness.py` | Cross-bundle assembly and replay of the native/archive/final-state readiness observation with completion-time authority and freshness checks. |
 | `native/src/aiquanttrader_native/retirement/disabled.py` | Exact-inventory disabled-window assembly and replay across ordered stop, capability, broker, credential, native, readiness, approval, and archive evidence. |
+| `native/src/aiquanttrader_native/retirement/cleanup.py` | Exact-inventory cleanup-target assembly and independent replay across scope, state, ownership, credential-scan, disabled-report, and archive lineage evidence. |
 | `native/src/aiquanttrader_native/retirement/{models,evidence,approval}.py` | Immutable final-archive, terminal native-authorization observation, flat-MT5-state, disabled-window, scoped approval, and exact cleanup-manifest contracts. |
 | `native/configs/retirement/evidence-v1.toml` | Frozen 30-day native, five-minute native and disabled-evidence gaps/final-state skew, one-hour final-state age, seven-day disabled, 365-day archive retention, and credential-scan identity. |
 | `native/configs/retirement/archive-credential-scan-v1.toml` | Frozen recursive detector and zero-finding contract for credential-free legacy archives. |
@@ -255,6 +256,7 @@ Current Phase 10 legacy-retirement ownership:
 | `docs/migration/PHASE_10_FINAL_STATE.md` | Raw source packaging, MT5/broker reconciliation, writer inventory, freshness, final-state assembly, and replay procedure. |
 | `docs/migration/PHASE_10_READINESS_ASSEMBLY.md` | Native/legacy identity binding, dual-root replay, readiness commands, timing boundary, tests, and rollback. |
 | `docs/migration/PHASE_10_DISABLED_OBSERVATION.md` | Exact disabled bundle, action-time approval proof, cross-root replay, continuity, commands, tests, and rollback. |
+| `docs/migration/PHASE_10_CLEANUP_MANIFEST.md` | Exact cleanup bundle, scope audit, typed target state, ownership, recursive scan, assembly, replay, tests, and rollback. |
 | `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md` | Final archive, exact disable, observation, cleanup approval, host cleanup, removal PR, and failure procedure. |
 
 Phase 10 code is evidence-only. `aqt-retirement` has no command or dependency

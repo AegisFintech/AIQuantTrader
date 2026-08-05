@@ -1,0 +1,28 @@
+flowchart LR
+    disabled["Passing disabled report"]
+    archive["Final archive + mt5-final lineage"]
+    policy["Frozen retirement + credential-scan policies"]
+    raw["Exact raw state evidence"]
+    audit["Independent nine-scope inventory audit"]
+    targets["Typed target-state controls"]
+    scan["Recursive zero-finding scan"]
+    assemble["Credential-free assembly"]
+    manifest["Canonical schema-v2 cleanup manifest"]
+    replay["Independent exact-bundle replay"]
+    approval["Offline remove_and_clean review"]
+    action["Separate action-time state comparison"]
+
+    disabled --> assemble
+    archive --> assemble
+    policy --> assemble
+    raw --> scan
+    raw --> audit
+    raw --> targets
+    audit --> assemble
+    targets --> assemble
+    scan --> assemble
+    assemble --> manifest
+    manifest --> replay
+    raw --> replay
+    replay --> approval
+    approval --> action

@@ -24,6 +24,7 @@ only the standard BTC perpetual, represented as
 - `docs/migration/PHASE_10_LEGACY_RETIREMENT.md`
 - `docs/migration/PHASE_10_READINESS_ASSEMBLY.md`
 - `docs/migration/PHASE_10_DISABLED_OBSERVATION.md`
+- `docs/migration/PHASE_10_CLEANUP_MANIFEST.md`
 - `docs/operations/NATIVE_PLATFORM_THREAT_MODEL.md`
 - `docs/operations/NATIVE_RELEASE_CHECKLIST.md`
 - `docs/operations/EXECUTION_RISK_RUNBOOK.md`
@@ -96,6 +97,12 @@ Migration rules:
   independently replayed with `verify-disabled`. `evaluate-disabled` must
   replay the disabled, native, and archive roots plus both external signer
   identities; never hand-author a passing disabled observation.
+- Phase 10 cleanup targets must be derived with `aqt-retirement
+  assemble-cleanup-manifest` from the exact immutable cleanup bundle and
+  independently replayed with `verify-cleanup-manifest`. Schema-only
+  `validate-cleanup-manifest` output is not approval evidence. Never
+  hand-author an approvable cleanup manifest or treat replay as removal,
+  revocation, package-manager, or host-cleanup authority.
 - Every checked-in overlay must remain execution-disabled. Never create, sign,
   admit, fund, or activate a mainnet release merely because the Phase 9 code is
   present.
@@ -126,6 +133,7 @@ AIQuantTrader is now an MT5-first autonomous demo-trading repo. Trade and optimi
   `docs/migration/PHASE_10_FINAL_STATE.md` plus
   `docs/migration/PHASE_10_READINESS_ASSEMBLY.md` plus
   `docs/migration/PHASE_10_DISABLED_OBSERVATION.md` plus
+  `docs/migration/PHASE_10_CLEANUP_MANIFEST.md` plus
   `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md`. `aqt-retirement` is
   evidence-only and must never gain PM2, deletion, package-manager, credential,
   broker, exchange, or network actions.

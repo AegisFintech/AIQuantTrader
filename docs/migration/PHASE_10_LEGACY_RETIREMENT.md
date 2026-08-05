@@ -1,9 +1,9 @@
 # Phase 10: Legacy MT5 Retirement and Native Repository Cutover
 
 Status: evidence contracts, independent native-production, final-archive,
-final-MT5-state, and cross-bundle readiness assembly, plus offline approval
-verification implemented; retirement is not authorized and the deployed MT5
-runtime remains unchanged
+final-MT5-state, cross-bundle readiness, disabled-window, and cleanup-manifest
+assembly/replay, plus offline approval verification implemented; retirement is
+not authorized and the deployed MT5 runtime remains unchanged
 
 Phase 10 is a separately approved operational migration after native production,
 not a side effect of Phase 9 admission. It stops the MT5/Wine deployment,
@@ -23,7 +23,8 @@ Phase 10 has two independent human approvals:
 
 `aqt-retirement` evaluates immutable evidence, canonicalizes approval bytes,
 independently assembles and replays exact evidence bundles, validates cleanup
-manifests, and verifies detached Ed25519 signatures. It has no process-manager,
+manifests, derives source-replayed cleanup manifests, and verifies detached
+Ed25519 signatures. It has no process-manager,
 broker, exchange, network, package-manager, credential-store, tag-creation, or
 file-deletion capability. Evidence outputs require absolute paths and are
 created atomically without overwriting an existing file. A passing report means
@@ -39,7 +40,7 @@ native deployment leaves both venues halted and does not silently restart MT5.
 |---|---|---|---|
 | Separate stop and cleanup approvals | Stopping is reversible while credential revocation and deletion are not; splitting authority prevents a readiness report from authorizing irreversible cleanup. | One cutover approval was simpler but coupled two different blast radii and removed the observation gate. | Adds one offline review and at least seven days of elapsed time; it adds no trading hot-path latency. |
 | Evidence-only CLI with no executor | A parser, evaluator, or signing mistake cannot directly stop services or erase evidence. Operational targets remain visible to a human at action time. | A fully automated decommission controller was rejected because it would need host root, secret-store, package-manager, and process-manager authority in one component. | More operator work and slower cutover; evaluation is bounded offline JSON/TOML work and is irrelevant to live execution performance. |
-| Exact glob-free cleanup manifest | Every destructive target and its expected file/tree, package, integration, or revocation state are hash-bound and reviewable, so changed targets cannot be silently swept into deletion. | Directory globs and recursive repository-root cleanup were rejected as unauditable and unsafe in a dirty or evolving workspace. | The manifest requires maintenance and can contain many entries; validation is linear in at most 2,048 targets and off the hot path. |
+| Evidence-derived exact glob-free cleanup manifest | Every destructive target and its expected file/tree, package, integration, or revocation state are hash-bound, independently replayable, and reviewable, so omissions, shared packages, and changed targets fail closed. | Hand-authored manifests, directory globs, and recursive repository-root cleanup were rejected as incomplete or unsafe in a dirty or evolving workspace. | The bundle requires nine-scope evidence and can contain many entries; bounded hashing is linear and off the hot path. |
 | 30-day native, seven-day disabled, 365-day archive baseline | Native operation must span meaningful uptime before removing the independent legacy deployment; a full disabled week covers restarts and scheduled jobs; one-year evidence supports incident and financial audit. | Immediate cutover, 24-hour observation, and indefinite retention were respectively too risky, too short for weekly behavior, and operationally unbounded. | Delays storage reclamation and consumes archive capacity. A newly reviewed policy may be stricter, but cannot be weakened after its observation begins. |
 | Restore-tested category archives rather than loose files | Category bundles have bounded identities, independent hashes, retention ownership, and practical restore checks without forcing one very large artifact. | One monolithic archive makes partial verification expensive; loose files make completeness difficult to prove. | Requires eleven hashes and restore checks. Archive work is offline and has no market-data or order latency impact. |
 | Externally executed, policy-pinned recursive credential scan | A separately reviewed scanner can cover private-key, token, password, seed-phrase, and session formats without granting this verifier secret-store access. The required detector set, recursion, zero-finding threshold, scanner name/version, and result hashes are retained for review. | Embedding a regex-only scanner was incomplete; trusting an unpinned operator summary was not reproducible. | Scanner execution and its independent review remain operator prerequisites. Verification is bounded metadata and artifact hashing, outside the trading path. |
@@ -78,7 +79,11 @@ The `aiquanttrader_native.retirement` package provides:
   verification against an operator-supplied trust-root fingerprint;
 - cleanup manifests whose targets reject traversal, globs, broad host roots,
   duplicate locators, non-revocation actions for secret references, and bind an
-  expected state hash for every target.
+  expected state hash for every target;
+- exact-inventory cleanup assembly and replay which require independent
+  nine-scope coverage, typed path/host/secret state, project ownership and zero
+  shared consumers for host dependencies, a recursive zero-finding scan, and
+  disabled-report/archive/policy lineage.
 
 The contracts are exported in
 `native/schemas/retirement.schema.json`. The checked-in policy is
@@ -260,9 +265,19 @@ aqt-retirement evaluate-disabled \
   --observation /absolute/evidence/disabled-observation.json \
   --output /absolute/evidence/disabled-report.json
 
-aqt-retirement validate-cleanup-manifest \
-  --manifest /absolute/evidence/cleanup-manifest.json \
-  --output /absolute/evidence/cleanup-manifest.canonical.json
+aqt-retirement assemble-cleanup-manifest \
+  --evidence-root /absolute/evidence/cleanup-evidence \
+  <the same disabled/native/archive source and trust arguments as evaluate-disabled> \
+  --disabled-observation /absolute/evidence/disabled-observation.json \
+  --disabled-report /absolute/evidence/disabled-report.json \
+  --output /absolute/evidence/cleanup-manifest.json
+
+aqt-retirement verify-cleanup-manifest \
+  --evidence-root /absolute/evidence/cleanup-evidence \
+  <the same disabled/native/archive source and trust arguments as evaluate-disabled> \
+  --disabled-observation /absolute/evidence/disabled-observation.json \
+  --disabled-report /absolute/evidence/disabled-report.json \
+  --manifest /absolute/evidence/cleanup-manifest.json
 ```
 
 Cleanup approval uses the same verifier with
@@ -317,6 +332,9 @@ Cross-bundle identity, replay, and report evaluation are documented in
 Exact disabled-window packaging, signature-time verification, source replay,
 and report evaluation are documented in
 [`Phase 10: Disabled Observation Assembly`](PHASE_10_DISABLED_OBSERVATION.md).
+Exact cleanup scope/state packaging, ownership proof, recursive scanning,
+assembly, and independent replay are documented in
+[`Phase 10: Cleanup Manifest Evidence`](PHASE_10_CLEANUP_MANIFEST.md).
 Before the cleanup approval, rollback means leaving native safe and halted while
 the owner decides whether to issue new, explicit MT5 reactivation authority.
 After cleanup, recovery uses the immutable archive and `mt5-final` tag in a
