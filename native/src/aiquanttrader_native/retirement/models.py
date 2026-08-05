@@ -2080,6 +2080,193 @@ class CleanupPreflightReceipt(DomainModel):
         return self
 
 
+class CleanupActionStage(StrEnum):
+    CREDENTIAL_REVOCATION = "credential_revocation"
+    RUNTIME_RETIREMENT = "runtime_retirement"
+    HOST_INTEGRATION_REMOVAL = "host_integration_removal"
+    HOST_PACKAGE_REMOVAL = "host_package_removal"
+    NATIVE_REPOSITORY_MIGRATION = "native_repository_migration"
+    REPOSITORY_RETIREMENT = "repository_retirement"
+
+
+_CLEANUP_ACTION_STAGE_ORDER = {
+    stage: index for index, stage in enumerate(CleanupActionStage, start=1)
+}
+
+
+class CleanupActionOutcomeKind(StrEnum):
+    REVOKED_SECRET = "revoked_secret"
+    REMOVED_PATH = "removed_path"
+    REMOVED_HOST_DEPENDENCY = "removed_host_dependency"
+    NATIVE_MIGRATION = "native_migration"
+    ARCHIVE_ONLY = "archive_only"
+
+
+class CleanupActionEvidenceRequirement(StrEnum):
+    APPROVED_PRE_ACTION_STATE = "approved_pre_action_state"
+    ACTION_START_INSIDE_AUTHORITY = "action_start_inside_authority"
+    PATH_ABSENCE = "path_absence"
+    HOST_ABSENCE_DUAL_SOURCE = "host_absence_dual_source"
+    PROVIDER_RECORD_REVOCATION = "provider_record_revocation"
+    ZERO_ACTIVE_SESSIONS = "zero_active_sessions"
+    SOURCE_PATH_ABSENCE = "source_path_absence"
+    DESTINATION_PATH_INVENTORY = "destination_path_inventory"
+    MIGRATION_COMMIT = "migration_commit"
+    OPERATIONAL_COPY_ABSENCE = "operational_copy_absence"
+    FINAL_ARCHIVE_BINDING = "final_archive_binding"
+    RAW_EVIDENCE_AFTER_ACTION = "raw_evidence_after_action"
+    INDEPENDENT_REVIEW = "independent_review"
+    ZERO_FINDING_CREDENTIAL_SCAN = "zero_finding_credential_scan"
+
+
+def cleanup_action_stage_for(target: LegacyCleanupTarget) -> CleanupActionStage:
+    if target.action is CleanupAction.REVOKE:
+        return CleanupActionStage.CREDENTIAL_REVOCATION
+    if target.kind is CleanupTargetKind.RUNTIME_PATH:
+        return CleanupActionStage.RUNTIME_RETIREMENT
+    if target.kind is CleanupTargetKind.HOST_INTEGRATION:
+        return CleanupActionStage.HOST_INTEGRATION_REMOVAL
+    if target.kind is CleanupTargetKind.HOST_PACKAGE:
+        return CleanupActionStage.HOST_PACKAGE_REMOVAL
+    if target.action is CleanupAction.MIGRATE_NATIVE:
+        return CleanupActionStage.NATIVE_REPOSITORY_MIGRATION
+    return CleanupActionStage.REPOSITORY_RETIREMENT
+
+
+def cleanup_action_outcome_for(target: LegacyCleanupTarget) -> CleanupActionOutcomeKind:
+    if target.action is CleanupAction.REVOKE:
+        return CleanupActionOutcomeKind.REVOKED_SECRET
+    if target.action is CleanupAction.MIGRATE_NATIVE:
+        return CleanupActionOutcomeKind.NATIVE_MIGRATION
+    if target.action is CleanupAction.RETAIN_ARCHIVE_ONLY:
+        return CleanupActionOutcomeKind.ARCHIVE_ONLY
+    if target.kind in {CleanupTargetKind.REPOSITORY_PATH, CleanupTargetKind.RUNTIME_PATH}:
+        return CleanupActionOutcomeKind.REMOVED_PATH
+    return CleanupActionOutcomeKind.REMOVED_HOST_DEPENDENCY
+
+
+def cleanup_action_evidence_for(
+    target: LegacyCleanupTarget,
+) -> tuple[CleanupActionEvidenceRequirement, ...]:
+    specific: tuple[CleanupActionEvidenceRequirement, ...]
+    if target.action is CleanupAction.REVOKE:
+        specific = (
+            CleanupActionEvidenceRequirement.PROVIDER_RECORD_REVOCATION,
+            CleanupActionEvidenceRequirement.ZERO_ACTIVE_SESSIONS,
+        )
+    elif target.action is CleanupAction.MIGRATE_NATIVE:
+        specific = (
+            CleanupActionEvidenceRequirement.SOURCE_PATH_ABSENCE,
+            CleanupActionEvidenceRequirement.DESTINATION_PATH_INVENTORY,
+            CleanupActionEvidenceRequirement.MIGRATION_COMMIT,
+        )
+    elif target.action is CleanupAction.RETAIN_ARCHIVE_ONLY:
+        specific = (
+            CleanupActionEvidenceRequirement.OPERATIONAL_COPY_ABSENCE,
+            CleanupActionEvidenceRequirement.FINAL_ARCHIVE_BINDING,
+        )
+    elif target.kind in {CleanupTargetKind.REPOSITORY_PATH, CleanupTargetKind.RUNTIME_PATH}:
+        specific = (CleanupActionEvidenceRequirement.PATH_ABSENCE,)
+    else:
+        specific = (CleanupActionEvidenceRequirement.HOST_ABSENCE_DUAL_SOURCE,)
+    return (
+        CleanupActionEvidenceRequirement.APPROVED_PRE_ACTION_STATE,
+        CleanupActionEvidenceRequirement.ACTION_START_INSIDE_AUTHORITY,
+        *specific,
+        CleanupActionEvidenceRequirement.RAW_EVIDENCE_AFTER_ACTION,
+        CleanupActionEvidenceRequirement.INDEPENDENT_REVIEW,
+        CleanupActionEvidenceRequirement.ZERO_FINDING_CREDENTIAL_SCAN,
+    )
+
+
+class CleanupActionPlanStep(DomainModel):
+    step_id: Sha256
+    sequence: int = Field(gt=0, le=2_048)
+    stage: CleanupActionStage
+    target_id: Identifier
+    kind: CleanupTargetKind
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    action: CleanupAction
+    destination_locator: Annotated[str, Field(min_length=1, max_length=512)] | None = None
+    expected_state_sha256: Sha256
+    required_outcome: CleanupActionOutcomeKind
+    evidence_requirements: tuple[CleanupActionEvidenceRequirement, ...] = Field(
+        min_length=6,
+        max_length=8,
+    )
+    manual_action_required: Literal[True] = True
+
+    @model_validator(mode="after")
+    def identity_and_typed_contract_match(self) -> Self:
+        target = LegacyCleanupTarget(
+            target_id=self.target_id,
+            kind=self.kind,
+            locator=self.locator,
+            action=self.action,
+            destination_locator=self.destination_locator,
+            expected_state_sha256=self.expected_state_sha256,
+            rationale="canonical cleanup action plan step",
+        )
+        if self.stage is not cleanup_action_stage_for(target):
+            raise ValueError("cleanup action plan step stage does not match its target")
+        if self.required_outcome is not cleanup_action_outcome_for(target):
+            raise ValueError("cleanup action plan step outcome does not match its target")
+        if self.evidence_requirements != cleanup_action_evidence_for(target):
+            raise ValueError("cleanup action plan step evidence requirements are not exact")
+        identity = self.model_dump(mode="json", exclude={"step_id"})
+        if canonical_sha256(identity) != self.step_id:
+            raise ValueError("cleanup action plan step identity does not match")
+        return self
+
+
+class CleanupActionPlan(DomainModel):
+    """Canonical manual-action order; it carries no action implementation."""
+
+    schema_version: Literal[1] = 1
+    plan_id: Sha256
+    retirement_id: Identifier
+    prepared_ts_ns: int = Field(ge=0)
+    preflight_evaluated_ts_ns: int = Field(ge=0)
+    valid_until_ts_ns: int = Field(gt=0)
+    policy_id: Identifier
+    policy_sha256: Sha256
+    disabled_observation_report_sha256: Sha256
+    archive_manifest_sha256: Sha256
+    approved_cleanup_manifest_sha256: Sha256
+    preflight_receipt_sha256: Sha256
+    cleanup_approval_sha256: Sha256
+    approval_verification_id: Sha256
+    native_deployment_id: Identifier
+    native_admission_id: Sha256
+    source_commit_sha: GitCommit
+    final_tag_name: Literal["mt5-final"] = "mt5-final"
+    execution_mode: Literal["evidence_only"] = "evidence_only"
+    commands_included: Literal[False] = False
+    operator_action_required: Literal[True] = True
+    operator_ledger_required: Literal[True] = True
+    steps: tuple[CleanupActionPlanStep, ...] = Field(min_length=1, max_length=2_048)
+    ready_for_manual_action: Literal[True] = True
+
+    @model_validator(mode="after")
+    def identity_timing_and_order_match(self) -> Self:
+        if not (self.preflight_evaluated_ts_ns <= self.prepared_ts_ns < self.valid_until_ts_ns):
+            raise ValueError("cleanup action plan is outside its preflight validity window")
+        sequences = tuple(item.sequence for item in self.steps)
+        if sequences != tuple(range(1, len(self.steps) + 1)):
+            raise ValueError("cleanup action plan step sequence must be contiguous")
+        target_ids = tuple(item.target_id for item in self.steps)
+        locators = tuple((item.kind, item.locator) for item in self.steps)
+        if len(target_ids) != len(set(target_ids)) or len(locators) != len(set(locators)):
+            raise ValueError("cleanup action plan targets must be unique")
+        stage_order = tuple(_CLEANUP_ACTION_STAGE_ORDER[item.stage] for item in self.steps)
+        if stage_order != tuple(sorted(stage_order)):
+            raise ValueError("cleanup action plan stages must follow the safe order")
+        identity = self.model_dump(mode="json", exclude={"plan_id"})
+        if canonical_sha256(identity) != self.plan_id:
+            raise ValueError("cleanup action plan identity does not match")
+        return self
+
+
 class CleanupRemovedPathResult(DomainModel):
     result_kind: Literal["removed_path"] = "removed_path"
     kind: Literal[CleanupTargetKind.REPOSITORY_PATH, CleanupTargetKind.RUNTIME_PATH]

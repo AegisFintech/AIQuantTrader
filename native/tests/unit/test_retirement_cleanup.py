@@ -11,10 +11,16 @@ from Crypto.PublicKey import ECC
 from Crypto.Signature import eddsa
 from pydantic import ValidationError
 
+import aiquanttrader_native.retirement.action_plan as action_plan_module
 import aiquanttrader_native.retirement.cleanup as cleanup_module
 import aiquanttrader_native.retirement.outcome as outcome_module
 import aiquanttrader_native.retirement.preflight as preflight_module
 from aiquanttrader_native.domain.base import canonical_sha256
+from aiquanttrader_native.retirement.action_plan import (
+    load_cleanup_action_plan,
+    prepare_cleanup_action_plan,
+    verify_cleanup_action_plan,
+)
 from aiquanttrader_native.retirement.approval import RetirementApprovalPaths
 from aiquanttrader_native.retirement.archive import (
     load_legacy_archive_credential_scan_policy,
@@ -27,6 +33,10 @@ from aiquanttrader_native.retirement.cli import main as retirement_main
 from aiquanttrader_native.retirement.evidence import load_retirement_policy
 from aiquanttrader_native.retirement.models import (
     CleanupAction,
+    CleanupActionEvidenceRequirement,
+    CleanupActionOutcomeKind,
+    CleanupActionPlan,
+    CleanupActionStage,
     CleanupArchiveOnlyResult,
     CleanupCompletionReport,
     CleanupCredentialScanCheck,
@@ -1658,6 +1668,208 @@ def test_cleanup_preflight_requires_fresh_post_approval_unchanged_state(
         == 0
     )
 
+    action_plan_ts_ns = evaluated_ts_ns + 1
+    action_plan_path = tmp_path / "cleanup-action-plan.json"
+    monkeypatch.setattr(action_plan_module, "time_ns", lambda: action_plan_ts_ns)
+    assert (
+        retirement_main(
+            [
+                "prepare-cleanup-action-plan",
+                *preflight_args,
+                "--preflight",
+                str(cli_receipt_path),
+                "--output",
+                str(action_plan_path),
+            ]
+        )
+        == 0
+    )
+    plan = load_cleanup_action_plan(action_plan_path)
+    assert CleanupActionPlan.model_validate_json(plan.canonical_bytes()) == plan
+    assert plan.execution_mode == "evidence_only"
+    assert plan.commands_included is False
+    assert plan.operator_ledger_required is True
+    assert plan.valid_until_ts_ns == receipt.valid_until_ts_ns
+    assert len(plan.steps) == 1
+    assert plan.steps[0].target_id == "legacy-mt5-source"
+    assert plan.steps[0].stage is CleanupActionStage.REPOSITORY_RETIREMENT
+    assert plan.steps[0].required_outcome is CleanupActionOutcomeKind.REMOVED_PATH
+    assert plan.steps[0].evidence_requirements == (
+        CleanupActionEvidenceRequirement.APPROVED_PRE_ACTION_STATE,
+        CleanupActionEvidenceRequirement.ACTION_START_INSIDE_AUTHORITY,
+        CleanupActionEvidenceRequirement.PATH_ABSENCE,
+        CleanupActionEvidenceRequirement.RAW_EVIDENCE_AFTER_ACTION,
+        CleanupActionEvidenceRequirement.INDEPENDENT_REVIEW,
+        CleanupActionEvidenceRequirement.ZERO_FINDING_CREDENTIAL_SCAN,
+    )
+    with pytest.raises(ValidationError, match="plan identity does not match"):
+        CleanupActionPlan.model_validate(
+            {
+                **plan.model_dump(mode="json"),
+                "plan_id": "0" * 64,
+            }
+        )
+    with pytest.raises(ValidationError, match="outside its preflight validity"):
+        CleanupActionPlan.model_validate(
+            {
+                **plan.model_dump(mode="json"),
+                "prepared_ts_ns": plan.valid_until_ts_ns,
+            }
+        )
+    second_sequence = action_plan_module._build_step(2, manifest.targets[0])
+    with pytest.raises(ValidationError, match="targets must be unique"):
+        CleanupActionPlan.model_validate(
+            {
+                **plan.model_dump(mode="json"),
+                "steps": (plan.steps[0], second_sequence),
+            }
+        )
+    with pytest.raises(ValidationError, match="sequence must be contiguous"):
+        CleanupActionPlan.model_validate(
+            {
+                **plan.model_dump(mode="json"),
+                "steps": (second_sequence,),
+            }
+        )
+    direct_plan = prepare_cleanup_action_plan(
+        approved_root,
+        action_root,
+        receipt,
+        manifest,
+        report,
+        archive,
+        cleanup_approval_paths=approval_paths,
+        policy=policy,
+        credential_scan_policy=scan_policy,
+        expected_cleanup_key_id=key_id,
+        expected_cleanup_public_key_sha256=public_key_sha256,
+    )
+    assert direct_plan == plan
+    assert (
+        verify_cleanup_action_plan(
+            approved_root,
+            action_root,
+            plan,
+            receipt,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+        == plan
+    )
+    monkeypatch.setattr(action_plan_module, "time_ns", lambda: action_plan_ts_ns - 1)
+    with pytest.raises(ValueError, match="dated after verification"):
+        verify_cleanup_action_plan(
+            approved_root,
+            action_root,
+            plan,
+            receipt,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+    monkeypatch.setattr(action_plan_module, "time_ns", lambda: action_plan_ts_ns)
+    forged_plan_payload = {
+        **plan.model_dump(mode="json"),
+        "native_deployment_id": "forged-native-deployment",
+    }
+    forged_plan_identity = {
+        key: value for key, value in forged_plan_payload.items() if key != "plan_id"
+    }
+    forged_plan = CleanupActionPlan.model_validate(
+        {
+            **forged_plan_payload,
+            "plan_id": canonical_sha256(forged_plan_identity),
+        }
+    )
+    with pytest.raises(ValueError, match="does not match source replay"):
+        verify_cleanup_action_plan(
+            approved_root,
+            action_root,
+            forged_plan,
+            receipt,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+    with pytest.raises(ValueError, match="does not permit an action plan"):
+        action_plan_module._build_cleanup_action_plan(
+            receipt.model_copy(update={"ready_for_operator_action": False}),
+            manifest,
+            prepared_ts_ns=action_plan_ts_ns,
+        )
+    with pytest.raises(ValueError, match="outside the preflight window"):
+        action_plan_module._build_cleanup_action_plan(
+            receipt,
+            manifest,
+            prepared_ts_ns=receipt.evaluated_ts_ns - 1,
+        )
+    with pytest.raises(ValueError, match="differs from preflight authority"):
+        action_plan_module._build_cleanup_action_plan(
+            receipt.model_copy(update={"approved_cleanup_manifest_sha256": "0" * 64}),
+            manifest,
+            prepared_ts_ns=action_plan_ts_ns,
+        )
+    with pytest.raises(ValueError, match="differ from the verified preflight"):
+        action_plan_module._build_cleanup_action_plan(
+            receipt.model_copy(
+                update={
+                    "targets": (
+                        receipt.targets[0].model_copy(update={"observed_state_sha256": "0" * 64}),
+                    )
+                }
+            ),
+            manifest,
+            prepared_ts_ns=action_plan_ts_ns,
+        )
+    monkeypatch.setattr(action_plan_module, "time_ns", lambda: receipt.valid_until_ts_ns)
+    with pytest.raises(ValueError, match="expired while preparing"):
+        prepare_cleanup_action_plan(
+            approved_root,
+            action_root,
+            receipt,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+    monkeypatch.setattr(action_plan_module, "time_ns", lambda: action_plan_ts_ns)
+    assert (
+        retirement_main(
+            [
+                "verify-cleanup-action-plan",
+                *preflight_args,
+                "--preflight",
+                str(cli_receipt_path),
+                "--action-plan",
+                str(action_plan_path),
+            ]
+        )
+        == 0
+    )
+    action_plan_path.write_bytes(plan.canonical_bytes())
+    with pytest.raises(ValueError, match="not canonical JSON"):
+        load_cleanup_action_plan(action_plan_path)
+
     monkeypatch.setattr(
         preflight_module,
         "time_ns",
@@ -1667,6 +1879,22 @@ def test_cleanup_preflight_requires_fresh_post_approval_unchanged_state(
         verify_cleanup_preflight(
             approved_root,
             action_root,
+            receipt,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+    monkeypatch.setattr(action_plan_module, "time_ns", lambda: receipt.valid_until_ts_ns)
+    with pytest.raises(ValueError, match="action plan has expired"):
+        verify_cleanup_action_plan(
+            approved_root,
+            action_root,
+            plan,
             receipt,
             manifest,
             report,
@@ -2201,6 +2429,94 @@ def test_cleanup_action_contract_requires_exact_native_destination() -> None:
         rationale="migrate the isolated native package after legacy removal",
     )
     assert target.destination_locator == "src/aiquanttrader"
+
+    typed_targets = (
+        LegacyCleanupTarget(
+            target_id="repository-removal",
+            kind=CleanupTargetKind.REPOSITORY_PATH,
+            locator="broker/mt5",
+            action=CleanupAction.REMOVE,
+            expected_state_sha256="1" * 64,
+            rationale="remove the retired MQL5 source",
+        ),
+        target,
+        LegacyCleanupTarget(
+            target_id="host-package-removal",
+            kind=CleanupTargetKind.HOST_PACKAGE,
+            locator="wine64",
+            action=CleanupAction.REMOVE,
+            expected_state_sha256="2" * 64,
+            rationale="remove the project-owned Wine package",
+        ),
+        LegacyCleanupTarget(
+            target_id="host-integration-removal",
+            kind=CleanupTargetKind.HOST_INTEGRATION,
+            locator="/etc/cron.d/aiquanttrader",
+            action=CleanupAction.REMOVE,
+            expected_state_sha256="3" * 64,
+            rationale="remove the disabled legacy schedule",
+        ),
+        LegacyCleanupTarget(
+            target_id="runtime-retirement",
+            kind=CleanupTargetKind.RUNTIME_PATH,
+            locator="/root/AIQuantTrader/.runtime/wineprefix",
+            action=CleanupAction.RETAIN_ARCHIVE_ONLY,
+            expected_state_sha256="4" * 64,
+            rationale="retain the final archive instead of the operational runtime",
+        ),
+        LegacyCleanupTarget(
+            target_id="credential-revocation",
+            kind=CleanupTargetKind.SECRET_REFERENCE,
+            locator="MT5_PASSWORD",
+            action=CleanupAction.REVOKE,
+            expected_state_sha256="5" * 64,
+            rationale="revoke the legacy broker credential and sessions",
+        ),
+    )
+    ordered = sorted(typed_targets, key=action_plan_module._stage_rank)
+    steps = tuple(
+        action_plan_module._build_step(index, item) for index, item in enumerate(ordered, start=1)
+    )
+    assert tuple(item.stage for item in steps) == (
+        CleanupActionStage.CREDENTIAL_REVOCATION,
+        CleanupActionStage.RUNTIME_RETIREMENT,
+        CleanupActionStage.HOST_INTEGRATION_REMOVAL,
+        CleanupActionStage.HOST_PACKAGE_REMOVAL,
+        CleanupActionStage.NATIVE_REPOSITORY_MIGRATION,
+        CleanupActionStage.REPOSITORY_RETIREMENT,
+    )
+    assert tuple(item.required_outcome for item in steps) == (
+        CleanupActionOutcomeKind.REVOKED_SECRET,
+        CleanupActionOutcomeKind.ARCHIVE_ONLY,
+        CleanupActionOutcomeKind.REMOVED_HOST_DEPENDENCY,
+        CleanupActionOutcomeKind.REMOVED_HOST_DEPENDENCY,
+        CleanupActionOutcomeKind.NATIVE_MIGRATION,
+        CleanupActionOutcomeKind.REMOVED_PATH,
+    )
+    forged_step = steps[0].model_dump(mode="json")
+    with pytest.raises(ValidationError, match="stage does not match"):
+        type(steps[0]).model_validate(
+            {
+                **forged_step,
+                "stage": CleanupActionStage.REPOSITORY_RETIREMENT,
+            }
+        )
+    with pytest.raises(ValidationError, match="outcome does not match"):
+        type(steps[0]).model_validate(
+            {
+                **forged_step,
+                "required_outcome": CleanupActionOutcomeKind.REMOVED_PATH,
+            }
+        )
+    with pytest.raises(ValidationError, match="evidence requirements are not exact"):
+        type(steps[0]).model_validate(
+            {
+                **forged_step,
+                "evidence_requirements": steps[-1].evidence_requirements,
+            }
+        )
+    with pytest.raises(ValidationError, match="step identity does not match"):
+        type(steps[0]).model_validate({**forged_step, "step_id": "0" * 64})
 
     with pytest.raises(ValidationError, match="explicit destination"):
         LegacyCleanupTarget(

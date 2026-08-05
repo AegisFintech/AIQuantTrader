@@ -138,6 +138,9 @@ roots and approvals are never edited in place.
 After separately authorized operator action, the evidence-only
 [`PHASE_10_CLEANUP_OUTCOME.md`](PHASE_10_CLEANUP_OUTCOME.md) workflow proves
 typed postconditions without refreshing this receipt or performing cleanup.
+Before action, derive and independently replay the canonical expiring
+[`PHASE_10_CLEANUP_ACTION_PLAN.md`](PHASE_10_CLEANUP_ACTION_PLAN.md); it orders
+the exact targets and typed evidence requirements without executing them.
 
 ## Tests
 

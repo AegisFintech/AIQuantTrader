@@ -1,0 +1,30 @@
+flowchart TD
+    M[Approved schema-v3 cleanup manifest]
+    P[Fresh cleanup preflight receipt]
+    S[Immutable evidence roots and trust pins]
+    V[Replay complete preflight]
+    T{Receipt still active?}
+    B[Build canonical action plan]
+    O[Order exact targets by safe stage]
+    E[Bind typed outcome and evidence requirements]
+    R[Independent plan replay]
+    X[Reject and recapture]
+    A[[Separately authorized manual operator boundary]]
+    L[Outcome bundle and operator timeline]
+
+    M --> V
+    P --> V
+    S --> V
+    V --> T
+    T -- No --> X
+    T -- Yes --> B
+    B --> O
+    O --> E
+    E --> R
+    R --> T
+    R --> A
+    A --> L
+
+    N[No commands, executor, process access, package access, credential access, or deletion]
+    N -. constrains .-> B
+    N -. constrains .-> R
