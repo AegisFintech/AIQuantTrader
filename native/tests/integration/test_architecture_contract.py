@@ -20,6 +20,31 @@ def test_native_source_cannot_import_legacy_package(project_root: Path) -> None:
     assert offenders == []
 
 
+def test_retirement_boundary_has_evidence_commands_only(project_root: Path) -> None:
+    retirement_root = project_root / "src" / "aiquanttrader_native" / "retirement"
+    prohibited = (
+        "import subprocess",
+        "import socket",
+        "import urllib",
+        "from hyperliquid",
+        "from nautilus_trader",
+        "pm2 ",
+        "apt-get",
+        "docker compose",
+    )
+    offenders = [
+        path.relative_to(project_root)
+        for path in retirement_root.rglob("*.py")
+        if any(token in path.read_text(encoding="utf-8") for token in prohibited)
+    ]
+    assert offenders == []
+
+    cli = (retirement_root / "cli.py").read_text(encoding="utf-8")
+    assert 'commands.add_parser("stop")' not in cli
+    assert 'commands.add_parser("remove")' not in cli
+    assert 'commands.add_parser("cleanup")' not in cli
+
+
 def test_all_checked_in_environments_default_to_execution_disabled(project_root: Path) -> None:
     for path in (project_root / "configs").glob("*.toml"):
         with path.open("rb") as handle:

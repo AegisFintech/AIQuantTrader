@@ -89,6 +89,18 @@ from aiquanttrader_native.research.models import (
     SearchPolicy,
     SearchReceipt,
 )
+from aiquanttrader_native.retirement.models import (
+    DisabledObservation,
+    DisabledObservationReport,
+    LegacyArchiveManifest,
+    LegacyCleanupManifest,
+    RetirementActionApproval,
+    RetirementApprovalSignature,
+    RetirementPolicy,
+    RetirementReadinessObservation,
+    RetirementReadinessReport,
+    VerifiedRetirementApproval,
+)
 from aiquanttrader_native.shadow.models import (
     ShadowDeterminismReport,
     ShadowEvidencePolicy,
@@ -195,6 +207,18 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | ChampionChallengerReport
         | DriftReport
         | ResearchExperimentManifest
+    ).json_schema(),
+    "retirement.schema.json": lambda: TypeAdapter(
+        LegacyArchiveManifest
+        | LegacyCleanupManifest
+        | RetirementPolicy
+        | RetirementReadinessObservation
+        | RetirementReadinessReport
+        | DisabledObservation
+        | DisabledObservationReport
+        | RetirementActionApproval
+        | RetirementApprovalSignature
+        | VerifiedRetirementApproval
     ).json_schema(),
     "shadow.schema.json": lambda: TypeAdapter(
         ShadowIngressEnvelope

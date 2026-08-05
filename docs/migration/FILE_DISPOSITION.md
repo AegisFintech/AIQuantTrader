@@ -1,7 +1,7 @@
 # Repository File Disposition
 
 This document classifies the repository as it exists before the native
-migration. `Delete` means removal in the Phase 9 legacy-retirement PR after the
+migration. `Delete` means removal in the Phase 10 legacy-retirement PR after the
 MT5 system is tagged and archived, not deletion during architecture work.
 
 ## Keep or carry forward
@@ -45,7 +45,7 @@ code must satisfy the native schemas, typing, causality, and tests.
 | `config/` operational files | Native Prometheus/Grafana/Alertmanager/Docker policies. |
 | `.github/workflows/jekyll-gh-pages.yml` | Native CI, image build, security, and documentation checks. |
 
-## Retire after Phase 9 cutover
+## Retire during Phase 10 after the disabled observation
 
 | Existing group | Reason |
 |---|---|
@@ -69,14 +69,14 @@ explicit migration owner.
 |---|---|
 | `.github/` | Phase 2 CI replacement; contributor guidance refactor. |
 | `aiquanttrader/` | Phases 2-6 native `src/` replacement, with selected research concepts retained. |
-| `broker/` | Phase 9 MT5 retirement. |
-| `config/` | Phases 2 and 8 native infrastructure replacement; Phase 9 legacy cleanup. |
-| `dashboard/` | Phase 3-4 observability replacement; Phase 9 removal. |
-| `data/` | Phase 3 BTC lake; XAU file retired in Phase 9. |
+| `broker/` | Phase 10 MT5 retirement. |
+| `config/` | Phases 2 and 8 native infrastructure replacement; Phase 10 legacy cleanup. |
+| `dashboard/` | Phase 3-4 observability replacement; Phase 10 removal. |
+| `data/` | Phase 3 BTC lake; XAU file retired in Phase 10. |
 | `docs/` | Phase 1 ratification, then phase-specific native docs; legacy procedures retained until cutover. |
 | `scripts/` | Replaced incrementally by native operational and governance commands; legacy scripts retained until owners retire. |
 | `tests/` | Native test taxonomy added alongside legacy tests, then legacy tests removed with owned code. |
-| root build/runtime files | Phase 2 Python/Rust/Docker replacement; PM2/MT5 files removed in Phase 9. |
+| root build/runtime files | Phase 2 Python/Rust/Docker replacement; PM2/MT5 files removed in Phase 10. |
 
 ## Legacy archival procedure
 
@@ -87,5 +87,8 @@ Before deletion:
 2. archive required broker/Common Files evidence under the retention policy;
 3. create and push an annotated `mt5-final` tag;
 4. verify native rollback and incident procedures;
-5. disable legacy services and confirm they cannot restart;
-6. remove legacy code in a dedicated, reviewable PR.
+5. obtain the signed `stop_and_observe` approval, disable legacy capabilities,
+   and complete the frozen observation window;
+6. approve a glob-free exact cleanup manifest with a separately signed
+   `remove_and_clean` action;
+7. remove legacy code in a dedicated, reviewable PR and complete ADR 0008.

@@ -1,0 +1,34 @@
+flowchart TD
+    native["Stable native production<br/>exact deployment + admission evidence"]
+    legacy["Final MT5 demo state<br/>paused + flat + no pending orders"]
+    archive["Restore-tested archive<br/>mt5-final + 365-day retention"]
+    readiness["aqt-retirement evaluate-readiness<br/>credential-free + no side effects"]
+    stopReview{"All readiness gates pass?"}
+    stopWait["AWAITING STOP APPROVAL"]
+    stopSign["Offline Ed25519 approval<br/>scope: stop_and_observe"]
+    disable["Operator runbook<br/>disable exact legacy capabilities"]
+    observe["Seven-day reversible observation<br/>files retained + credentials quarantined"]
+    disabled["aqt-retirement evaluate-disabled"]
+    cleanReview{"All disabled gates pass?"}
+    cleanWait["AWAITING CLEANUP APPROVAL"]
+    manifest["Exact cleanup manifest<br/>no globs, traversal, or broad roots"]
+    cleanSign["Offline Ed25519 approval<br/>scope: remove_and_clean"]
+    cleanup["Mechanical cleanup PR<br/>host retirement + native package cutover"]
+    halted["HALTED<br/>no automatic action or MT5 restart"]
+
+    native --> readiness
+    legacy --> readiness
+    archive --> readiness
+    readiness --> stopReview
+    stopReview -- no --> halted
+    stopReview -- yes --> stopWait
+    stopWait --> stopSign
+    stopSign --> disable
+    disable --> observe
+    observe --> disabled
+    disabled --> cleanReview
+    cleanReview -- no --> halted
+    cleanReview -- yes --> cleanWait
+    cleanWait --> manifest
+    manifest --> cleanSign
+    cleanSign --> cleanup

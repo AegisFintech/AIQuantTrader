@@ -12,7 +12,7 @@ The repository has two explicitly separate states:
 
 - **Deployed legacy state:** MT5 demo trading for `XAUUSD` only. The existing
   MQL5, Wine, PM2, Common Files, and XAU instructions remain authoritative for
-  that runtime until Phase 9 retirement.
+  that runtime until the separately approved Phase 10 retirement completes.
 - **Approved target state:** Linux-native trading of
   `BTC-USD-PERP.HYPERLIQUID` through NautilusTrader and Hyperliquid. Target
   approval does not authorize mainnet trading or automatic production
@@ -43,7 +43,7 @@ Native migration authority order:
 
 ## Native Migration Topology
 
-Phases 2-9 implement the native contracts, public BTC data, fail-closed testnet
+Phases 2-10 implement the native contracts, public BTC data, fail-closed testnet
 execution, causal replay/validation, research strategy paths, and
 credential-free paper under `native/` and `rust/`.
 Phase 3 connects only to public market data. Phase 4 is the only native path
@@ -205,11 +205,10 @@ Current Phase 9 production-admission ownership:
 | `native/configs/production/` | Frozen production-admission evidence policies; never credentials or enabled execution. |
 | `native/observability/grafana/dashboards/production-governance.json` | Admission, expiry, capital, denial, and emergency-cancel views. |
 | `docs/operations/MAINNET_CANARY_RUNBOOK.md` | Two-person preflight, verify/admit, canary drills, evidence, incident, and scale procedure. |
-| `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md` | Separately authorized archival, `mt5-final` tag, disable, observation, and removal procedure. |
 
 Phase 9 code gates do not establish empirical acceptance. No signed release,
-mainnet funding/order, production scale, `mt5-final` tag, or MT5 retirement is
-performed by the repository implementation.
+mainnet funding/order, or production scale is performed by the repository
+implementation.
 
 The Phase 9 release-evidence increment adds typed final-testnet observations,
 the frozen complete scenario evaluator, exact target-behavior fingerprints,
@@ -223,6 +222,22 @@ feature configuration matches shadow evidence; it contains no signer or
 admission action. See
 `docs/migration/PHASE_9_RELEASE_EVIDENCE.md` and
 `docs/migration/PHASE_4_TESTNET_ACCEPTANCE_EVIDENCE.md`.
+
+Current Phase 10 legacy-retirement ownership:
+
+| Path | Responsibility |
+|---|---|
+| `native/src/aiquanttrader_native/retirement/` | Immutable final-archive, native-observation, flat-MT5-state, disabled-window, scoped approval, and exact cleanup-manifest contracts. |
+| `native/configs/retirement/evidence-v1.toml` | Frozen 30-day native, seven-day disabled, 365-day archive-retention baseline. |
+| `native/schemas/retirement.schema.json` | Deterministic external contract for every Phase 10 evidence and approval record. |
+| `docs/migration/PHASE_10_LEGACY_RETIREMENT.md` | Two-approval architecture, repository delta, tests, migration, and rollback. |
+| `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md` | Final archive, exact disable, observation, cleanup approval, host cleanup, removal PR, and failure procedure. |
+
+Phase 10 code is evidence-only. `aqt-retirement` has no command or dependency
+that can stop services, touch brokers/exchanges, revoke credentials, remove
+packages, or delete files. No readiness/disabled evidence or action approval
+has been created, `mt5-final` has not been tagged, and the active MT5 runtime is
+unchanged.
 
 ## Current Legacy System Topology
 
@@ -256,7 +271,7 @@ MQL5 EA. The dashboard is read-only. No PM2 process currently writes
 ## Parallel Linux-native migration
 
 The `native/` tree is an isolated, Docker-managed BTC perpetual replacement
-under construction. It is not part of the active PM2/MT5 runtime. Phases 2-9
+under construction. It is not part of the active PM2/MT5 runtime. Phases 2-10
 currently provide:
 
 | Area | Native ownership |
@@ -273,6 +288,7 @@ currently provide:
 | Paper trading | `native/src/aiquanttrader_native/paper/`; live public data through production kernels/risk into a credential-free simulator and immutable evidence journal. |
 | Shadow deployment | `native/src/aiquanttrader_native/shadow/`; public gateway into a no-network decision engine, recorded-only commands, replay comparison, and human-gated evidence. |
 | Mainnet admission | `native/compose.mainnet.yaml`; exact-image controller, trading, and sentinel processes independently verify signed authority and the durable ledger. |
+| Legacy retirement | `native/src/aiquanttrader_native/retirement/`; credential-free two-gate evidence and approval verification with no operational action capability. |
 
 Phase 4 code is implemented but is not accepted until the credentialed testnet
 scenario matrix and kill/dead-man drills in

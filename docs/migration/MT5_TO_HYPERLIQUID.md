@@ -1,6 +1,6 @@
 # MT5/Wine to Hyperliquid Migration Plan
 
-Status: approved; Phases 2-9 implemented in parallel, with phase-specific acceptance evidence pending
+Status: approved; Phases 2-10 implemented in parallel, with empirical acceptance and cutover pending
 Migration mode: parallel replacement with gated cutover
 Target: Linux-native BTC perpetual trading on Hyperliquid
 
@@ -210,14 +210,14 @@ Tests:
 
 Migration action: successful automation stops at `AWAITING_APPROVAL`.
 
-### Phase 9: Mainnet canary and cutover
+### Phase 9: Mainnet canary and production admission
 
 Implementation note: the cryptographic approval, anti-replay admission,
 runtime guards, conservative canary bounds, exact-image topology, evidence
 policy, frozen final-testnet scenario evaluator, target-behavior fingerprint,
 unsigned bundle preparation, and runbooks are implemented. Mainnet activation,
-empirical acceptance, offline signing, production scale, and legacy retirement
-remain pending and separately approved.
+empirical acceptance, offline signing, and production scale remain pending and
+separately approved. Legacy retirement is a separate Phase 10 decision.
 
 Deliverables:
 
@@ -227,7 +227,6 @@ Deliverables:
 - verified dead-man switch and independent sentinel;
 - incident, flatten, cancel-all, credential-rotation, backup, restore, and
   rollback runbooks;
-- final MT5 tag, archived operational evidence, and legacy removal PR.
 
 Tests and review:
 
@@ -236,10 +235,45 @@ Tests and review:
 - live kill drill at bounded exposure;
 - explicit approval before any capital increase.
 
-Migration action: after an agreed stable observation period, disable and archive
-the MT5 deployment, tag it `mt5-final`, remove legacy code from main, and retain
-reports/data according to policy. Rollback restores the last approved native
-champion or leaves the system halted; it never silently restarts MT5 trading.
+Migration action: operate only the separately approved native canary/production
+identity. Phase 9 does not stop, tag, archive, or remove MT5.
+
+### Phase 10: Legacy MT5 retirement and repository cleanup
+
+Implementation note: typed readiness/archive/disabled evidence, a frozen
+baseline policy, short-lived scope-specific approvals, exact cleanup manifests,
+and offline Ed25519 verification are implemented. The active MT5 deployment is
+unchanged and no retirement approval has been created.
+
+Deliverables:
+
+- final credential-free MT5 archive with restore test and immutable
+  `mt5-final` tag;
+- stable native-production and flat demo-account readiness evidence;
+- signed `stop_and_observe` approval for the exact readiness report;
+- exact disablement of PM2, cron, nginx, logrotate, autostart, Wine/MT5, and
+  command-file writer capabilities;
+- minimum seven-day reversible disabled observation under the v1 policy;
+- canonical cleanup manifest and separate signed `remove_and_clean` approval;
+- mechanical host cleanup and repository removal PR;
+- ADR 0008 native package/root migration and complete native revalidation.
+
+Tests and review:
+
+- deterministic report hashes and exact gate inventories;
+- archive/evidence binding, restore, retention, and no-credential checks;
+- Ed25519 signature, expiry, scope, trust-root, and tamper tests;
+- rejection of broad, globbed, traversing, duplicate, or unowned cleanup
+  targets;
+- proof that `aqt-retirement` has no stop, delete, package, credential, network,
+  or trading command;
+- clean-checkout native CI, replay, container, schema, security, and release
+  checks after the mechanical removal.
+
+Migration action: after both separate approvals and the disabled observation,
+remove only the exact approved targets, retain evidence for policy duration,
+and make the Linux-native platform the sole runtime. Failure leaves the system
+halted; it never silently restarts MT5.
 
 ## Target repository structure
 

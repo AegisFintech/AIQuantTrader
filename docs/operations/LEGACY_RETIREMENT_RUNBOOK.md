@@ -1,53 +1,152 @@
 # Legacy MT5 Retirement Runbook
 
-Status: procedure only. MT5 retirement is not authorized by the Phase 9
-admission implementation.
+Status: Phase 10 procedure only. The active MT5 runtime must not be stopped or
+removed until the exact evidence and approvals below exist.
 
-Use this runbook only after a separately approved native stable-observation
-period. Rollback never silently restarts MT5 trading.
+This runbook has no implied flatten, deletion, package-removal, credential-
+revocation, or production authority. Preserve its evidence outside the mutable
+host. Rollback never silently restarts MT5 trading.
 
-## Entry criteria
+## Roles and separation
 
-- production admission and native observation have passed the agreed gates;
-- account ownership, backups, alerts, on-call access, and native rollback have
-  been exercised;
-- MT5 has no unmanaged position or pending order and its final report is
-  reviewed;
-- the owner explicitly approves the retirement window and retention plan.
+- The evidence preparer collects facts and cannot approve the action.
+- The risk owner reviews native and broker state.
+- The offline approver signs one exact, short-lived action scope.
+- The operator verifies the signature, rechecks live state, and performs only
+  the approved steps.
+- The removal reviewer checks every cleanup target and the final Git diff.
 
-## Archive
+Use separate people for approver and operator whenever staffing permits.
 
-1. Run `python3 scripts/mt5_trade_report.py` and save the report with its hash.
-2. Archive MT5 Common Files, final configuration, EA source and compiled hash,
-   deal/order exports, strategy profiles, research registry, logs, and the
-   operator timeline without committing credentials.
-3. Verify the archive on a separate destination and perform a restore test.
-4. Record broker account, XAUUSD-only scope, open-position count, pending-order
-   count, final PnL, and retention expiry.
-5. Create the annotated `mt5-final` tag only after the archive review. Never
-   move or reuse that tag.
+## Gate A: final archive and stop readiness
 
-## Disable and observe
+1. Confirm the exact native production deployment and admission have remained
+   healthy for the frozen minimum window. Retain the production approval,
+   artifact manifest, operational evidence, drill reports, alerts, and backup
+   restore evidence.
+2. Activate `aiquanttrader_entry_pause.flag`. Confirm automatic and command-file
+   entries are rejected while monitoring and position management remain active.
+3. Run `python3 scripts/mt5_trade_report.py`; independently inspect the broker
+   account for managed positions, unmanaged positions, and pending orders.
+4. Closing or transferring any position requires explicit owner direction.
+   Continue only when all three counts are zero.
+5. Capture the eleven required archive categories: final trade report, broker
+   state, deployed source/compiled release identity, redacted runtime
+   configuration, Common Files, deal/order history, strategy/research evidence,
+   service configuration, operational logs, restore-test result, and operator
+   timeline. Never archive credentials in this evidence bundle.
+6. Copy the archive to the approved separate destination, hash every artifact,
+   restore it into an isolated location, and record the restore test.
+7. After archive review, create the annotated `mt5-final` tag at the archived
+   commit. Push it once; never move or reuse it.
+8. Build `RetirementReadinessObservation` and run `aqt-retirement
+   evaluate-readiness` with the frozen policy. A nonzero exit or any failed gate
+   stops the procedure.
 
-1. Activate the MT5 entry pause and confirm no new entries.
-2. Close or transfer responsibility for every broker position under explicit
-   owner direction; do not infer flatten authority from this document.
-3. Stop and disable only the four documented PM2 legacy processes.
-4. Leave files intact through the rollback observation window.
-5. Verify the native system remains healthy and that no MT5/Wine process or
-   command-file writer can trade.
+A passing report says only `awaiting_stop_approval`. Canonicalize the
+`stop_and_observe` approval, sign it offline, and verify the detached signature
+against the pinned key ID and public-key fingerprint. The approval must bind the
+report, native deployment/admission, archive manifest, source commit, and
+`mt5-final`, and must still be inside its 24-hour window at action time.
 
-## Removal PR
+## Gate B: disable legacy capability
 
-After the observation window, create a dedicated mechanical PR which removes
-legacy code and service definitions according to `FILE_DISPOSITION.md`, updates
-the package layout from ADR 0008, and contains no strategy or native-risk
-changes. Preserve the `mt5-final` tag and evidence archive. Review deletion
-targets exactly; do not delete runtime or evidence roots with broad globs.
+Immediately before action, repeat the broker flat-state check and archive hash
+check. If either changed, discard the approval and restart Gate A.
 
-## Failure
+Disable in this order so the watchdog cannot revive the terminal:
 
-If native operation is unsafe, revoke native admission, cancel orders, and
-leave the account halted. Restoring MT5 requires a new explicit owner decision,
-credential validation, archive verification, demo-first rehearsal, and a new
-deployment record. It is not the automatic rollback target.
+1. stop `aiquanttrader-watchdog` and `aiquanttrader-review`;
+2. stop `aiquanttrader-mt5`;
+3. stop `aiquanttrader-dashboard`;
+4. remove exactly those four entries from PM2 startup state and save the new
+   PM2 state;
+5. disable the installed AIQuantTrader cron file, legacy dashboard nginx route,
+   and legacy logrotate policy at their inventory-resolved paths;
+6. disable any MT5 autostart outside PM2;
+7. quarantine MT5 credentials so no retained process can read them;
+8. confirm zero MT5/Wine processes and zero command-file writers;
+9. independently confirm zero new broker orders after the stop timestamp.
+
+Do not delete source, `.runtime`, Common Files, state, logs, service files, or
+archives during this gate. Record exact commands, resolved targets, timestamps,
+process output, broker evidence, and hashes in the disabled evidence bundle.
+
+## Gate C: reversible disabled observation
+
+Observe for at least seven full days under the v1 policy. During the entire
+window:
+
+- native production remains on the exact approved deployment/admission;
+- critical incidents, reconciliation failures, and risk breaches remain zero;
+- all ten legacy capabilities remain disabled with zero active instances;
+- post-stop MT5 broker orders remain zero;
+- legacy credentials remain unavailable to services;
+- the final archive is rehashed and restorable;
+- disk, clocks, alerts, backups, and operator access remain healthy.
+
+Build `DisabledObservation` and run `aqt-retirement evaluate-disabled`. A
+passing report says only `awaiting_cleanup_approval`.
+
+## Gate D: exact cleanup approval
+
+Create a cleanup manifest with one explicit target per repository path, runtime
+path, host integration, secret reference, or host package. The validator rejects
+globs, traversal, duplicate locators, and broad roots such as `/`, `/root`,
+`/tmp`, `/etc`, `/usr`, and `/var`. Bind every target to a canonical expected
+state hash: file bytes or tree inventory for paths, installed-state evidence for
+packages/integrations, and provider record identity for credential revocation.
+Recompute and compare that state immediately before action; any mismatch
+invalidates the manifest and cleanup approval.
+
+The manifest must include, where present and independently verified:
+
+- the MQL5 bridge and modules under `broker/mt5/`;
+- MT5/Wine lifecycle, Common Files, XAU research, PM2, Streamlit, cron, nginx,
+  and logrotate repository files listed by `FILE_DISPOSITION.md`;
+- legacy-owned tests and point-in-time planning documents;
+- the repo-local Wine prefix, terminal, downloads, Common Files, legacy state,
+  and logs as separate explicit runtime paths;
+- installed host integrations and packages, but only after proving no other
+  workload uses them;
+- MT5 credentials and broker sessions as revocation targets;
+- the ADR 0008 native package and project-root migration actions.
+
+Run `aqt-retirement validate-cleanup-manifest`, retain its canonical bytes and
+hash, then obtain a new `remove_and_clean` approval. This approval must bind the
+disabled report and exact cleanup manifest. A stop approval cannot authorize
+cleanup.
+
+## Gate E: cleanup execution and PR
+
+1. Snapshot current host inventory and reverify approval, archive, disabled
+   state, and cleanup-manifest hashes.
+2. Move recoverable runtime targets to an approved dated quarantine location
+   before permanent deletion when practical. Never use an unresolved variable,
+   wildcard, repository root, home directory, or broad recursive target.
+3. Revoke legacy credentials and broker sessions listed in the manifest.
+4. Remove only approved host integrations and packages. Leave shared packages
+   installed and record the variance.
+5. Create a dedicated mechanical PR removing only approved legacy repository
+   targets and performing the ADR 0008 package migration.
+6. Make no strategy, model, execution, capital, or risk-policy change in that
+   PR.
+7. Run the complete native CI, replay, container, schema, security,
+   documentation, and release suite from a clean checkout.
+8. Verify the production deployment is still the approved native identity and
+   that no MT5/Wine/order-writer capability remains.
+9. Retain the final archive, readiness/disabled reports, both signed approvals,
+   cleanup manifest, operator timeline, removal commit, and `mt5-final` tag for
+   the approved retention period.
+
+## Failure and rollback
+
+Before cleanup, a failed native or retirement gate means cancel native orders as
+policy requires, revoke native admission if necessary, and leave both systems
+halted. Restoring MT5 requires new owner authority, archive and credential
+validation, broker-state reconciliation, a demo-only rehearsal, and a new
+deployment record.
+
+After cleanup, Git and the off-host archive provide recovery material, not
+automatic runtime authority. Any restoration starts as a new reviewed incident
+recovery and never bypasses the native promotion or retirement evidence chain.
