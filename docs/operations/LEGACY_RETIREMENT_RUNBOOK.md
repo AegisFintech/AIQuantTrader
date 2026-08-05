@@ -190,27 +190,32 @@ See [`PHASE_10_CLEANUP_PREFLIGHT.md`](../migration/PHASE_10_CLEANUP_PREFLIGHT.md
 
 1. Require a still-valid independently replayed cleanup-preflight receipt. It
    proves current evidence only and does not execute or expand the approval.
-2. Move recoverable runtime targets to an approved dated quarantine location
+2. Prepare and independently replay the canonical cleanup action plan inside
+   that same validity window. Retain it in the operator timeline; it contains
+   no commands and does not replace the signed approval.
+3. Follow the plan's exact target order and record action start/completion plus
+   every typed evidence requirement in the operator ledger.
+4. Revoke legacy credentials and broker sessions listed in the manifest.
+5. Move recoverable runtime targets to an approved dated quarantine location
    before permanent deletion when practical. Never use an unresolved variable,
    wildcard, repository root, home directory, or broad recursive target.
-3. Revoke legacy credentials and broker sessions listed in the manifest.
-4. Remove only approved host integrations and packages. Leave shared packages
+6. Remove only approved host integrations and packages. Leave shared packages
    installed and record the variance.
-5. Create a dedicated mechanical PR removing only approved legacy repository
+7. Create a dedicated mechanical PR removing only approved legacy repository
    targets and performing the ADR 0008 package migration.
-6. Make no strategy, model, execution, capital, or risk-policy change in that
+8. Make no strategy, model, execution, capital, or risk-policy change in that
    PR.
-7. Run the complete native CI, replay, container, schema, security,
+9. Run the complete native CI, replay, container, schema, security,
    documentation, and release suite from a clean checkout.
-8. Verify the production deployment is still the approved native identity and
+10. Verify the production deployment is still the approved native identity and
    that no MT5/Wine/order-writer capability remains.
-9. Retain the final archive, readiness/disabled reports, both signed approvals,
+11. Retain the final archive, readiness/disabled reports, both signed approvals,
    cleanup manifest, operator timeline, removal commit, and `mt5-final` tag for
    the approved retention period.
-10. Capture every typed postcondition in a distinct exact-inventory outcome
+12. Capture every typed postcondition in a distinct exact-inventory outcome
     bundle. Each target action must have started before its preflight receipt
     expired; completion evidence may be reviewed afterward.
-11. Run `assemble-cleanup-completion`, then require another operator to run
+13. Run `assemble-cleanup-completion`, then require another operator to run
     `verify-cleanup-completion`. Cleanup is incomplete until the canonical
     report has every gate and target postcondition passed. See
     [`PHASE_10_CLEANUP_OUTCOME.md`](../migration/PHASE_10_CLEANUP_OUTCOME.md).

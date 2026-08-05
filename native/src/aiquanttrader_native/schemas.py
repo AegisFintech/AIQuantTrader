@@ -92,6 +92,7 @@ from aiquanttrader_native.research.models import (
     SearchReceipt,
 )
 from aiquanttrader_native.retirement.models import (
+    CleanupActionPlan,
     CleanupCompletionReport,
     CleanupCredentialScanEvidence,
     CleanupEvidenceManifest,
@@ -258,6 +259,7 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | CleanupTargetEvidence
         | CleanupCredentialScanEvidence
         | CleanupPreflightReceipt
+        | CleanupActionPlan
         | CleanupOutcomeEvidenceManifest
         | CleanupCompletionReport
         | CleanupPathAbsenceEvidence

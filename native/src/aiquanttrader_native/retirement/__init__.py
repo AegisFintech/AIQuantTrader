@@ -1,5 +1,9 @@
 """Fail-closed evidence contracts for retiring the legacy MT5 deployment."""
 
+from aiquanttrader_native.retirement.action_plan import (
+    prepare_cleanup_action_plan,
+    verify_cleanup_action_plan,
+)
 from aiquanttrader_native.retirement.archive import (
     assemble_legacy_archive_manifest,
     verify_legacy_archive_manifest,
@@ -22,6 +26,7 @@ from aiquanttrader_native.retirement.final_state import (
     verify_legacy_final_state,
 )
 from aiquanttrader_native.retirement.models import (
+    CleanupActionPlan,
     CleanupCompletionReport,
     CleanupPreflightReceipt,
     DisabledObservation,
@@ -45,6 +50,7 @@ from aiquanttrader_native.retirement.readiness import (
 )
 
 __all__ = [
+    "CleanupActionPlan",
     "CleanupCompletionReport",
     "CleanupPreflightReceipt",
     "DisabledObservation",
@@ -63,6 +69,8 @@ __all__ = [
     "evaluate_disabled_observation",
     "evaluate_retirement_readiness",
     "load_retirement_policy",
+    "prepare_cleanup_action_plan",
+    "verify_cleanup_action_plan",
     "verify_cleanup_completion",
     "verify_cleanup_preflight",
     "verify_disabled_observation",

@@ -12,6 +12,11 @@ before action. It does not prove what happened afterward. Phase 10 therefore
 requires a distinct immutable outcome bundle and a canonical completion report
 before cleanup may be recorded as complete.
 
+The evidence-only [cleanup action plan](PHASE_10_CLEANUP_ACTION_PLAN.md) gives
+operators one canonical target order and exact outcome-evidence checklist. It
+expires with preflight, requires an operator ledger, and is neither authority
+nor completion evidence.
+
 See the [outcome flow](../architecture/diagrams/phase-10-cleanup-outcome.mmd)
 and the [retirement runbook](../operations/LEGACY_RETIREMENT_RUNBOOK.md).
 
