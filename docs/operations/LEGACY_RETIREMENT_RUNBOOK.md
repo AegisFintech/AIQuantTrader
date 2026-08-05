@@ -45,11 +45,24 @@ Use separate people for approver and operator whenever staffing permits.
    configuration, Common Files, deal/order history, strategy/research evidence,
    service configuration, operational logs, restore-test result, and operator
    timeline. Never archive credentials in this evidence bundle.
-7. Copy the archive to the approved separate destination, hash every artifact,
-   restore it into an isolated location, and record the restore test.
+7. Copy the category artifacts to the approved immutable destination, hash each
+   artifact, and restore each one into an isolated location. Run the externally
+   reviewed scanner recursively over the restored content using the exact
+   policy pinned by `evidence-v1.toml`. Record matching source/restored bytes
+   and hashes for all eleven categories and zero credential findings for all
+   required detector classes. A finding, omitted category, partial scan, or
+   weaker scan policy stops Gate A.
 8. After archive review, create the annotated `mt5-final` tag at the archived
-   commit. Push it once; never move or reuse it.
-9. Build `RetirementReadinessObservation` from the independently assembled
+   commit. Push it once; never move or reuse it. Retain the tag-object identity
+   and proof that it resolves to the exact archived source commit.
+9. Build the exact 15-file evidence bundle described in
+   `PHASE_10_LEGACY_ARCHIVE.md`: eleven category artifacts plus canonical
+   restore, credential-scan, and final-tag control records and their evidence
+   manifest. Run `aqt-retirement assemble-archive`; then have a second operator
+   run `verify-archive` against the immutable bundle and separately stored
+   policy files. The resulting schema-v2 manifest must retain at least 365 days
+   from verification. Never substitute an operator-authored archive summary.
+10. Build `RetirementReadinessObservation` from the independently assembled
    native observation and run `aqt-retirement
    evaluate-readiness` with the frozen policy. A nonzero exit or any failed gate
    stops the procedure.

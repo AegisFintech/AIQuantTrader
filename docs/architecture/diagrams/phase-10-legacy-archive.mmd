@@ -1,0 +1,15 @@
+flowchart LR
+    A[Eleven retained legacy categories<br/>actual immutable archive material] --> V[Credential-free archive assembler]
+    R[Isolated restore evidence<br/>source = restored hashes and sizes] --> V
+    S[Frozen recursive credential scan<br/>zero findings + externally pinned policy] --> V
+    T[Annotated mt5-final evidence<br/>tag object resolves to source commit] --> V
+    P[Retirement policy<br/>365-day remaining retention] --> V
+
+    V --> G{Exact paths, bytes,<br/>lineage, reviews and timing?}
+    G -- no --> X[Fail closed<br/>no archive manifest]
+    G -- yes --> M[LegacyArchiveManifest v2<br/>manifest + bundle provenance]
+    M --> I[Independent verify-archive replay]
+    I --> F[Final-state assembly<br/>future increment]
+    F --> Q[Retirement readiness]
+
+    N[No broker, Git mutation, network,<br/>signer, stop or delete capability] -. security boundary .- V

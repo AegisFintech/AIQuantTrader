@@ -1,5 +1,9 @@
 """Fail-closed evidence contracts for retiring the legacy MT5 deployment."""
 
+from aiquanttrader_native.retirement.archive import (
+    assemble_legacy_archive_manifest,
+    verify_legacy_archive_manifest,
+)
 from aiquanttrader_native.retirement.collector import (
     assemble_native_production_observation,
     verify_native_production_observation,
@@ -25,9 +29,11 @@ __all__ = [
     "RetirementActionScope",
     "RetirementReadinessObservation",
     "RetirementReadinessReport",
+    "assemble_legacy_archive_manifest",
     "assemble_native_production_observation",
     "evaluate_disabled_observation",
     "evaluate_retirement_readiness",
     "load_retirement_policy",
+    "verify_legacy_archive_manifest",
     "verify_native_production_observation",
 ]

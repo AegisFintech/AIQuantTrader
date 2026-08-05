@@ -312,6 +312,14 @@ independent trust record and enforces five-minute sentinel/dead-man continuity.
 It has no live venue, credential, signer, process, or cleanup capability. See
 [`diagrams/phase-10-production-evidence.mmd`](diagrams/phase-10-production-evidence.mmd).
 
+The final legacy archive is independently reconstructed from exactly eleven
+category artifacts plus reviewed restore, recursive credential-scan, and
+annotated `mt5-final` controls. The scan policy is pinned by the same frozen
+retirement policy, and the schema-v2 output binds complete bundle provenance
+and remaining retention. Archive verification has no broker, Git mutation,
+process, credential, stop, or deletion capability. See
+[`diagrams/phase-10-legacy-archive.mmd`](diagrams/phase-10-legacy-archive.mmd).
+
 Promotion gates are frozen before an experiment begins and evaluate post-cost
 PnL, drawdown and tail loss, consistency, inventory exposure, fill calibration,
 maker ratio, markouts, latency, operational failures, and drift. Prediction

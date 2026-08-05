@@ -66,6 +66,10 @@ checklist while MT5 remains deployed.
   ledger generations, signed renewal/envelope pairs, exact release artifacts,
   hash-linked audits with typed risk reasons, incident review, and drill
   reports; sentinel/dead-man sample gaps remain below five minutes.
+- [ ] Before Phase 10 stop review, independently assemble and verify the exact
+  eleven-category legacy archive; restore hashes/sizes match, the frozen
+  recursive credential scan has zero findings, `mt5-final` is annotated and
+  resolves to the archived commit, and 365 days of retention remain.
 - [ ] The complete 15-scenario final-testnet report passed with real retained
   evidence, flat final state, resolved unknown outcomes, and no mainnet key.
 - [ ] The unsigned bundle was created at a new path, all receipt hashes and

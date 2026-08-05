@@ -5,6 +5,8 @@ minimum_native_production_observation_ns = 2592000000000000
 maximum_native_operational_gap_ns = 300000000000
 minimum_disabled_observation_ns = 604800000000000
 minimum_archive_retention_ns = 31536000000000000
+archive_credential_scan_policy_id = "legacy-archive-credential-scan-v1"
+archive_credential_scan_policy_sha256 = "fe5dff2d04d2c82dc0efe23c2b9d2ac91ae75f1863180c7bed81f503b14264cd"
 required_archive_artifacts = [
   "final_trade_report",
   "broker_account_state",
