@@ -14,7 +14,7 @@ from aiquanttrader.domain.data import (
     SegmentFinalizationReason,
 )
 from aiquanttrader.market_data.catalog import ManifestCatalog
-from aiquanttrader.market_data.normalizer import NormalizationWorker
+from aiquanttrader.market_data.normalizer import NormalizationBatch, NormalizationWorker
 from aiquanttrader.market_data.raw import (
     FinalizedSegment,
     RawSegmentReader,
@@ -236,6 +236,30 @@ def test_independent_worker_normalizes_pending_segments_idempotently(tmp_path: P
     assert second.normalized == 0
     assert second.already_complete == 1
     assert count == (1,)
+
+
+def test_normalizer_never_quarantines_the_recorders_active_partial(tmp_path: Path) -> None:
+    data = tmp_path / "data"
+    active = RawSegmentWriter(
+        data,
+        network="mainnet",
+        connection_id="ws-active-recorder",
+        started_at_ns=NOW_NS,
+        sync_every_records=1,
+    )
+    active.append(b'{"channel":"pong"}', receive_ts_ns=NOW_NS + 1, monotonic_ts_ns=1)
+
+    try:
+        with ManifestCatalog(tmp_path / "state" / "normalized.duckdb") as catalog:
+            batch = NormalizationWorker(data, catalog).run_once()
+
+        assert batch == NormalizationBatch(0, 0, 0, 0)
+        assert active.partial_path.is_file()
+        assert not (data / "quarantine").exists()
+    finally:
+        active.abort()
+
+    assert quarantine_incomplete_segments(data)
 
 
 def test_normalized_artifacts_are_immutable_and_validated(tmp_path: Path) -> None:

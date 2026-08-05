@@ -1,0 +1,899 @@
+{
+  "$defs": {
+    "DataQualityPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "max_classified_gap_ns": {
+          "default": 30000000000,
+          "minimum": 0,
+          "title": "Max Classified Gap Ns",
+          "type": "integer"
+        },
+        "max_crossed_books": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Max Crossed Books",
+          "type": "integer"
+        },
+        "max_duplicates": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Max Duplicates",
+          "type": "integer"
+        },
+        "max_schema_errors": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Max Schema Errors",
+          "type": "integer"
+        },
+        "max_timestamp_regressions": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Max Timestamp Regressions",
+          "type": "integer"
+        },
+        "reject_unexplained_gaps": {
+          "default": true,
+          "title": "Reject Unexplained Gaps",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "title": "DataQualityPolicy",
+      "type": "object"
+    },
+    "DatasetGap": {
+      "additionalProperties": false,
+      "properties": {
+        "classification": {
+          "$ref": "#/$defs/GapClassification"
+        },
+        "duration_ns": {
+          "minimum": 0,
+          "title": "Duration Ns",
+          "type": "integer"
+        },
+        "end_ts_ns": {
+          "minimum": 0,
+          "title": "End Ts Ns",
+          "type": "integer"
+        },
+        "next_segment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Next Segment Id",
+          "type": "string"
+        },
+        "previous_segment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Previous Segment Id",
+          "type": "string"
+        },
+        "start_ts_ns": {
+          "minimum": 0,
+          "title": "Start Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_ts_ns",
+        "end_ts_ns",
+        "duration_ns",
+        "classification",
+        "previous_segment_id",
+        "next_segment_id"
+      ],
+      "title": "DatasetGap",
+      "type": "object"
+    },
+    "DatasetManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "title": "Created At",
+          "type": "string"
+        },
+        "dataset_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dataset Id",
+          "type": "string"
+        },
+        "gaps": {
+          "items": {
+            "$ref": "#/$defs/DatasetGap"
+          },
+          "title": "Gaps",
+          "type": "array"
+        },
+        "market_wide_liquidations_available": {
+          "const": false,
+          "default": false,
+          "title": "Market Wide Liquidations Available",
+          "type": "boolean"
+        },
+        "normalized_manifest_sha256s": {
+          "items": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "title": "Normalized Manifest Sha256S",
+          "type": "array"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "dataset_id",
+        "normalized_manifest_sha256s",
+        "policy_sha256",
+        "gaps",
+        "created_at"
+      ],
+      "title": "DatasetManifest",
+      "type": "object"
+    },
+    "GapClassification": {
+      "enum": [
+        "planned_rotation",
+        "recorder_restart",
+        "venue_disconnect",
+        "stale_feed_recovery",
+        "disk_pressure",
+        "unexplained"
+      ],
+      "title": "GapClassification",
+      "type": "string"
+    },
+    "MarketDataNamedCount": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "name": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "count"
+      ],
+      "title": "MarketDataNamedCount",
+      "type": "object"
+    },
+    "MarketDataQualityCount": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Code",
+          "type": "string"
+        },
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/QualityIssueKind"
+        }
+      },
+      "required": [
+        "kind",
+        "code",
+        "count"
+      ],
+      "title": "MarketDataQualityCount",
+      "type": "object"
+    },
+    "MarketDataRecorderMetricsSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "captured_ts_ns": {
+          "minimum": 0,
+          "title": "Captured Ts Ns",
+          "type": "integer"
+        },
+        "connected": {
+          "title": "Connected",
+          "type": "boolean"
+        },
+        "disk_free_bytes": {
+          "minimum": 0,
+          "title": "Disk Free Bytes",
+          "type": "integer"
+        },
+        "finalized_segments": {
+          "items": {
+            "$ref": "#/$defs/MarketDataNamedCount"
+          },
+          "title": "Finalized Segments",
+          "type": "array"
+        },
+        "frames": {
+          "minimum": 0,
+          "title": "Frames",
+          "type": "integer"
+        },
+        "last_frame_ts_ns": {
+          "minimum": 0,
+          "title": "Last Frame Ts Ns",
+          "type": "integer"
+        },
+        "payload_bytes": {
+          "minimum": 0,
+          "title": "Payload Bytes",
+          "type": "integer"
+        },
+        "quality_issues": {
+          "items": {
+            "$ref": "#/$defs/MarketDataQualityCount"
+          },
+          "title": "Quality Issues",
+          "type": "array"
+        },
+        "reconnects": {
+          "items": {
+            "$ref": "#/$defs/MarketDataNamedCount"
+          },
+          "title": "Reconnects",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "captured_ts_ns",
+        "frames",
+        "payload_bytes",
+        "reconnects",
+        "quality_issues",
+        "last_frame_ts_ns",
+        "disk_free_bytes",
+        "connected",
+        "finalized_segments"
+      ],
+      "title": "MarketDataRecorderMetricsSnapshot",
+      "type": "object"
+    },
+    "MarketDataSoakGateResult": {
+      "additionalProperties": false,
+      "properties": {
+        "actual": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Actual",
+          "type": "string"
+        },
+        "gate": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Gate",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "required": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Required",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gate",
+        "passed",
+        "actual",
+        "required"
+      ],
+      "title": "MarketDataSoakGateResult",
+      "type": "object"
+    },
+    "MarketDataSoakPolicy": {
+      "additionalProperties": false,
+      "description": "Frozen gates for deployment-host public market-data acceptance.",
+      "properties": {
+        "allowed_finalization_reasons": {
+          "items": {
+            "$ref": "#/$defs/SegmentFinalizationReason"
+          },
+          "minItems": 1,
+          "title": "Allowed Finalization Reasons",
+          "type": "array"
+        },
+        "data_quality_policy": {
+          "$ref": "#/$defs/DataQualityPolicy"
+        },
+        "frozen_at_ns": {
+          "minimum": 0,
+          "title": "Frozen At Ns",
+          "type": "integer"
+        },
+        "maximum_excluded_frames": {
+          "minimum": 0,
+          "title": "Maximum Excluded Frames",
+          "type": "integer"
+        },
+        "maximum_normalizer_restarts": {
+          "minimum": 0,
+          "title": "Maximum Normalizer Restarts",
+          "type": "integer"
+        },
+        "maximum_reconnects": {
+          "minimum": 0,
+          "title": "Maximum Reconnects",
+          "type": "integer"
+        },
+        "maximum_recorder_restarts": {
+          "minimum": 0,
+          "title": "Maximum Recorder Restarts",
+          "type": "integer"
+        },
+        "maximum_start_lag_ns": {
+          "minimum": 0,
+          "title": "Maximum Start Lag Ns",
+          "type": "integer"
+        },
+        "minimum_finalized_segments": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Finalized Segments",
+          "type": "integer"
+        },
+        "minimum_free_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Free Bytes",
+          "type": "integer"
+        },
+        "minimum_observation_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Observation Ns",
+          "type": "integer"
+        },
+        "normalizer_state_stale_after_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Normalizer State Stale After Ns",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "recorder_state_stale_after_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Recorder State Stale After Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_id",
+        "frozen_at_ns",
+        "minimum_observation_ns",
+        "minimum_finalized_segments",
+        "maximum_start_lag_ns",
+        "maximum_reconnects",
+        "maximum_recorder_restarts",
+        "maximum_normalizer_restarts",
+        "maximum_excluded_frames",
+        "minimum_free_bytes",
+        "recorder_state_stale_after_ns",
+        "normalizer_state_stale_after_ns",
+        "allowed_finalization_reasons",
+        "data_quality_policy"
+      ],
+      "title": "MarketDataSoakPolicy",
+      "type": "object"
+    },
+    "MarketDataSoakReport": {
+      "additionalProperties": false,
+      "description": "Content-addressed acceptance verdict for one public mainnet soak.",
+      "properties": {
+        "accepted": {
+          "title": "Accepted",
+          "type": "boolean"
+        },
+        "can_submit_orders": {
+          "const": false,
+          "default": false,
+          "title": "Can Submit Orders",
+          "type": "boolean"
+        },
+        "collector_code_identity": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Collector Code Identity",
+          "type": "string"
+        },
+        "config_fingerprint": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Config Fingerprint",
+          "type": "string"
+        },
+        "corrupt_artifacts": {
+          "minimum": 0,
+          "title": "Corrupt Artifacts",
+          "type": "integer"
+        },
+        "dataset_admission_error": {
+          "anyOf": [
+            {
+              "const": "quality_policy_rejected",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Dataset Admission Error"
+        },
+        "dataset_manifest": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DatasetManifest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end_free_bytes": {
+          "minimum": 0,
+          "title": "End Free Bytes",
+          "type": "integer"
+        },
+        "environment": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Environment",
+          "type": "string"
+        },
+        "excluded_frames": {
+          "minimum": 0,
+          "title": "Excluded Frames",
+          "type": "integer"
+        },
+        "execution_enabled": {
+          "const": false,
+          "default": false,
+          "title": "Execution Enabled",
+          "type": "boolean"
+        },
+        "finalization_reasons": {
+          "items": {
+            "$ref": "#/$defs/MarketDataNamedCount"
+          },
+          "title": "Finalization Reasons",
+          "type": "array"
+        },
+        "gates": {
+          "items": {
+            "$ref": "#/$defs/MarketDataSoakGateResult"
+          },
+          "minItems": 1,
+          "title": "Gates",
+          "type": "array"
+        },
+        "generated_ts_ns": {
+          "minimum": 0,
+          "title": "Generated Ts Ns",
+          "type": "integer"
+        },
+        "image_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Image Digest",
+          "type": "string"
+        },
+        "incomplete_artifacts": {
+          "minimum": 0,
+          "title": "Incomplete Artifacts",
+          "type": "integer"
+        },
+        "instrument_id": {
+          "const": "BTC-USD-PERP.HYPERLIQUID",
+          "default": "BTC-USD-PERP.HYPERLIQUID",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "metrics": {
+          "$ref": "#/$defs/MarketDataRecorderMetricsSnapshot"
+        },
+        "network": {
+          "const": "mainnet",
+          "default": "mainnet",
+          "title": "Network",
+          "type": "string"
+        },
+        "normalized_events": {
+          "minimum": 0,
+          "title": "Normalized Events",
+          "type": "integer"
+        },
+        "normalized_quality_issues": {
+          "items": {
+            "$ref": "#/$defs/MarketDataNamedCount"
+          },
+          "title": "Normalized Quality Issues",
+          "type": "array"
+        },
+        "normalizer_restart_count": {
+          "minimum": 0,
+          "title": "Normalizer Restart Count",
+          "type": "integer"
+        },
+        "normalizer_state": {
+          "$ref": "#/$defs/NormalizerState"
+        },
+        "observation_ended_ts_ns": {
+          "minimum": 0,
+          "title": "Observation Ended Ts Ns",
+          "type": "integer"
+        },
+        "observation_ns": {
+          "minimum": 0,
+          "title": "Observation Ns",
+          "type": "integer"
+        },
+        "observation_started_ts_ns": {
+          "minimum": 0,
+          "title": "Observation Started Ts Ns",
+          "type": "integer"
+        },
+        "overlap_count": {
+          "minimum": 0,
+          "title": "Overlap Count",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "raw_manifest_sha256s": {
+          "items": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "title": "Raw Manifest Sha256S",
+          "type": "array"
+        },
+        "raw_payload_bytes": {
+          "minimum": 0,
+          "title": "Raw Payload Bytes",
+          "type": "integer"
+        },
+        "raw_records": {
+          "minimum": 0,
+          "title": "Raw Records",
+          "type": "integer"
+        },
+        "raw_segments": {
+          "minimum": 0,
+          "title": "Raw Segments",
+          "type": "integer"
+        },
+        "recorder_restart_count": {
+          "minimum": 0,
+          "title": "Recorder Restart Count",
+          "type": "integer"
+        },
+        "recorder_state": {
+          "$ref": "#/$defs/RecorderState"
+        },
+        "report_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Report Id",
+          "type": "string"
+        },
+        "requested_started_ts_ns": {
+          "minimum": 0,
+          "title": "Requested Started Ts Ns",
+          "type": "integer"
+        },
+        "runtime_code_identity": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Runtime Code Identity",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "start_free_bytes": {
+          "minimum": 0,
+          "title": "Start Free Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "report_id",
+        "generated_ts_ns",
+        "requested_started_ts_ns",
+        "observation_started_ts_ns",
+        "observation_ended_ts_ns",
+        "observation_ns",
+        "runtime_code_identity",
+        "collector_code_identity",
+        "image_digest",
+        "environment",
+        "config_fingerprint",
+        "policy_id",
+        "policy_sha256",
+        "raw_manifest_sha256s",
+        "dataset_manifest",
+        "dataset_admission_error",
+        "raw_segments",
+        "raw_records",
+        "raw_payload_bytes",
+        "normalized_events",
+        "excluded_frames",
+        "overlap_count",
+        "incomplete_artifacts",
+        "corrupt_artifacts",
+        "finalization_reasons",
+        "normalized_quality_issues",
+        "recorder_state",
+        "normalizer_state",
+        "metrics",
+        "recorder_restart_count",
+        "normalizer_restart_count",
+        "start_free_bytes",
+        "end_free_bytes",
+        "gates",
+        "accepted"
+      ],
+      "title": "MarketDataSoakReport",
+      "type": "object"
+    },
+    "NormalizerState": {
+      "additionalProperties": false,
+      "properties": {
+        "already_complete": {
+          "minimum": 0,
+          "title": "Already Complete",
+          "type": "integer"
+        },
+        "discovered": {
+          "minimum": 0,
+          "title": "Discovered",
+          "type": "integer"
+        },
+        "heartbeat_ts_ns": {
+          "minimum": 0,
+          "title": "Heartbeat Ts Ns",
+          "type": "integer"
+        },
+        "last_error_code": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Error Code"
+        },
+        "normalized": {
+          "minimum": 0,
+          "title": "Normalized",
+          "type": "integer"
+        },
+        "quarantined": {
+          "minimum": 0,
+          "title": "Quarantined",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "starting",
+            "running",
+            "completed",
+            "stopped",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "heartbeat_ts_ns",
+        "discovered",
+        "normalized",
+        "already_complete",
+        "quarantined"
+      ],
+      "title": "NormalizerState",
+      "type": "object"
+    },
+    "QualityIssueKind": {
+      "enum": [
+        "schema_error",
+        "duplicate",
+        "timestamp_regression",
+        "crossed_book",
+        "silence",
+        "reconnect",
+        "cadence_anomaly",
+        "disk_pressure",
+        "unexplained_gap"
+      ],
+      "title": "QualityIssueKind",
+      "type": "string"
+    },
+    "RecorderState": {
+      "additionalProperties": false,
+      "properties": {
+        "connection_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Connection Id"
+        },
+        "current_segment_id": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Current Segment Id"
+        },
+        "environment": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Environment",
+          "type": "string"
+        },
+        "heartbeat_ts_ns": {
+          "minimum": 0,
+          "title": "Heartbeat Ts Ns",
+          "type": "integer"
+        },
+        "last_error_code": {
+          "anyOf": [
+            {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Error Code"
+        },
+        "last_frame_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Frame Ts Ns"
+        },
+        "network": {
+          "enum": [
+            "testnet",
+            "mainnet"
+          ],
+          "title": "Network",
+          "type": "string"
+        },
+        "reconnect_count": {
+          "minimum": 0,
+          "title": "Reconnect Count",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "starting",
+            "connected",
+            "reconnecting",
+            "stopped",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "environment",
+        "network",
+        "heartbeat_ts_ns",
+        "reconnect_count"
+      ],
+      "title": "RecorderState",
+      "type": "object"
+    },
+    "SegmentFinalizationReason": {
+      "enum": [
+        "rotation",
+        "disconnect",
+        "shutdown",
+        "stale_feed",
+        "disk_pressure",
+        "error"
+      ],
+      "title": "SegmentFinalizationReason",
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/MarketDataSoakPolicy"
+    },
+    {
+      "$ref": "#/$defs/MarketDataRecorderMetricsSnapshot"
+    },
+    {
+      "$ref": "#/$defs/MarketDataSoakReport"
+    }
+  ]
+}

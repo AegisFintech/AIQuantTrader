@@ -27,6 +27,9 @@ from aiquanttrader.backtest.models import (
 )
 from aiquanttrader.domain.data import (
     DatasetManifest,
+    MarketDataRecorderMetricsSnapshot,
+    MarketDataSoakPolicy,
+    MarketDataSoakReport,
     NormalizedSegmentManifest,
     NormalizerState,
     RawSegmentManifest,
@@ -216,6 +219,9 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | ReleaseBundleReceipt
     ).json_schema(),
     "market-data.schema.json": lambda: TypeAdapter(MarketEvent).json_schema(),
+    "market-data-soak.schema.json": lambda: TypeAdapter(
+        MarketDataSoakPolicy | MarketDataRecorderMetricsSnapshot | MarketDataSoakReport
+    ).json_schema(),
     "dataset-manifest.schema.json": lambda: _model_schema(DatasetManifest),
     "normalized-segment-manifest.schema.json": lambda: _model_schema(NormalizedSegmentManifest),
     "normalizer-state.schema.json": lambda: _model_schema(NormalizerState),

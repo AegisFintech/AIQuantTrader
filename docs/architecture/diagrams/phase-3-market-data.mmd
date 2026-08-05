@@ -22,5 +22,16 @@ flowchart LR
     GATE -->|classified gaps only| RESEARCH[Research and replay loaders]
     GATE -->|unexplained / over limit| REJECT[Reject dataset]
 
+    IDENT[Runtime / collector commit + image + config] --> SOAK{Six-hour soak evaluator}
+    PROM --> SOAK
+    STATE --> SOAK
+    NSTATE --> SOAK
+    RAW --> SOAK
+    NM --> SOAK
+    GATE --> SOAK
+    SOAK -->|all gates pass| ACCEPT[Content-addressed acceptance report]
+    SOAK -->|operational gate fails| SREJECT[Content-addressed rejection report]
+    SOAK -->|corrupt / missing / ambiguous input| INVALID[No report; invalid exit]
+
     PRIVATE[Private user feeds] -. account-only liquidation events .-> FUTURE[Phase 4 trading node]
     NOTE[Market-wide liquidations unavailable] --- GATE

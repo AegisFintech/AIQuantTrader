@@ -55,6 +55,10 @@ aqt-market-data recover --data-root /var/lib/aiquanttrader/data
 `recover` moves incomplete raw artifacts into `quarantine/raw-incomplete`. It
 does not remove or repair them. `normalize` moves a corrupt finalized segment
 and its manifest into `quarantine/raw-corrupt` and returns non-zero.
+Recovery is an explicit offline operator action and must not run concurrently
+with the recorder. The continuous normalizer reads finalized manifest/segment
+pairs only and never scans, moves, or opens the recorder's active `.partial`
+file.
 
 ## Tardis historical data
 
@@ -90,35 +94,96 @@ classified gaps over policy, and data-quality issues over policy.
 
 ## Six-hour acceptance soak
 
-Run on the target Debian host:
+Use the frozen policy at `configs/market-data/soak-v1.toml`. Record the exact
+runtime identity and disk baseline before starting on the target Debian host:
 
 ```bash
-date --utc --iso-8601=seconds
-docker compose --profile market-data up -d --no-build \
+SOAK_STARTED_TS_NS="$(date +%s%N)"
+START_FREE_BYTES="$(df -B1 --output=avail / | tail -n 1)"
+RUNTIME_COMMIT="$(git rev-parse HEAD)"
+IMAGE_DIGEST="$(docker image inspect --format '{{.Id}}' \
+  aiquanttrader-native-foundation:0.1.0)"
+docker compose --profile market-data up -d --no-build --force-recreate \
   market-data-recorder market-data-normalizer
 docker compose --profile market-data ps
+docker run --rm aiquanttrader-native-foundation:0.1.0 show-config \
+  --config-dir /etc/aiquanttrader-native --environment paper
+```
 
-# After at least six continuous hours:
-date --utc --iso-8601=seconds
+Retain the `config_fingerprint` printed by `show-config` as
+`RUNTIME_CONFIG_FINGERPRINT`. The runtime commit must come from the reviewed
+image build receipt; `git rev-parse` is valid only when the image was built
+from the current clean commit. A local Docker image ID is accepted as the
+content digest.
+
+After at least six continuous hours, capture the metrics before its timestamp,
+read Docker's restart counters, and run the offline evaluator. The evaluator
+does not connect to Hyperliquid, load a wallet, or submit orders.
+
+```bash
+mkdir -p state/market-data-evidence
+curl --fail --silent http://127.0.0.1:9109/metrics \
+  > state/market-data-evidence/recorder.prom
+METRICS_CAPTURED_TS_NS="$(date +%s%N)"
+RECORDER_RESTARTS="$(docker inspect --format '{{.RestartCount}}' \
+  "$(docker compose ps -q market-data-recorder)")"
+NORMALIZER_RESTARTS="$(docker inspect --format '{{.RestartCount}}' \
+  "$(docker compose ps -q market-data-normalizer)")"
+COLLECTOR_COMMIT="$(git rev-parse HEAD)"
+
+docker compose --profile market-data run --rm --no-deps \
+  -v "$PWD/state/market-data-evidence/recorder.prom:/evidence/recorder.prom:ro" \
+  market-data-normalizer evaluate-soak \
+  --config-dir /etc/aiquanttrader-native \
+  --environment paper \
+  --policy /etc/aiquanttrader-native/market-data/soak-v1.toml \
+  --data-root /var/lib/aiquanttrader/data \
+  --state-root /var/lib/aiquanttrader/state \
+  --metrics-snapshot /evidence/recorder.prom \
+  --metrics-captured-ts-ns "$METRICS_CAPTURED_TS_NS" \
+  --requested-started-ts-ns "$SOAK_STARTED_TS_NS" \
+  --runtime-code-identity "$RUNTIME_COMMIT" \
+  --collector-code-identity "$COLLECTOR_COMMIT" \
+  --image-digest "$IMAGE_DIGEST" \
+  --runtime-config-fingerprint "$RUNTIME_CONFIG_FINGERPRINT" \
+  --start-free-bytes "$START_FREE_BYTES" \
+  --recorder-restart-count "$RECORDER_RESTARTS" \
+  --normalizer-restart-count "$NORMALIZER_RESTARTS" \
+  --output /var/lib/aiquanttrader/data/evidence/market-data-soak.json
+
 docker compose --profile market-data ps
 docker compose --profile market-data logs --since=6h \
   market-data-recorder market-data-normalizer
-curl --fail http://127.0.0.1:9109/metrics
 ```
 
-Retain:
+Exit status `0` means accepted, `1` means a valid rejection report was written,
+and `2` means the input was malformed, missing, corrupt, or ambiguous and no
+report was written. Never treat a missing report as a pass. Copy the report
+from the named volume into the retained operator evidence directory:
 
-- commit and image digest;
-- effective configuration fingerprint;
-- recorder state and Prometheus counter snapshot;
-- normalizer state and container health;
-- all raw and normalized manifests;
-- dataset admission result;
-- reconnect and gap classifications;
-- disk usage at start and finish.
+```bash
+docker compose --profile market-data run --rm --no-deps \
+  --entrypoint /bin/cat market-data-normalizer \
+  /var/lib/aiquanttrader/data/evidence/market-data-soak.json \
+  > state/market-data-evidence/market-data-soak.json
+```
 
-The acceptance gate fails if a gap is unexplained, a corruption is admitted,
-the recorder is repeatedly stale, or free disk crosses its threshold.
+The content-addressed report retains:
+
+- runtime and collector commits, image digest, configuration and policy hashes;
+- recorder and normalizer typed states plus the parsed Prometheus snapshot;
+- raw-manifest hashes, normalized-manifest hashes, admitted dataset, and gaps;
+- restart, reconnect, finalization, exclusion, quarantine, and quality counts;
+- disk usage at start and finish and every individual gate verdict.
+
+Discovery is automatic and includes only finalized segments that start inside
+the requested soak window. Earlier failed deployment artifacts cannot be
+silently selected. Missing normalized output, digest mismatches, or corrupt
+inputs abort evaluation. Reconnects, restarts, stale state, non-rotation
+finalization, exclusions, critical quality issues, unexplained/excessive gaps,
+in-window quarantine artifacts, or either disk-floor breach reject the run.
+`cadence_anomaly` remains visible but is not itself corruption: channels with
+naturally sparse updates can cross the common 15-second diagnostic threshold.
 
 ## Incident responses
 

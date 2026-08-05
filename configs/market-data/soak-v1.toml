@@ -1,0 +1,23 @@
+schema_version = 1
+policy_id = "hyperliquid-btc-mainnet-soak-v1"
+frozen_at_ns = 1785888000000000000
+minimum_observation_ns = 21600000000000
+minimum_finalized_segments = 6
+maximum_start_lag_ns = 5000000000
+maximum_reconnects = 0
+maximum_recorder_restarts = 0
+maximum_normalizer_restarts = 0
+maximum_excluded_frames = 0
+minimum_free_bytes = 5368709120
+recorder_state_stale_after_ns = 30000000000
+normalizer_state_stale_after_ns = 120000000000
+allowed_finalization_reasons = ["rotation"]
+
+[data_quality_policy]
+schema_version = 1
+max_classified_gap_ns = 30000000000
+max_schema_errors = 0
+max_crossed_books = 0
+max_timestamp_regressions = 0
+max_duplicates = 0
+reject_unexplained_gaps = true
