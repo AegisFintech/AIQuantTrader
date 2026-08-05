@@ -70,9 +70,10 @@ The `aiquanttrader_native.retirement` package provides:
   check authority/freshness again at replay completion;
 - a fourteen-gate readiness report, including final-state freshness, which can
   only await stop approval;
-- an exact ten-capability disabled observation covering PM2, cron, nginx,
-  logrotate, autostart, Wine/MT5, and command-file writers;
-- an eight-gate disabled-window report which can only await cleanup approval;
+- exact-inventory disabled-window assembly covering the ordered stop, all ten
+  capabilities, broker history, credential quarantine, native stability, raw
+  evidence, the signed stop approval, and both immutable source roots;
+- a nine-gate disabled-window report which can only await cleanup approval;
 - short-lived, scope-specific retirement approvals and detached Ed25519
   verification against an operator-supplied trust-root fingerprint;
 - cleanup manifests whose targets reject traversal, globs, broad host roots,
@@ -106,7 +107,8 @@ The v1 policy requires at least:
   and the derived state to be no more than one hour old at independent replay;
 - seven full days with every legacy capability disabled, zero active instances,
   zero post-stop broker orders, stable native operation, reverified archives,
-  and quarantined legacy credentials.
+  quarantined legacy credentials, and no capability-evidence gap over five
+  minutes.
 
 A future policy change must be reviewed and frozen before its observation
 begins. Thresholds are never loosened after observing results.
@@ -131,6 +133,9 @@ verified final MT5 state + verified archive
   -> mechanical host/repository cleanup
   -> native package-root migration and full native revalidation
 ```
+
+The disabled-window source and replay flow is shown in
+[`phase-10-disabled-observation.mmd`](../architecture/diagrams/phase-10-disabled-observation.mmd).
 
 ## Commands
 
@@ -227,9 +232,32 @@ aqt-retirement verify-approval \
   --expected-archive-manifest-sha256 <archive-manifest-sha256> \
   --expected-source-commit-sha <mt5-final-commit>
 
-aqt-retirement evaluate-disabled \
-  --observation /absolute/evidence/disabled-observation.json \
+aqt-retirement assemble-disabled \
+  --disabled-evidence-root /absolute/evidence/disabled-window \
+  --native-evidence-root /absolute/evidence/native-production \
+  --legacy-evidence-root /absolute/evidence/legacy-archive-bundle \
+  --readiness-observation /absolute/evidence/readiness-observation.json \
+  --readiness-report /absolute/evidence/readiness-report.json \
+  --native-observation /absolute/evidence/native-production-observation.json \
+  --archive-manifest /absolute/evidence/legacy-archive-manifest.json \
+  --stop-approval /absolute/offline/stop-approval.json \
+  --stop-signature /absolute/offline/stop-approval.sig.json \
+  --stop-public-key /absolute/trust/retirement-approver.pub \
   --policy native/configs/retirement/evidence-v1.toml \
+  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --native-approval-key-id <pinned-native-key-id> \
+  --native-approval-public-key-sha256 <pinned-native-fingerprint> \
+  --stop-approval-key-id <pinned-stop-key-id> \
+  --stop-approval-public-key-sha256 <pinned-stop-fingerprint> \
+  --output /absolute/evidence/disabled-observation.json
+
+aqt-retirement verify-disabled \
+  <the same source and trust arguments> \
+  --observation /absolute/evidence/disabled-observation.json
+
+aqt-retirement evaluate-disabled \
+  <the same source and trust arguments> \
+  --observation /absolute/evidence/disabled-observation.json \
   --output /absolute/evidence/disabled-report.json
 
 aqt-retirement validate-cleanup-manifest \
@@ -286,6 +314,9 @@ Final MT5/broker/service evidence packaging and reconciliation are documented
 in [`Phase 10: Final MT5 State Assembly`](PHASE_10_FINAL_STATE.md).
 Cross-bundle identity, replay, and report evaluation are documented in
 [`Phase 10: Retirement Readiness Assembly`](PHASE_10_READINESS_ASSEMBLY.md).
+Exact disabled-window packaging, signature-time verification, source replay,
+and report evaluation are documented in
+[`Phase 10: Disabled Observation Assembly`](PHASE_10_DISABLED_OBSERVATION.md).
 Before the cleanup approval, rollback means leaving native safe and halted while
 the owner decides whether to issue new, explicit MT5 reactivation authority.
 After cleanup, recovery uses the immutable archive and `mt5-final` tag in a

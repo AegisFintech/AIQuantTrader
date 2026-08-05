@@ -128,8 +128,22 @@ window:
 - the final archive is rehashed and restorable;
 - disk, clocks, alerts, backups, and operator access remain healthy.
 
-Build `DisabledObservation` and run `aqt-retirement evaluate-disabled`. A
-passing report says only `awaiting_cleanup_approval`.
+Freeze the exact six-control bundle described by
+`PHASE_10_DISABLED_OBSERVATION.md`. It must retain the ordered stop execution,
+all ten capability samples without a gap over five minutes, complete post-stop
+broker history, continuous credential-quarantine audit, native stability audit,
+every referenced raw artifact, and a policy-bound recursive credential scan
+with zero findings. Never place secret values in the bundle.
+
+Run `aqt-retirement assemble-disabled` with the canonical readiness
+observation/report, detached stop approval, current native-production evidence,
+final archive, both frozen policies, and both independently pinned signer
+identities. A second operator runs `verify-disabled`. Then run
+`evaluate-disabled` with the same sources; evaluation repeats the entire replay.
+An expired stop approval is verified at the retained stop-completion timestamp,
+while native production authority and archive retention must be current at
+replay. Any source, trust, interval, sampling, identity, or inventory mismatch
+stops Gate C. A passing report says only `awaiting_cleanup_approval`.
 
 ## Gate D: exact cleanup approval
 

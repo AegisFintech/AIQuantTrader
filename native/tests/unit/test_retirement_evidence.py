@@ -50,6 +50,7 @@ def _policy() -> RetirementPolicy:
         minimum_native_production_observation_ns=100,
         maximum_native_operational_gap_ns=50,
         minimum_disabled_observation_ns=100,
+        maximum_disabled_evidence_gap_ns=100,
         minimum_archive_retention_ns=1_000,
         maximum_final_state_capture_skew_ns=100,
         maximum_final_state_age_ns=1_000,
@@ -154,17 +155,28 @@ def _readiness() -> RetirementReadinessObservation:
 def _disabled() -> DisabledObservation:
     return DisabledObservation(
         retirement_id="retirement-test-001",
+        policy_id=_policy().policy_id,
+        policy_sha256=_policy().sha256(),
+        assembled_ts_ns=700,
         readiness_report_sha256="5" * 64,
         stop_approval_sha256="6" * 64,
+        stop_approval_verification_id="9" * 64,
         archive_manifest_sha256=_archive().sha256(),
+        archive_bundle_sha256=_archive().evidence_bundle_sha256,
         native_deployment_id="native-production-001",
         native_admission_id="1" * 64,
+        native_observation_sha256="0" * 64,
         started_ts_ns=500,
         ended_ts_ns=700,
+        capability_sample_count=3,
+        maximum_capability_gap_ns=100,
+        capability_audit_invalidating_events=0,
         native_critical_incidents=0,
         native_reconciliation_failures=0,
         native_risk_breaches=0,
+        native_audit_complete=True,
         legacy_broker_orders_after_stop=0,
+        legacy_broker_order_audit_complete=True,
         archive_reverified=True,
         legacy_credentials_quarantined=True,
         capabilities=tuple(
@@ -176,6 +188,8 @@ def _disabled() -> DisabledObservation:
             )
             for capability in LegacyCapability
         ),
+        evidence_manifest_sha256="3" * 64,
+        credential_scan_sha256="2" * 64,
         evidence_bundle_sha256="8" * 64,
     )
 
@@ -301,6 +315,7 @@ def test_policy_loader_and_approval_scope_are_fail_closed(tmp_path: Path) -> Non
                 "minimum_native_production_observation_ns = 100",
                 "maximum_native_operational_gap_ns = 50",
                 "minimum_disabled_observation_ns = 100",
+                "maximum_disabled_evidence_gap_ns = 100",
                 "minimum_archive_retention_ns = 1000",
                 "maximum_final_state_capture_skew_ns = 100",
                 "maximum_final_state_age_ns = 1000",
@@ -404,29 +419,8 @@ def test_cleanup_manifest_rejects_broad_targets_globs_and_wrong_secret_actions()
 
 def test_retirement_evidence_cli_writes_reports_and_validates_cleanup(
     tmp_path: Path,
-    project_root: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    policy = project_root / "configs" / "retirement" / "evidence-v1.toml"
-    disabled_path = tmp_path / "disabled-observation.json"
-    disabled_report = tmp_path / "disabled-report.json"
-    disabled_path.write_bytes(_disabled().canonical_bytes())
-    assert (
-        retirement_main(
-            [
-                "evaluate-disabled",
-                "--observation",
-                str(disabled_path),
-                "--policy",
-                str(policy),
-                "--output",
-                str(disabled_report),
-            ]
-        )
-        == 1
-    )
-    assert disabled_report.is_file()
-
     manifest = LegacyCleanupManifest(
         retirement_id="retirement-test-001",
         created_ts_ns=1,

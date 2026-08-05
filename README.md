@@ -49,6 +49,8 @@ it cannot stop services or delete anything. MT5 shutdown requires a signed
 archive. Removal requires seven days disabled under the baseline policy plus a
 separate signed `remove_and_clean` approval. See
 [`docs/migration/PHASE_10_LEGACY_RETIREMENT.md`](docs/migration/PHASE_10_LEGACY_RETIREMENT.md)
+and
+[`docs/migration/PHASE_10_DISABLED_OBSERVATION.md`](docs/migration/PHASE_10_DISABLED_OBSERVATION.md)
 and the
 [`legacy retirement runbook`](docs/operations/LEGACY_RETIREMENT_RUNBOOK.md).
 

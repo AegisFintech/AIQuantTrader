@@ -21,6 +21,338 @@
       "title": "CleanupTargetKind",
       "type": "string"
     },
+    "DisabledCredentialScanCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "artifact_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Artifact Sha256",
+          "type": "string"
+        },
+        "finding_count": {
+          "const": 0,
+          "default": 0,
+          "title": "Finding Count",
+          "type": "integer"
+        },
+        "recursive_scan_completed": {
+          "const": true,
+          "default": true,
+          "title": "Recursive Scan Completed",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "artifact_sha256"
+      ],
+      "title": "DisabledCredentialScanCheck",
+      "type": "object"
+    },
+    "DisabledCredentialScanEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/DisabledCredentialScanCheck"
+          },
+          "maxItems": 8192,
+          "minItems": 5,
+          "title": "Checks",
+          "type": "array"
+        },
+        "ended_ts_ns": {
+          "minimum": 0,
+          "title": "Ended Ts Ns",
+          "type": "integer"
+        },
+        "findings": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "reviewed_ts_ns": {
+          "minimum": 0,
+          "title": "Reviewed Ts Ns",
+          "type": "integer"
+        },
+        "reviewer": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewer",
+          "type": "string"
+        },
+        "scanner_name": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Scanner Name",
+          "type": "string"
+        },
+        "scanner_version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Scanner Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_ts_ns": {
+          "minimum": 0,
+          "title": "Started Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "started_ts_ns",
+        "ended_ts_ns",
+        "reviewed_ts_ns",
+        "reviewer",
+        "scanner_name",
+        "scanner_version",
+        "policy_id",
+        "policy_sha256",
+        "checks"
+      ],
+      "title": "DisabledCredentialScanEvidence",
+      "type": "object"
+    },
+    "DisabledEvidenceArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "byte_count": {
+          "exclusiveMinimum": 0,
+          "maximum": 268435456,
+          "title": "Byte Count",
+          "type": "integer"
+        },
+        "captured_end_ts_ns": {
+          "minimum": 0,
+          "title": "Captured End Ts Ns",
+          "type": "integer"
+        },
+        "captured_start_ts_ns": {
+          "minimum": 0,
+          "title": "Captured Start Ts Ns",
+          "type": "integer"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/DisabledEvidenceArtifactKind"
+        },
+        "relative_path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Relative Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "kind",
+        "relative_path",
+        "content_sha256",
+        "byte_count",
+        "captured_start_ts_ns",
+        "captured_end_ts_ns"
+      ],
+      "title": "DisabledEvidenceArtifact",
+      "type": "object"
+    },
+    "DisabledEvidenceArtifactKind": {
+      "enum": [
+        "stop_execution_output",
+        "capability_snapshot",
+        "broker_order_export",
+        "credential_quarantine_audit",
+        "native_operational_audit"
+      ],
+      "title": "DisabledEvidenceArtifactKind",
+      "type": "string"
+    },
+    "DisabledEvidenceControl": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_count": {
+          "exclusiveMinimum": 0,
+          "maximum": 16777216,
+          "title": "Byte Count",
+          "type": "integer"
+        },
+        "captured_ts_ns": {
+          "minimum": 0,
+          "title": "Captured Ts Ns",
+          "type": "integer"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/DisabledEvidenceControlKind"
+        },
+        "relative_path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Relative Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "relative_path",
+        "content_sha256",
+        "byte_count",
+        "captured_ts_ns"
+      ],
+      "title": "DisabledEvidenceControl",
+      "type": "object"
+    },
+    "DisabledEvidenceControlKind": {
+      "enum": [
+        "stop_execution",
+        "capability_audit",
+        "broker_order_audit",
+        "credential_quarantine",
+        "native_stability_audit",
+        "credential_scan"
+      ],
+      "title": "DisabledEvidenceControlKind",
+      "type": "string"
+    },
+    "DisabledEvidenceManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "archive_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Archive Manifest Sha256",
+          "type": "string"
+        },
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/DisabledEvidenceArtifact"
+          },
+          "maxItems": 8192,
+          "minItems": 5,
+          "title": "Artifacts",
+          "type": "array"
+        },
+        "contains_credentials": {
+          "const": false,
+          "default": false,
+          "title": "Contains Credentials",
+          "type": "boolean"
+        },
+        "controls": {
+          "items": {
+            "$ref": "#/$defs/DisabledEvidenceControl"
+          },
+          "maxItems": 6,
+          "minItems": 6,
+          "title": "Controls",
+          "type": "array"
+        },
+        "created_ts_ns": {
+          "minimum": 0,
+          "title": "Created Ts Ns",
+          "type": "integer"
+        },
+        "ended_ts_ns": {
+          "minimum": 0,
+          "title": "Ended Ts Ns",
+          "type": "integer"
+        },
+        "native_admission_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Native Admission Id",
+          "type": "string"
+        },
+        "native_deployment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Native Deployment Id",
+          "type": "string"
+        },
+        "readiness_report_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Readiness Report Sha256",
+          "type": "string"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_ts_ns": {
+          "minimum": 0,
+          "title": "Started Ts Ns",
+          "type": "integer"
+        },
+        "stop_approval_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Stop Approval Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "created_ts_ns",
+        "started_ts_ns",
+        "ended_ts_ns",
+        "readiness_report_sha256",
+        "stop_approval_sha256",
+        "archive_manifest_sha256",
+        "native_deployment_id",
+        "native_admission_id",
+        "artifacts",
+        "controls"
+      ],
+      "title": "DisabledEvidenceManifest",
+      "type": "object"
+    },
     "DisabledGateResult": {
       "additionalProperties": false,
       "properties": {
@@ -56,14 +388,26 @@
     "DisabledObservation": {
       "additionalProperties": false,
       "properties": {
+        "archive_bundle_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Archive Bundle Sha256",
+          "type": "string"
+        },
         "archive_manifest_sha256": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Archive Manifest Sha256",
           "type": "string"
         },
         "archive_reverified": {
+          "const": true,
+          "default": true,
           "title": "Archive Reverified",
           "type": "boolean"
+        },
+        "assembled_ts_ns": {
+          "minimum": 0,
+          "title": "Assembled Ts Ns",
+          "type": "integer"
         },
         "capabilities": {
           "items": {
@@ -73,6 +417,22 @@
           "minItems": 10,
           "title": "Capabilities",
           "type": "array"
+        },
+        "capability_audit_invalidating_events": {
+          "minimum": 0,
+          "title": "Capability Audit Invalidating Events",
+          "type": "integer"
+        },
+        "capability_sample_count": {
+          "maximum": 8192,
+          "minimum": 2,
+          "title": "Capability Sample Count",
+          "type": "integer"
+        },
+        "credential_scan_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Credential Scan Sha256",
+          "type": "string"
         },
         "ended_ts_ns": {
           "minimum": 0,
@@ -84,6 +444,15 @@
           "title": "Evidence Bundle Sha256",
           "type": "string"
         },
+        "evidence_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Evidence Manifest Sha256",
+          "type": "string"
+        },
+        "legacy_broker_order_audit_complete": {
+          "title": "Legacy Broker Order Audit Complete",
+          "type": "boolean"
+        },
         "legacy_broker_orders_after_stop": {
           "minimum": 0,
           "title": "Legacy Broker Orders After Stop",
@@ -93,10 +462,19 @@
           "title": "Legacy Credentials Quarantined",
           "type": "boolean"
         },
+        "maximum_capability_gap_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Maximum Capability Gap Ns",
+          "type": "integer"
+        },
         "native_admission_id": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Native Admission Id",
           "type": "string"
+        },
+        "native_audit_complete": {
+          "title": "Native Audit Complete",
+          "type": "boolean"
         },
         "native_critical_incidents": {
           "minimum": 0,
@@ -106,6 +484,11 @@
         "native_deployment_id": {
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
           "title": "Native Deployment Id",
+          "type": "string"
+        },
+        "native_observation_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Native Observation Sha256",
           "type": "string"
         },
         "native_reconciliation_failures": {
@@ -118,6 +501,16 @@
           "title": "Native Risk Breaches",
           "type": "integer"
         },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
         "readiness_report_sha256": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Readiness Report Sha256",
@@ -129,8 +522,8 @@
           "type": "string"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -143,24 +536,41 @@
           "pattern": "^[0-9a-f]{64}$",
           "title": "Stop Approval Sha256",
           "type": "string"
+        },
+        "stop_approval_verification_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Stop Approval Verification Id",
+          "type": "string"
         }
       },
       "required": [
         "retirement_id",
+        "policy_id",
+        "policy_sha256",
+        "assembled_ts_ns",
         "readiness_report_sha256",
         "stop_approval_sha256",
+        "stop_approval_verification_id",
         "archive_manifest_sha256",
+        "archive_bundle_sha256",
         "native_deployment_id",
         "native_admission_id",
+        "native_observation_sha256",
         "started_ts_ns",
         "ended_ts_ns",
+        "capability_sample_count",
+        "maximum_capability_gap_ns",
+        "capability_audit_invalidating_events",
         "native_critical_incidents",
         "native_reconciliation_failures",
         "native_risk_breaches",
+        "native_audit_complete",
         "legacy_broker_orders_after_stop",
-        "archive_reverified",
+        "legacy_broker_order_audit_complete",
         "legacy_credentials_quarantined",
         "capabilities",
+        "evidence_manifest_sha256",
+        "credential_scan_sha256",
         "evidence_bundle_sha256"
       ],
       "title": "DisabledObservation",
@@ -170,6 +580,7 @@
       "enum": [
         "policy_frozen",
         "observation_window",
+        "evidence_continuity",
         "all_capabilities_disabled",
         "zero_active_instances",
         "no_legacy_orders",
@@ -245,8 +656,8 @@
           "type": "string"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -948,6 +1359,98 @@
       "title": "LegacyBrokerAccountStateEvidence",
       "type": "object"
     },
+    "LegacyBrokerOrderAuditEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "account_login_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Account Login Sha256",
+          "type": "string"
+        },
+        "broker_server_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Broker Server Sha256",
+          "type": "string"
+        },
+        "captured_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Captured By",
+          "type": "string"
+        },
+        "captured_ts_ns": {
+          "minimum": 0,
+          "title": "Captured Ts Ns",
+          "type": "integer"
+        },
+        "coverage_complete": {
+          "title": "Coverage Complete",
+          "type": "boolean"
+        },
+        "orders": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/LegacyPostStopBrokerOrder"
+          },
+          "maxItems": 100000,
+          "title": "Orders",
+          "type": "array"
+        },
+        "queried_end_ts_ns": {
+          "minimum": 0,
+          "title": "Queried End Ts Ns",
+          "type": "integer"
+        },
+        "queried_start_ts_ns": {
+          "minimum": 0,
+          "title": "Queried Start Ts Ns",
+          "type": "integer"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "reviewed_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewed By",
+          "type": "string"
+        },
+        "reviewed_ts_ns": {
+          "minimum": 0,
+          "title": "Reviewed Ts Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source_evidence_path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Source Evidence Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "queried_start_ts_ns",
+        "queried_end_ts_ns",
+        "captured_ts_ns",
+        "reviewed_ts_ns",
+        "captured_by",
+        "reviewed_by",
+        "account_login_sha256",
+        "broker_server_sha256",
+        "coverage_complete",
+        "source_evidence_path"
+      ],
+      "title": "LegacyBrokerOrderAuditEvidence",
+      "type": "object"
+    },
     "LegacyBrokerOrderEvidence": {
       "additionalProperties": false,
       "properties": {
@@ -1006,6 +1509,78 @@
       "title": "LegacyCapability",
       "type": "string"
     },
+    "LegacyCapabilityAuditEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "collected_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Collected By",
+          "type": "string"
+        },
+        "ended_ts_ns": {
+          "minimum": 0,
+          "title": "Ended Ts Ns",
+          "type": "integer"
+        },
+        "invalidating_events": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Invalidating Events",
+          "type": "array"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "reviewed_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewed By",
+          "type": "string"
+        },
+        "reviewed_ts_ns": {
+          "minimum": 0,
+          "title": "Reviewed Ts Ns",
+          "type": "integer"
+        },
+        "samples": {
+          "items": {
+            "$ref": "#/$defs/LegacyCapabilitySample"
+          },
+          "maxItems": 8192,
+          "minItems": 2,
+          "title": "Samples",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_ts_ns": {
+          "minimum": 0,
+          "title": "Started Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "started_ts_ns",
+        "ended_ts_ns",
+        "reviewed_ts_ns",
+        "collected_by",
+        "reviewed_by",
+        "samples"
+      ],
+      "title": "LegacyCapabilityAuditEvidence",
+      "type": "object"
+    },
     "LegacyCapabilityObservation": {
       "additionalProperties": false,
       "properties": {
@@ -1034,6 +1609,63 @@
         "evidence_sha256"
       ],
       "title": "LegacyCapabilityObservation",
+      "type": "object"
+    },
+    "LegacyCapabilitySample": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Evidence Path",
+          "type": "string"
+        },
+        "observed_ts_ns": {
+          "minimum": 0,
+          "title": "Observed Ts Ns",
+          "type": "integer"
+        },
+        "states": {
+          "items": {
+            "$ref": "#/$defs/LegacyCapabilityState"
+          },
+          "maxItems": 10,
+          "minItems": 10,
+          "title": "States",
+          "type": "array"
+        }
+      },
+      "required": [
+        "observed_ts_ns",
+        "evidence_path",
+        "states"
+      ],
+      "title": "LegacyCapabilitySample",
+      "type": "object"
+    },
+    "LegacyCapabilityState": {
+      "additionalProperties": false,
+      "properties": {
+        "active_instance_count": {
+          "maximum": 65536,
+          "minimum": 0,
+          "title": "Active Instance Count",
+          "type": "integer"
+        },
+        "capability": {
+          "$ref": "#/$defs/LegacyCapability"
+        },
+        "disabled": {
+          "title": "Disabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "capability",
+        "disabled",
+        "active_instance_count"
+      ],
+      "title": "LegacyCapabilityState",
       "type": "object"
     },
     "LegacyCleanupManifest": {
@@ -1197,6 +1829,113 @@
       ],
       "title": "LegacyCredentialDetector",
       "type": "string"
+    },
+    "LegacyCredentialQuarantineCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "active_reader_count": {
+          "maximum": 65536,
+          "minimum": 0,
+          "title": "Active Reader Count",
+          "type": "integer"
+        },
+        "credential_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Credential Id",
+          "type": "string"
+        },
+        "evidence_path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Evidence Path",
+          "type": "string"
+        },
+        "quarantined": {
+          "title": "Quarantined",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "credential_id",
+        "quarantined",
+        "active_reader_count",
+        "evidence_path"
+      ],
+      "title": "LegacyCredentialQuarantineCheck",
+      "type": "object"
+    },
+    "LegacyCredentialQuarantineEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/LegacyCredentialQuarantineCheck"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Checks",
+          "type": "array"
+        },
+        "collected_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Collected By",
+          "type": "string"
+        },
+        "continuous_audit": {
+          "title": "Continuous Audit",
+          "type": "boolean"
+        },
+        "inventory_complete": {
+          "title": "Inventory Complete",
+          "type": "boolean"
+        },
+        "observed_through_ts_ns": {
+          "minimum": 0,
+          "title": "Observed Through Ts Ns",
+          "type": "integer"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "reviewed_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewed By",
+          "type": "string"
+        },
+        "reviewed_ts_ns": {
+          "minimum": 0,
+          "title": "Reviewed Ts Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_ts_ns": {
+          "minimum": 0,
+          "title": "Started Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "started_ts_ns",
+        "observed_through_ts_ns",
+        "reviewed_ts_ns",
+        "collected_by",
+        "reviewed_by",
+        "inventory_complete",
+        "continuous_audit",
+        "checks"
+      ],
+      "title": "LegacyCredentialQuarantineEvidence",
+      "type": "object"
     },
     "LegacyFinalState": {
       "additionalProperties": false,
@@ -1540,6 +2279,33 @@
       "title": "LegacyManagedPositionEvidence",
       "type": "object"
     },
+    "LegacyPostStopBrokerOrder": {
+      "additionalProperties": false,
+      "properties": {
+        "created_ts_ns": {
+          "minimum": 0,
+          "title": "Created Ts Ns",
+          "type": "integer"
+        },
+        "instrument_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "order_id_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Order Id Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "order_id_sha256",
+        "instrument_id",
+        "created_ts_ns"
+      ],
+      "title": "LegacyPostStopBrokerOrder",
+      "type": "object"
+    },
     "LegacyServiceConfigurationEvidence": {
       "additionalProperties": false,
       "properties": {
@@ -1624,6 +2390,216 @@
         "command_writer_checks"
       ],
       "title": "LegacyServiceConfigurationEvidence",
+      "type": "object"
+    },
+    "LegacyStopActionEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/RequiredLegacyStopAction"
+        },
+        "completed_ts_ns": {
+          "minimum": 0,
+          "title": "Completed Ts Ns",
+          "type": "integer"
+        },
+        "evidence_path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Evidence Path",
+          "type": "string"
+        },
+        "succeeded": {
+          "const": true,
+          "default": true,
+          "title": "Succeeded",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "action",
+        "completed_ts_ns",
+        "evidence_path"
+      ],
+      "title": "LegacyStopActionEvidence",
+      "type": "object"
+    },
+    "LegacyStopExecutionEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "actions": {
+          "items": {
+            "$ref": "#/$defs/LegacyStopActionEvidence"
+          },
+          "maxItems": 13,
+          "minItems": 13,
+          "title": "Actions",
+          "type": "array"
+        },
+        "ended_ts_ns": {
+          "minimum": 0,
+          "title": "Ended Ts Ns",
+          "type": "integer"
+        },
+        "invalidating_events": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Invalidating Events",
+          "type": "array"
+        },
+        "operator": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Operator",
+          "type": "string"
+        },
+        "readiness_report_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Readiness Report Sha256",
+          "type": "string"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "reviewer": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewer",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_ts_ns": {
+          "minimum": 0,
+          "title": "Started Ts Ns",
+          "type": "integer"
+        },
+        "stop_approval_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Stop Approval Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "readiness_report_sha256",
+        "stop_approval_sha256",
+        "started_ts_ns",
+        "ended_ts_ns",
+        "operator",
+        "reviewer",
+        "actions"
+      ],
+      "title": "LegacyStopExecutionEvidence",
+      "type": "object"
+    },
+    "NativeDisabledWindowEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "collected_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Collected By",
+          "type": "string"
+        },
+        "continuous_monitoring": {
+          "title": "Continuous Monitoring",
+          "type": "boolean"
+        },
+        "critical_incidents": {
+          "minimum": 0,
+          "title": "Critical Incidents",
+          "type": "integer"
+        },
+        "ended_ts_ns": {
+          "minimum": 0,
+          "title": "Ended Ts Ns",
+          "type": "integer"
+        },
+        "evidence_paths": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 1024,
+          "minItems": 1,
+          "title": "Evidence Paths",
+          "type": "array"
+        },
+        "native_admission_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Native Admission Id",
+          "type": "string"
+        },
+        "native_deployment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Native Deployment Id",
+          "type": "string"
+        },
+        "reconciliation_failures": {
+          "minimum": 0,
+          "title": "Reconciliation Failures",
+          "type": "integer"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "reviewed_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewed By",
+          "type": "string"
+        },
+        "reviewed_ts_ns": {
+          "minimum": 0,
+          "title": "Reviewed Ts Ns",
+          "type": "integer"
+        },
+        "risk_breaches": {
+          "minimum": 0,
+          "title": "Risk Breaches",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_ts_ns": {
+          "minimum": 0,
+          "title": "Started Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "native_deployment_id",
+        "native_admission_id",
+        "started_ts_ns",
+        "ended_ts_ns",
+        "reviewed_ts_ns",
+        "collected_by",
+        "reviewed_by",
+        "continuous_monitoring",
+        "critical_incidents",
+        "reconciliation_failures",
+        "risk_breaches",
+        "evidence_paths"
+      ],
+      "title": "NativeDisabledWindowEvidence",
       "type": "object"
     },
     "NativeDrillCheck": {
@@ -2147,6 +3123,25 @@
       "title": "ProductionIncidentSeverity",
       "type": "string"
     },
+    "RequiredLegacyStopAction": {
+      "enum": [
+        "stop_watchdog",
+        "stop_review",
+        "stop_mt5",
+        "stop_dashboard",
+        "remove_pm2_startup",
+        "disable_cron",
+        "disable_nginx_route",
+        "disable_logrotate",
+        "disable_mt5_autostart",
+        "quarantine_credentials",
+        "verify_zero_mt5_processes",
+        "verify_zero_command_writers",
+        "verify_zero_broker_orders"
+      ],
+      "title": "RequiredLegacyStopAction",
+      "type": "string"
+    },
     "RequiredNativeDrill": {
       "enum": [
         "native_rollback",
@@ -2354,6 +3349,11 @@
           "title": "Frozen At Ns",
           "type": "integer"
         },
+        "maximum_disabled_evidence_gap_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Maximum Disabled Evidence Gap Ns",
+          "type": "integer"
+        },
         "maximum_final_state_age_ns": {
           "exclusiveMinimum": 0,
           "title": "Maximum Final State Age Ns",
@@ -2429,6 +3429,7 @@
         "minimum_native_production_observation_ns",
         "maximum_native_operational_gap_ns",
         "minimum_disabled_observation_ns",
+        "maximum_disabled_evidence_gap_ns",
         "minimum_archive_retention_ns",
         "maximum_final_state_capture_skew_ns",
         "maximum_final_state_age_ns",
@@ -2704,6 +3705,27 @@
     },
     {
       "$ref": "#/$defs/DisabledObservationReport"
+    },
+    {
+      "$ref": "#/$defs/DisabledEvidenceManifest"
+    },
+    {
+      "$ref": "#/$defs/DisabledCredentialScanEvidence"
+    },
+    {
+      "$ref": "#/$defs/LegacyStopExecutionEvidence"
+    },
+    {
+      "$ref": "#/$defs/LegacyCapabilityAuditEvidence"
+    },
+    {
+      "$ref": "#/$defs/LegacyBrokerOrderAuditEvidence"
+    },
+    {
+      "$ref": "#/$defs/LegacyCredentialQuarantineEvidence"
+    },
+    {
+      "$ref": "#/$defs/NativeDisabledWindowEvidence"
     },
     {
       "$ref": "#/$defs/RetirementActionApproval"

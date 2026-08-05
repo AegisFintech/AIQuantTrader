@@ -336,6 +336,14 @@ are rechecked. Report evaluation repeats the same source replay and remains
 action-free. See
 [`diagrams/phase-10-readiness-assembly.mmd`](diagrams/phase-10-readiness-assembly.mmd).
 
+The reversible disabled window is then independently assembled from an exact
+six-control bundle with fully referenced raw stop, capability, broker,
+credential, and native evidence. The stop signature is verified at action
+completion, while native authority and archive retention are reverified at
+cleanup review. Five-minute capability continuity and all report totals are
+derived during replay. See
+[`diagrams/phase-10-disabled-observation.mmd`](diagrams/phase-10-disabled-observation.mmd).
+
 Promotion gates are frozen before an experiment begins and evaluate post-cost
 PnL, drawdown and tail loss, consistency, inventory exposure, fill calibration,
 maker ratio, markouts, latency, operational failures, and drift. Prediction

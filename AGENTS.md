@@ -23,6 +23,7 @@ only the standard BTC perpetual, represented as
 - `docs/migration/PHASE_9_PRODUCTION_RENEWAL.md`
 - `docs/migration/PHASE_10_LEGACY_RETIREMENT.md`
 - `docs/migration/PHASE_10_READINESS_ASSEMBLY.md`
+- `docs/migration/PHASE_10_DISABLED_OBSERVATION.md`
 - `docs/operations/NATIVE_PLATFORM_THREAT_MODEL.md`
 - `docs/operations/NATIVE_RELEASE_CHECKLIST.md`
 - `docs/operations/EXECUTION_RISK_RUNBOOK.md`
@@ -90,6 +91,11 @@ Migration rules:
   must reverify both immutable roots, the external native signer identity, and
   both frozen policies; never hand-author a readiness observation or evaluate
   one without source replay.
+- Phase 10 disabled state must be derived with `aqt-retirement
+  assemble-disabled` from the exact immutable six-control bundle and then
+  independently replayed with `verify-disabled`. `evaluate-disabled` must
+  replay the disabled, native, and archive roots plus both external signer
+  identities; never hand-author a passing disabled observation.
 - Every checked-in overlay must remain execution-disabled. Never create, sign,
   admit, fund, or activate a mainnet release merely because the Phase 9 code is
   present.
@@ -119,6 +125,7 @@ AIQuantTrader is now an MT5-first autonomous demo-trading repo. Trade and optimi
   `docs/migration/PHASE_10_LEGACY_ARCHIVE.md` plus
   `docs/migration/PHASE_10_FINAL_STATE.md` plus
   `docs/migration/PHASE_10_READINESS_ASSEMBLY.md` plus
+  `docs/migration/PHASE_10_DISABLED_OBSERVATION.md` plus
   `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md`. `aqt-retirement` is
   evidence-only and must never gain PM2, deletion, package-manager, credential,
   broker, exchange, or network actions.

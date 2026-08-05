@@ -240,10 +240,11 @@ identity. Phase 9 does not stop, tag, archive, or remove MT5.
 
 ### Phase 10: Legacy MT5 retirement and repository cleanup
 
-Implementation note: typed readiness/archive/disabled evidence, a frozen
-baseline policy, short-lived scope-specific approvals, exact cleanup manifests,
-and offline Ed25519 verification are implemented. The active MT5 deployment is
-unchanged and no retirement approval has been created.
+Implementation note: deterministic native/archive/final-state/readiness and
+disabled-window assembly/replay, a frozen baseline policy, short-lived
+scope-specific approvals, exact cleanup manifests, and offline Ed25519
+verification are implemented. The active MT5 deployment is unchanged and no
+retirement approval has been created.
 
 Deliverables:
 
@@ -253,7 +254,8 @@ Deliverables:
 - signed `stop_and_observe` approval for the exact readiness report;
 - exact disablement of PM2, cron, nginx, logrotate, autostart, Wine/MT5, and
   command-file writer capabilities;
-- minimum seven-day reversible disabled observation under the v1 policy;
+- minimum seven-day exact-inventory reversible disabled observation under the
+  v1 policy with five-minute capability continuity and source replay;
 - canonical cleanup manifest and separate signed `remove_and_clean` approval;
 - mechanical host cleanup and repository removal PR;
 - ADR 0008 native package/root migration and complete native revalidation.
