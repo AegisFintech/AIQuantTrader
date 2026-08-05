@@ -84,8 +84,8 @@ aqt-retirement assemble-readiness \
   --native-observation /absolute/evidence/native-production-observation.json \
   --archive-manifest /absolute/evidence/legacy-archive-manifest.json \
   --final-state /absolute/evidence/legacy-final-state.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --approval-key-id <independently-recorded-key-id> \
   --approval-public-key-sha256 <independently-pinned-fingerprint> \
   --output /absolute/evidence/readiness-observation.json
@@ -94,8 +94,8 @@ aqt-retirement verify-readiness \
   --native-evidence-root /absolute/evidence/native-production \
   --legacy-evidence-root /absolute/evidence/legacy-archive-bundle \
   --observation /absolute/evidence/readiness-observation.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --approval-key-id <independently-recorded-key-id> \
   --approval-public-key-sha256 <independently-pinned-fingerprint>
 
@@ -103,8 +103,8 @@ aqt-retirement evaluate-readiness \
   --native-evidence-root /absolute/evidence/native-production \
   --legacy-evidence-root /absolute/evidence/legacy-archive-bundle \
   --observation /absolute/evidence/readiness-observation.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --approval-key-id <independently-recorded-key-id> \
   --approval-public-key-sha256 <independently-pinned-fingerprint> \
   --output /absolute/evidence/readiness-report.json

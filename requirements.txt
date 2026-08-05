@@ -1,6 +1,0 @@
-python-dotenv
-pandas
-numpy
-duckdb
-streamlit
-pytest

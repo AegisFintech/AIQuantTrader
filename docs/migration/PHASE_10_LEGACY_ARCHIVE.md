@@ -116,15 +116,15 @@ Prepare and review the immutable bundle outside this tool, then run:
 ```bash
 aqt-retirement assemble-archive \
   --evidence-root /absolute/retained/legacy-final \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --output /absolute/retained/legacy-archive-manifest.json
 
 aqt-retirement verify-archive \
   --evidence-root /absolute/retained/legacy-final \
   --manifest /absolute/retained/legacy-archive-manifest.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml
 ```
 
 Output creation is atomic, mode `0600`, absolute-path-only, fail-on-exist, and

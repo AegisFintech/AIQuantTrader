@@ -1,46 +1,43 @@
 # ADR 0008: Native and Legacy Package Isolation During Migration
 
-Status: accepted
+Status: completed
 Date: 2026-08-04
+Completed: 2026-08-05
 
 ## Context
 
-The deployed MT5 runtime imports the root `aiquanttrader` package. Moving that
-package into the target `src/aiquanttrader` layout during Phase 2 would alter
-module resolution for operational scripts and could mix native and legacy
-dependencies before the replacement system is validated.
+The former MT5 runtime imported a root `aiquanttrader` package. Moving the
+replacement into that namespace before retirement could have mixed native and
+legacy dependencies in a deployed process.
 
 ## Decision
 
-During Phases 2-8, native code is an isolated project under `native/` with the
-import package `aiquanttrader_native`. It has its own Python version, lockfile,
-virtual environment, Docker build context, configuration, schemas, and tests.
-It cannot import the legacy package, and legacy code cannot import the native
-package. Root pytest discovery remains scoped to `tests/`; the native project
-owns and runs `native/tests/` from its independently locked environment.
+During migration, native code used an isolated `native/` project and the
+temporary import package `aiquanttrader_native`. It had an independent lockfile,
+Docker context, configuration, schemas, and test suite. Cross-imports were
+prohibited.
 
-After Phase 10 disables, observes, archives, and separately approves MT5
-cleanup, a dedicated mechanical migration will:
+After MT5 retirement, the approved mechanical migration would:
 
-1. remove the retired root package;
+1. remove the retired root package and runtime files;
 2. move `native/src/aiquanttrader_native` to `src/aiquanttrader`;
-3. move the native project metadata and lockfile to the repository root;
-4. update imports and entry points with no behavioral changes;
-5. rerun all native replay, contract, and release tests.
+3. move project metadata, configuration, tests, and container definitions to
+   the repository root;
+4. update imports and entry points without changing trading behavior;
+5. rerun all native contract, replay, schema, and release tests.
 
 ## Alternatives considered
 
-- Move the legacy package to `src/` immediately: rejected because it changes the
-  deployed runtime during a foundation phase.
-- Place native modules inside the legacy package: rejected because dependencies,
-  import paths, and process ownership would no longer be isolated.
-- Use a second repository: strong isolation, but it splits migration history,
-  governance, review, and eventual archival without a present operational need.
+- Immediate namespace reuse was rejected because it could alter the deployed
+  MT5 process during migration.
+- Adding native modules to the legacy package was rejected because it erased
+  the dependency and execution boundary.
+- A second repository offered stronger isolation but fragmented governance,
+  review, and migration history.
 
-## Consequences
+## Completion
 
-- The interim tree differs deliberately from the final target tree.
-- Native containers and CI cannot accidentally resolve legacy modules.
-- Final package renaming is postponed until no deployed legacy consumer exists.
-- Any cross-import between `aiquanttrader` and `aiquanttrader_native` is a CI
-  failure and architecture violation.
+Phase 10 retired the MT5/Wine runtime and completed the mechanical migration.
+The canonical project now lives at the repository root and imports exclusively
+from `src/aiquanttrader`. The temporary `native/` tree and legacy package no
+longer exist. This ADR is retained as migration history.

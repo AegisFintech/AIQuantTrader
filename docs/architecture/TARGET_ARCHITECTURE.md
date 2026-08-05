@@ -371,11 +371,11 @@ measurements depend on it. Production and research credentials are distinct.
 The trading wallet, control wallet, and read-only data credentials have the
 minimum permissions required for their services.
 
-During the parallel migration, native Python is isolated under
-`native/src/aiquanttrader_native` so its dependency graph cannot alter the
-deployed MT5 package. The final `src/aiquanttrader` topology shown in this
-document is established only during the Phase 10 legacy-removal cutover. ADR 0008
-records this temporary package boundary and its removal condition.
+During the parallel migration, native Python was isolated under
+`native/src/aiquanttrader_native` so its dependency graph could not alter the
+deployed MT5 package. Phase 10 has now established the final
+`src/aiquanttrader` topology shown in this document. ADR 0008 records the
+temporary package boundary and its completed removal.
 
 ## Performance policy
 

@@ -20,15 +20,15 @@ the [cleanup preflight](PHASE_10_CLEANUP_PREFLIGHT.md), and the
 ## Repository delta
 
 ```text
-native/src/aiquanttrader_native/retirement/
+src/aiquanttrader/retirement/
 |- action_plan.py  # active-preflight replay and deterministic plan assembly
 |- models.py       # typed stages, steps, evidence requirements, and plan
 `- cli.py          # prepare/verify commands without an executor
 
-native/schemas/retirement.schema.json
+schemas/retirement.schema.json
 docs/architecture/diagrams/phase-10-cleanup-action-plan.mmd
 docs/migration/PHASE_10_CLEANUP_ACTION_PLAN.md
-native/tests/unit/test_retirement_cleanup.py
+tests/unit/test_retirement_cleanup.py
 ```
 
 ## Source and validity contract

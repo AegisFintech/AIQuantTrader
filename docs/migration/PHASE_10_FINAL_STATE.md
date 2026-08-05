@@ -113,16 +113,16 @@ After the archive itself passes independent assembly and verification:
 aqt-retirement assemble-final-state \
   --evidence-root /absolute/retained/legacy-final \
   --archive-manifest /absolute/retained/legacy-archive-manifest.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --output /absolute/retained/legacy-final-state.json
 
 aqt-retirement verify-final-state \
   --evidence-root /absolute/retained/legacy-final \
   --archive-manifest /absolute/retained/legacy-archive-manifest.json \
   --final-state /absolute/retained/legacy-final-state.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml
 ```
 
 Output creation is atomic, mode `0600`, absolute-path-only, fail-on-exist, and

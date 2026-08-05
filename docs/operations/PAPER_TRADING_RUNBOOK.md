@@ -1,11 +1,11 @@
 # Native BTC Paper Trading Runbook
 
 This runbook operates the Phase 7 public-feed paper service. It cannot place a
-Hyperliquid order. It does not start, stop, compile, modify, or replace MT5/Wine.
+Hyperliquid order.
 
 ## 1. Preflight and credential proof
 
-From `native/`:
+From the repository root:
 
 ```bash
 uv sync --frozen --extra research --group dev
@@ -195,5 +195,4 @@ fills or residual exposure make the corresponding evidence gate fail.
 5. Clear the kill only after health, raw capture, journal reconciliation, and
    operator review pass.
 
-Rollback does not interact with the deployed MT5 runtime and never adds an
-exchange key to paper mode.
+Rollback never adds an exchange key to paper mode.

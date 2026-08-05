@@ -1,18 +1,116 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
 
 [project]
 name = "aiquanttrader"
-version = "2.0.0"
-description = "MT5-first autonomous demo trading system for XAUUSD"
-requires-python = ">=3.10"
+version = "0.1.0"
+description = "Linux-native AIQuantTrader domain, configuration, and safety foundation"
+readme = "README.md"
+requires-python = "==3.12.*"
+license = {text = "MIT"}
+authors = [{name = "Aegis Fintech"}]
 dependencies = [
-  "python-dotenv",
-  "pandas",
-  "numpy",
-  "streamlit"
+  "duckdb==1.5.4",
+  "hftbacktest==2.4.4",
+  "hyperliquid-python-sdk==0.24.0",
+  "nautilus-trader==1.230.0",
+  "numpy==2.2.6",
+  "prometheus-client==0.25.0",
+  "pycryptodome==3.23.0",
+  "pyarrow==25.0.0",
+  "pydantic==2.13.4",
+  "websockets==17.0.1",
+  "zstandard==0.25.0",
 ]
 
+[project.optional-dependencies]
+research = [
+  "catboost==1.2.10",
+  "lightgbm==4.7.0",
+  "xgboost-cpu==3.3.0",
+]
+
+[project.scripts]
+aqt-native = "aiquanttrader.cli:main"
+aqt-backtest = "aiquanttrader.backtest.cli:main"
+aqt-research = "aiquanttrader.research.cli:main"
+aqt-market-data = "aiquanttrader.market_data.cli:main"
+aqt-execution = "aiquanttrader.execution.cli:main"
+aqt-sentinel = "aiquanttrader.sentinel.cli:main"
+aqt-paper = "aiquanttrader.paper.cli:main"
+aqt-shadow = "aiquanttrader.shadow.cli:main"
+aqt-governance = "aiquanttrader.governance.cli:main"
+aqt-acceptance = "aiquanttrader.acceptance.cli:main"
+aqt-retirement = "aiquanttrader.retirement.cli:main"
+
+[dependency-groups]
+dev = [
+  "mypy==2.3.0",
+  "pip-audit>=2.9,<3",
+  "pytest==9.1.1",
+  "pytest-cov>=7,<8",
+  "ruff==0.15.22",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aiquanttrader"]
+
+[tool.uv]
+required-version = "==0.11.29"
+package = true
+
 [tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+source = ["aiquanttrader"]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "PTH", "RUF", "SIM", "UP"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["src", "tests"]
+warn_unreachable = true
+
+[[tool.mypy.overrides]]
+module = ["pyarrow", "pyarrow.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["hftbacktest", "hftbacktest.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["catboost", "catboost.*", "lightgbm", "lightgbm.*", "xgboost", "xgboost.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["nautilus_trader", "nautilus_trader.*", "hyperliquid", "hyperliquid.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["Crypto", "Crypto.*"]
+ignore_missing_imports = true
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true

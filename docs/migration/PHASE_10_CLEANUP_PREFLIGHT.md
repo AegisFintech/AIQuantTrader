@@ -16,16 +16,16 @@ and the [legacy retirement runbook](../operations/LEGACY_RETIREMENT_RUNBOOK.md).
 ## Repository delta
 
 ```text
-native/src/aiquanttrader_native/retirement/
+src/aiquanttrader/retirement/
 |- cleanup.py       # verified replay exposes typed evidence timestamps
 |- preflight.py     # fresh-state, target, and approval checks only
 |- models.py        # canonical short-lived receipt and gate contracts
 `- cli.py           # prepare/verify evidence commands
 
-native/schemas/retirement.schema.json
+schemas/retirement.schema.json
 docs/architecture/diagrams/phase-10-cleanup-preflight.mmd
 docs/migration/PHASE_10_CLEANUP_PREFLIGHT.md
-native/tests/unit/test_retirement_cleanup.py
+tests/unit/test_retirement_cleanup.py
 ```
 
 ## Required inputs
@@ -99,8 +99,8 @@ aqt-retirement prepare-cleanup-preflight \
   --stop-public-key /absolute/trust/stop-approver.pub \
   --disabled-observation /absolute/evidence/disabled-observation.json \
   --disabled-report /absolute/evidence/disabled-report.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --native-approval-key-id <pinned-native-key-id> \
   --native-approval-public-key-sha256 <pinned-native-fingerprint> \
   --stop-approval-key-id <pinned-stop-key-id> \

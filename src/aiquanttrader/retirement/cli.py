@@ -1,0 +1,953 @@
+"""Credential-free Phase 10 evidence and approval-verification CLI."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import uuid
+from collections.abc import Sequence
+from pathlib import Path
+
+from aiquanttrader.retirement.action_plan import (
+    load_cleanup_action_plan,
+    prepare_cleanup_action_plan,
+    verify_cleanup_action_plan,
+)
+from aiquanttrader.retirement.approval import (
+    ExpectedRetirementAction,
+    RetirementApprovalError,
+    RetirementApprovalPaths,
+    verify_retirement_approval,
+)
+from aiquanttrader.retirement.archive import (
+    assemble_legacy_archive_manifest,
+    load_legacy_archive_credential_scan_policy,
+    load_legacy_archive_manifest,
+    verify_legacy_archive_manifest,
+)
+from aiquanttrader.retirement.cleanup import (
+    assemble_cleanup_manifest,
+    load_cleanup_manifest,
+    load_disabled_observation_report,
+    verify_cleanup_manifest,
+)
+from aiquanttrader.retirement.closeout import (
+    assemble_cleanup_closeout,
+    load_cleanup_operator_ledger,
+    verify_cleanup_closeout,
+)
+from aiquanttrader.retirement.collector import (
+    assemble_native_production_observation,
+    load_native_production_observation,
+    verify_native_production_observation,
+)
+from aiquanttrader.retirement.disabled import (
+    assemble_disabled_observation,
+    load_disabled_observation,
+    load_retirement_readiness_report,
+    verify_disabled_observation,
+)
+from aiquanttrader.retirement.evidence import (
+    evaluate_disabled_observation,
+    evaluate_retirement_readiness,
+    load_retirement_policy,
+)
+from aiquanttrader.retirement.final_state import (
+    assemble_legacy_final_state,
+    load_legacy_final_state,
+    verify_legacy_final_state,
+)
+from aiquanttrader.retirement.models import (
+    DisabledObservation,
+    DisabledObservationReport,
+    LegacyArchiveCredentialScanPolicy,
+    LegacyArchiveManifest,
+    LegacyCleanupManifest,
+    RetirementActionApproval,
+    RetirementActionScope,
+    RetirementPolicy,
+    RetirementReadinessObservation,
+)
+from aiquanttrader.retirement.outcome import (
+    assemble_cleanup_completion,
+    load_cleanup_completion_report,
+    verify_cleanup_completion,
+)
+from aiquanttrader.retirement.preflight import (
+    evaluate_cleanup_preflight,
+    load_cleanup_preflight_receipt,
+    verify_cleanup_preflight,
+)
+from aiquanttrader.retirement.readiness import (
+    assemble_retirement_readiness_observation,
+    load_retirement_readiness_observation,
+    verify_retirement_readiness_observation,
+)
+
+
+def _parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="aqt-retirement",
+        description="Evaluate retirement evidence; this command cannot stop or remove services.",
+    )
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    assemble_native = commands.add_parser("assemble-native")
+    assemble_native.add_argument("--evidence-root", type=Path, required=True)
+    assemble_native.add_argument("--policy", type=Path, required=True)
+    assemble_native.add_argument("--output", type=Path, required=True)
+    assemble_native.add_argument("--approval-key-id", required=True)
+    assemble_native.add_argument("--approval-public-key-sha256", required=True)
+
+    verify_native = commands.add_parser("verify-native")
+    verify_native.add_argument("--evidence-root", type=Path, required=True)
+    verify_native.add_argument("--observation", type=Path, required=True)
+    verify_native.add_argument("--policy", type=Path, required=True)
+    verify_native.add_argument("--approval-key-id", required=True)
+    verify_native.add_argument("--approval-public-key-sha256", required=True)
+
+    assemble_archive = commands.add_parser("assemble-archive")
+    assemble_archive.add_argument("--evidence-root", type=Path, required=True)
+    assemble_archive.add_argument("--policy", type=Path, required=True)
+    assemble_archive.add_argument("--credential-scan-policy", type=Path, required=True)
+    assemble_archive.add_argument("--output", type=Path, required=True)
+
+    verify_archive = commands.add_parser("verify-archive")
+    verify_archive.add_argument("--evidence-root", type=Path, required=True)
+    verify_archive.add_argument("--manifest", type=Path, required=True)
+    verify_archive.add_argument("--policy", type=Path, required=True)
+    verify_archive.add_argument("--credential-scan-policy", type=Path, required=True)
+
+    assemble_final_state = commands.add_parser("assemble-final-state")
+    assemble_final_state.add_argument("--evidence-root", type=Path, required=True)
+    assemble_final_state.add_argument("--archive-manifest", type=Path, required=True)
+    assemble_final_state.add_argument("--policy", type=Path, required=True)
+    assemble_final_state.add_argument("--credential-scan-policy", type=Path, required=True)
+    assemble_final_state.add_argument("--output", type=Path, required=True)
+
+    verify_final_state = commands.add_parser("verify-final-state")
+    verify_final_state.add_argument("--evidence-root", type=Path, required=True)
+    verify_final_state.add_argument("--archive-manifest", type=Path, required=True)
+    verify_final_state.add_argument("--final-state", type=Path, required=True)
+    verify_final_state.add_argument("--policy", type=Path, required=True)
+    verify_final_state.add_argument("--credential-scan-policy", type=Path, required=True)
+
+    assemble_readiness = commands.add_parser("assemble-readiness")
+    assemble_readiness.add_argument("--native-evidence-root", type=Path, required=True)
+    assemble_readiness.add_argument("--legacy-evidence-root", type=Path, required=True)
+    assemble_readiness.add_argument("--native-observation", type=Path, required=True)
+    assemble_readiness.add_argument("--archive-manifest", type=Path, required=True)
+    assemble_readiness.add_argument("--final-state", type=Path, required=True)
+    assemble_readiness.add_argument("--policy", type=Path, required=True)
+    assemble_readiness.add_argument("--credential-scan-policy", type=Path, required=True)
+    assemble_readiness.add_argument("--approval-key-id", required=True)
+    assemble_readiness.add_argument("--approval-public-key-sha256", required=True)
+    assemble_readiness.add_argument("--output", type=Path, required=True)
+
+    verify_readiness = commands.add_parser("verify-readiness")
+    _add_readiness_replay_arguments(verify_readiness)
+
+    readiness = commands.add_parser("evaluate-readiness")
+    _add_readiness_replay_arguments(readiness)
+    readiness.add_argument("--output", type=Path)
+
+    assemble_disabled = commands.add_parser("assemble-disabled")
+    _add_disabled_source_arguments(assemble_disabled)
+    assemble_disabled.add_argument("--output", type=Path, required=True)
+
+    verify_disabled = commands.add_parser("verify-disabled")
+    _add_disabled_source_arguments(verify_disabled)
+    verify_disabled.add_argument("--observation", type=Path, required=True)
+
+    disabled = commands.add_parser("evaluate-disabled")
+    _add_disabled_source_arguments(disabled)
+    disabled.add_argument("--observation", type=Path, required=True)
+    disabled.add_argument("--output", type=Path)
+
+    canonicalize = commands.add_parser("canonicalize-approval")
+    canonicalize.add_argument("--input", type=Path, required=True)
+    canonicalize.add_argument("--output", type=Path, required=True)
+
+    assemble_cleanup = commands.add_parser("assemble-cleanup-manifest")
+    _add_cleanup_source_arguments(assemble_cleanup)
+    assemble_cleanup.add_argument("--output", type=Path, required=True)
+
+    verify_cleanup = commands.add_parser("verify-cleanup-manifest")
+    _add_cleanup_source_arguments(verify_cleanup)
+    verify_cleanup.add_argument("--manifest", type=Path, required=True)
+
+    cleanup = commands.add_parser("validate-cleanup-manifest")
+    cleanup.add_argument("--manifest", type=Path, required=True)
+    cleanup.add_argument("--output", type=Path)
+
+    prepare_cleanup_preflight = commands.add_parser("prepare-cleanup-preflight")
+    _add_cleanup_preflight_arguments(prepare_cleanup_preflight)
+    prepare_cleanup_preflight.add_argument("--output", type=Path, required=True)
+
+    verify_cleanup_preflight_parser = commands.add_parser("verify-cleanup-preflight")
+    _add_cleanup_preflight_arguments(verify_cleanup_preflight_parser)
+    verify_cleanup_preflight_parser.add_argument("--preflight", type=Path, required=True)
+
+    prepare_cleanup_action_plan_parser = commands.add_parser("prepare-cleanup-action-plan")
+    _add_cleanup_action_plan_arguments(prepare_cleanup_action_plan_parser)
+    prepare_cleanup_action_plan_parser.add_argument("--output", type=Path, required=True)
+
+    verify_cleanup_action_plan_parser = commands.add_parser("verify-cleanup-action-plan")
+    _add_cleanup_action_plan_arguments(verify_cleanup_action_plan_parser)
+    verify_cleanup_action_plan_parser.add_argument("--action-plan", type=Path, required=True)
+
+    assemble_cleanup_completion_parser = commands.add_parser("assemble-cleanup-completion")
+    _add_cleanup_outcome_arguments(assemble_cleanup_completion_parser)
+    assemble_cleanup_completion_parser.add_argument("--output", type=Path, required=True)
+
+    verify_cleanup_completion_parser = commands.add_parser("verify-cleanup-completion")
+    _add_cleanup_outcome_arguments(verify_cleanup_completion_parser)
+    verify_cleanup_completion_parser.add_argument("--report", type=Path, required=True)
+
+    assemble_cleanup_closeout_parser = commands.add_parser("assemble-cleanup-closeout")
+    _add_cleanup_outcome_arguments(assemble_cleanup_closeout_parser)
+    assemble_cleanup_closeout_parser.add_argument("--report", type=Path, required=True)
+    assemble_cleanup_closeout_parser.add_argument("--output", type=Path, required=True)
+
+    verify_cleanup_closeout_parser = commands.add_parser("verify-cleanup-closeout")
+    _add_cleanup_outcome_arguments(verify_cleanup_closeout_parser)
+    verify_cleanup_closeout_parser.add_argument("--report", type=Path, required=True)
+    verify_cleanup_closeout_parser.add_argument("--ledger", type=Path, required=True)
+
+    verify = commands.add_parser("verify-approval")
+    verify.add_argument("--approval", type=Path, required=True)
+    verify.add_argument("--signature", type=Path, required=True)
+    verify.add_argument("--public-key", type=Path, required=True)
+    verify.add_argument("--public-key-sha256", required=True)
+    verify.add_argument("--key-id", required=True)
+    verify.add_argument("--expected-retirement-id", required=True)
+    verify.add_argument(
+        "--expected-scope",
+        choices=tuple(item.value for item in RetirementActionScope),
+        required=True,
+    )
+    verify.add_argument("--expected-report-sha256", required=True)
+    verify.add_argument("--expected-native-deployment-id", required=True)
+    verify.add_argument("--expected-native-admission-id", required=True)
+    verify.add_argument("--expected-archive-manifest-sha256", required=True)
+    verify.add_argument("--expected-source-commit-sha", required=True)
+    verify.add_argument("--expected-cleanup-manifest-sha256")
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    try:
+        if args.command == "assemble-native":
+            _require_output_outside_evidence_root(args.evidence_root, args.output)
+            native_observation = assemble_native_production_observation(
+                args.evidence_root,
+                policy=load_retirement_policy(args.policy),
+                expected_key_id=args.approval_key_id,
+                expected_public_key_sha256=args.approval_public_key_sha256,
+            )
+            _atomic_write_new(args.output, native_observation.canonical_bytes() + b"\n")
+            print(native_observation.model_dump_json())
+            return 0
+
+        if args.command == "verify-native":
+            native_observation = load_native_production_observation(args.observation)
+            verified_native = verify_native_production_observation(
+                args.evidence_root,
+                native_observation,
+                policy=load_retirement_policy(args.policy),
+                expected_key_id=args.approval_key_id,
+                expected_public_key_sha256=args.approval_public_key_sha256,
+            )
+            print(verified_native.model_dump_json())
+            return 0
+
+        if args.command == "assemble-archive":
+            _require_output_outside_evidence_root(args.evidence_root, args.output)
+            archive_manifest = assemble_legacy_archive_manifest(
+                args.evidence_root,
+                policy=load_retirement_policy(args.policy),
+                credential_scan_policy=load_legacy_archive_credential_scan_policy(
+                    args.credential_scan_policy
+                ),
+            )
+            _atomic_write_new(args.output, archive_manifest.canonical_bytes() + b"\n")
+            print(archive_manifest.model_dump_json())
+            return 0
+
+        if args.command == "verify-archive":
+            archive_manifest = load_legacy_archive_manifest(args.manifest)
+            verified_archive = verify_legacy_archive_manifest(
+                args.evidence_root,
+                archive_manifest,
+                policy=load_retirement_policy(args.policy),
+                credential_scan_policy=load_legacy_archive_credential_scan_policy(
+                    args.credential_scan_policy
+                ),
+            )
+            print(verified_archive.model_dump_json())
+            return 0
+
+        if args.command == "assemble-final-state":
+            _require_output_outside_evidence_root(args.evidence_root, args.output)
+            final_state = assemble_legacy_final_state(
+                args.evidence_root,
+                load_legacy_archive_manifest(args.archive_manifest),
+                policy=load_retirement_policy(args.policy),
+                credential_scan_policy=load_legacy_archive_credential_scan_policy(
+                    args.credential_scan_policy
+                ),
+            )
+            _atomic_write_new(args.output, final_state.canonical_bytes() + b"\n")
+            print(final_state.model_dump_json())
+            return 0
+
+        if args.command == "verify-final-state":
+            verified_final_state = verify_legacy_final_state(
+                args.evidence_root,
+                load_legacy_archive_manifest(args.archive_manifest),
+                load_legacy_final_state(args.final_state),
+                policy=load_retirement_policy(args.policy),
+                credential_scan_policy=load_legacy_archive_credential_scan_policy(
+                    args.credential_scan_policy
+                ),
+            )
+            print(verified_final_state.model_dump_json())
+            return 0
+
+        if args.command == "assemble-readiness":
+            _require_output_outside_evidence_root(args.native_evidence_root, args.output)
+            _require_output_outside_evidence_root(args.legacy_evidence_root, args.output)
+            readiness_observation = assemble_retirement_readiness_observation(
+                args.native_evidence_root,
+                args.legacy_evidence_root,
+                load_native_production_observation(args.native_observation),
+                load_legacy_archive_manifest(args.archive_manifest),
+                load_legacy_final_state(args.final_state),
+                policy=load_retirement_policy(args.policy),
+                credential_scan_policy=load_legacy_archive_credential_scan_policy(
+                    args.credential_scan_policy
+                ),
+                expected_key_id=args.approval_key_id,
+                expected_public_key_sha256=args.approval_public_key_sha256,
+            )
+            _atomic_write_new(args.output, readiness_observation.canonical_bytes() + b"\n")
+            print(readiness_observation.model_dump_json())
+            return 0
+
+        if args.command == "verify-readiness":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            verified_readiness = _verify_readiness_from_args(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            print(verified_readiness.model_dump_json())
+            return 0
+
+        if args.command == "evaluate-readiness":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            observation = _verify_readiness_from_args(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            report = evaluate_retirement_readiness(
+                observation=observation,
+                policy=policy,
+            )
+            if args.output is not None:
+                _require_output_outside_evidence_root(args.native_evidence_root, args.output)
+                _require_output_outside_evidence_root(args.legacy_evidence_root, args.output)
+            _write_optional(args.output, report.canonical_bytes() + b"\n")
+            print(report.model_dump_json())
+            return 0 if report.awaiting_stop_approval else 1
+
+        if args.command == "assemble-disabled":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            _require_output_outside_disabled_roots(args, args.output)
+            disabled_observation = _assemble_disabled_from_args(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            _atomic_write_new(args.output, disabled_observation.canonical_bytes() + b"\n")
+            print(disabled_observation.model_dump_json())
+            return 0
+
+        if args.command == "verify-disabled":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            verified_disabled = _verify_disabled_from_args(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            print(verified_disabled.model_dump_json())
+            return 0
+
+        if args.command == "evaluate-disabled":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_observation = _verify_disabled_from_args(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            disabled_report = evaluate_disabled_observation(
+                observation=disabled_observation,
+                policy=policy,
+            )
+            if args.output is not None:
+                _require_output_outside_disabled_roots(args, args.output)
+            _write_optional(args.output, disabled_report.canonical_bytes() + b"\n")
+            print(disabled_report.model_dump_json())
+            return 0 if disabled_report.awaiting_cleanup_approval else 1
+
+        if args.command == "canonicalize-approval":
+            approval = RetirementActionApproval.model_validate_json(args.input.read_bytes())
+            _atomic_write_new(args.output, approval.canonical_bytes())
+            print(json.dumps({"approval_sha256": approval.sha256()}, sort_keys=True))
+            return 0
+
+        if args.command == "assemble-cleanup-manifest":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_report, archive_manifest = _replay_cleanup_sources(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            _require_output_outside_evidence_root(args.evidence_root, args.output)
+            _require_output_outside_disabled_roots(args, args.output)
+            cleanup_manifest = assemble_cleanup_manifest(
+                args.evidence_root,
+                disabled_report,
+                archive_manifest,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            _atomic_write_new(args.output, cleanup_manifest.canonical_bytes() + b"\n")
+            print(cleanup_manifest.model_dump_json())
+            return 0
+
+        if args.command == "verify-cleanup-manifest":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_report, archive_manifest = _replay_cleanup_sources(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            cleanup_manifest = verify_cleanup_manifest(
+                args.evidence_root,
+                load_cleanup_manifest(args.manifest),
+                disabled_report,
+                archive_manifest,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            print(cleanup_manifest.model_dump_json())
+            return 0
+
+        if args.command == "validate-cleanup-manifest":
+            manifest = LegacyCleanupManifest.model_validate_json(args.manifest.read_bytes())
+            _write_optional(args.output, manifest.canonical_bytes() + b"\n")
+            print(
+                json.dumps(
+                    {
+                        "status": "valid",
+                        "retirement_id": manifest.retirement_id,
+                        "cleanup_manifest_sha256": manifest.sha256(),
+                        "target_count": len(manifest.targets),
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 0
+
+        if args.command == "prepare-cleanup-preflight":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_report, archive_manifest = _replay_cleanup_sources(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            _require_output_outside_cleanup_preflight_roots(args, args.output)
+            receipt = evaluate_cleanup_preflight(
+                args.evidence_root,
+                args.action_evidence_root,
+                load_cleanup_manifest(args.cleanup_manifest),
+                disabled_report,
+                archive_manifest,
+                cleanup_approval_paths=RetirementApprovalPaths(
+                    approval_path=args.cleanup_approval,
+                    signature_path=args.cleanup_signature,
+                    public_key_path=args.cleanup_public_key,
+                ),
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+                expected_cleanup_key_id=args.cleanup_approval_key_id,
+                expected_cleanup_public_key_sha256=args.cleanup_approval_public_key_sha256,
+            )
+            _atomic_write_new(args.output, receipt.canonical_bytes() + b"\n")
+            print(receipt.model_dump_json())
+            return 0
+
+        if args.command == "verify-cleanup-preflight":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_report, archive_manifest = _replay_cleanup_sources(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            receipt = verify_cleanup_preflight(
+                args.evidence_root,
+                args.action_evidence_root,
+                load_cleanup_preflight_receipt(args.preflight),
+                load_cleanup_manifest(args.cleanup_manifest),
+                disabled_report,
+                archive_manifest,
+                cleanup_approval_paths=RetirementApprovalPaths(
+                    approval_path=args.cleanup_approval,
+                    signature_path=args.cleanup_signature,
+                    public_key_path=args.cleanup_public_key,
+                ),
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+                expected_cleanup_key_id=args.cleanup_approval_key_id,
+                expected_cleanup_public_key_sha256=args.cleanup_approval_public_key_sha256,
+            )
+            print(receipt.model_dump_json())
+            return 0
+
+        if args.command in {"prepare-cleanup-action-plan", "verify-cleanup-action-plan"}:
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_report, archive_manifest = _replay_cleanup_sources(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            preflight_receipt = load_cleanup_preflight_receipt(args.preflight)
+            cleanup_manifest = load_cleanup_manifest(args.cleanup_manifest)
+            cleanup_approval_paths = RetirementApprovalPaths(
+                approval_path=args.cleanup_approval,
+                signature_path=args.cleanup_signature,
+                public_key_path=args.cleanup_public_key,
+            )
+            if args.command == "prepare-cleanup-action-plan":
+                _require_output_outside_cleanup_preflight_roots(args, args.output)
+                action_plan = prepare_cleanup_action_plan(
+                    args.evidence_root,
+                    args.action_evidence_root,
+                    preflight_receipt,
+                    cleanup_manifest,
+                    disabled_report,
+                    archive_manifest,
+                    cleanup_approval_paths=cleanup_approval_paths,
+                    policy=policy,
+                    credential_scan_policy=credential_scan_policy,
+                    expected_cleanup_key_id=args.cleanup_approval_key_id,
+                    expected_cleanup_public_key_sha256=args.cleanup_approval_public_key_sha256,
+                )
+                _atomic_write_new(args.output, action_plan.canonical_bytes() + b"\n")
+            else:
+                action_plan = verify_cleanup_action_plan(
+                    args.evidence_root,
+                    args.action_evidence_root,
+                    load_cleanup_action_plan(args.action_plan),
+                    preflight_receipt,
+                    cleanup_manifest,
+                    disabled_report,
+                    archive_manifest,
+                    cleanup_approval_paths=cleanup_approval_paths,
+                    policy=policy,
+                    credential_scan_policy=credential_scan_policy,
+                    expected_cleanup_key_id=args.cleanup_approval_key_id,
+                    expected_cleanup_public_key_sha256=args.cleanup_approval_public_key_sha256,
+                )
+            print(action_plan.model_dump_json())
+            return 0
+
+        if args.command in {
+            "assemble-cleanup-completion",
+            "verify-cleanup-completion",
+            "assemble-cleanup-closeout",
+            "verify-cleanup-closeout",
+        }:
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_report, archive_manifest = _replay_cleanup_sources(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            preflight_receipt = load_cleanup_preflight_receipt(args.preflight)
+            cleanup_action_plan = load_cleanup_action_plan(args.action_plan)
+            cleanup_manifest = load_cleanup_manifest(args.cleanup_manifest)
+            cleanup_approval_paths = RetirementApprovalPaths(
+                approval_path=args.cleanup_approval,
+                signature_path=args.cleanup_signature,
+                public_key_path=args.cleanup_public_key,
+            )
+            if args.command == "assemble-cleanup-completion":
+                _require_output_outside_cleanup_outcome_roots(args, args.output)
+                completion = assemble_cleanup_completion(
+                    args.outcome_evidence_root,
+                    args.evidence_root,
+                    args.action_evidence_root,
+                    preflight_receipt,
+                    cleanup_action_plan,
+                    cleanup_manifest,
+                    disabled_report,
+                    archive_manifest,
+                    cleanup_approval_paths=cleanup_approval_paths,
+                    policy=policy,
+                    credential_scan_policy=credential_scan_policy,
+                    expected_cleanup_key_id=args.cleanup_approval_key_id,
+                    expected_cleanup_public_key_sha256=(args.cleanup_approval_public_key_sha256),
+                )
+                _atomic_write_new(args.output, completion.canonical_bytes() + b"\n")
+                print(completion.model_dump_json())
+                return 0
+            if args.command == "verify-cleanup-completion":
+                completion = verify_cleanup_completion(
+                    args.outcome_evidence_root,
+                    args.evidence_root,
+                    args.action_evidence_root,
+                    report=load_cleanup_completion_report(args.report),
+                    preflight_receipt=preflight_receipt,
+                    cleanup_action_plan=cleanup_action_plan,
+                    cleanup_manifest=cleanup_manifest,
+                    disabled_report=disabled_report,
+                    archive_manifest=archive_manifest,
+                    cleanup_approval_paths=cleanup_approval_paths,
+                    policy=policy,
+                    credential_scan_policy=credential_scan_policy,
+                    expected_cleanup_key_id=args.cleanup_approval_key_id,
+                    expected_cleanup_public_key_sha256=(args.cleanup_approval_public_key_sha256),
+                )
+                print(completion.model_dump_json())
+                return 0
+
+            completion = load_cleanup_completion_report(args.report)
+            if args.command == "assemble-cleanup-closeout":
+                _require_output_outside_cleanup_outcome_roots(args, args.output)
+                ledger = assemble_cleanup_closeout(
+                    args.outcome_evidence_root,
+                    args.evidence_root,
+                    args.action_evidence_root,
+                    completion,
+                    preflight_receipt,
+                    cleanup_action_plan,
+                    cleanup_manifest,
+                    disabled_report,
+                    archive_manifest,
+                    cleanup_approval_paths=cleanup_approval_paths,
+                    policy=policy,
+                    credential_scan_policy=credential_scan_policy,
+                    expected_cleanup_key_id=args.cleanup_approval_key_id,
+                    expected_cleanup_public_key_sha256=(args.cleanup_approval_public_key_sha256),
+                )
+                _atomic_write_new(args.output, ledger.canonical_bytes() + b"\n")
+            else:
+                ledger = verify_cleanup_closeout(
+                    args.outcome_evidence_root,
+                    args.evidence_root,
+                    args.action_evidence_root,
+                    load_cleanup_operator_ledger(args.ledger),
+                    completion,
+                    preflight_receipt,
+                    cleanup_action_plan,
+                    cleanup_manifest,
+                    disabled_report,
+                    archive_manifest,
+                    cleanup_approval_paths=cleanup_approval_paths,
+                    policy=policy,
+                    credential_scan_policy=credential_scan_policy,
+                    expected_cleanup_key_id=args.cleanup_approval_key_id,
+                    expected_cleanup_public_key_sha256=(args.cleanup_approval_public_key_sha256),
+                )
+            print(ledger.model_dump_json())
+            return 0
+
+        if args.command == "verify-approval":
+            verified = verify_retirement_approval(
+                paths=RetirementApprovalPaths(
+                    approval_path=args.approval,
+                    signature_path=args.signature,
+                    public_key_path=args.public_key,
+                ),
+                expected=ExpectedRetirementAction(
+                    retirement_id=args.expected_retirement_id,
+                    scope=RetirementActionScope(args.expected_scope),
+                    report_sha256=args.expected_report_sha256,
+                    native_deployment_id=args.expected_native_deployment_id,
+                    native_admission_id=args.expected_native_admission_id,
+                    archive_manifest_sha256=args.expected_archive_manifest_sha256,
+                    source_commit_sha=args.expected_source_commit_sha,
+                    cleanup_manifest_sha256=args.expected_cleanup_manifest_sha256,
+                ),
+                expected_key_id=args.key_id,
+                expected_public_key_sha256=args.public_key_sha256,
+            )
+            print(verified.model_dump_json())
+            return 0
+    except (OSError, RetirementApprovalError, ValueError) as exc:
+        print(json.dumps({"status": "error", "error": str(exc)}), file=sys.stderr)
+        return 2
+    raise RuntimeError(f"unhandled command: {args.command}")
+
+
+def _add_readiness_replay_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--native-evidence-root", type=Path, required=True)
+    parser.add_argument("--legacy-evidence-root", type=Path, required=True)
+    parser.add_argument("--observation", type=Path, required=True)
+    parser.add_argument("--policy", type=Path, required=True)
+    parser.add_argument("--credential-scan-policy", type=Path, required=True)
+    parser.add_argument("--approval-key-id", required=True)
+    parser.add_argument("--approval-public-key-sha256", required=True)
+
+
+def _add_disabled_source_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--disabled-evidence-root", type=Path, required=True)
+    parser.add_argument("--native-evidence-root", type=Path, required=True)
+    parser.add_argument("--legacy-evidence-root", type=Path, required=True)
+    parser.add_argument("--readiness-observation", type=Path, required=True)
+    parser.add_argument("--readiness-report", type=Path, required=True)
+    parser.add_argument("--native-observation", type=Path, required=True)
+    parser.add_argument("--archive-manifest", type=Path, required=True)
+    parser.add_argument("--stop-approval", type=Path, required=True)
+    parser.add_argument("--stop-signature", type=Path, required=True)
+    parser.add_argument("--stop-public-key", type=Path, required=True)
+    parser.add_argument("--policy", type=Path, required=True)
+    parser.add_argument("--credential-scan-policy", type=Path, required=True)
+    parser.add_argument("--native-approval-key-id", required=True)
+    parser.add_argument("--native-approval-public-key-sha256", required=True)
+    parser.add_argument("--stop-approval-key-id", required=True)
+    parser.add_argument("--stop-approval-public-key-sha256", required=True)
+
+
+def _add_cleanup_source_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--evidence-root", type=Path, required=True)
+    _add_disabled_source_arguments(parser)
+    parser.add_argument("--disabled-observation", type=Path, required=True)
+    parser.add_argument("--disabled-report", type=Path, required=True)
+
+
+def _add_cleanup_preflight_arguments(parser: argparse.ArgumentParser) -> None:
+    _add_cleanup_source_arguments(parser)
+    parser.add_argument("--action-evidence-root", type=Path, required=True)
+    parser.add_argument("--cleanup-manifest", type=Path, required=True)
+    parser.add_argument("--cleanup-approval", type=Path, required=True)
+    parser.add_argument("--cleanup-signature", type=Path, required=True)
+    parser.add_argument("--cleanup-public-key", type=Path, required=True)
+    parser.add_argument("--cleanup-approval-key-id", required=True)
+    parser.add_argument("--cleanup-approval-public-key-sha256", required=True)
+
+
+def _add_cleanup_outcome_arguments(parser: argparse.ArgumentParser) -> None:
+    _add_cleanup_preflight_arguments(parser)
+    parser.add_argument("--outcome-evidence-root", type=Path, required=True)
+    parser.add_argument("--preflight", type=Path, required=True)
+    parser.add_argument("--action-plan", type=Path, required=True)
+
+
+def _add_cleanup_action_plan_arguments(parser: argparse.ArgumentParser) -> None:
+    _add_cleanup_preflight_arguments(parser)
+    parser.add_argument("--preflight", type=Path, required=True)
+
+
+def _verify_readiness_from_args(
+    args: argparse.Namespace,
+    *,
+    policy: RetirementPolicy,
+    credential_scan_policy: LegacyArchiveCredentialScanPolicy,
+) -> RetirementReadinessObservation:
+    return verify_retirement_readiness_observation(
+        args.native_evidence_root,
+        args.legacy_evidence_root,
+        load_retirement_readiness_observation(args.observation),
+        policy=policy,
+        credential_scan_policy=credential_scan_policy,
+        expected_key_id=args.approval_key_id,
+        expected_public_key_sha256=args.approval_public_key_sha256,
+    )
+
+
+def _assemble_disabled_from_args(
+    args: argparse.Namespace,
+    *,
+    policy: RetirementPolicy,
+    credential_scan_policy: LegacyArchiveCredentialScanPolicy,
+) -> DisabledObservation:
+    return assemble_disabled_observation(
+        args.disabled_evidence_root,
+        args.native_evidence_root,
+        args.legacy_evidence_root,
+        load_retirement_readiness_observation(args.readiness_observation),
+        load_retirement_readiness_report(args.readiness_report),
+        load_native_production_observation(args.native_observation),
+        load_legacy_archive_manifest(args.archive_manifest),
+        stop_approval_paths=RetirementApprovalPaths(
+            approval_path=args.stop_approval,
+            signature_path=args.stop_signature,
+            public_key_path=args.stop_public_key,
+        ),
+        policy=policy,
+        credential_scan_policy=credential_scan_policy,
+        expected_native_key_id=args.native_approval_key_id,
+        expected_native_public_key_sha256=args.native_approval_public_key_sha256,
+        expected_stop_key_id=args.stop_approval_key_id,
+        expected_stop_public_key_sha256=args.stop_approval_public_key_sha256,
+    )
+
+
+def _verify_disabled_from_args(
+    args: argparse.Namespace,
+    *,
+    policy: RetirementPolicy,
+    credential_scan_policy: LegacyArchiveCredentialScanPolicy,
+) -> DisabledObservation:
+    observation_path = getattr(args, "observation", None)
+    if observation_path is None:
+        observation_path = args.disabled_observation
+    return verify_disabled_observation(
+        args.disabled_evidence_root,
+        args.native_evidence_root,
+        args.legacy_evidence_root,
+        load_disabled_observation(observation_path),
+        load_retirement_readiness_observation(args.readiness_observation),
+        load_retirement_readiness_report(args.readiness_report),
+        load_native_production_observation(args.native_observation),
+        load_legacy_archive_manifest(args.archive_manifest),
+        stop_approval_paths=RetirementApprovalPaths(
+            approval_path=args.stop_approval,
+            signature_path=args.stop_signature,
+            public_key_path=args.stop_public_key,
+        ),
+        policy=policy,
+        credential_scan_policy=credential_scan_policy,
+        expected_native_key_id=args.native_approval_key_id,
+        expected_native_public_key_sha256=args.native_approval_public_key_sha256,
+        expected_stop_key_id=args.stop_approval_key_id,
+        expected_stop_public_key_sha256=args.stop_approval_public_key_sha256,
+    )
+
+
+def _replay_cleanup_sources(
+    args: argparse.Namespace,
+    *,
+    policy: RetirementPolicy,
+    credential_scan_policy: LegacyArchiveCredentialScanPolicy,
+) -> tuple[DisabledObservationReport, LegacyArchiveManifest]:
+    disabled_observation = _verify_disabled_from_args(
+        args,
+        policy=policy,
+        credential_scan_policy=credential_scan_policy,
+    )
+    disabled_report = load_disabled_observation_report(args.disabled_report)
+    replayed_report = evaluate_disabled_observation(
+        observation=disabled_observation,
+        policy=policy,
+        generated_ts_ns=disabled_report.generated_ts_ns,
+    )
+    if replayed_report != disabled_report:
+        raise ValueError("disabled observation report does not match source replay")
+    return disabled_report, load_legacy_archive_manifest(args.archive_manifest)
+
+
+def _require_output_outside_disabled_roots(args: argparse.Namespace, output: Path) -> None:
+    _require_output_outside_evidence_root(args.disabled_evidence_root, output)
+    _require_output_outside_evidence_root(args.native_evidence_root, output)
+    _require_output_outside_evidence_root(args.legacy_evidence_root, output)
+
+
+def _require_output_outside_cleanup_preflight_roots(
+    args: argparse.Namespace,
+    output: Path,
+) -> None:
+    _require_output_outside_evidence_root(args.evidence_root, output)
+    _require_output_outside_evidence_root(args.action_evidence_root, output)
+    _require_output_outside_disabled_roots(args, output)
+
+
+def _require_output_outside_cleanup_outcome_roots(
+    args: argparse.Namespace,
+    output: Path,
+) -> None:
+    _require_output_outside_cleanup_preflight_roots(args, output)
+    _require_output_outside_evidence_root(args.outcome_evidence_root, output)
+
+
+def _write_optional(path: Path | None, payload: bytes) -> None:
+    if path is not None:
+        _atomic_write_new(path, payload)
+
+
+def _require_output_outside_evidence_root(root: Path, output: Path) -> None:
+    if not output.is_absolute():
+        raise ValueError("retirement output path must be absolute")
+    resolved_root = root.resolve(strict=True)
+    resolved_output = output.resolve(strict=False)
+    if resolved_output == resolved_root or resolved_root in resolved_output.parents:
+        raise ValueError("retirement output must be outside the immutable evidence root")
+
+
+def _atomic_write_new(path: Path, payload: bytes) -> None:
+    if not path.is_absolute():
+        raise ValueError("retirement output path must be absolute")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+        try:
+            os.link(temporary, path)
+        except FileExistsError as exc:
+            raise ValueError("retirement output already exists") from exc
+        temporary.unlink()
+        directory = os.open(path.parent, os.O_RDONLY)
+        try:
+            os.fsync(directory)
+        finally:
+            os.close(directory)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

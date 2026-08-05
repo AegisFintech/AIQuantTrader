@@ -1,7 +1,8 @@
 # Legacy MT5 Retirement Runbook
 
-Status: Phase 10 procedure only. The active MT5 runtime must not be stopped or
-removed until the exact evidence and approvals below exist.
+Status: completed historical Phase 10 procedure. MT5/Wine was retired on
+2026-08-05 under explicit owner authorization. Do not use this document to
+restore or operate the retired stack.
 
 This runbook has no implied flatten, deletion, package-removal, credential-
 revocation, or production authority. Preserve its evidence outside the mutable

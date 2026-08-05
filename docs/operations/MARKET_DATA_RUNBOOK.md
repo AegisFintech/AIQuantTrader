@@ -1,12 +1,12 @@
 # Market Data Runbook
 
 This runbook operates the Linux-native public BTC data path only. It does not
-enable exchange execution and does not replace or restart the MT5 demo runtime.
+enable exchange execution.
 
 ## Start and verify
 
 ```bash
-cd native
+
 docker compose --profile market-data build
 docker compose --profile market-data up -d market-data-recorder market-data-normalizer
 docker compose ps
@@ -20,7 +20,7 @@ Readiness requires a connected recorder heartbeat no older than 30 seconds.
 Local development:
 
 ```bash
-cd native
+
 uv sync --frozen --group dev
 uv run aqt-market-data record \
   --config-dir configs --environment paper --duration-seconds 60
@@ -134,5 +134,4 @@ normalizer, correct the dependency or storage issue, and rerun
 docker compose stop market-data-normalizer market-data-recorder
 ```
 
-Keep both named volumes. Confirm the legacy processes separately with `pm2
-list`; this runbook never changes them.
+Keep both named volumes so captured data and recorder state remain recoverable.
