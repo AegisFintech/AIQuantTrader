@@ -151,8 +151,9 @@ native-production, legacy-archive, final-state, cross-bundle readiness, and
 disabled-window assembly/replay, exact cleanup-manifest validation, and offline
 Ed25519 verification are present. Action-time preflight now requires a fresh
 post-approval full evidence replay and exact target-state equality before it can
-emit a short-lived evidence-only receipt. The active MT5 runtime is not
-authorized for shutdown or removal.
+emit a short-lived evidence-only receipt. Plan-bound schema-v2 outcome replay
+and deterministic operator closeout-ledger assembly are also present. The
+active MT5 runtime is not authorized for shutdown or removal.
 
 - The exact native production deployment and admission complete the frozen
   stable-observation window with zero critical incidents, reconciliation
@@ -205,9 +206,13 @@ authorized for shutdown or removal.
   history, changes no strategy/risk behavior, and passes the entire native suite
   from a clean checkout.
 - An exact post-action bundle proves every target began inside its preflight
-  window and satisfies the approved typed postcondition. Independent
-  `verify-cleanup-completion` replay must pass after a complete credential scan;
-  the completion report cannot execute or authorize cleanup.
+  window, matches its exact canonical plan step and sequence, and satisfies the
+  approved typed postcondition. Independent `verify-cleanup-completion` replay
+  must pass after a complete credential scan.
+- `assemble-cleanup-closeout` derives one contiguous operator ledger from the
+  exact plan, outcomes, and completion report. Independent
+  `verify-cleanup-closeout` replay passes with required archive retention. The
+  report and ledger cannot execute or authorize cleanup.
 
 ## Promotion metrics
 

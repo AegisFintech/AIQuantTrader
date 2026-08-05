@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 from time import time_ns
 
 from aiquanttrader_native.domain.base import DomainModel, canonical_sha256
+from aiquanttrader_native.retirement.action_plan import _build_cleanup_action_plan
 from aiquanttrader_native.retirement.approval import RetirementApprovalPaths
 from aiquanttrader_native.retirement.cleanup import (
     MAX_BUNDLE_BYTES,
@@ -23,6 +24,7 @@ from aiquanttrader_native.retirement.cleanup import (
     _validated_root,
 )
 from aiquanttrader_native.retirement.models import (
+    CleanupActionPlan,
     CleanupArchiveOnlyResult,
     CleanupCompletionReport,
     CleanupCredentialScanEvidence,
@@ -64,11 +66,20 @@ class CleanupOutcomeReplay:
     bundle_sha256: str
 
 
+@dataclass(frozen=True, slots=True)
+class CleanupCompletionReplay:
+    preflight: CleanupPreflightReceipt
+    action_plan: CleanupActionPlan
+    outcome: CleanupOutcomeReplay
+    report: CleanupCompletionReport
+
+
 def assemble_cleanup_completion(
     outcome_evidence_root: Path,
     approved_evidence_root: Path,
     action_evidence_root: Path,
     preflight_receipt: CleanupPreflightReceipt,
+    cleanup_action_plan: CleanupActionPlan,
     cleanup_manifest: LegacyCleanupManifest,
     disabled_report: DisabledObservationReport,
     archive_manifest: LegacyArchiveManifest,
@@ -86,6 +97,7 @@ def assemble_cleanup_completion(
         approved_evidence_root,
         action_evidence_root,
         preflight_receipt,
+        cleanup_action_plan,
         cleanup_manifest,
         disabled_report,
         archive_manifest,
@@ -104,6 +116,7 @@ def verify_cleanup_completion(
     action_evidence_root: Path,
     report: CleanupCompletionReport,
     preflight_receipt: CleanupPreflightReceipt,
+    cleanup_action_plan: CleanupActionPlan,
     cleanup_manifest: LegacyCleanupManifest,
     disabled_report: DisabledObservationReport,
     archive_manifest: LegacyArchiveManifest,
@@ -124,6 +137,7 @@ def verify_cleanup_completion(
         approved_evidence_root,
         action_evidence_root,
         preflight_receipt,
+        cleanup_action_plan,
         cleanup_manifest,
         disabled_report,
         archive_manifest,
@@ -152,6 +166,7 @@ def _assemble_cleanup_completion(
     approved_evidence_root: Path,
     action_evidence_root: Path,
     preflight_receipt: CleanupPreflightReceipt,
+    cleanup_action_plan: CleanupActionPlan,
     cleanup_manifest: LegacyCleanupManifest,
     disabled_report: DisabledObservationReport,
     archive_manifest: LegacyArchiveManifest,
@@ -163,6 +178,41 @@ def _assemble_cleanup_completion(
     expected_cleanup_public_key_sha256: str,
     generated_ts_ns: int,
 ) -> CleanupCompletionReport:
+    return _replay_cleanup_completion(
+        outcome_evidence_root,
+        approved_evidence_root,
+        action_evidence_root,
+        preflight_receipt,
+        cleanup_action_plan,
+        cleanup_manifest,
+        disabled_report,
+        archive_manifest,
+        cleanup_approval_paths=cleanup_approval_paths,
+        policy=policy,
+        credential_scan_policy=credential_scan_policy,
+        expected_cleanup_key_id=expected_cleanup_key_id,
+        expected_cleanup_public_key_sha256=expected_cleanup_public_key_sha256,
+        generated_ts_ns=generated_ts_ns,
+    ).report
+
+
+def _replay_cleanup_completion(
+    outcome_evidence_root: Path,
+    approved_evidence_root: Path,
+    action_evidence_root: Path,
+    preflight_receipt: CleanupPreflightReceipt,
+    cleanup_action_plan: CleanupActionPlan,
+    cleanup_manifest: LegacyCleanupManifest,
+    disabled_report: DisabledObservationReport,
+    archive_manifest: LegacyArchiveManifest,
+    *,
+    cleanup_approval_paths: RetirementApprovalPaths,
+    policy: RetirementPolicy,
+    credential_scan_policy: LegacyArchiveCredentialScanPolicy,
+    expected_cleanup_key_id: str,
+    expected_cleanup_public_key_sha256: str,
+    generated_ts_ns: int,
+) -> CleanupCompletionReplay:
     if generated_ts_ns < 0:
         raise ValueError("cleanup completion generation timestamp cannot be negative")
     preflight = _evaluate_cleanup_preflight(
@@ -180,6 +230,13 @@ def _assemble_cleanup_completion(
     )
     if preflight != preflight_receipt or not preflight.ready_for_operator_action:
         raise ValueError("cleanup preflight receipt does not match its complete source replay")
+    replayed_action_plan = _build_cleanup_action_plan(
+        preflight,
+        cleanup_manifest,
+        prepared_ts_ns=cleanup_action_plan.prepared_ts_ns,
+    )
+    if replayed_action_plan != cleanup_action_plan:
+        raise ValueError("cleanup action plan does not match its historical source replay")
 
     approved_replay = _replay_cleanup_evidence(
         approved_evidence_root,
@@ -195,6 +252,7 @@ def _assemble_cleanup_completion(
     outcome = _replay_outcome_evidence(
         outcome_evidence_root,
         preflight,
+        replayed_action_plan,
         cleanup_manifest,
         disabled_report,
         archive_manifest,
@@ -205,6 +263,9 @@ def _assemble_cleanup_completion(
     )
     target_results = tuple(
         CleanupOutcomeTargetResult(
+            plan_step_id=item.plan_step_id,
+            plan_sequence=item.plan_sequence,
+            plan_stage=item.plan_stage,
             target_id=item.target_id,
             kind=item.kind,
             locator=item.locator,
@@ -223,6 +284,16 @@ def _assemble_cleanup_completion(
             CleanupOutcomeGate.PREFLIGHT_REPLAYED,
             preflight.sha256(),
             "exact historical preflight source replay",
+        ),
+        _passed_gate(
+            CleanupOutcomeGate.ACTION_PLAN_REPLAYED,
+            replayed_action_plan.sha256(),
+            "exact historical action-plan source replay",
+        ),
+        _passed_gate(
+            CleanupOutcomeGate.PLAN_SEQUENCE_EXACT,
+            f"{len(target_results)} ordered steps",
+            "one exact outcome per plan step in canonical order",
         ),
         _passed_gate(
             CleanupOutcomeGate.ACTIONS_STARTED_WHILE_AUTHORIZED,
@@ -266,7 +337,7 @@ def _assemble_cleanup_completion(
         ),
     )
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "retirement_id": cleanup_manifest.retirement_id,
         "generated_ts_ns": generated_ts_ns,
         "policy_id": policy.policy_id,
@@ -276,6 +347,7 @@ def _assemble_cleanup_completion(
         "disabled_observation_report_sha256": disabled_report.sha256(),
         "cleanup_manifest_sha256": cleanup_manifest.sha256(),
         "cleanup_preflight_receipt_sha256": preflight.sha256(),
+        "cleanup_action_plan_sha256": replayed_action_plan.sha256(),
         "outcome_evidence_manifest_sha256": outcome.manifest.sha256(),
         "outcome_evidence_bundle_sha256": outcome.bundle_sha256,
         "credential_scan_sha256": outcome.credential_scan.sha256(),
@@ -286,14 +358,16 @@ def _assemble_cleanup_completion(
         "targets": [item.model_dump(mode="json") for item in target_results],
         "gates": [item.model_dump(mode="json") for item in gates],
     }
-    return CleanupCompletionReport.model_validate(
+    report = CleanupCompletionReport.model_validate(
         {**payload, "report_id": canonical_sha256(payload), "cleanup_complete": True}
     )
+    return CleanupCompletionReplay(preflight, replayed_action_plan, outcome, report)
 
 
 def _replay_outcome_evidence(
     evidence_root: Path,
     preflight: CleanupPreflightReceipt,
+    action_plan: CleanupActionPlan,
     cleanup_manifest: LegacyCleanupManifest,
     disabled_report: DisabledObservationReport,
     archive_manifest: LegacyArchiveManifest,
@@ -341,6 +415,7 @@ def _replay_outcome_evidence(
         target_bindings,
         targets,
         preflight,
+        action_plan,
         cleanup_manifest,
         disabled_report,
         archive_manifest,
@@ -348,20 +423,21 @@ def _replay_outcome_evidence(
         credential_scan_policy,
         generated_ts_ns,
     )
-    _verify_target_outcomes(
+    ordered_targets = _verify_target_outcomes(
         root,
         manifest,
         targets,
+        action_plan,
         cleanup_manifest,
         preflight,
         approved_target_evidence,
         archive_manifest,
     )
-    _verify_outcome_scan(manifest, scan_binding, scan, credential_scan_policy, targets)
+    _verify_outcome_scan(manifest, scan_binding, scan, credential_scan_policy, ordered_targets)
     _assert_inventory_unchanged(root, inventory)
     bundle_sha256 = canonical_sha256(
         {
-            "schema_version": 1,
+            "schema_version": 2,
             "files": [
                 {
                     "relative_path": item.relative_path,
@@ -372,7 +448,7 @@ def _replay_outcome_evidence(
             ],
         }
     )
-    return CleanupOutcomeReplay(manifest, scan, targets, bundle_sha256)
+    return CleanupOutcomeReplay(manifest, scan, ordered_targets, bundle_sha256)
 
 
 def _verify_outcome_lineage(
@@ -381,6 +457,7 @@ def _verify_outcome_lineage(
     target_bindings: list[CleanupOutcomeControl],
     targets: tuple[CleanupTargetOutcomeEvidence, ...],
     preflight: CleanupPreflightReceipt,
+    action_plan: CleanupActionPlan,
     cleanup_manifest: LegacyCleanupManifest,
     disabled_report: DisabledObservationReport,
     archive_manifest: LegacyArchiveManifest,
@@ -411,6 +488,7 @@ def _verify_outcome_lineage(
         or manifest.disabled_observation_report_sha256 != disabled_report.sha256()
         or manifest.cleanup_manifest_sha256 != cleanup_manifest.sha256()
         or manifest.cleanup_preflight_receipt_sha256 != preflight.sha256()
+        or manifest.cleanup_action_plan_sha256 != action_plan.sha256()
     ):
         raise ValueError("cleanup outcome source lineage differs")
     if manifest.created_ts_ns < preflight.evaluated_ts_ns:
@@ -432,16 +510,45 @@ def _verify_target_outcomes(
     root: Path,
     manifest: CleanupOutcomeEvidenceManifest,
     outcomes: tuple[CleanupTargetOutcomeEvidence, ...],
+    action_plan: CleanupActionPlan,
     cleanup_manifest: LegacyCleanupManifest,
     preflight: CleanupPreflightReceipt,
     approved_target_evidence: tuple[CleanupTargetEvidence, ...],
     archive_manifest: LegacyArchiveManifest,
-) -> None:
+) -> tuple[CleanupTargetOutcomeEvidence, ...]:
     approved = {item.target_id: item for item in cleanup_manifest.targets}
     preflight_targets = {item.target_id: item for item in preflight.targets}
     approved_evidence = {item.target_id: item for item in approved_target_evidence}
-    if [item.target_id for item in outcomes] != sorted(approved):
+    if {item.target_id for item in outcomes} != set(approved) or len(outcomes) != len(approved):
         raise ValueError("cleanup outcome target inventory differs from approval")
+
+    outcomes_by_target = {item.target_id: item for item in outcomes}
+    ordered_outcomes: list[CleanupTargetOutcomeEvidence] = []
+    for step in action_plan.steps:
+        outcome = outcomes_by_target.get(step.target_id)
+        if outcome is None or (
+            outcome.plan_step_id,
+            outcome.plan_sequence,
+            outcome.plan_stage,
+            outcome.target_id,
+            outcome.kind,
+            outcome.locator,
+            outcome.action,
+            outcome.destination_locator,
+            outcome.pre_action_state_sha256,
+        ) != (
+            step.step_id,
+            step.sequence,
+            step.stage,
+            step.target_id,
+            step.kind,
+            step.locator,
+            step.action,
+            step.destination_locator,
+            step.expected_state_sha256,
+        ):
+            raise ValueError("cleanup outcome does not match its exact action plan step")
+        ordered_outcomes.append(outcome)
 
     artifacts = {item.artifact_id: item for item in manifest.artifacts}
     referenced_artifacts: set[str] = set()
@@ -538,6 +645,7 @@ def _verify_target_outcomes(
                 raise ValueError("revoked secret result hashes differ from raw evidence")
     if referenced_artifacts != set(artifacts):
         raise ValueError("cleanup outcome contains unreferenced raw evidence")
+    return tuple(ordered_outcomes)
 
 
 def _verify_path_absence(

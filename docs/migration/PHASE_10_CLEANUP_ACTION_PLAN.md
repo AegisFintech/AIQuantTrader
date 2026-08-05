@@ -81,7 +81,8 @@ The canonical plan sets:
 
 `ready_for_manual_action` is a verified coordination fact, not a grant of
 authority and not proof that an action occurred. Authority remains the signed
-approval. Completion remains the exact outcome bundle and report.
+approval. Every outcome must hash-bind its exact plan step, sequence, and stage;
+completion remains the exact outcome bundle and report.
 
 ## Commands
 
@@ -126,8 +127,9 @@ dependency.
    the approval flow if approved scope changed.
 4. A separately authorized operator records every started/completed action in
    the outcome controls. The plan itself is retained in the operator timeline.
-5. Assemble and independently replay the cleanup completion report. A plan is
-   never completion evidence by itself.
+5. Assemble and independently replay the plan-bound cleanup completion report,
+   then derive and replay the canonical closeout ledger. A plan is never
+   completion evidence by itself.
 
 Rollback before operator action is removal of the untrusted plan from the
 workflow; evidence roots and signed records remain immutable. After action,

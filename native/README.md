@@ -185,6 +185,10 @@ cannot stop, revoke, remove, migrate, or delete anything.
 Phase 10 cleanup outcome evidence is specified in
 `../docs/migration/PHASE_10_CLEANUP_OUTCOME.md`; it verifies retained operator
 evidence and cannot execute or authorize cleanup.
+Phase 10 cleanup closeout is specified in
+`../docs/migration/PHASE_10_CLEANUP_CLOSEOUT.md`; it derives a canonical
+plan-ordered operator ledger only after full completion replay and cannot
+execute or authorize cleanup.
 
 ## Execution and risk
 

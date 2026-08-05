@@ -245,9 +245,10 @@ disabled-window assembly/replay, a frozen baseline policy, short-lived
 scope-specific approvals, exact cleanup manifests, and offline Ed25519
 verification are implemented. A short-lived evidence-only cleanup preflight
 also replays a distinct post-approval full-state capture. Exact post-action
-outcome assembly can later prove typed cleanup results without executing them
-or extending expired authority. The active MT5 deployment is unchanged and no
-retirement approval has been created.
+outcome assembly now binds every typed result to its exact verified plan step,
+and closeout assembly derives an independently replayable operator ledger,
+without executing actions or extending expired authority. The active MT5
+deployment is unchanged and no retirement approval has been created.
 
 Deliverables:
 
@@ -265,6 +266,7 @@ Deliverables:
 - mechanical host cleanup and repository removal PR;
 - exact credential-scanned outcome bundle and independently replayed canonical
   cleanup completion report;
+- canonical plan-ordered operator closeout ledger with independent full replay;
 - ADR 0008 native package/root migration and complete native revalidation.
 
 Tests and review:

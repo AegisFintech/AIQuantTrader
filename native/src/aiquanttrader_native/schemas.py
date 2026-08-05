@@ -98,6 +98,7 @@ from aiquanttrader_native.retirement.models import (
     CleanupEvidenceManifest,
     CleanupHostAbsenceEvidence,
     CleanupInventoryAuditEvidence,
+    CleanupOperatorLedger,
     CleanupOutcomeEvidenceManifest,
     CleanupPathAbsenceEvidence,
     CleanupPreflightReceipt,
@@ -262,6 +263,7 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | CleanupActionPlan
         | CleanupOutcomeEvidenceManifest
         | CleanupCompletionReport
+        | CleanupOperatorLedger
         | CleanupPathAbsenceEvidence
         | CleanupHostAbsenceEvidence
         | ProductionEvidenceManifest
