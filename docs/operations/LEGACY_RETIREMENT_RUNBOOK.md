@@ -76,10 +76,14 @@ Use separate people for approver and operator whenever staffing permits.
    instrument, pause, writer, capture-skew, or tar-safety disagreement stops
    Gate A. The final state must remain inside its one-hour freshness window and
    must report demo, entry-paused, flat, no pending orders, and zero writers.
-12. Build `RetirementReadinessObservation` from the independently assembled
-   native observation and run `aqt-retirement
-   evaluate-readiness` with the frozen policy. A nonzero exit or any failed gate
-   stops the procedure.
+12. Run `aqt-retirement assemble-readiness` against the immutable native and
+   legacy roots, canonical native/archive/final-state outputs, separately
+   retained policies, and independently pinned signer identity. A second
+   operator runs `verify-readiness`. Never hand-compose the observation.
+13. Immediately run `aqt-retirement evaluate-readiness` with both immutable
+   roots and the same external policy/trust inputs. Evaluation repeats both
+   source replays; a nonzero exit, expired authority, stale final state, changed
+   source, identity mismatch, or failed gate stops the procedure.
 
 A passing report says only `awaiting_stop_approval`. Canonicalize the
 `stop_and_observe` approval, sign it offline, and verify the detached signature

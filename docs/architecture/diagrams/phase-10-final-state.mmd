@@ -9,6 +9,6 @@ flowchart LR
     C -- no --> X[Fail closed<br/>no final state]
     C -- yes --> F[LegacyFinalState v2<br/>derived counts + provenance]
     F --> I[Independent verify-final-state replay]
-    I --> Q[Retirement readiness evaluation]
+    I --> Q[Cross-bundle readiness assembly<br/>native identity + dual-root replay]
 
     N[No broker, MT5, signer, network,<br/>pause, order, stop or delete capability] -. security boundary .- V

@@ -5,7 +5,8 @@ flowchart TD
     archiveRaw["Eleven-category legacy archive<br/>restore + recursive scan + annotated tag evidence"]
     archive["aqt-retirement assemble-archive + verify-archive<br/>exact inventory + pinned scan policy + retention"]
     legacy["aqt-retirement assemble-final-state + verify-final-state<br/>derived counts + cross-source reconciliation + freshness"]
-    readiness["aqt-retirement evaluate-readiness<br/>credential-free + no side effects"]
+    readiness["aqt-retirement assemble-readiness + verify-readiness<br/>dual-root replay + shared retirement identity"]
+    evaluate["aqt-retirement evaluate-readiness<br/>replays sources + no side effects"]
     stopReview{"All readiness gates pass?"}
     stopWait["AWAITING STOP APPROVAL"]
     stopSign["Offline Ed25519 approval<br/>scope: stop_and_observe"]
@@ -25,7 +26,8 @@ flowchart TD
     archive --> legacy
     legacyRaw --> legacy
     legacy --> readiness
-    readiness --> stopReview
+    readiness --> evaluate
+    evaluate --> stopReview
     stopReview -- no --> halted
     stopReview -- yes --> stopWait
     stopWait --> stopSign

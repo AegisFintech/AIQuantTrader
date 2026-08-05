@@ -239,6 +239,7 @@ def _assemble_native_production_observation(
         }
     )
     return NativeProductionObservation(
+        retirement_id=manifest.retirement_id,
         policy_id=policy.policy_id,
         policy_sha256=policy.sha256(),
         deployment_id=manifest.deployment_id,

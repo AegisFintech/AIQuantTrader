@@ -549,7 +549,8 @@ class LegacyArchiveEvidenceManifest(DomainModel):
 
 
 class NativeProductionObservation(DomainModel):
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
+    retirement_id: Identifier
     policy_id: Identifier
     policy_sha256: Sha256
     deployment_id: Identifier
@@ -783,6 +784,8 @@ class RetirementReadinessObservation(DomainModel):
 
     @model_validator(mode="after")
     def identities_and_evidence_bind(self) -> Self:
+        if self.native.retirement_id != self.retirement_id:
+            raise ValueError("retirement observation and native identities differ")
         if self.archive.retirement_id != self.retirement_id:
             raise ValueError("retirement observation and archive identities differ")
         if self.legacy.retirement_id != self.retirement_id:

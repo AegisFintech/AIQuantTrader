@@ -1,8 +1,9 @@
 # Phase 10: Legacy MT5 Retirement and Native Repository Cutover
 
-Status: evidence contracts, independent native-production, final-archive, and
-final-MT5-state assembly, and offline approval verification implemented;
-retirement is not authorized and the deployed MT5 runtime remains unchanged
+Status: evidence contracts, independent native-production, final-archive,
+final-MT5-state, and cross-bundle readiness assembly, plus offline approval
+verification implemented; retirement is not authorized and the deployed MT5
+runtime remains unchanged
 
 Phase 10 is a separately approved operational migration after native production,
 not a side effect of Phase 9 admission. It stops the MT5/Wine deployment,
@@ -64,6 +65,9 @@ The `aiquanttrader_native.retirement` package provides:
   broker-export, status, pause, and command-writer sources; reconciles account
   identity and position inventories; derives readiness counts; and binds the
   frozen freshness policy plus exact archive provenance;
+- independent readiness assembly and replay that bind the schema-v3 native
+  retirement identity to the legacy case, reverify both immutable roots, and
+  check authority/freshness again at replay completion;
 - a fourteen-gate readiness report, including final-state freshness, which can
   only await stop approval;
 - an exact ten-capability disabled observation covering PM2, cron, nginx,
@@ -118,7 +122,8 @@ native production evidence + exact archive/restore/scan/tag evidence
 raw final MT5/broker/service evidence + verified archive
   -> independent final-state assembly and replay
 verified final MT5 state + verified archive
-  -> readiness evaluation
+  -> cross-bundle readiness assembly and replay
+  -> source-reverified readiness evaluation
   -> signed stop_and_observe approval
   -> exact operator disable procedure
   -> seven-day disabled observation
@@ -173,9 +178,35 @@ aqt-retirement verify-final-state \
   --policy native/configs/retirement/evidence-v1.toml \
   --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml
 
-aqt-retirement evaluate-readiness \
+aqt-retirement assemble-readiness \
+  --native-evidence-root /absolute/evidence/native-production \
+  --legacy-evidence-root /absolute/evidence/legacy-archive-bundle \
+  --native-observation /absolute/evidence/native-production-observation.json \
+  --archive-manifest /absolute/evidence/legacy-archive-manifest.json \
+  --final-state /absolute/evidence/legacy-final-state.json \
+  --policy native/configs/retirement/evidence-v1.toml \
+  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --approval-key-id <independently-recorded-key-id> \
+  --approval-public-key-sha256 <independently-pinned-fingerprint> \
+  --output /absolute/evidence/readiness-observation.json
+
+aqt-retirement verify-readiness \
+  --native-evidence-root /absolute/evidence/native-production \
+  --legacy-evidence-root /absolute/evidence/legacy-archive-bundle \
   --observation /absolute/evidence/readiness-observation.json \
   --policy native/configs/retirement/evidence-v1.toml \
+  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --approval-key-id <independently-recorded-key-id> \
+  --approval-public-key-sha256 <independently-pinned-fingerprint>
+
+aqt-retirement evaluate-readiness \
+  --native-evidence-root /absolute/evidence/native-production \
+  --legacy-evidence-root /absolute/evidence/legacy-archive-bundle \
+  --observation /absolute/evidence/readiness-observation.json \
+  --policy native/configs/retirement/evidence-v1.toml \
+  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --approval-key-id <independently-recorded-key-id> \
+  --approval-public-key-sha256 <independently-pinned-fingerprint> \
   --output /absolute/evidence/readiness-report.json
 
 aqt-retirement canonicalize-approval \
@@ -237,7 +268,8 @@ typed audit derivation, sentinel continuity, drill check sets, archive
 completeness and binding, restore equality, recursive detector coverage,
 credential-policy and tag-lineage tampering, retention, path and symlink safety,
 raw final-state source binding, MT5/broker reconciliation, tar path safety,
-capture skew/freshness, exact gate sets, stable report identities, approval
+capture skew/freshness, cross-bundle identity, dual-root replay, replay-complete
+authority/freshness, exact gate sets, stable report identities, approval
 scope/expiry, broad cleanup targets, and failed observations. Integration tests
 exercise native, archive, and final-state CLI assembly, independent replay,
 canonicalization, and verification and prove there is no `stop` action command.
@@ -252,6 +284,8 @@ The exact final-archive contract and operator handoff are documented in
 [`Phase 10: Final Legacy Archive`](PHASE_10_LEGACY_ARCHIVE.md).
 Final MT5/broker/service evidence packaging and reconciliation are documented
 in [`Phase 10: Final MT5 State Assembly`](PHASE_10_FINAL_STATE.md).
+Cross-bundle identity, replay, and report evaluation are documented in
+[`Phase 10: Retirement Readiness Assembly`](PHASE_10_READINESS_ASSEMBLY.md).
 Before the cleanup approval, rollback means leaving native safe and halted while
 the owner decides whether to issue new, explicit MT5 reactivation authority.
 After cleanup, recovery uses the immutable archive and `mt5-final` tag in a

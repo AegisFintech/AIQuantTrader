@@ -39,10 +39,17 @@ from aiquanttrader_native.retirement.final_state import (
 )
 from aiquanttrader_native.retirement.models import (
     DisabledObservation,
+    LegacyArchiveCredentialScanPolicy,
     LegacyCleanupManifest,
     RetirementActionApproval,
     RetirementActionScope,
+    RetirementPolicy,
     RetirementReadinessObservation,
+)
+from aiquanttrader_native.retirement.readiness import (
+    assemble_retirement_readiness_observation,
+    load_retirement_readiness_observation,
+    verify_retirement_readiness_observation,
 )
 
 
@@ -93,9 +100,23 @@ def _parser() -> argparse.ArgumentParser:
     verify_final_state.add_argument("--policy", type=Path, required=True)
     verify_final_state.add_argument("--credential-scan-policy", type=Path, required=True)
 
+    assemble_readiness = commands.add_parser("assemble-readiness")
+    assemble_readiness.add_argument("--native-evidence-root", type=Path, required=True)
+    assemble_readiness.add_argument("--legacy-evidence-root", type=Path, required=True)
+    assemble_readiness.add_argument("--native-observation", type=Path, required=True)
+    assemble_readiness.add_argument("--archive-manifest", type=Path, required=True)
+    assemble_readiness.add_argument("--final-state", type=Path, required=True)
+    assemble_readiness.add_argument("--policy", type=Path, required=True)
+    assemble_readiness.add_argument("--credential-scan-policy", type=Path, required=True)
+    assemble_readiness.add_argument("--approval-key-id", required=True)
+    assemble_readiness.add_argument("--approval-public-key-sha256", required=True)
+    assemble_readiness.add_argument("--output", type=Path, required=True)
+
+    verify_readiness = commands.add_parser("verify-readiness")
+    _add_readiness_replay_arguments(verify_readiness)
+
     readiness = commands.add_parser("evaluate-readiness")
-    readiness.add_argument("--observation", type=Path, required=True)
-    readiness.add_argument("--policy", type=Path, required=True)
+    _add_readiness_replay_arguments(readiness)
     readiness.add_argument("--output", type=Path)
 
     disabled = commands.add_parser("evaluate-disabled")
@@ -212,14 +233,56 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(verified_final_state.model_dump_json())
             return 0
 
+        if args.command == "assemble-readiness":
+            _require_output_outside_evidence_root(args.native_evidence_root, args.output)
+            _require_output_outside_evidence_root(args.legacy_evidence_root, args.output)
+            readiness_observation = assemble_retirement_readiness_observation(
+                args.native_evidence_root,
+                args.legacy_evidence_root,
+                load_native_production_observation(args.native_observation),
+                load_legacy_archive_manifest(args.archive_manifest),
+                load_legacy_final_state(args.final_state),
+                policy=load_retirement_policy(args.policy),
+                credential_scan_policy=load_legacy_archive_credential_scan_policy(
+                    args.credential_scan_policy
+                ),
+                expected_key_id=args.approval_key_id,
+                expected_public_key_sha256=args.approval_public_key_sha256,
+            )
+            _atomic_write_new(args.output, readiness_observation.canonical_bytes() + b"\n")
+            print(readiness_observation.model_dump_json())
+            return 0
+
+        if args.command == "verify-readiness":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            verified_readiness = _verify_readiness_from_args(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            print(verified_readiness.model_dump_json())
+            return 0
+
         if args.command == "evaluate-readiness":
-            observation = RetirementReadinessObservation.model_validate_json(
-                args.observation.read_bytes()
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            observation = _verify_readiness_from_args(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
             )
             report = evaluate_retirement_readiness(
                 observation=observation,
-                policy=load_retirement_policy(args.policy),
+                policy=policy,
             )
+            if args.output is not None:
+                _require_output_outside_evidence_root(args.native_evidence_root, args.output)
+                _require_output_outside_evidence_root(args.legacy_evidence_root, args.output)
             _write_optional(args.output, report.canonical_bytes() + b"\n")
             print(report.model_dump_json())
             return 0 if report.awaiting_stop_approval else 1
@@ -284,6 +347,33 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps({"status": "error", "error": str(exc)}), file=sys.stderr)
         return 2
     raise RuntimeError(f"unhandled command: {args.command}")
+
+
+def _add_readiness_replay_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--native-evidence-root", type=Path, required=True)
+    parser.add_argument("--legacy-evidence-root", type=Path, required=True)
+    parser.add_argument("--observation", type=Path, required=True)
+    parser.add_argument("--policy", type=Path, required=True)
+    parser.add_argument("--credential-scan-policy", type=Path, required=True)
+    parser.add_argument("--approval-key-id", required=True)
+    parser.add_argument("--approval-public-key-sha256", required=True)
+
+
+def _verify_readiness_from_args(
+    args: argparse.Namespace,
+    *,
+    policy: RetirementPolicy,
+    credential_scan_policy: LegacyArchiveCredentialScanPolicy,
+) -> RetirementReadinessObservation:
+    return verify_retirement_readiness_observation(
+        args.native_evidence_root,
+        args.legacy_evidence_root,
+        load_retirement_readiness_observation(args.observation),
+        policy=policy,
+        credential_scan_policy=credential_scan_policy,
+        expected_key_id=args.approval_key_id,
+        expected_public_key_sha256=args.approval_public_key_sha256,
+    )
 
 
 def _write_optional(path: Path | None, payload: bytes) -> None:

@@ -129,7 +129,9 @@ Output creation is atomic, mode `0600`, absolute-path-only, fail-on-exist, and
 must be outside the immutable evidence root.
 Independent verification repeats archive and state reconstruction and requires
 exact typed equality. A flat demo result still grants no stop authority; it is
-only one input to readiness evaluation and the separate signed approval.
+only one input to the independently replayed
+[`Retirement Readiness Assembly`](PHASE_10_READINESS_ASSEMBLY.md) and the
+separate signed approval.
 
 ## Failure and rollback
 

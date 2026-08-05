@@ -74,6 +74,9 @@ checklist while MT5 remains deployed.
   raw trade report, broker export, MT5 status, pause flag, and all five writer
   inventories match their normalized records, capture skew is within five
   minutes, and the state remains inside its one-hour freshness window.
+- [ ] Assemble and independently verify readiness against both immutable roots;
+  schema-v3 native and legacy retirement identities match, authority and final
+  state remain current after replay, and evaluation repeats source verification.
 - [ ] The complete 15-scenario final-testnet report passed with real retained
   evidence, flat final state, resolved unknown outcomes, and no mainnet key.
 - [ ] The unsigned bundle was created at a new path, all receipt hashes and
