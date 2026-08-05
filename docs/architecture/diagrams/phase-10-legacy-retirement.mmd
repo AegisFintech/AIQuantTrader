@@ -1,9 +1,10 @@
 flowchart TD
     nativeRaw["Retained native production<br/>signed release + ledger + renewals + audits"]
     native["aqt-retirement assemble-native + verify-native<br/>pinned trust root + bounded continuity"]
-    legacy["Final MT5 demo state<br/>paused + flat + no pending orders"]
+    legacyRaw["Raw final MT5 + broker + service evidence<br/>report + export + status + pause + writer checks"]
     archiveRaw["Eleven-category legacy archive<br/>restore + recursive scan + annotated tag evidence"]
     archive["aqt-retirement assemble-archive + verify-archive<br/>exact inventory + pinned scan policy + retention"]
+    legacy["aqt-retirement assemble-final-state + verify-final-state<br/>derived counts + cross-source reconciliation + freshness"]
     readiness["aqt-retirement evaluate-readiness<br/>credential-free + no side effects"]
     stopReview{"All readiness gates pass?"}
     stopWait["AWAITING STOP APPROVAL"]
@@ -20,9 +21,10 @@ flowchart TD
 
     nativeRaw --> native
     native --> readiness
-    legacy --> readiness
     archiveRaw --> archive
-    archive --> readiness
+    archive --> legacy
+    legacyRaw --> legacy
+    legacy --> readiness
     readiness --> stopReview
     stopReview -- no --> halted
     stopReview -- yes --> stopWait

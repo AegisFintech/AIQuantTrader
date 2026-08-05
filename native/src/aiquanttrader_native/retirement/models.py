@@ -606,19 +606,171 @@ class NativeProductionObservation(DomainModel):
         return self
 
 
-class LegacyFinalState(DomainModel):
-    schema_version: Literal[1] = 1
-    captured_ts_ns: int = Field(ge=0)
-    account_mode: Literal["demo"] = "demo"
+class LegacyAccountMode(StrEnum):
+    DEMO = "demo"
+    LIVE = "live"
+    CONTEST = "contest"
+    UNKNOWN = "unknown"
+
+
+class LegacyManagedPositionEvidence(DomainModel):
+    position_id_sha256: Sha256
     instrument_id: Literal["XAUUSD"] = "XAUUSD"
-    open_managed_positions: int = Field(ge=0)
-    open_unmanaged_positions: int = Field(ge=0)
-    pending_orders: int = Field(ge=0)
+
+
+class LegacyFinalTradeReportEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    capture_id: Identifier
+    captured_ts_ns: int = Field(ge=0)
+    generated_by: Identifier
+    reviewed_by: Annotated[str, Field(min_length=1, max_length=256)]
+    source_report_sha256: Sha256
+    account_login_sha256: Sha256
+    broker_server_sha256: Sha256
+    instrument_id: Literal["XAUUSD"] = "XAUUSD"
+    mt5_reported_open_positions: int = Field(ge=0, le=4_096)
+    entry_pause_reported: bool
+    final_status_sha256: Sha256
+    managed_positions: tuple[LegacyManagedPositionEvidence, ...] = Field(
+        default=(), max_length=4_096
+    )
+
+    @model_validator(mode="after")
+    def managed_positions_are_unique(self) -> Self:
+        if self.generated_by == self.reviewed_by:
+            raise ValueError("final MT5 trade report requires an independent reviewer")
+        identities = [item.position_id_sha256 for item in self.managed_positions]
+        if len(identities) != len(set(identities)):
+            raise ValueError("final MT5 trade report contains duplicate managed positions")
+        if len(self.managed_positions) > self.mt5_reported_open_positions:
+            raise ValueError("managed positions exceed MT5 reported account positions")
+        return self
+
+
+class LegacyBrokerPositionEvidence(DomainModel):
+    position_id_sha256: Sha256
+    instrument_id: Identifier
+
+
+class LegacyBrokerOrderEvidence(DomainModel):
+    order_id_sha256: Sha256
+    instrument_id: Identifier
+
+
+class LegacyBrokerAccountStateEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    capture_id: Identifier
+    captured_ts_ns: int = Field(ge=0)
+    captured_by: Annotated[str, Field(min_length=1, max_length=256)]
+    reviewed_by: Annotated[str, Field(min_length=1, max_length=256)]
+    account_mode: LegacyAccountMode
+    account_login_sha256: Sha256
+    broker_server_sha256: Sha256
+    source_export_sha256: Sha256
+    positions: tuple[LegacyBrokerPositionEvidence, ...] = Field(default=(), max_length=4_096)
+    pending_orders: tuple[LegacyBrokerOrderEvidence, ...] = Field(default=(), max_length=4_096)
+
+    @model_validator(mode="after")
+    def inventory_is_unique_and_independently_reviewed(self) -> Self:
+        if self.captured_by == self.reviewed_by:
+            raise ValueError("broker account state requires an independent reviewer")
+        positions = [item.position_id_sha256 for item in self.positions]
+        orders = [item.order_id_sha256 for item in self.pending_orders]
+        if len(positions) != len(set(positions)):
+            raise ValueError("broker account state contains duplicate positions")
+        if len(orders) != len(set(orders)):
+            raise ValueError("broker account state contains duplicate pending orders")
+        return self
+
+
+class LegacyCommandWriterSurface(StrEnum):
+    PROCESS_TABLE = "process_table"
+    PM2 = "pm2"
+    CRON = "cron"
+    SYSTEMD = "systemd"
+    COMMAND_FILE_HANDLES = "command_file_handles"
+
+
+REQUIRED_COMMAND_WRITER_SURFACES = frozenset(LegacyCommandWriterSurface)
+
+
+class LegacyCommandWriterCheck(DomainModel):
+    surface: LegacyCommandWriterSurface
+    evidence_member: Annotated[str, Field(min_length=1, max_length=256)]
+    evidence_sha256: Sha256
+    active_writer_ids: tuple[Identifier, ...] = Field(default=(), max_length=1_024)
+
+    @model_validator(mode="after")
+    def writer_identities_are_unique(self) -> Self:
+        expected_member = f"final-state/command-writers/{self.surface.value}.txt"
+        if self.evidence_member != expected_member:
+            raise ValueError("command writer evidence member does not match its surface")
+        if len(self.active_writer_ids) != len(set(self.active_writer_ids)):
+            raise ValueError("command writer evidence contains duplicate identities")
+        return self
+
+
+class LegacyServiceConfigurationEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    capture_id: Identifier
+    captured_ts_ns: int = Field(ge=0)
+    captured_by: Annotated[str, Field(min_length=1, max_length=256)]
+    reviewed_by: Annotated[str, Field(min_length=1, max_length=256)]
+    final_status_sha256: Sha256
+    entry_pause_file_present: bool
+    entry_pause_file_sha256: Sha256 | None = None
+    ea_entry_pause_reported: bool
+    command_writer_checks: tuple[LegacyCommandWriterCheck, ...] = Field(
+        min_length=len(REQUIRED_COMMAND_WRITER_SURFACES),
+        max_length=len(REQUIRED_COMMAND_WRITER_SURFACES),
+    )
+
+    @model_validator(mode="after")
+    def writer_surfaces_are_exact_and_independently_reviewed(self) -> Self:
+        if self.captured_by == self.reviewed_by:
+            raise ValueError("service configuration state requires an independent reviewer")
+        if self.entry_pause_file_present != (self.entry_pause_file_sha256 is not None):
+            raise ValueError("entry-pause file presence and hash must agree")
+        surfaces = [item.surface for item in self.command_writer_checks]
+        if len(surfaces) != len(set(surfaces)) or set(surfaces) != REQUIRED_COMMAND_WRITER_SURFACES:
+            raise ValueError("service state must inspect every command writer surface exactly once")
+        return self
+
+
+class LegacyFinalState(DomainModel):
+    schema_version: Literal[2] = 2
+    retirement_id: Identifier
+    captured_ts_ns: int = Field(ge=0)
+    assembled_ts_ns: int = Field(ge=0)
+    policy_id: Identifier
+    policy_sha256: Sha256
+    archive_manifest_sha256: Sha256
+    archive_bundle_sha256: Sha256
+    account_mode: LegacyAccountMode
+    account_login_sha256: Sha256
+    broker_server_sha256: Sha256
+    instrument_id: Literal["XAUUSD"] = "XAUUSD"
+    open_managed_positions: int = Field(ge=0, le=4_096)
+    open_unmanaged_positions: int = Field(ge=0, le=4_096)
+    pending_orders: int = Field(ge=0, le=4_096)
     entry_pause_active: bool
-    command_file_writer_count: int = Field(ge=0)
+    command_file_writer_count: int = Field(ge=0, le=5_120)
     final_trade_report_sha256: Sha256
     final_status_sha256: Sha256
     broker_account_state_sha256: Sha256
+    service_configuration_sha256: Sha256
+    final_trade_report_capture_id: Identifier
+    broker_account_capture_id: Identifier
+    service_configuration_capture_id: Identifier
+
+    @model_validator(mode="after")
+    def assembly_follows_capture(self) -> Self:
+        if self.assembled_ts_ns < self.captured_ts_ns:
+            raise ValueError("final legacy state assembly cannot predate its evidence")
+        return self
 
 
 class RetirementReadinessObservation(DomainModel):
@@ -633,6 +785,8 @@ class RetirementReadinessObservation(DomainModel):
     def identities_and_evidence_bind(self) -> Self:
         if self.archive.retirement_id != self.retirement_id:
             raise ValueError("retirement observation and archive identities differ")
+        if self.legacy.retirement_id != self.retirement_id:
+            raise ValueError("retirement observation and final legacy state identities differ")
         if self.observed_ts_ns < self.native.ended_ts_ns:
             raise ValueError("retirement readiness cannot predate native observation completion")
         if self.observed_ts_ns >= self.native.authorization_expires_ts_ns:
@@ -643,6 +797,13 @@ class RetirementReadinessObservation(DomainModel):
             raise ValueError("retirement readiness cannot predate archive assembly")
         if self.observed_ts_ns < self.legacy.captured_ts_ns:
             raise ValueError("retirement readiness cannot predate final legacy state")
+        if self.observed_ts_ns < self.legacy.assembled_ts_ns:
+            raise ValueError("retirement readiness cannot predate final legacy state assembly")
+        if (
+            self.legacy.archive_manifest_sha256 != self.archive.sha256()
+            or self.legacy.archive_bundle_sha256 != self.archive.evidence_bundle_sha256
+        ):
+            raise ValueError("final legacy state is not bound to the retained archive")
         by_kind = {artifact.kind: artifact for artifact in self.archive.artifacts}
         if (
             by_kind[LegacyArchiveArtifactKind.FINAL_TRADE_REPORT].content_sha256
@@ -654,6 +815,11 @@ class RetirementReadinessObservation(DomainModel):
             != self.legacy.broker_account_state_sha256
         ):
             raise ValueError("broker account state is not bound into the archive")
+        if (
+            by_kind[LegacyArchiveArtifactKind.SERVICE_CONFIGURATION].content_sha256
+            != self.legacy.service_configuration_sha256
+        ):
+            raise ValueError("service configuration state is not bound into the archive")
         return self
 
 
@@ -665,6 +831,8 @@ class RetirementPolicy(DomainModel):
     maximum_native_operational_gap_ns: int = Field(gt=0)
     minimum_disabled_observation_ns: int = Field(gt=0)
     minimum_archive_retention_ns: int = Field(gt=0)
+    maximum_final_state_capture_skew_ns: int = Field(gt=0)
+    maximum_final_state_age_ns: int = Field(gt=0)
     archive_credential_scan_policy_id: Identifier
     archive_credential_scan_policy_sha256: Sha256
     required_archive_artifacts: tuple[LegacyArchiveArtifactKind, ...] = Field(
@@ -701,6 +869,7 @@ class RetirementReadinessGate(StrEnum):
     ARCHIVE_RETENTION = "archive_retention"
     ARCHIVE_NO_CREDENTIALS = "archive_no_credentials"
     FINAL_TAG = "final_tag"
+    FINAL_STATE_FRESHNESS = "final_state_freshness"
     DEMO_ACCOUNT = "demo_account"
     ENTRY_PAUSE = "entry_pause"
     FLAT_ACCOUNT = "flat_account"

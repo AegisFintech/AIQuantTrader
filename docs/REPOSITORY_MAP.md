@@ -242,13 +242,15 @@ Current Phase 10 legacy-retirement ownership:
 |---|---|
 | `native/src/aiquanttrader_native/retirement/collector.py` | Credential-free exact-inventory reconstruction of signed production authority, renewal continuity, audits, incidents, drills, and native observation. |
 | `native/src/aiquanttrader_native/retirement/archive.py` | Credential-free exact-inventory assembly and independent replay of the final legacy archive, restore proof, recursive scan evidence, and annotated-tag lineage. |
+| `native/src/aiquanttrader_native/retirement/final_state.py` | Credential-free reconstruction and replay of final MT5/broker/service state from raw evidence embedded in the verified archive. |
 | `native/src/aiquanttrader_native/retirement/{models,evidence,approval}.py` | Immutable final-archive, terminal native-authorization observation, flat-MT5-state, disabled-window, scoped approval, and exact cleanup-manifest contracts. |
-| `native/configs/retirement/evidence-v1.toml` | Frozen 30-day native, five-minute operational-evidence gap, seven-day disabled, 365-day archive-retention baseline, and credential-scan policy identity. |
+| `native/configs/retirement/evidence-v1.toml` | Frozen 30-day native, five-minute operational-evidence gap and final-state skew, one-hour final-state age, seven-day disabled, 365-day archive retention, and credential-scan identity. |
 | `native/configs/retirement/archive-credential-scan-v1.toml` | Frozen recursive detector and zero-finding contract for credential-free legacy archives. |
 | `native/schemas/retirement.schema.json` | Deterministic external contract for every Phase 10 evidence and approval record. |
 | `docs/migration/PHASE_10_LEGACY_RETIREMENT.md` | Two-approval architecture, repository delta, tests, migration, and rollback. |
 | `docs/migration/PHASE_10_PRODUCTION_EVIDENCE.md` | Native bundle layout, trust boundary, independent assembly, verification, tests, and rollback. |
 | `docs/migration/PHASE_10_LEGACY_ARCHIVE.md` | Exact archive bundle, restore, recursive scan, retention, annotated-tag, assembly, and replay procedure. |
+| `docs/migration/PHASE_10_FINAL_STATE.md` | Raw source packaging, MT5/broker reconciliation, writer inventory, freshness, final-state assembly, and replay procedure. |
 | `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md` | Final archive, exact disable, observation, cleanup approval, host cleanup, removal PR, and failure procedure. |
 
 Phase 10 code is evidence-only. `aqt-retirement` has no command or dependency
@@ -269,6 +271,10 @@ from all eleven category artifacts, isolated-restore evidence, a policy-pinned
 recursive zero-finding credential scan, and annotated `mt5-final` tag evidence.
 Its schema-v2 manifest binds those control artifacts and their source lineage;
 it does not prove final broker flatness or authorize a stop.
+Final account state must then be independently derived from raw report, broker,
+status, pause, and writer evidence embedded in that verified archive. The
+schema-v2 state binds the frozen policy and archive provenance, derives all
+counts, and expires after the policy freshness window; it does not act on MT5.
 
 ## Current Legacy System Topology
 

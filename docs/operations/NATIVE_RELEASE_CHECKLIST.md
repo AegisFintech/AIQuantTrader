@@ -70,6 +70,10 @@ checklist while MT5 remains deployed.
   eleven-category legacy archive; restore hashes/sizes match, the frozen
   recursive credential scan has zero findings, `mt5-final` is annotated and
   resolves to the archived commit, and 365 days of retention remain.
+- [ ] Independently assemble and verify final MT5 state from the same archive;
+  raw trade report, broker export, MT5 status, pause flag, and all five writer
+  inventories match their normalized records, capture skew is within five
+  minutes, and the state remains inside its one-hour freshness window.
 - [ ] The complete 15-scenario final-testnet report passed with real retained
   evidence, flat final state, resolved unknown outcomes, and no mainnet key.
 - [ ] The unsigned bundle was created at a new path, all receipt hashes and
