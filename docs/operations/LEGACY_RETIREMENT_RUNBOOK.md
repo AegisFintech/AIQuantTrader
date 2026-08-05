@@ -25,22 +25,32 @@ Use separate people for approver and operator whenever staffing permits.
    artifact manifest, ordered renewal approvals and ledger transitions,
    terminal authorization identity/expiry, operational evidence, drill reports,
    alerts, and backup restore evidence. Any expiry gap restarts the window.
-2. Activate `aiquanttrader_entry_pause.flag`. Confirm automatic and command-file
+   Create a checkpointed schema-v2 SQLite backup; do not copy a live WAL
+   generation or point evidence tooling at the runtime ledger. Retain every
+   signed renewal and detached signature. Build the exact-inventory production
+   bundle described in `PHASE_10_PRODUCTION_EVIDENCE.md`.
+2. Obtain the approval key ID and Ed25519 public-key fingerprint from the
+   independent release trust record, not from the evidence bundle. Run
+   `aqt-retirement assemble-native`, then have a second operator run
+   `verify-native`. Any signature, artifact, ledger, renewal-chain, typed-risk,
+   incident, drill, or five-minute sentinel-continuity failure stops Gate A.
+3. Activate `aiquanttrader_entry_pause.flag`. Confirm automatic and command-file
    entries are rejected while monitoring and position management remain active.
-3. Run `python3 scripts/mt5_trade_report.py`; independently inspect the broker
+4. Run `python3 scripts/mt5_trade_report.py`; independently inspect the broker
    account for managed positions, unmanaged positions, and pending orders.
-4. Closing or transferring any position requires explicit owner direction.
+5. Closing or transferring any position requires explicit owner direction.
    Continue only when all three counts are zero.
-5. Capture the eleven required archive categories: final trade report, broker
+6. Capture the eleven required archive categories: final trade report, broker
    state, deployed source/compiled release identity, redacted runtime
    configuration, Common Files, deal/order history, strategy/research evidence,
    service configuration, operational logs, restore-test result, and operator
    timeline. Never archive credentials in this evidence bundle.
-6. Copy the archive to the approved separate destination, hash every artifact,
+7. Copy the archive to the approved separate destination, hash every artifact,
    restore it into an isolated location, and record the restore test.
-7. After archive review, create the annotated `mt5-final` tag at the archived
+8. After archive review, create the annotated `mt5-final` tag at the archived
    commit. Push it once; never move or reuse it.
-8. Build `RetirementReadinessObservation` and run `aqt-retirement
+9. Build `RetirementReadinessObservation` from the independently assembled
+   native observation and run `aqt-retirement
    evaluate-readiness` with the frozen policy. A nonzero exit or any failed gate
    stops the procedure.
 

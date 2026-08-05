@@ -2,6 +2,7 @@ schema_version = 1
 policy_id = "legacy-mt5-retirement-v1"
 frozen_at_ns = 1785859200000000000
 minimum_native_production_observation_ns = 2592000000000000
+maximum_native_operational_gap_ns = 300000000000
 minimum_disabled_observation_ns = 604800000000000
 minimum_archive_retention_ns = 31536000000000000
 required_archive_artifacts = [

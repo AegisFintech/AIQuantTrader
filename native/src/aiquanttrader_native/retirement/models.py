@@ -11,6 +11,7 @@ from typing import Annotated, Literal, Self
 from pydantic import Field, StringConstraints, model_validator
 
 from aiquanttrader_native.domain.base import DomainModel, canonical_sha256
+from aiquanttrader_native.governance.models import DeploymentArtifactKind
 
 Identifier = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
@@ -58,6 +59,222 @@ class RequiredNativeDrill(StrEnum):
 
 
 REQUIRED_NATIVE_DRILLS = frozenset(RequiredNativeDrill)
+
+
+class ProductionEvidenceCategory(StrEnum):
+    ADMISSION_LEDGER = "admission_ledger"
+    DEPLOYMENT_APPROVAL = "deployment_approval"
+    APPROVAL_SIGNATURE = "approval_signature"
+    APPROVAL_PUBLIC_KEY = "approval_public_key"
+    ARTIFACT_MANIFEST = "artifact_manifest"
+    RELEASE_ARTIFACT = "release_artifact"
+    AUTHORIZATION_RENEWAL = "authorization_renewal"
+    AUTHORIZATION_RENEWAL_SIGNATURE = "authorization_renewal_signature"
+    EXECUTION_AUDIT = "execution_audit"
+    SENTINEL_AUDIT = "sentinel_audit"
+    INCIDENT_REGISTER = "incident_register"
+    DRILL_REPORT = "drill_report"
+    SUPPORTING_EVIDENCE = "supporting_evidence"
+
+
+PRODUCTION_EVIDENCE_SINGLETONS = frozenset(
+    {
+        ProductionEvidenceCategory.ADMISSION_LEDGER,
+        ProductionEvidenceCategory.DEPLOYMENT_APPROVAL,
+        ProductionEvidenceCategory.APPROVAL_SIGNATURE,
+        ProductionEvidenceCategory.APPROVAL_PUBLIC_KEY,
+        ProductionEvidenceCategory.ARTIFACT_MANIFEST,
+        ProductionEvidenceCategory.EXECUTION_AUDIT,
+        ProductionEvidenceCategory.SENTINEL_AUDIT,
+        ProductionEvidenceCategory.INCIDENT_REGISTER,
+    }
+)
+
+
+class ProductionEvidenceArtifact(DomainModel):
+    category: ProductionEvidenceCategory
+    reference_id: Identifier
+    relative_path: Annotated[str, Field(min_length=1, max_length=512)]
+    content_sha256: Sha256
+    byte_count: int = Field(gt=0, le=268_435_456)
+    captured_start_ts_ns: int = Field(ge=0)
+    captured_end_ts_ns: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def path_and_interval_are_bounded(self) -> Self:
+        path = PurePosixPath(self.relative_path)
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or len(path.parts) < 2
+            or path.parts[0] != "raw"
+        ):
+            raise ValueError("production evidence artifacts must be below raw/ without traversal")
+        if self.captured_end_ts_ns < self.captured_start_ts_ns:
+            raise ValueError("production evidence capture interval is reversed")
+        return self
+
+
+class NativeDrillCheck(DomainModel):
+    check_id: Identifier
+    passed: bool
+    actual: Annotated[str, Field(min_length=1, max_length=2_048)]
+    required: Annotated[str, Field(min_length=1, max_length=2_048)]
+
+
+class NativeDrillEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    drill: RequiredNativeDrill
+    started_ts_ns: int = Field(ge=0)
+    ended_ts_ns: int = Field(ge=0)
+    checks: tuple[NativeDrillCheck, ...] = Field(min_length=1, max_length=32)
+    evidence_paths: tuple[Annotated[str, Field(min_length=1, max_length=512)], ...] = Field(
+        min_length=1,
+        max_length=64,
+    )
+    invalidating_events: tuple[Identifier, ...] = ()
+
+    @model_validator(mode="after")
+    def interval_and_references_are_valid(self) -> Self:
+        if self.ended_ts_ns <= self.started_ts_ns:
+            raise ValueError("native drill must have a positive interval")
+        check_ids = [check.check_id for check in self.checks]
+        if len(check_ids) != len(set(check_ids)):
+            raise ValueError("native drill check identities must be unique")
+        if len(self.evidence_paths) != len(set(self.evidence_paths)):
+            raise ValueError("native drill evidence paths must be unique")
+        for value in self.evidence_paths:
+            path = PurePosixPath(value)
+            if path.is_absolute() or ".." in path.parts or not path.parts:
+                raise ValueError("native drill evidence paths cannot traverse")
+        if len(self.invalidating_events) != len(set(self.invalidating_events)):
+            raise ValueError("native drill invalidating events must be unique")
+        return self
+
+    @property
+    def passed(self) -> bool:
+        return not self.invalidating_events and all(check.passed for check in self.checks)
+
+
+class ProductionIncidentSeverity(StrEnum):
+    WARNING = "warning"
+    MAJOR = "major"
+    CRITICAL = "critical"
+
+
+class ProductionIncident(DomainModel):
+    incident_id: Identifier
+    severity: ProductionIncidentSeverity
+    started_ts_ns: int = Field(ge=0)
+    ended_ts_ns: int | None = Field(default=None, ge=0)
+    resolved: bool
+    evidence_paths: tuple[Annotated[str, Field(min_length=1, max_length=512)], ...] = Field(
+        min_length=1,
+        max_length=64,
+    )
+
+    @model_validator(mode="after")
+    def interval_and_references_are_valid(self) -> Self:
+        if self.ended_ts_ns is not None and self.ended_ts_ns < self.started_ts_ns:
+            raise ValueError("production incident interval is reversed")
+        if self.resolved != (self.ended_ts_ns is not None):
+            raise ValueError("production incident resolution and end timestamp differ")
+        if len(self.evidence_paths) != len(set(self.evidence_paths)):
+            raise ValueError("production incident evidence paths must be unique")
+        for value in self.evidence_paths:
+            path = PurePosixPath(value)
+            if path.is_absolute() or ".." in path.parts or not path.parts:
+                raise ValueError("production incident evidence paths cannot traverse")
+        return self
+
+
+class ProductionIncidentRegister(DomainModel):
+    schema_version: Literal[1] = 1
+    deployment_id: Identifier
+    admission_id: Sha256
+    started_ts_ns: int = Field(ge=0)
+    ended_ts_ns: int = Field(ge=0)
+    reviewed_ts_ns: int = Field(ge=0)
+    reviewer: Annotated[str, Field(min_length=1, max_length=256)]
+    incidents: tuple[ProductionIncident, ...] = Field(default=(), max_length=4_096)
+
+    @model_validator(mode="after")
+    def interval_and_incidents_are_valid(self) -> Self:
+        if self.ended_ts_ns <= self.started_ts_ns:
+            raise ValueError("production incident register must cover a positive interval")
+        if self.reviewed_ts_ns < self.ended_ts_ns:
+            raise ValueError("production incident register must be reviewed after its interval")
+        ids = [incident.incident_id for incident in self.incidents]
+        if len(ids) != len(set(ids)):
+            raise ValueError("production incident identities must be unique")
+        for incident in self.incidents:
+            end = self.ended_ts_ns if incident.ended_ts_ns is None else incident.ended_ts_ns
+            if incident.started_ts_ns < self.started_ts_ns or end > self.ended_ts_ns:
+                raise ValueError("production incident escapes the reviewed interval")
+        return self
+
+
+class ProductionEvidenceManifest(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    deployment_id: Identifier
+    admission_id: Sha256
+    started_ts_ns: int = Field(ge=0)
+    ended_ts_ns: int = Field(ge=0)
+    created_ts_ns: int = Field(ge=0)
+    contains_credentials: Literal[False] = False
+    artifacts: tuple[ProductionEvidenceArtifact, ...] = Field(min_length=21, max_length=4_096)
+
+    @model_validator(mode="after")
+    def interval_and_inventory_are_exact(self) -> Self:
+        if self.ended_ts_ns <= self.started_ts_ns:
+            raise ValueError("production evidence must cover a positive interval")
+        if self.created_ts_ns < self.ended_ts_ns:
+            raise ValueError("production evidence cannot be created before its interval ends")
+        paths = [artifact.relative_path for artifact in self.artifacts]
+        identities = [(artifact.category, artifact.reference_id) for artifact in self.artifacts]
+        if len(paths) != len(set(paths)):
+            raise ValueError("production evidence artifact paths must be unique")
+        if len(identities) != len(set(identities)):
+            raise ValueError("production evidence category references must be unique")
+        by_category = {
+            category: tuple(item for item in self.artifacts if item.category is category)
+            for category in ProductionEvidenceCategory
+        }
+        if any(len(by_category[category]) != 1 for category in PRODUCTION_EVIDENCE_SINGLETONS):
+            raise ValueError("production evidence singleton inventory is incomplete or duplicated")
+        release_ids = {
+            item.reference_id for item in by_category[ProductionEvidenceCategory.RELEASE_ARTIFACT]
+        }
+        if release_ids != {kind.value for kind in DeploymentArtifactKind}:
+            raise ValueError("production release artifact inventory is incomplete or unexpected")
+        drill_ids = {
+            item.reference_id for item in by_category[ProductionEvidenceCategory.DRILL_REPORT]
+        }
+        if drill_ids != {drill.value for drill in RequiredNativeDrill}:
+            raise ValueError("production drill report inventory is incomplete or unexpected")
+        renewal_ids = {
+            item.reference_id
+            for item in by_category[ProductionEvidenceCategory.AUTHORIZATION_RENEWAL]
+        }
+        renewal_signature_ids = {
+            item.reference_id
+            for item in by_category[ProductionEvidenceCategory.AUTHORIZATION_RENEWAL_SIGNATURE]
+        }
+        if renewal_ids != renewal_signature_ids:
+            raise ValueError("production renewal and signature inventories differ")
+        for category in (
+            ProductionEvidenceCategory.EXECUTION_AUDIT,
+            ProductionEvidenceCategory.SENTINEL_AUDIT,
+            ProductionEvidenceCategory.INCIDENT_REGISTER,
+        ):
+            binding = by_category[category][0]
+            if (
+                binding.captured_start_ts_ns > self.started_ts_ns
+                or binding.captured_end_ts_ns < self.ended_ts_ns
+            ):
+                raise ValueError(f"{category.value} does not cover the production interval")
+        return self
 
 
 class LegacyArchiveArtifact(DomainModel):
@@ -113,16 +330,25 @@ class LegacyArchiveManifest(DomainModel):
 
 
 class NativeProductionObservation(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
+    policy_id: Identifier
+    policy_sha256: Sha256
     deployment_id: Identifier
     admission_id: Sha256
     terminal_authorization_id: Sha256
     renewal_count: int = Field(ge=0)
     authorization_expires_ts_ns: int = Field(gt=0)
+    authorization_chain_sha256: Sha256
+    approval_key_id: Identifier
+    approval_public_key_sha256: Sha256
     production_approval_sha256: Sha256
     production_artifact_manifest_sha256: Sha256
+    evidence_manifest_sha256: Sha256
     started_ts_ns: int = Field(ge=0)
     ended_ts_ns: int = Field(ge=0)
+    assembled_ts_ns: int = Field(ge=0)
+    sentinel_health_samples: int = Field(gt=0)
+    maximum_operational_gap_ns: int = Field(gt=0)
     critical_incidents: int = Field(ge=0)
     reconciliation_failures: int = Field(ge=0)
     risk_breaches: int = Field(ge=0)
@@ -136,10 +362,22 @@ class NativeProductionObservation(DomainModel):
     def interval_and_drills_are_complete(self) -> Self:
         if self.ended_ts_ns <= self.started_ts_ns:
             raise ValueError("native production observation must have a positive interval")
+        if self.assembled_ts_ns < self.ended_ts_ns:
+            raise ValueError("native production observation cannot predate its interval end")
         if self.authorization_expires_ts_ns <= self.ended_ts_ns:
             raise ValueError(
                 "native production authorization must remain active through observation"
             )
+        if self.authorization_expires_ts_ns <= self.assembled_ts_ns:
+            raise ValueError("native production authorization must be active at assembly")
+        minimum_samples = max(
+            1,
+            (self.ended_ts_ns - self.started_ts_ns + self.maximum_operational_gap_ns - 1)
+            // self.maximum_operational_gap_ns
+            - 1,
+        )
+        if self.sentinel_health_samples < minimum_samples:
+            raise ValueError("native production health samples cannot cover the reported interval")
         if self.renewal_count == 0 and self.terminal_authorization_id != self.admission_id:
             raise ValueError("unrenewed native authorization must equal admission identity")
         if self.renewal_count > 0 and self.terminal_authorization_id == self.admission_id:
@@ -178,6 +416,8 @@ class RetirementReadinessObservation(DomainModel):
             raise ValueError("retirement observation and archive identities differ")
         if self.observed_ts_ns < self.native.ended_ts_ns:
             raise ValueError("retirement readiness cannot predate native observation completion")
+        if self.observed_ts_ns >= self.native.authorization_expires_ts_ns:
+            raise ValueError("retirement readiness requires an active native authorization")
         if self.observed_ts_ns < self.archive.created_ts_ns:
             raise ValueError("retirement readiness cannot predate archive creation")
         if self.observed_ts_ns < self.legacy.captured_ts_ns:
@@ -201,6 +441,7 @@ class RetirementPolicy(DomainModel):
     policy_id: Identifier
     frozen_at_ns: int = Field(ge=0)
     minimum_native_production_observation_ns: int = Field(gt=0)
+    maximum_native_operational_gap_ns: int = Field(gt=0)
     minimum_disabled_observation_ns: int = Field(gt=0)
     minimum_archive_retention_ns: int = Field(gt=0)
     required_archive_artifacts: tuple[LegacyArchiveArtifactKind, ...] = Field(

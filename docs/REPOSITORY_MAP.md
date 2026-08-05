@@ -240,10 +240,12 @@ Current Phase 10 legacy-retirement ownership:
 
 | Path | Responsibility |
 |---|---|
-| `native/src/aiquanttrader_native/retirement/` | Immutable final-archive, terminal native-authorization observation, flat-MT5-state, disabled-window, scoped approval, and exact cleanup-manifest contracts. |
-| `native/configs/retirement/evidence-v1.toml` | Frozen 30-day native, seven-day disabled, 365-day archive-retention baseline. |
+| `native/src/aiquanttrader_native/retirement/collector.py` | Credential-free exact-inventory reconstruction of signed production authority, renewal continuity, audits, incidents, drills, and native observation. |
+| `native/src/aiquanttrader_native/retirement/{models,evidence,approval}.py` | Immutable final-archive, terminal native-authorization observation, flat-MT5-state, disabled-window, scoped approval, and exact cleanup-manifest contracts. |
+| `native/configs/retirement/evidence-v1.toml` | Frozen 30-day native, five-minute operational-evidence gap, seven-day disabled, and 365-day archive-retention baseline. |
 | `native/schemas/retirement.schema.json` | Deterministic external contract for every Phase 10 evidence and approval record. |
 | `docs/migration/PHASE_10_LEGACY_RETIREMENT.md` | Two-approval architecture, repository delta, tests, migration, and rollback. |
+| `docs/migration/PHASE_10_PRODUCTION_EVIDENCE.md` | Native bundle layout, trust boundary, independent assembly, verification, tests, and rollback. |
 | `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md` | Final archive, exact disable, observation, cleanup approval, host cleanup, removal PR, and failure procedure. |
 
 Phase 10 code is evidence-only. `aqt-retirement` has no command or dependency
@@ -254,6 +256,11 @@ unchanged.
 The 30-day native observation must retain the ordered renewal chain and end
 before the terminal production authorization expires; an authorization gap
 invalidates the observation window.
+It must be independently reassembled from the retained exact-inventory bundle
+using the externally pinned signer identity. Successful sentinel dead-man
+samples must span the interval without a gap over five minutes; the assembler
+derives typed risk/reconciliation/critical counts rather than accepting them as
+operator-authored totals.
 
 ## Current Legacy System Topology
 

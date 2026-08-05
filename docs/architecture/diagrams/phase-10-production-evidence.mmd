@@ -1,0 +1,16 @@
+flowchart LR
+    A[Signed production approval<br/>public trust root + release artifacts] --> E[Credential-free production<br/>evidence assembler]
+    B[Read-only checkpointed<br/>admission ledger] --> E
+    C[Signed ordered renewals<br/>plus detached signatures] --> E
+    D[Hash-linked execution and sentinel audits<br/>incident register + four drill reports] --> E
+    P[Frozen retirement policy<br/>30 days + five-minute maximum gap] --> E
+    T[Independently pinned<br/>key ID + public-key fingerprint] --> E
+
+    E --> F{All bytes, signatures,<br/>identities and intervals valid?}
+    F -- no --> X[Fail closed<br/>no observation]
+    F -- yes --> O[Canonical NativeProductionObservation<br/>terminal authorization + chain hash]
+    O --> R[Independent verify-native replay]
+    R --> G[Retirement readiness evaluator]
+    G --> H[Await stop approval only]
+
+    N[No wallet, network, signer,<br/>broker, stop or delete capability] -. security boundary .- E

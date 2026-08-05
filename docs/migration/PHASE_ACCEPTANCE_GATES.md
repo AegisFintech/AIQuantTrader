@@ -147,12 +147,17 @@ retained evidence and human approval.
 ## Phase 10: Legacy retirement and cleanup
 
 Implementation status: typed evidence, frozen baseline policy, deterministic
-evaluators, exact cleanup-manifest validation, and offline Ed25519 verification
-are present. The active MT5 runtime is not authorized for shutdown or removal.
+native-production assembly, evaluators, exact cleanup-manifest validation, and
+offline Ed25519 verification are present. The active MT5 runtime is not
+authorized for shutdown or removal.
 
 - The exact native production deployment and admission complete the frozen
   stable-observation window with zero critical incidents, reconciliation
   failures, or risk breaches.
+- An independent credential-free reassembly verifies the externally pinned
+  production signer, all nine release artifacts, schema-v2 ledger, complete
+  signed renewal chain, and hash-linked operational evidence. Successful
+  sentinel/dead-man samples span the interval with no gap over five minutes.
 - Native rollback, backup/restore, alert-delivery, and operator-access drills
   pass and their evidence is retained.
 - MT5 is entry-paused, demo-only, independently confirmed flat for managed and
