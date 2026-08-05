@@ -21,6 +21,7 @@ from aiquanttrader_native.retirement.models import (
     CleanupAction,
     CleanupTargetKind,
     DisabledObservation,
+    LegacyAccountMode,
     LegacyArchiveArtifact,
     LegacyArchiveArtifactKind,
     LegacyArchiveManifest,
@@ -50,6 +51,8 @@ def _policy() -> RetirementPolicy:
         maximum_native_operational_gap_ns=50,
         minimum_disabled_observation_ns=100,
         minimum_archive_retention_ns=1_000,
+        maximum_final_state_capture_skew_ns=100,
+        maximum_final_state_age_ns=1_000,
         archive_credential_scan_policy_id="credential-scan-test",
         archive_credential_scan_policy_sha256="6" * 64,
         required_archive_artifacts=tuple(LegacyArchiveArtifactKind),
@@ -121,7 +124,16 @@ def _readiness() -> RetirementReadinessObservation:
         ),
         archive=_archive(),
         legacy=LegacyFinalState(
+            retirement_id="retirement-test-001",
             captured_ts_ns=350,
+            assembled_ts_ns=350,
+            policy_id=_policy().policy_id,
+            policy_sha256=_policy().sha256(),
+            archive_manifest_sha256=_archive().sha256(),
+            archive_bundle_sha256=_archive().evidence_bundle_sha256,
+            account_mode=LegacyAccountMode.DEMO,
+            account_login_sha256="a" * 64,
+            broker_server_sha256="b" * 64,
             open_managed_positions=0,
             open_unmanaged_positions=0,
             pending_orders=0,
@@ -130,6 +142,10 @@ def _readiness() -> RetirementReadinessObservation:
             final_trade_report_sha256="c" * 64,
             final_status_sha256="f" * 64,
             broker_account_state_sha256="e" * 64,
+            service_configuration_sha256="d" * 64,
+            final_trade_report_capture_id="trade-report-001",
+            broker_account_capture_id="broker-account-001",
+            service_configuration_capture_id="service-state-001",
         ),
     )
 
@@ -190,6 +206,25 @@ def test_readiness_requires_bound_complete_archive_and_passes_only_to_approval()
     assert not failed.awaiting_stop_approval
     assert not next(gate for gate in failed.gates if gate.gate.value == "flat_account").passed
 
+    wrong_policy = observation.model_copy(
+        update={"legacy": observation.legacy.model_copy(update={"policy_sha256": "f" * 64})}
+    )
+    failed = evaluate_retirement_readiness(
+        observation=wrong_policy,
+        policy=_policy(),
+        generated_ts_ns=401,
+    )
+    assert not next(gate for gate in failed.gates if gate.gate.value == "policy_frozen").passed
+
+    failed = evaluate_retirement_readiness(
+        observation=observation,
+        policy=_policy().model_copy(update={"maximum_final_state_age_ns": 10}),
+        generated_ts_ns=401,
+    )
+    assert not next(
+        gate for gate in failed.gates if gate.gate.value == "final_state_freshness"
+    ).passed
+
 
 def test_archive_rejects_traversal_duplicates_and_unbound_reports() -> None:
     archive = _archive()
@@ -212,6 +247,16 @@ def test_archive_rejects_traversal_duplicates_and_unbound_reports() -> None:
         RetirementReadinessObservation(
             **_readiness().model_dump(exclude={"legacy"}),
             legacy=_readiness().legacy.model_copy(update={"final_trade_report_sha256": SHA}),
+        )
+    with pytest.raises(ValidationError, match="retained archive"):
+        RetirementReadinessObservation(
+            **_readiness().model_dump(exclude={"legacy"}),
+            legacy=_readiness().legacy.model_copy(update={"archive_manifest_sha256": SHA}),
+        )
+    with pytest.raises(ValidationError, match="service configuration"):
+        RetirementReadinessObservation(
+            **_readiness().model_dump(exclude={"legacy"}),
+            legacy=_readiness().legacy.model_copy(update={"service_configuration_sha256": SHA}),
         )
 
 
@@ -256,6 +301,8 @@ def test_policy_loader_and_approval_scope_are_fail_closed(tmp_path: Path) -> Non
                 "maximum_native_operational_gap_ns = 50",
                 "minimum_disabled_observation_ns = 100",
                 "minimum_archive_retention_ns = 1000",
+                "maximum_final_state_capture_skew_ns = 100",
+                "maximum_final_state_age_ns = 1000",
                 'archive_credential_scan_policy_id = "credential-scan-test"',
                 'archive_credential_scan_policy_sha256 = "' + "6" * 64 + '"',
                 "required_archive_artifacts = ["

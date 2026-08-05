@@ -54,6 +54,10 @@ one artifact for each of the eleven frozen categories and exactly the three
 control records. Extra files or directories invalidate the bundle. Category
 artifacts may be deterministic archives; each is limited to 1 TiB and the
 complete bundle to 12 TiB. Controls are canonical JSON plus one newline.
+For final-state reconstruction, the final-trade-report, broker-account-state,
+and service-configuration categories use the bounded uncompressed tar/member
+contract in `PHASE_10_FINAL_STATE.md`; the `.tar.zst` names above are not the
+required format for those three categories.
 
 The eleven category artifacts contain the actual retained material. The three
 controls provide machine-verifiable review results:
@@ -123,10 +127,13 @@ aqt-retirement verify-archive \
   --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml
 ```
 
-Output creation is atomic, mode `0600`, absolute-path-only, and fail-on-exist.
-A passing archive verification still does not prove the final account is flat;
-that separately assembled final-state evidence remains required before
-readiness evaluation.
+Output creation is atomic, mode `0600`, absolute-path-only, fail-on-exist, and
+must be outside the immutable evidence root.
+A passing archive verification still does not prove the final account is flat.
+The evidence-bearing category members described in
+[`Phase 10: Final MT5 State Assembly`](PHASE_10_FINAL_STATE.md) must next pass
+`assemble-final-state` and independent `verify-final-state` before readiness
+evaluation.
 
 ## Failure and rollback
 

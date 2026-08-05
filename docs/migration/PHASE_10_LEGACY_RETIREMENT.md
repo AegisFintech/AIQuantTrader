@@ -1,8 +1,8 @@
 # Phase 10: Legacy MT5 Retirement and Native Repository Cutover
 
-Status: evidence contracts, independent native-production and final-archive
-assembly, and offline approval verification implemented; retirement is not
-authorized and the deployed MT5 runtime remains unchanged
+Status: evidence contracts, independent native-production, final-archive, and
+final-MT5-state assembly, and offline approval verification implemented;
+retirement is not authorized and the deployed MT5 runtime remains unchanged
 
 Phase 10 is a separately approved operational migration after native production,
 not a side effect of Phase 9 admission. It stops the MT5/Wine deployment,
@@ -42,6 +42,7 @@ native deployment leaves both venues halted and does not silently restart MT5.
 | 30-day native, seven-day disabled, 365-day archive baseline | Native operation must span meaningful uptime before removing the independent legacy deployment; a full disabled week covers restarts and scheduled jobs; one-year evidence supports incident and financial audit. | Immediate cutover, 24-hour observation, and indefinite retention were respectively too risky, too short for weekly behavior, and operationally unbounded. | Delays storage reclamation and consumes archive capacity. A newly reviewed policy may be stricter, but cannot be weakened after its observation begins. |
 | Restore-tested category archives rather than loose files | Category bundles have bounded identities, independent hashes, retention ownership, and practical restore checks without forcing one very large artifact. | One monolithic archive makes partial verification expensive; loose files make completeness difficult to prove. | Requires eleven hashes and restore checks. Archive work is offline and has no market-data or order latency impact. |
 | Externally executed, policy-pinned recursive credential scan | A separately reviewed scanner can cover private-key, token, password, seed-phrase, and session formats without granting this verifier secret-store access. The required detector set, recursion, zero-finding threshold, scanner name/version, and result hashes are retained for review. | Embedding a regex-only scanner was incomplete; trusting an unpinned operator summary was not reproducible. | Scanner execution and its independent review remain operator prerequisites. Verification is bounded metadata and artifact hashing, outside the trading path. |
+| Cross-source final-state derivation | MT5 provides managed context, the broker provides complete account truth, and host evidence provides pause/writer capability. Raw and normalized records remain together in the verified archive. | A manually authored flat-state summary could omit unmanaged positions, pending orders, or command writers. | Three synchronized captures and peer review are required; bounded tar inspection and reconciliation are offline. |
 | Ed25519 detached approvals using the existing governance primitive | Small deterministic signatures, offline signing, pinned public-key fingerprints, and existing operational familiarity reduce implementation divergence. | Unsigned tickets and online signing services were rejected because they are forgeable or add network/trust dependencies. | Requires offline key custody and canonicalization; verification cost is negligible and never enters the trading hot path. |
 | ADR 0008 package migration only in the removal PR | Keeping `aiquanttrader_native` isolated prevents legacy imports and dependency resolution from changing while MT5 is deployed. | Renaming before retirement was rejected because it could alter the active legacy Python runtime. | Defers the final clean layout and creates a mechanical rename diff, with no runtime performance penalty. |
 
@@ -59,9 +60,12 @@ The `aiquanttrader_native.retirement` package provides:
 - a native-production observation bound to its deployment, admission, approval,
   terminal chained authorization, renewal count/expiry, artifact manifest,
   drills, and evidence bundle;
-- a final MT5 demo-account state with managed and unmanaged positions, pending
-  orders, entry pause, command writers, and archived report hashes;
-- a thirteen-gate readiness report which can only await stop approval;
+- independent final-MT5-state assembly and replay that rehash raw report,
+  broker-export, status, pause, and command-writer sources; reconciles account
+  identity and position inventories; derives readiness counts; and binds the
+  frozen freshness policy plus exact archive provenance;
+- a fourteen-gate readiness report, including final-state freshness, which can
+  only await stop approval;
 - an exact ten-capability disabled observation covering PM2, cron, nginx,
   logrotate, autostart, Wine/MT5, and command-file writers;
 - an eight-gate disabled-window report which can only await cleanup approval;
@@ -94,6 +98,8 @@ The v1 policy requires at least:
   credential findings;
 - the MT5 account to be demo-only, entry-paused, flat, and free of command-file
   writers;
+- final MT5, broker, and service captures to be no more than five minutes apart
+  and the derived state to be no more than one hour old at independent replay;
 - seven full days with every legacy capability disabled, zero active instances,
   zero post-stop broker orders, stable native operation, reverified archives,
   and quarantined legacy credentials.
@@ -109,7 +115,9 @@ See
 ```text
 native production evidence + exact archive/restore/scan/tag evidence
   -> independent archive assembly and replay
-final MT5 state + verified archive
+raw final MT5/broker/service evidence + verified archive
+  -> independent final-state assembly and replay
+verified final MT5 state + verified archive
   -> readiness evaluation
   -> signed stop_and_observe approval
   -> exact operator disable procedure
@@ -148,6 +156,20 @@ aqt-retirement assemble-archive \
 aqt-retirement verify-archive \
   --evidence-root /absolute/evidence/legacy-archive-bundle \
   --manifest /absolute/evidence/legacy-archive-manifest.json \
+  --policy native/configs/retirement/evidence-v1.toml \
+  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml
+
+aqt-retirement assemble-final-state \
+  --evidence-root /absolute/evidence/legacy-archive-bundle \
+  --archive-manifest /absolute/evidence/legacy-archive-manifest.json \
+  --policy native/configs/retirement/evidence-v1.toml \
+  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --output /absolute/evidence/legacy-final-state.json
+
+aqt-retirement verify-final-state \
+  --evidence-root /absolute/evidence/legacy-archive-bundle \
+  --archive-manifest /absolute/evidence/legacy-archive-manifest.json \
+  --final-state /absolute/evidence/legacy-final-state.json \
   --policy native/configs/retirement/evidence-v1.toml \
   --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml
 
@@ -214,10 +236,11 @@ tampering, release hashes, SQLite integrity, renewal terminal consistency,
 typed audit derivation, sentinel continuity, drill check sets, archive
 completeness and binding, restore equality, recursive detector coverage,
 credential-policy and tag-lineage tampering, retention, path and symlink safety,
-exact gate sets, stable report identities, approval scope/expiry, broad cleanup
-targets, and failed observations. Integration tests exercise native and archive
-CLI assembly, independent replay, canonicalization, and verification and prove
-there is no `stop` action command.
+raw final-state source binding, MT5/broker reconciliation, tar path safety,
+capture skew/freshness, exact gate sets, stable report identities, approval
+scope/expiry, broad cleanup targets, and failed observations. Integration tests
+exercise native, archive, and final-state CLI assembly, independent replay,
+canonicalization, and verification and prove there is no `stop` action command.
 Schema determinism and repository documentation checks remain part of native
 CI.
 
@@ -227,6 +250,8 @@ The forward procedure is the
 [`Legacy MT5 Retirement Runbook`](../operations/LEGACY_RETIREMENT_RUNBOOK.md).
 The exact final-archive contract and operator handoff are documented in
 [`Phase 10: Final Legacy Archive`](PHASE_10_LEGACY_ARCHIVE.md).
+Final MT5/broker/service evidence packaging and reconciliation are documented
+in [`Phase 10: Final MT5 State Assembly`](PHASE_10_FINAL_STATE.md).
 Before the cleanup approval, rollback means leaving native safe and halted while
 the owner decides whether to issue new, explicit MT5 reactivation authority.
 After cleanup, recovery uses the immutable archive and `mt5-final` tag in a

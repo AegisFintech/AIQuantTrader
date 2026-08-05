@@ -43,6 +43,7 @@ def evaluate_retirement_readiness(
 
     native_duration = observation.native.ended_ts_ns - observation.native.started_ts_ns
     remaining_retention = observation.archive.retention_expires_ts_ns - observation.observed_ts_ns
+    final_state_age = observation.observed_ts_ns - observation.legacy.captured_ts_ns
     archive_kinds = {artifact.kind for artifact in observation.archive.artifacts}
     flat_account = (
         observation.legacy.open_managed_positions == 0
@@ -57,6 +58,8 @@ def evaluate_retirement_readiness(
     policy_bound = (
         observation.native.policy_id == policy.policy_id
         and observation.native.policy_sha256 == policy.sha256()
+        and observation.legacy.policy_id == policy.policy_id
+        and observation.legacy.policy_sha256 == policy.sha256()
     )
     archive_scan_policy_bound = (
         observation.archive.credential_scan_policy_id == policy.archive_credential_scan_policy_id
@@ -69,7 +72,9 @@ def evaluate_retirement_readiness(
             policy.frozen_at_ns <= observation.native.started_ts_ns and policy_bound,
             (
                 f"frozen={policy.frozen_at_ns},native_policy={observation.native.policy_id},"
-                f"native_policy_sha256={observation.native.policy_sha256}"
+                f"native_policy_sha256={observation.native.policy_sha256},"
+                f"final_state_policy={observation.legacy.policy_id},"
+                f"final_state_policy_sha256={observation.legacy.policy_sha256}"
             ),
             (
                 f"frozen<={observation.native.started_ts_ns},policy={policy.policy_id},"
@@ -144,6 +149,12 @@ def evaluate_retirement_readiness(
             and observation.archive.final_tag_commit_sha == observation.archive.source_commit_sha,
             (f"{observation.archive.final_tag_name}@{observation.archive.final_tag_commit_sha}"),
             f"mt5-final@{observation.archive.source_commit_sha}",
+        ),
+        _readiness_gate(
+            RetirementReadinessGate.FINAL_STATE_FRESHNESS,
+            0 <= final_state_age <= policy.maximum_final_state_age_ns,
+            final_state_age,
+            f"0..{policy.maximum_final_state_age_ns}",
         ),
         _readiness_gate(
             RetirementReadinessGate.DEMO_ACCOUNT,

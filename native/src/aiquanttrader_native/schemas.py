@@ -99,8 +99,12 @@ from aiquanttrader_native.retirement.models import (
     LegacyArchiveEvidenceManifest,
     LegacyArchiveManifest,
     LegacyArchiveRestoreEvidence,
+    LegacyBrokerAccountStateEvidence,
     LegacyCleanupManifest,
+    LegacyFinalState,
     LegacyFinalTagEvidence,
+    LegacyFinalTradeReportEvidence,
+    LegacyServiceConfigurationEvidence,
     NativeDrillEvidence,
     NativeProductionObservation,
     ProductionEvidenceManifest,
@@ -228,6 +232,10 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | LegacyArchiveCredentialScanPolicy
         | LegacyArchiveCredentialScanEvidence
         | LegacyFinalTagEvidence
+        | LegacyFinalTradeReportEvidence
+        | LegacyBrokerAccountStateEvidence
+        | LegacyServiceConfigurationEvidence
+        | LegacyFinalState
         | LegacyCleanupManifest
         | ProductionEvidenceManifest
         | ProductionIncidentRegister

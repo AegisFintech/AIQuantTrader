@@ -62,6 +62,8 @@ def _policy() -> RetirementPolicy:
         maximum_native_operational_gap_ns=1,
         minimum_disabled_observation_ns=1,
         minimum_archive_retention_ns=int(timedelta(days=365).total_seconds() * 1_000_000_000),
+        maximum_final_state_capture_skew_ns=1,
+        maximum_final_state_age_ns=1,
         archive_credential_scan_policy_id=scan.policy_id,
         archive_credential_scan_policy_sha256=scan.sha256(),
         required_archive_artifacts=tuple(LegacyArchiveArtifactKind),
@@ -260,6 +262,8 @@ def _write_policy_files(tmp_path: Path) -> tuple[Path, Path]:
                 "maximum_native_operational_gap_ns = 1",
                 "minimum_disabled_observation_ns = 1",
                 f"minimum_archive_retention_ns = {policy.minimum_archive_retention_ns}",
+                "maximum_final_state_capture_skew_ns = 1",
+                "maximum_final_state_age_ns = 1",
                 f'archive_credential_scan_policy_id = "{scan.policy_id}"',
                 f'archive_credential_scan_policy_sha256 = "{scan.sha256()}"',
                 "required_archive_artifacts = ["

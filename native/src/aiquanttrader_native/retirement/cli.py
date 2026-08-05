@@ -32,6 +32,11 @@ from aiquanttrader_native.retirement.evidence import (
     evaluate_retirement_readiness,
     load_retirement_policy,
 )
+from aiquanttrader_native.retirement.final_state import (
+    assemble_legacy_final_state,
+    load_legacy_final_state,
+    verify_legacy_final_state,
+)
 from aiquanttrader_native.retirement.models import (
     DisabledObservation,
     LegacyCleanupManifest,
@@ -73,6 +78,20 @@ def _parser() -> argparse.ArgumentParser:
     verify_archive.add_argument("--manifest", type=Path, required=True)
     verify_archive.add_argument("--policy", type=Path, required=True)
     verify_archive.add_argument("--credential-scan-policy", type=Path, required=True)
+
+    assemble_final_state = commands.add_parser("assemble-final-state")
+    assemble_final_state.add_argument("--evidence-root", type=Path, required=True)
+    assemble_final_state.add_argument("--archive-manifest", type=Path, required=True)
+    assemble_final_state.add_argument("--policy", type=Path, required=True)
+    assemble_final_state.add_argument("--credential-scan-policy", type=Path, required=True)
+    assemble_final_state.add_argument("--output", type=Path, required=True)
+
+    verify_final_state = commands.add_parser("verify-final-state")
+    verify_final_state.add_argument("--evidence-root", type=Path, required=True)
+    verify_final_state.add_argument("--archive-manifest", type=Path, required=True)
+    verify_final_state.add_argument("--final-state", type=Path, required=True)
+    verify_final_state.add_argument("--policy", type=Path, required=True)
+    verify_final_state.add_argument("--credential-scan-policy", type=Path, required=True)
 
     readiness = commands.add_parser("evaluate-readiness")
     readiness.add_argument("--observation", type=Path, required=True)
@@ -117,6 +136,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         if args.command == "assemble-native":
+            _require_output_outside_evidence_root(args.evidence_root, args.output)
             native_observation = assemble_native_production_observation(
                 args.evidence_root,
                 policy=load_retirement_policy(args.policy),
@@ -140,6 +160,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
 
         if args.command == "assemble-archive":
+            _require_output_outside_evidence_root(args.evidence_root, args.output)
             archive_manifest = assemble_legacy_archive_manifest(
                 args.evidence_root,
                 policy=load_retirement_policy(args.policy),
@@ -162,6 +183,33 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ),
             )
             print(verified_archive.model_dump_json())
+            return 0
+
+        if args.command == "assemble-final-state":
+            _require_output_outside_evidence_root(args.evidence_root, args.output)
+            final_state = assemble_legacy_final_state(
+                args.evidence_root,
+                load_legacy_archive_manifest(args.archive_manifest),
+                policy=load_retirement_policy(args.policy),
+                credential_scan_policy=load_legacy_archive_credential_scan_policy(
+                    args.credential_scan_policy
+                ),
+            )
+            _atomic_write_new(args.output, final_state.canonical_bytes() + b"\n")
+            print(final_state.model_dump_json())
+            return 0
+
+        if args.command == "verify-final-state":
+            verified_final_state = verify_legacy_final_state(
+                args.evidence_root,
+                load_legacy_archive_manifest(args.archive_manifest),
+                load_legacy_final_state(args.final_state),
+                policy=load_retirement_policy(args.policy),
+                credential_scan_policy=load_legacy_archive_credential_scan_policy(
+                    args.credential_scan_policy
+                ),
+            )
+            print(verified_final_state.model_dump_json())
             return 0
 
         if args.command == "evaluate-readiness":
@@ -241,6 +289,15 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _write_optional(path: Path | None, payload: bytes) -> None:
     if path is not None:
         _atomic_write_new(path, payload)
+
+
+def _require_output_outside_evidence_root(root: Path, output: Path) -> None:
+    if not output.is_absolute():
+        raise ValueError("retirement output path must be absolute")
+    resolved_root = root.resolve(strict=True)
+    resolved_output = output.resolve(strict=False)
+    if resolved_output == resolved_root or resolved_root in resolved_output.parents:
+        raise ValueError("retirement output must be outside the immutable evidence root")
 
 
 def _atomic_write_new(path: Path, payload: bytes) -> None:

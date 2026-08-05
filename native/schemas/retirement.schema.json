@@ -274,6 +274,16 @@
       "title": "DisabledObservationReport",
       "type": "object"
     },
+    "LegacyAccountMode": {
+      "enum": [
+        "demo",
+        "live",
+        "contest",
+        "unknown"
+      ],
+      "title": "LegacyAccountMode",
+      "type": "string"
+    },
     "LegacyArchiveArtifact": {
       "additionalProperties": false,
       "properties": {
@@ -851,6 +861,135 @@
       "title": "LegacyArchiveRestoreEvidence",
       "type": "object"
     },
+    "LegacyBrokerAccountStateEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "account_login_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Account Login Sha256",
+          "type": "string"
+        },
+        "account_mode": {
+          "$ref": "#/$defs/LegacyAccountMode"
+        },
+        "broker_server_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Broker Server Sha256",
+          "type": "string"
+        },
+        "capture_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Capture Id",
+          "type": "string"
+        },
+        "captured_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Captured By",
+          "type": "string"
+        },
+        "captured_ts_ns": {
+          "minimum": 0,
+          "title": "Captured Ts Ns",
+          "type": "integer"
+        },
+        "pending_orders": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/LegacyBrokerOrderEvidence"
+          },
+          "maxItems": 4096,
+          "title": "Pending Orders",
+          "type": "array"
+        },
+        "positions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/LegacyBrokerPositionEvidence"
+          },
+          "maxItems": 4096,
+          "title": "Positions",
+          "type": "array"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "reviewed_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewed By",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source_export_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Export Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "capture_id",
+        "captured_ts_ns",
+        "captured_by",
+        "reviewed_by",
+        "account_mode",
+        "account_login_sha256",
+        "broker_server_sha256",
+        "source_export_sha256"
+      ],
+      "title": "LegacyBrokerAccountStateEvidence",
+      "type": "object"
+    },
+    "LegacyBrokerOrderEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "instrument_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "order_id_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Order Id Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "order_id_sha256",
+        "instrument_id"
+      ],
+      "title": "LegacyBrokerOrderEvidence",
+      "type": "object"
+    },
+    "LegacyBrokerPositionEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "instrument_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "position_id_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Position Id Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "position_id_sha256",
+        "instrument_id"
+      ],
+      "title": "LegacyBrokerPositionEvidence",
+      "type": "object"
+    },
     "LegacyCapability": {
       "enum": [
         "pm2_aiquanttrader_mt5",
@@ -1001,6 +1140,53 @@
       "title": "LegacyCleanupTarget",
       "type": "object"
     },
+    "LegacyCommandWriterCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "active_writer_ids": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "maxItems": 1024,
+          "title": "Active Writer Ids",
+          "type": "array"
+        },
+        "evidence_member": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Evidence Member",
+          "type": "string"
+        },
+        "evidence_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Evidence Sha256",
+          "type": "string"
+        },
+        "surface": {
+          "$ref": "#/$defs/LegacyCommandWriterSurface"
+        }
+      },
+      "required": [
+        "surface",
+        "evidence_member",
+        "evidence_sha256"
+      ],
+      "title": "LegacyCommandWriterCheck",
+      "type": "object"
+    },
+    "LegacyCommandWriterSurface": {
+      "enum": [
+        "process_table",
+        "pm2",
+        "cron",
+        "systemd",
+        "command_file_handles"
+      ],
+      "title": "LegacyCommandWriterSurface",
+      "type": "string"
+    },
     "LegacyCredentialDetector": {
       "enum": [
         "api_token",
@@ -1015,15 +1201,42 @@
     "LegacyFinalState": {
       "additionalProperties": false,
       "properties": {
+        "account_login_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Account Login Sha256",
+          "type": "string"
+        },
         "account_mode": {
-          "const": "demo",
-          "default": "demo",
-          "title": "Account Mode",
+          "$ref": "#/$defs/LegacyAccountMode"
+        },
+        "archive_bundle_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Archive Bundle Sha256",
+          "type": "string"
+        },
+        "archive_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Archive Manifest Sha256",
+          "type": "string"
+        },
+        "assembled_ts_ns": {
+          "minimum": 0,
+          "title": "Assembled Ts Ns",
+          "type": "integer"
+        },
+        "broker_account_capture_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Broker Account Capture Id",
           "type": "string"
         },
         "broker_account_state_sha256": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Broker Account State Sha256",
+          "type": "string"
+        },
+        "broker_server_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Broker Server Sha256",
           "type": "string"
         },
         "captured_ts_ns": {
@@ -1032,6 +1245,7 @@
           "type": "integer"
         },
         "command_file_writer_count": {
+          "maximum": 5120,
           "minimum": 0,
           "title": "Command File Writer Count",
           "type": "integer"
@@ -1043,6 +1257,11 @@
         "final_status_sha256": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Final Status Sha256",
+          "type": "string"
+        },
+        "final_trade_report_capture_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Final Trade Report Capture Id",
           "type": "string"
         },
         "final_trade_report_sha256": {
@@ -1057,29 +1276,66 @@
           "type": "string"
         },
         "open_managed_positions": {
+          "maximum": 4096,
           "minimum": 0,
           "title": "Open Managed Positions",
           "type": "integer"
         },
         "open_unmanaged_positions": {
+          "maximum": 4096,
           "minimum": 0,
           "title": "Open Unmanaged Positions",
           "type": "integer"
         },
         "pending_orders": {
+          "maximum": 4096,
           "minimum": 0,
           "title": "Pending Orders",
           "type": "integer"
         },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
+        },
+        "service_configuration_capture_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Service Configuration Capture Id",
+          "type": "string"
+        },
+        "service_configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Service Configuration Sha256",
+          "type": "string"
         }
       },
       "required": [
+        "retirement_id",
         "captured_ts_ns",
+        "assembled_ts_ns",
+        "policy_id",
+        "policy_sha256",
+        "archive_manifest_sha256",
+        "archive_bundle_sha256",
+        "account_mode",
+        "account_login_sha256",
+        "broker_server_sha256",
         "open_managed_positions",
         "open_unmanaged_positions",
         "pending_orders",
@@ -1087,7 +1343,11 @@
         "command_file_writer_count",
         "final_trade_report_sha256",
         "final_status_sha256",
-        "broker_account_state_sha256"
+        "broker_account_state_sha256",
+        "service_configuration_sha256",
+        "final_trade_report_capture_id",
+        "broker_account_capture_id",
+        "service_configuration_capture_id"
       ],
       "title": "LegacyFinalState",
       "type": "object"
@@ -1160,6 +1420,210 @@
         "reviewer"
       ],
       "title": "LegacyFinalTagEvidence",
+      "type": "object"
+    },
+    "LegacyFinalTradeReportEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "account_login_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Account Login Sha256",
+          "type": "string"
+        },
+        "broker_server_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Broker Server Sha256",
+          "type": "string"
+        },
+        "capture_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Capture Id",
+          "type": "string"
+        },
+        "captured_ts_ns": {
+          "minimum": 0,
+          "title": "Captured Ts Ns",
+          "type": "integer"
+        },
+        "entry_pause_reported": {
+          "title": "Entry Pause Reported",
+          "type": "boolean"
+        },
+        "final_status_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Final Status Sha256",
+          "type": "string"
+        },
+        "generated_by": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Generated By",
+          "type": "string"
+        },
+        "instrument_id": {
+          "const": "XAUUSD",
+          "default": "XAUUSD",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "managed_positions": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/LegacyManagedPositionEvidence"
+          },
+          "maxItems": 4096,
+          "title": "Managed Positions",
+          "type": "array"
+        },
+        "mt5_reported_open_positions": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Mt5 Reported Open Positions",
+          "type": "integer"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "reviewed_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewed By",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source_report_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Report Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "capture_id",
+        "captured_ts_ns",
+        "generated_by",
+        "reviewed_by",
+        "source_report_sha256",
+        "account_login_sha256",
+        "broker_server_sha256",
+        "mt5_reported_open_positions",
+        "entry_pause_reported",
+        "final_status_sha256"
+      ],
+      "title": "LegacyFinalTradeReportEvidence",
+      "type": "object"
+    },
+    "LegacyManagedPositionEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "instrument_id": {
+          "const": "XAUUSD",
+          "default": "XAUUSD",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "position_id_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Position Id Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "position_id_sha256"
+      ],
+      "title": "LegacyManagedPositionEvidence",
+      "type": "object"
+    },
+    "LegacyServiceConfigurationEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "capture_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Capture Id",
+          "type": "string"
+        },
+        "captured_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Captured By",
+          "type": "string"
+        },
+        "captured_ts_ns": {
+          "minimum": 0,
+          "title": "Captured Ts Ns",
+          "type": "integer"
+        },
+        "command_writer_checks": {
+          "items": {
+            "$ref": "#/$defs/LegacyCommandWriterCheck"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "title": "Command Writer Checks",
+          "type": "array"
+        },
+        "ea_entry_pause_reported": {
+          "title": "Ea Entry Pause Reported",
+          "type": "boolean"
+        },
+        "entry_pause_file_present": {
+          "title": "Entry Pause File Present",
+          "type": "boolean"
+        },
+        "entry_pause_file_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entry Pause File Sha256"
+        },
+        "final_status_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Final Status Sha256",
+          "type": "string"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "reviewed_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewed By",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "retirement_id",
+        "capture_id",
+        "captured_ts_ns",
+        "captured_by",
+        "reviewed_by",
+        "final_status_sha256",
+        "entry_pause_file_present",
+        "ea_entry_pause_reported",
+        "command_writer_checks"
+      ],
+      "title": "LegacyServiceConfigurationEvidence",
       "type": "object"
     },
     "NativeDrillCheck": {
@@ -1884,6 +2348,16 @@
           "title": "Frozen At Ns",
           "type": "integer"
         },
+        "maximum_final_state_age_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Maximum Final State Age Ns",
+          "type": "integer"
+        },
+        "maximum_final_state_capture_skew_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Maximum Final State Capture Skew Ns",
+          "type": "integer"
+        },
         "maximum_native_operational_gap_ns": {
           "exclusiveMinimum": 0,
           "title": "Maximum Native Operational Gap Ns",
@@ -1950,6 +2424,8 @@
         "maximum_native_operational_gap_ns",
         "minimum_disabled_observation_ns",
         "minimum_archive_retention_ns",
+        "maximum_final_state_capture_skew_ns",
+        "maximum_final_state_age_ns",
         "archive_credential_scan_policy_id",
         "archive_credential_scan_policy_sha256",
         "required_archive_artifacts",
@@ -1970,6 +2446,7 @@
         "archive_retention",
         "archive_no_credentials",
         "final_tag",
+        "final_state_freshness",
         "demo_account",
         "entry_pause",
         "flat_account",
@@ -2179,6 +2656,18 @@
     },
     {
       "$ref": "#/$defs/LegacyFinalTagEvidence"
+    },
+    {
+      "$ref": "#/$defs/LegacyFinalTradeReportEvidence"
+    },
+    {
+      "$ref": "#/$defs/LegacyBrokerAccountStateEvidence"
+    },
+    {
+      "$ref": "#/$defs/LegacyServiceConfigurationEvidence"
+    },
+    {
+      "$ref": "#/$defs/LegacyFinalState"
     },
     {
       "$ref": "#/$defs/LegacyCleanupManifest"

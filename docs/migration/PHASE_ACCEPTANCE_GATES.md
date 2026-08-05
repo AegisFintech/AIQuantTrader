@@ -147,9 +147,9 @@ retained evidence and human approval.
 ## Phase 10: Legacy retirement and cleanup
 
 Implementation status: typed evidence, frozen baseline policy, deterministic
-native-production and legacy-archive assembly, evaluators, exact cleanup-
-manifest validation, and offline Ed25519 verification are present. The active
-MT5 runtime is not authorized for shutdown or removal.
+native-production, legacy-archive, and final-state assembly, evaluators, exact
+cleanup-manifest validation, and offline Ed25519 verification are present. The
+active MT5 runtime is not authorized for shutdown or removal.
 
 - The exact native production deployment and admission complete the frozen
   stable-observation window with zero critical incidents, reconciliation
@@ -169,6 +169,10 @@ MT5 runtime is not authorized for shutdown or removal.
   eleven categories, byte-identical isolated restore results, the externally
   pinned recursive zero-finding credential scan, annotated tag evidence, and
   at least 365 days of remaining retention.
+- Independent `assemble-final-state` and `verify-final-state` replays reconcile
+  raw trade-report, broker-export, MT5-status, pause-file, and five-surface
+  writer evidence inside that archive. Capture skew is at most five minutes,
+  state age is at most one hour, and counts are derived rather than asserted.
 - A non-expired signed `stop_and_observe` approval binds the exact readiness
   report, native identity, archive, source commit, and tag.
 - Every PM2, cron, nginx, logrotate, autostart, Wine/MT5, and command-writer

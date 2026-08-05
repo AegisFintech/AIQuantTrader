@@ -1,0 +1,14 @@
+flowchart LR
+    A[Verified 15-file legacy archive<br/>restore + scan + tag + retention] --> V[assemble-final-state]
+    R[Trade report category<br/>normalized facts + raw report] --> V
+    B[Broker account category<br/>reviewed inventory + raw export] --> V
+    S[Service configuration category<br/>status + pause flag + five writer inventories] --> V
+    P[Frozen policy<br/>5-minute skew + 1-hour age] --> V
+
+    V --> C{Archive replay, raw hashes,<br/>identity, timing and reconciliation valid?}
+    C -- no --> X[Fail closed<br/>no final state]
+    C -- yes --> F[LegacyFinalState v2<br/>derived counts + provenance]
+    F --> I[Independent verify-final-state replay]
+    I --> Q[Retirement readiness evaluation]
+
+    N[No broker, MT5, signer, network,<br/>pause, order, stop or delete capability] -. security boundary .- V

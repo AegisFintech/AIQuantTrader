@@ -79,6 +79,11 @@ Migration rules:
   credential-scan policy. Independently run `verify-archive`; never hand-author
   a passing schema-v2 archive manifest or point the tool at mutable runtime
   files.
+- Phase 10 final MT5 state must be derived with `aqt-retirement
+  assemble-final-state` from the verified archive's raw trade report, broker
+  export, MT5 status, pause flag, and exact five-surface command-writer
+  evidence. Independently run `verify-final-state` inside the frozen freshness
+  window; never hand-author a flat schema-v2 state or treat it as stop authority.
 - Every checked-in overlay must remain execution-disabled. Never create, sign,
   admit, fund, or activate a mainnet release merely because the Phase 9 code is
   present.
@@ -106,6 +111,7 @@ AIQuantTrader is now an MT5-first autonomous demo-trading repo. Trade and optimi
   `docs/migration/PHASE_10_LEGACY_RETIREMENT.md` and
   `docs/migration/PHASE_10_PRODUCTION_EVIDENCE.md` plus
   `docs/migration/PHASE_10_LEGACY_ARCHIVE.md` plus
+  `docs/migration/PHASE_10_FINAL_STATE.md` plus
   `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md`. `aqt-retirement` is
   evidence-only and must never gain PM2, deletion, package-manager, credential,
   broker, exchange, or network actions.

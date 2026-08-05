@@ -78,6 +78,9 @@ and Phase 10 evidence-only legacy-retirement boundary:
 - exact legacy final-archive assembly over eleven immutable categories,
   isolated restore equality, an externally frozen recursive zero-finding
   credential scan, annotated `mt5-final` lineage, and remaining retention.
+- derived final MT5 state from raw retained trade-report, broker-export,
+  MT5-status, pause-file, and five-surface command-writer evidence with
+  cross-source reconciliation and bounded freshness.
 
 The Phase 6 strategy kernels are now wired into the sole Phase 4 exchange
 gateway, but the exchange order path remains disabled in every checked-in
@@ -132,6 +135,13 @@ uv run aqt-retirement assemble-archive \
   --policy configs/retirement/evidence-v1.toml \
   --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --output /absolute/retained/legacy-archive-manifest.json
+
+uv run aqt-retirement assemble-final-state \
+  --evidence-root /absolute/retained/legacy-final \
+  --archive-manifest /absolute/retained/legacy-archive-manifest.json \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
+  --output /absolute/retained/legacy-final-state.json
 ```
 
 Configuration never accepts a private key value. It accepts only absolute
@@ -149,6 +159,9 @@ or cleanup authority.
 Phase 10 legacy-archive assembly is specified in
 `../docs/migration/PHASE_10_LEGACY_ARCHIVE.md`; it does not collect live facts,
 create the final tag, or prove the broker account is flat.
+Phase 10 final-state assembly is specified in
+`../docs/migration/PHASE_10_FINAL_STATE.md`; it reads retained evidence only and
+cannot pause, flatten, stop, or otherwise act on MT5 or the broker.
 
 ## Execution and risk
 

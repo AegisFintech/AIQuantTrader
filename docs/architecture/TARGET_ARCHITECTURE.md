@@ -320,6 +320,14 @@ and remaining retention. Archive verification has no broker, Git mutation,
 process, credential, stop, or deletion capability. See
 [`diagrams/phase-10-legacy-archive.mmd`](diagrams/phase-10-legacy-archive.mmd).
 
+Final MT5 state is independently reconstructed from evidence-bearing trade
+report, broker account, and service-configuration tar members inside that
+verified archive. Raw source hashes, account identity, complete broker
+positions/orders, managed positions, entry pause, and five command-writer
+surfaces are reconciled under a five-minute capture-skew and one-hour freshness
+policy. The schema-v2 result has no live or action capability. See
+[`diagrams/phase-10-final-state.mmd`](diagrams/phase-10-final-state.mmd).
+
 Promotion gates are frozen before an experiment begins and evaluate post-cost
 PnL, drawdown and tail loss, consistency, inventory exposure, fill calibration,
 maker ratio, markouts, latency, operational failures, and drift. Prediction

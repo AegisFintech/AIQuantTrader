@@ -9,7 +9,7 @@ flowchart LR
     G -- no --> X[Fail closed<br/>no archive manifest]
     G -- yes --> M[LegacyArchiveManifest v2<br/>manifest + bundle provenance]
     M --> I[Independent verify-archive replay]
-    I --> F[Final-state assembly<br/>future increment]
+    I --> F[assemble-final-state + verify-final-state<br/>raw MT5 + broker + service reconciliation]
     F --> Q[Retirement readiness]
 
     N[No broker, Git mutation, network,<br/>signer, stop or delete capability] -. security boundary .- V

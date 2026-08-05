@@ -36,33 +36,47 @@ Use separate people for approver and operator whenever staffing permits.
    incident, drill, or five-minute sentinel-continuity failure stops Gate A.
 3. Activate `aiquanttrader_entry_pause.flag`. Confirm automatic and command-file
    entries are rejected while monitoring and position management remain active.
-4. Run `python3 scripts/mt5_trade_report.py`; independently inspect the broker
-   account for managed positions, unmanaged positions, and pending orders.
+4. Run `python3 scripts/mt5_trade_report.py` and retain its raw output;
+   independently export the complete broker account positions and pending
+   orders. Retain the raw MT5 status and entry-pause flag plus reviewed
+   process-table, PM2, cron, systemd, and command-file-handle inventories.
 5. Closing or transferring any position requires explicit owner direction.
    Continue only when all three counts are zero.
-6. Capture the eleven required archive categories: final trade report, broker
+6. Hash account, server, position, and order identifiers in the normalized
+   records; never include credentials. A second person reviews the broker and
+   service captures. Package the raw and canonical normalized members in the
+   three uncompressed evidence-bearing tar categories specified by
+   `PHASE_10_FINAL_STATE.md`. Their capture times must be no more than five
+   minutes apart.
+7. Capture the eleven required archive categories: final trade report, broker
    state, deployed source/compiled release identity, redacted runtime
    configuration, Common Files, deal/order history, strategy/research evidence,
    service configuration, operational logs, restore-test result, and operator
    timeline. Never archive credentials in this evidence bundle.
-7. Copy the category artifacts to the approved immutable destination, hash each
+8. Copy the category artifacts to the approved immutable destination, hash each
    artifact, and restore each one into an isolated location. Run the externally
    reviewed scanner recursively over the restored content using the exact
    policy pinned by `evidence-v1.toml`. Record matching source/restored bytes
    and hashes for all eleven categories and zero credential findings for all
    required detector classes. A finding, omitted category, partial scan, or
    weaker scan policy stops Gate A.
-8. After archive review, create the annotated `mt5-final` tag at the archived
+9. After archive review, create the annotated `mt5-final` tag at the archived
    commit. Push it once; never move or reuse it. Retain the tag-object identity
    and proof that it resolves to the exact archived source commit.
-9. Build the exact 15-file evidence bundle described in
+10. Build the exact 15-file evidence bundle described in
    `PHASE_10_LEGACY_ARCHIVE.md`: eleven category artifacts plus canonical
    restore, credential-scan, and final-tag control records and their evidence
    manifest. Run `aqt-retirement assemble-archive`; then have a second operator
    run `verify-archive` against the immutable bundle and separately stored
    policy files. The resulting schema-v2 manifest must retain at least 365 days
    from verification. Never substitute an operator-authored archive summary.
-10. Build `RetirementReadinessObservation` from the independently assembled
+11. Run `aqt-retirement assemble-final-state`; then have a second operator run
+   `verify-final-state` against the same immutable archive and separately stored
+   policies. Any raw-source hash, account identity, position inventory,
+   instrument, pause, writer, capture-skew, or tar-safety disagreement stops
+   Gate A. The final state must remain inside its one-hour freshness window and
+   must report demo, entry-paused, flat, no pending orders, and zero writers.
+12. Build `RetirementReadinessObservation` from the independently assembled
    native observation and run `aqt-retirement
    evaluate-readiness` with the frozen policy. A nonzero exit or any failed gate
    stops the procedure.
@@ -75,8 +89,9 @@ report, native deployment/admission, archive manifest, source commit, and
 
 ## Gate B: disable legacy capability
 
-Immediately before action, repeat the broker flat-state check and archive hash
-check. If either changed, discard the approval and restart Gate A.
+Immediately before action, repeat the broker flat-state, pause/writer, and
+archive hash checks. If any changed, or the verified final state is stale,
+discard the approval and restart Gate A.
 
 Disable in this order so the watchdog cannot revive the terminal:
 

@@ -117,7 +117,8 @@ aqt-retirement verify-native \
   --observation /absolute/retained/native-production-observation.json
 ```
 
-The assembly output path is fail-on-exist, mode `0600`, and atomic.
+The assembly output path is fail-on-exist, mode `0600`, atomic, and outside the
+immutable evidence root.
 Verification reassembles every fact and requires byte-equivalent typed output.
 
 ## Failure and rollback
