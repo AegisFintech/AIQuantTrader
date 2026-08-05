@@ -1,8 +1,7 @@
 # BTC Shadow Deployment Runbook
 
-Use this runbook only for Phase 8. Shadow records what the native production
-path would do; it cannot submit a Hyperliquid order. It does not replace or
-modify the deployed XAUUSD MT5 demo runtime.
+Use this runbook only for Phase 8. Shadow records what the production path
+would do; it cannot submit a Hyperliquid order.
 
 ## 1. Preconditions
 
@@ -12,7 +11,7 @@ modify the deployed XAUUSD MT5 demo runtime.
 - Build and scan one immutable native runtime image. Record registry reference,
   `sha256:<digest>`, commit, `uv.lock` hash, effective config hash, feature,
   strategy, scenario, and policy hashes.
-- Confirm `native/configs/shadow.toml` has `execution.enabled = false`,
+- Confirm `configs/shadow.toml` has `execution.enabled = false`,
   `shadow.enabled = true`, and no account or wallet reference.
 - Confirm the baseline and pessimistic scenario calibration state. The
   checked-in seeds are intentionally `uncalibrated` and cannot pass evidence.
@@ -34,7 +33,7 @@ cannot be deployed. Record the resolved registry digest in release evidence.
 ## 2. Preflight
 
 ```bash
-cd native
+
 uv run --frozen ruff format --check src tests scripts
 uv run --frozen ruff check src tests scripts
 uv run --frozen mypy
@@ -258,4 +257,4 @@ docker compose -f compose.shadow.yaml stop shadow-observer shadow-engine shadow-
 ```
 
 Do not prune volumes during an incident. Rollback never mounts a wallet,
-enables mainnet execution, promotes a challenger, or changes MT5/XAU behavior.
+enables mainnet execution, or promotes a challenger.

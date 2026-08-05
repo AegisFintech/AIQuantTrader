@@ -17,7 +17,7 @@ strategy wiring, final-holdout access, or production promotion.
 Install and verify:
 
 ```bash
-cd native
+
 uv sync --frozen --extra research --group dev
 uv run ruff format --check src tests scripts
 uv run ruff check src tests scripts
@@ -202,7 +202,7 @@ caller until Phase 9 supplies signed deployment-approval verification.
 Long-running research orchestration embeds `ResearchMetrics` in its Prometheus
 registry and exposes only bounded engine, target, stage, result, strategy,
 gate, and feature-set labels. Provision
-`native/observability/grafana/dashboards/research.json` to display experiment
+`observability/grafana/dashboards/research.json` to display experiment
 stages, outcomes, training duration, drift, and promotion gates.
 
 The one-shot CLI always writes immutable JSON/registry evidence and does not
@@ -245,4 +245,4 @@ Never copy a live writable DuckDB file and call it a verified backup.
   controller may move only toward `REJECTED`, `ROLLED_BACK`, or `RETIRED` where
   the legal graph permits.
 - Phase rollback: stop research jobs and restore the prior native image and
-  lock. Do not restart, reconfigure, or reinterpret the MT5/XAU runtime.
+  lock.

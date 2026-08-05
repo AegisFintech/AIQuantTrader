@@ -50,7 +50,7 @@ native deployment leaves both venues halted and does not silently restart MT5.
 
 ## Implemented contracts
 
-The `aiquanttrader_native.retirement` package provides:
+The `aiquanttrader.retirement` package provides:
 
 - exact-inventory native-production assembly which independently verifies the
   pinned signer, deployed release, checkpointed admission ledger, complete
@@ -86,9 +86,9 @@ The `aiquanttrader_native.retirement` package provides:
   disabled-report/archive/policy lineage.
 
 The contracts are exported in
-`native/schemas/retirement.schema.json`. The checked-in policy is
-`native/configs/retirement/evidence-v1.toml`; it pins the canonical identity of
-`native/configs/retirement/archive-credential-scan-v1.toml`.
+`schemas/retirement.schema.json`. The checked-in policy is
+`configs/retirement/evidence-v1.toml`; it pins the canonical identity of
+`configs/retirement/archive-credential-scan-v1.toml`.
 
 ## Frozen baseline policy
 
@@ -150,43 +150,43 @@ live facts or perform actions.
 ```bash
 aqt-retirement assemble-native \
   --evidence-root /absolute/evidence/native-production \
-  --policy native/configs/retirement/evidence-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
   --approval-key-id <independently-recorded-key-id> \
   --approval-public-key-sha256 <independently-pinned-fingerprint> \
   --output /absolute/evidence/native-production-observation.json
 
 aqt-retirement verify-native \
   --evidence-root /absolute/evidence/native-production \
-  --policy native/configs/retirement/evidence-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
   --approval-key-id <independently-recorded-key-id> \
   --approval-public-key-sha256 <independently-pinned-fingerprint> \
   --observation /absolute/evidence/native-production-observation.json
 
 aqt-retirement assemble-archive \
   --evidence-root /absolute/evidence/legacy-archive-bundle \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --output /absolute/evidence/legacy-archive-manifest.json
 
 aqt-retirement verify-archive \
   --evidence-root /absolute/evidence/legacy-archive-bundle \
   --manifest /absolute/evidence/legacy-archive-manifest.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml
 
 aqt-retirement assemble-final-state \
   --evidence-root /absolute/evidence/legacy-archive-bundle \
   --archive-manifest /absolute/evidence/legacy-archive-manifest.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --output /absolute/evidence/legacy-final-state.json
 
 aqt-retirement verify-final-state \
   --evidence-root /absolute/evidence/legacy-archive-bundle \
   --archive-manifest /absolute/evidence/legacy-archive-manifest.json \
   --final-state /absolute/evidence/legacy-final-state.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml
 
 aqt-retirement assemble-readiness \
   --native-evidence-root /absolute/evidence/native-production \
@@ -194,8 +194,8 @@ aqt-retirement assemble-readiness \
   --native-observation /absolute/evidence/native-production-observation.json \
   --archive-manifest /absolute/evidence/legacy-archive-manifest.json \
   --final-state /absolute/evidence/legacy-final-state.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --approval-key-id <independently-recorded-key-id> \
   --approval-public-key-sha256 <independently-pinned-fingerprint> \
   --output /absolute/evidence/readiness-observation.json
@@ -204,8 +204,8 @@ aqt-retirement verify-readiness \
   --native-evidence-root /absolute/evidence/native-production \
   --legacy-evidence-root /absolute/evidence/legacy-archive-bundle \
   --observation /absolute/evidence/readiness-observation.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --approval-key-id <independently-recorded-key-id> \
   --approval-public-key-sha256 <independently-pinned-fingerprint>
 
@@ -213,8 +213,8 @@ aqt-retirement evaluate-readiness \
   --native-evidence-root /absolute/evidence/native-production \
   --legacy-evidence-root /absolute/evidence/legacy-archive-bundle \
   --observation /absolute/evidence/readiness-observation.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --approval-key-id <independently-recorded-key-id> \
   --approval-public-key-sha256 <independently-pinned-fingerprint> \
   --output /absolute/evidence/readiness-report.json
@@ -248,8 +248,8 @@ aqt-retirement assemble-disabled \
   --stop-approval /absolute/offline/stop-approval.json \
   --stop-signature /absolute/offline/stop-approval.sig.json \
   --stop-public-key /absolute/trust/retirement-approver.pub \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --native-approval-key-id <pinned-native-key-id> \
   --native-approval-public-key-sha256 <pinned-native-fingerprint> \
   --stop-approval-key-id <pinned-stop-key-id> \

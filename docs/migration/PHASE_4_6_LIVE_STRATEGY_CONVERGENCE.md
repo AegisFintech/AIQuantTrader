@@ -28,14 +28,14 @@ pure intent -> sole gateway -> risk approval -> journal -> Nautilus adapter
 ## Repository delta
 
 ```text
-native/src/aiquanttrader_native/execution/
+src/aiquanttrader/execution/
 |- artifacts.py       strict feature/strategy artifact loading and hard-limit checks
 |- live.py            L2 normalization, pure pipeline, durable equity baseline
 |- strategy.py        event-loop orchestration behind the sole order gateway
 |- node.py            pipeline construction and connectivity probe
 `- metrics.py         bounded live-cycle, feature, equity, and position metrics
 
-native/configs/base.toml
+configs/base.toml
 `- [live_strategy]    disabled exact artifact selection and cost assumptions
 
 docs/

@@ -113,8 +113,8 @@ aqt-retirement assemble-disabled \
   --stop-approval /absolute/offline/stop-approval.json \
   --stop-signature /absolute/offline/stop-approval.sig.json \
   --stop-public-key /absolute/trust/retirement-approver.pub \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --native-approval-key-id <independently-recorded-native-key-id> \
   --native-approval-public-key-sha256 <pinned-native-fingerprint> \
   --stop-approval-key-id <independently-recorded-stop-key-id> \

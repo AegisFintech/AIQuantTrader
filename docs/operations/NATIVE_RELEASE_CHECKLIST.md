@@ -1,8 +1,7 @@
 # Linux-Native BTC Release Checklist
 
-This checklist applies to the Hyperliquid/NautilusTrader platform after the
-relevant implementation phases land. It does not replace the MT5 release
-checklist while MT5 remains deployed.
+This checklist is the authoritative release procedure for the
+Hyperliquid/NautilusTrader platform.
 
 ## 1. Identify the release
 
@@ -62,33 +61,6 @@ checklist while MT5 remains deployed.
 - [ ] For continued production, the next signed renewal binds the current
   authorization and unchanged admission/release/capital, is applied before
   expiry, and its ledger/heartbeat/sentinel expiry values agree.
-- [ ] If the release contributes to Phase 10 observation, preserve checkpointed
-  ledger generations, signed renewal/envelope pairs, exact release artifacts,
-  hash-linked audits with typed risk reasons, incident review, and drill
-  reports; sentinel/dead-man sample gaps remain below five minutes.
-- [ ] Before Phase 10 stop review, independently assemble and verify the exact
-  eleven-category legacy archive; restore hashes/sizes match, the frozen
-  recursive credential scan has zero findings, `mt5-final` is annotated and
-  resolves to the archived commit, and 365 days of retention remain.
-- [ ] Independently assemble and verify final MT5 state from the same archive;
-  raw trade report, broker export, MT5 status, pause flag, and all five writer
-  inventories match their normalized records, capture skew is within five
-  minutes, and the state remains inside its one-hour freshness window.
-- [ ] Assemble and independently verify readiness against both immutable roots;
-  schema-v3 native and legacy retirement identities match, authority and final
-  state remain current after replay, and evaluation repeats source verification.
-- [ ] Before cleanup review, assemble and independently replay the exact
-  disabled-window bundle; stop approval was valid at action completion, all ten
-  capabilities have five-minute continuity, broker/credential/native intervals
-  are complete, and evaluation repeats all source and trust verification.
-- [ ] Assemble and independently replay the exact cleanup-evidence bundle;
-  all nine scopes are audited, every target state is raw-evidence-bound, host
-  dependencies are project-owned with zero shared consumers, and the recursive
-  credential scan has zero findings. Schema-only validation is not sufficient.
-- [ ] After separately authorized cleanup, every schema-v2 outcome binds its
-  exact plan step and sequence; completion replay passes, and the independently
-  replayed closeout ledger has one verified entry per canonical step with the
-  required archive retention still active.
 - [ ] The complete 15-scenario final-testnet report passed with real retained
   evidence, flat final state, resolved unknown outcomes, and no mainnet key.
 - [ ] The unsigned bundle was created at a new path, all receipt hashes and
@@ -134,5 +106,4 @@ checklist while MT5 remains deployed.
 - [ ] Preserve journals, metrics, raw data, configuration fingerprints, and the
   deployment manifest for incident analysis.
 
-Rollback never authorizes an unapproved artifact, increased capital, or
-automatic return to MT5/XAU trading.
+Rollback never authorizes an unapproved artifact or increased capital.

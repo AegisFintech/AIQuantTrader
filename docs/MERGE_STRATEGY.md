@@ -22,7 +22,7 @@ safe deletion candidates.
 
 ## Naming
 
-- `m<N>/`: milestone work, for example `m23/xau-quick-momentum`.
+- `m<N>/`: milestone work, for example `m23/btc-fill-calibration`.
 - `phase<N>/`: multi-PR phase work, for example `phase3/research-platform`.
 - `ops/`: small operational changes, cleanup, docs, or automation.
 - `data/`: data-layer, ingestion, warehouse, or dataset plumbing work.

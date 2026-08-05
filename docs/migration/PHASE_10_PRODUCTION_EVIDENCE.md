@@ -105,14 +105,14 @@ at the live ledger or runtime directory.
 ```bash
 aqt-retirement assemble-native \
   --evidence-root /absolute/retained/native-production \
-  --policy native/configs/retirement/evidence-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
   --approval-key-id <independently-recorded-key-id> \
   --approval-public-key-sha256 <independently-pinned-fingerprint> \
   --output /absolute/retained/native-production-observation.json
 
 aqt-retirement verify-native \
   --evidence-root /absolute/retained/native-production \
-  --policy native/configs/retirement/evidence-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
   --approval-key-id <independently-recorded-key-id> \
   --approval-public-key-sha256 <independently-pinned-fingerprint> \
   --observation /absolute/retained/native-production-observation.json

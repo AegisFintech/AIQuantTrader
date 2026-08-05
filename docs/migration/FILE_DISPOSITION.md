@@ -1,8 +1,9 @@
 # Repository File Disposition
 
-This document classifies the repository as it exists before the native
-migration. `Delete` means removal in the Phase 10 legacy-retirement PR after the
-MT5 system is tagged and archived, not deletion during architecture work.
+This document records the pre-migration disposition. The Phase 10
+legacy-retirement PR completed the listed deletions and promoted the native
+project to the repository root on 2026-08-05. Paths below are historical source
+identifiers unless their destination is the current `src/aiquanttrader` tree.
 
 ## Keep or carry forward
 

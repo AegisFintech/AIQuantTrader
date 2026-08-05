@@ -1,8 +1,8 @@
 # Execution and Risk Runbook
 
 This runbook is testnet-only for Phase 4. It does not authorize mainnet trading.
-All commands run from `native/`. Never print, copy into shell history, or commit
-a private key.
+All commands run from the repository root. Never print, copy into shell history,
+or commit a private key.
 
 ## Preconditions
 
@@ -191,7 +191,7 @@ testnet-rehearsal-<id>/
 ```
 
 The raw inventory must bind exactly one artifact for each
-`EvidenceCategory` in `native/schemas/acceptance.schema.json`. Do not leave
+`EvidenceCategory` in `schemas/acceptance.schema.json`. Do not leave
 notes, WAL/SHM files, temporary downloads, or unrelated logs inside the bundle.
 Copy the execution database only after its owner has stopped and the SQLite WAL
 has checkpointed; validate the copy independently before deleting nothing from

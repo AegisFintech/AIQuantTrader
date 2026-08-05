@@ -113,8 +113,8 @@ aqt-retirement assemble-cleanup-manifest \
   --stop-public-key /absolute/trust/retirement-approver.pub \
   --disabled-observation /absolute/evidence/disabled-observation.json \
   --disabled-report /absolute/evidence/disabled-report.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --native-approval-key-id <pinned-native-key-id> \
   --native-approval-public-key-sha256 <pinned-native-fingerprint> \
   --stop-approval-key-id <pinned-stop-key-id> \
@@ -139,8 +139,8 @@ aqt-retirement verify-cleanup-manifest \
   --stop-public-key /absolute/trust/retirement-approver.pub \
   --disabled-observation /absolute/evidence/disabled-observation.json \
   --disabled-report /absolute/evidence/disabled-report.json \
-  --policy native/configs/retirement/evidence-v1.toml \
-  --credential-scan-policy native/configs/retirement/archive-credential-scan-v1.toml \
+  --policy configs/retirement/evidence-v1.toml \
+  --credential-scan-policy configs/retirement/archive-credential-scan-v1.toml \
   --native-approval-key-id <pinned-native-key-id> \
   --native-approval-public-key-sha256 <pinned-native-fingerprint> \
   --stop-approval-key-id <pinned-stop-key-id> \

@@ -23,7 +23,7 @@ approval expires within seven days and the rollback deployment is available.
 
 Create a root-owned, mode-0600 TOML release specification outside the
 repository. Validate it against `ReleaseBundleSpec` in
-`native/schemas/governance.schema.json`. It must contain the stage, unique
+`schemas/governance.schema.json`. It must contain the stage, unique
 deployment and approval IDs, rollback deployment, exact commit/image, mainnet
 account/vault and distinct wallet addresses, capital, approver, timezone-aware
 approval/expiry no more than seven days apart, complete risk limits, and
@@ -34,20 +34,20 @@ Render the enabled target behavior without loading ambient environment
 variables or a credential:
 
 ```bash
-aqt-governance release-fingerprint --config-dir native/configs \
+aqt-governance release-fingerprint --config-dir configs \
   --environment canary --spec /secure/release/canary-release.toml \
   --output /secure/release/behavior-configuration.json
 ```
 
 Record the printed SHA-256. Run the exact digest on testnet with
-`native/compose.rehearsal.yaml` as described in the execution-risk runbook.
+`compose.rehearsal.yaml` as described in the execution-risk runbook.
 Build the typed observation only from retained venue, order journal, metric,
 and drill evidence. Evaluate it against the policy frozen before the run:
 
 ```bash
 aqt-governance evaluate-testnet \
   --observation /secure/release/testnet-observation.json \
-  --policy native/configs/production/testnet-dress-rehearsal-v1.toml \
+  --policy configs/production/testnet-dress-rehearsal-v1.toml \
   --output /secure/release/testnet-evidence.json
 ```
 
@@ -58,7 +58,7 @@ edited into a pass; correct the cause and collect a new observation.
 Prepare the unsigned directory at a path which does not already exist:
 
 ```bash
-aqt-governance prepare-release --config-dir native/configs \
+aqt-governance prepare-release --config-dir configs \
   --environment canary --spec /secure/release/canary-release.toml \
   --output-dir /secure/release/canary-release-unsigned
 ```
@@ -117,7 +117,7 @@ Compose rendering or changes the signed behavior fingerprint and fails
 admission.
 
 ```bash
-docker compose -f native/compose.mainnet.yaml \
+docker compose -f compose.mainnet.yaml \
   --profile mainnet-admission config --quiet
 ```
 
@@ -129,7 +129,7 @@ The controller has no wallet mount. First run its default `verify` command.
 Then repeat with `admit`, supplying a named human actor and reviewed reason:
 
 ```bash
-docker compose -f native/compose.mainnet.yaml \
+docker compose -f compose.mainnet.yaml \
   --profile mainnet-admission run --rm deployment-controller \
   admit --config-dir /etc/aiquanttrader-native --environment canary \
   --code-identity "$AQT_MAINNET_COMMIT_SHA" \
@@ -142,9 +142,9 @@ Treat the JSON admission ID as release evidence. Launch the sentinel first,
 then the trading node:
 
 ```bash
-docker compose -f native/compose.mainnet.yaml \
+docker compose -f compose.mainnet.yaml \
   --profile mainnet-live up -d safety-sentinel
-docker compose -f native/compose.mainnet.yaml \
+docker compose -f compose.mainnet.yaml \
   --profile mainnet-live up -d trading-node
 ```
 
@@ -172,10 +172,10 @@ Evaluate the observation with the frozen policy. A passing report means only
 that a reviewer may consider a new production approval:
 
 ```bash
-aqt-governance evaluate-canary --config-dir native/configs \
+aqt-governance evaluate-canary --config-dir configs \
   --environment canary --deployment-id "$AQT_MAINNET_DEPLOYMENT_ID" \
   --observation canary-observation.json \
-  --policy native/configs/production/canary-evidence-v1.toml \
+  --policy configs/production/canary-evidence-v1.toml \
   --output canary-evidence.json
 ```
 
@@ -228,7 +228,7 @@ capital breach, approval expiry, or unexpected behavior:
 
 Rollback and revoke are terminal anti-replay states. Restoring any deployment
 requires a fresh non-expired approval and explicit admission; no command
-automatically restarts MT5 or another native champion.
+automatically activates another champion.
 
 ## Production scale
 

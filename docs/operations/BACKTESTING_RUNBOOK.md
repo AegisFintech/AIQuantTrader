@@ -1,11 +1,11 @@
 # Native BTC Backtesting Runbook
 
-This runbook operates only the isolated Linux-native research path. It does not
-start, stop, compile, or alter MT5/Wine.
+This runbook operates the Linux-native research path and has no live-execution
+authority.
 
 ## 1. Verify the environment
 
-From `native/`:
+From the repository root:
 
 ```bash
 uv sync --frozen --group dev
