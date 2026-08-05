@@ -140,6 +140,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     image_identity=args.image_identity,
                     wallet_role="trading",
                     wallet_address=private_key_address(private_key),
+                    require_active_approval=False,
                 )
                 admission_ledger = DeploymentAdmissionLedger(
                     state_root / "governance" / "admissions.sqlite3",
@@ -164,6 +165,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 config_fingerprint=bundle.fingerprint,
                 kill_switch=kill_switch,
                 admission=admission,
+                authorization=admission_guard,
             )
             authority = RiskAuthority(
                 settings.risk,
@@ -175,7 +177,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if admission is not None and admission_guard is not None:
                 metrics.set_deployment_admission(
                     active=True,
-                    expiry_seconds=admission.approval.expires_at.timestamp(),
+                    expiry_seconds=admission_guard.expires_at.timestamp(),
                     capital_limit_usd=float(admission.approval.capital_limit_usd),
                 )
             start_http_server(

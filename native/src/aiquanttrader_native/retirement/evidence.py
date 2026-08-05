@@ -153,6 +153,7 @@ def evaluate_retirement_readiness(
         "generated_ts_ns": generated,
         "native_deployment_id": observation.native.deployment_id,
         "native_admission_id": observation.native.admission_id,
+        "native_authorization_id": observation.native.terminal_authorization_id,
         "archive_manifest_sha256": observation.archive.sha256(),
         "source_commit_sha": observation.archive.source_commit_sha,
         "final_tag_name": observation.archive.final_tag_name,

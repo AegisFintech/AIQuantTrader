@@ -149,7 +149,7 @@ docker compose -f native/compose.mainnet.yaml \
 ```
 
 Before allowing strategy input, verify both admission gauges equal one,
-heartbeat and reconciliation are healthy, approval time remains positive,
+heartbeat and reconciliation are healthy, authorization time remains positive,
 capital is at or below the signed limit, there are no unknown orders, dead-man
 renewals succeed, alert delivery works, and the venue shows only BTC perpetual.
 
@@ -178,6 +178,38 @@ aqt-governance evaluate-canary --config-dir native/configs \
   --policy native/configs/production/canary-evidence-v1.toml \
   --output canary-evidence.json
 ```
+
+## Production authorization renewal
+
+The initial production approval is intentionally valid for at most seven days.
+Renew it before expiry if the exact production deployment is to continue. A
+renewal is not a release update: it must preserve deployment/admission,
+account/vault, artifact manifest, configuration, image, and capital exactly.
+Any model, strategy, risk, image, configuration, account, or capital change
+uses the full release and approval flow instead.
+
+1. Confirm the active schema-v2 ledger record, current authorization ID, expiry,
+   unchanged release bundle, reconciliation, alerts, backups, and venue state.
+2. Create `DeploymentAuthorizationRenewal` with
+   `prior_authorization_id` equal to the current ledger authorization and an
+   expiry no more than seven days after approval.
+3. Canonicalize the draft with `aqt-governance canonicalize-renewal`, transfer
+   only those bytes to the offline approver, and return the detached Ed25519
+   signature. Never place the private key on the host.
+4. Run `aqt-governance verify-renewal` with the original code, image, dependency
+   lock, release mount, renewal, signature, and public key. Verification is
+   read-only.
+5. After independent review, run `aqt-governance renew` with the same inputs and
+   a named actor/reason. Confirm the authorization ID, renewal count, expiry,
+   trading heartbeat, execution metric, and sentinel metric agree.
+6. Retain the canonical renewal, signature envelope, public key fingerprint,
+   verified result, ledger backup, and transition record.
+
+Renewal must complete while current authority is active. A missed expiry leaves
+the system halted and requires a new reviewed release/admission; do not change a
+timestamp, edit the ledger, or use renewal to revive it. The exact commands and
+contract are in
+[`PHASE_9_PRODUCTION_RENEWAL.md`](../migration/PHASE_9_PRODUCTION_RENEWAL.md).
 
 ## Incident, rollback, and flatten
 

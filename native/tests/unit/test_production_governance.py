@@ -319,6 +319,46 @@ def test_signed_admission_is_stable_and_detects_tampering(
         )
 
 
+def test_runtime_may_reverify_expired_identity_only_for_durable_ledger_guard(
+    tmp_path: Path,
+    config_dir: Path,
+) -> None:
+    admission, paths = _signed_canary(tmp_path, config_dir)
+    after_expiry = admission.approval.expires_at + timedelta(minutes=1)
+    with pytest.raises(ApprovalVerificationError, match="not active"):
+        verify_deployment_admission(
+            _bundle_for_admission(config_dir, admission),
+            paths,
+            code_identity=COMMIT,
+            image_identity=IMAGE,
+            now=after_expiry,
+        )
+
+    historical_identity = verify_deployment_admission(
+        _bundle_for_admission(config_dir, admission),
+        paths,
+        code_identity=COMMIT,
+        image_identity=IMAGE,
+        now=after_expiry,
+        require_active_approval=False,
+    )
+    assert historical_identity.admission_id == admission.admission_id
+
+    ledger = DeploymentAdmissionLedger((tmp_path / "admissions.sqlite3").resolve())
+    try:
+        ledger.admit(
+            admission,
+            actor="operator",
+            reason="admitted while approval active",
+            now=NOW + timedelta(minutes=2),
+        )
+        guard = DeploymentAdmissionGuard(ledger, historical_identity)
+        with pytest.raises(ValueError, match="expired"):
+            guard.require_active(now=after_expiry)
+    finally:
+        ledger.close()
+
+
 def test_ledger_requires_canary_predecessor_and_blocks_replay(
     tmp_path: Path,
     config_dir: Path,
@@ -1092,6 +1132,9 @@ def test_governance_cli_verifies_and_admits_through_explicit_controller_action(
         deployment_id=admission.approval.deployment_id,
         approval_id=admission.approval.approval_id,
         admission_id=admission.admission_id,
+        authorization_id=admission.admission_id,
+        renewal_count=0,
+        approval_public_key_sha256=admission.public_key_sha256,
         stage=admission.approval.stage,
         account_address=admission.approval.account_address,
         artifact_manifest_sha256=admission.approval.artifact_manifest_sha256,

@@ -6,11 +6,18 @@ import os
 import threading
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
+from typing import Protocol
 
 from aiquanttrader_native.domain.execution import TradingHeartbeat
 from aiquanttrader_native.governance.models import VerifiedDeploymentAdmission
 from aiquanttrader_native.risk.kill_switch import KillSwitchStore
+
+
+class AuthorizationExpiry(Protocol):
+    @property
+    def expires_at(self) -> datetime: ...
 
 
 class HeartbeatPublisher:
@@ -23,6 +30,7 @@ class HeartbeatPublisher:
         config_fingerprint: str,
         kill_switch: KillSwitchStore,
         admission: VerifiedDeploymentAdmission | None = None,
+        authorization: AuthorizationExpiry | None = None,
     ) -> None:
         if not path.is_absolute():
             raise ValueError("heartbeat path must be absolute")
@@ -32,6 +40,7 @@ class HeartbeatPublisher:
         self._config_fingerprint = config_fingerprint
         self._kill_switch = kill_switch
         self._admission = admission
+        self._authorization = authorization
         self._execution_healthy = False
         self._reconciliation_complete = False
         self._healthy_until_ns: int | None = None
@@ -60,6 +69,13 @@ class HeartbeatPublisher:
         timestamp_ns = time.time_ns() if now_ns is None else now_ns
         if healthy_until_ns is not None and timestamp_ns > healthy_until_ns:
             healthy = False
+        authorization_expiry = (
+            None
+            if self._admission is None
+            else self._admission.approval.expires_at
+            if self._authorization is None
+            else self._authorization.expires_at
+        )
         heartbeat = TradingHeartbeat(
             process_id=os.getpid(),
             heartbeat_ts_ns=timestamp_ns,
@@ -76,8 +92,8 @@ class HeartbeatPublisher:
             admission_id=None if self._admission is None else self._admission.admission_id,
             approval_expires_ts_ns=(
                 None
-                if self._admission is None
-                else int(self._admission.approval.expires_at.timestamp() * 1_000_000_000)
+                if authorization_expiry is None
+                else int(authorization_expiry.timestamp() * 1_000_000_000)
             ),
         )
         self._path.parent.mkdir(parents=True, exist_ok=True)

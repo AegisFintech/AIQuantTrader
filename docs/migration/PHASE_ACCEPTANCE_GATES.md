@@ -122,8 +122,12 @@ Implementation status: automated admission controls are present; this phase is
 not accepted and no mainnet release is authorized until every item below has
 retained evidence and human approval.
 
-- A non-expired signed approval binds the exact image, commit, dataset, model,
+- An active signed authorization—initial deployment approval or chained
+  production renewal—binds the exact image, commit, dataset, model,
   configuration, account, capital, limits, and rollback target.
+- Production operation beyond the initial approval window uses an unbroken,
+  signed renewal chain. Each renewal preserves the exact admission and release,
+  extends only an unexpired authorization, and is retained in ledger history.
 - The exact release passes a final testnet dress rehearsal.
 - The final-testnet report covers every frozen lifecycle scenario, binds the
   exact commit, image, lock, dataset, model selection, feature schema, strategy,

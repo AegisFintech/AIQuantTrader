@@ -60,6 +60,9 @@ and Phase 10 evidence-only legacy-retirement boundary:
   account/vault, wallet roles, capital, risk, expiry, and rollback;
 - a durable anti-replay admission ledger checked independently by execution and
   the sentinel, conservative canary hard caps, and frozen canary evidence gates.
+- chained, short-lived production authorization renewals which preserve the
+  exact admission, release identity, and capital while preventing expiry gaps,
+  replay, or mutation through the renewal path.
 - a frozen complete final-testnet evaluator, exact target-behavior fingerprint,
   and atomic semantic preparation of unsigned release bundles for offline
   review and signing.
@@ -75,7 +78,9 @@ environment. Configuration accepts only secret file references. Phase 4
 permits explicit testnet runtime enablement. Phase 9 permits structural mainnet
 enablement only when complete approval references are supplied; startup and
 every exposure-changing command still require valid signed artifacts and an
-explicit active ledger admission. No checked-in overlay enables execution.
+explicit active ledger admission. Sustained production additionally requires
+signed renewals before each authorization expires. No checked-in overlay enables
+execution.
 
 ## Development
 
@@ -116,6 +121,9 @@ secret-file references below `/run/secrets`.
 Mainnet admission is documented in
 `../docs/operations/MAINNET_CANARY_RUNBOOK.md`. A passing canary report never
 promotes automatically and a separate signed approval is required for scale.
+Chained production renewal is specified in
+`../docs/migration/PHASE_9_PRODUCTION_RENEWAL.md`; it cannot alter a release or
+revive expired authority.
 
 ## Execution and risk
 

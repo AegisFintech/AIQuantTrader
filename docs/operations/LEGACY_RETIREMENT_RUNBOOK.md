@@ -22,8 +22,9 @@ Use separate people for approver and operator whenever staffing permits.
 
 1. Confirm the exact native production deployment and admission have remained
    healthy for the frozen minimum window. Retain the production approval,
-   artifact manifest, operational evidence, drill reports, alerts, and backup
-   restore evidence.
+   artifact manifest, ordered renewal approvals and ledger transitions,
+   terminal authorization identity/expiry, operational evidence, drill reports,
+   alerts, and backup restore evidence. Any expiry gap restarts the window.
 2. Activate `aiquanttrader_entry_pause.flag`. Confirm automatic and command-file
    entries are rejected while monitoring and position management remain active.
 3. Run `python3 scripts/mt5_trade_report.py`; independently inspect the broker

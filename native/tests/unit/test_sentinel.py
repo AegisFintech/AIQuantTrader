@@ -158,7 +158,7 @@ def test_sentinel_cancels_when_durable_deployment_admission_is_inactive(
     heartbeat = (tmp_path / "heartbeat.json").resolve()
     write_healthy_heartbeat(bundle, heartbeat, now)
     guard = Mock()
-    guard.is_active.return_value = False
+    guard.active_record.return_value = None
     client = FakeControlClient()
     sentinel = SafetySentinel(
         bundle=bundle,

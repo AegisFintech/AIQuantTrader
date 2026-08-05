@@ -18,7 +18,10 @@ from aiquanttrader_native.config.loader import ConfigBundle
 from aiquanttrader_native.domain.execution import TradingHeartbeat
 from aiquanttrader_native.execution.heartbeat import read_heartbeat
 from aiquanttrader_native.execution.secrets import PrivateKey
-from aiquanttrader_native.governance.models import VerifiedDeploymentAdmission
+from aiquanttrader_native.governance.models import (
+    DeploymentAdmissionRecord,
+    VerifiedDeploymentAdmission,
+)
 from aiquanttrader_native.sentinel.metrics import SentinelMetrics
 
 
@@ -29,7 +32,7 @@ class ControlClient(Protocol):
 
 
 class AdmissionGuard(Protocol):
-    def is_active(self) -> bool: ...
+    def active_record(self) -> DeploymentAdmissionRecord | None: ...
 
 
 class HyperliquidControlClient:
@@ -122,8 +125,7 @@ class SafetySentinel:
 
         now_ns = self._clock_ns()
         heartbeat = self._read_heartbeat()
-        healthy, age_ns = self._classify(heartbeat, now_ns)
-        admission_active = self._admission_guard is None or self._admission_guard.is_active()
+        healthy, age_ns, admission_active = self._classify(heartbeat, now_ns)
         self._metrics.deployment_admission_active.set(1 if admission_active else 0)
         self._metrics.heartbeat_age_seconds.set(age_ns / 1_000_000_000)
         self._metrics.trading_node_healthy.set(1 if healthy else 0)
@@ -205,19 +207,31 @@ class SafetySentinel:
         except (OSError, ValueError):
             return None
 
-    def _classify(self, heartbeat: TradingHeartbeat | None, now_ns: int) -> tuple[bool, int]:
+    def _classify(self, heartbeat: TradingHeartbeat | None, now_ns: int) -> tuple[bool, int, bool]:
         stale_ns = self._settings.sentinel.heartbeat_stale_after_ms * 1_000_000
+        authorization = (
+            None if self._admission_guard is None else self._admission_guard.active_record()
+        )
+        admission_healthy = self._admission_guard is None or authorization is not None
         if heartbeat is None:
-            return False, stale_ns + 1
+            return False, stale_ns + 1, admission_healthy
         age_ns = max(0, now_ns - heartbeat.heartbeat_ts_ns)
         expected_account = self._settings.exchange.account_address
-        admission_healthy = self._admission_guard is None or self._admission_guard.is_active()
+        expected_expiry = (
+            None
+            if self._admission is None
+            else self._admission.approval.expires_at
+            if authorization is None
+            else authorization.expires_at
+        )
+        expected_expiry_ns = (
+            None if expected_expiry is None else int(expected_expiry.timestamp() * 1_000_000_000)
+        )
         identity_healthy = self._admission is None or (
             heartbeat.deployment_id == self._admission.approval.deployment_id
             and heartbeat.approval_id == self._admission.approval.approval_id
             and heartbeat.admission_id == self._admission.admission_id
-            and heartbeat.approval_expires_ts_ns
-            == int(self._admission.approval.expires_at.timestamp() * 1_000_000_000)
+            and heartbeat.approval_expires_ts_ns == expected_expiry_ns
         )
         healthy = (
             age_ns <= stale_ns
@@ -230,7 +244,7 @@ class SafetySentinel:
             and heartbeat.reconciliation_complete
             and not heartbeat.operator_kill
         )
-        return healthy, age_ns
+        return healthy, age_ns, admission_healthy
 
     def _record_operational(
         self,

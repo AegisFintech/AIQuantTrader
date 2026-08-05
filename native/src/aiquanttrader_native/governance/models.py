@@ -140,6 +140,68 @@ class VerifiedDeploymentAdmission(DomainModel):
         return self
 
 
+class DeploymentAuthorizationRenewal(DomainModel):
+    """Short-lived authority to extend one unchanged production admission."""
+
+    schema_version: Literal[1] = 1
+    renewal_id: Identifier
+    deployment_id: Identifier
+    initial_approval_id: Identifier
+    admission_id: Sha256
+    prior_authorization_id: Sha256
+    stage: Literal[PromotionStage.PRODUCTION] = PromotionStage.PRODUCTION
+    account_address: EthereumAddress
+    vault_address: EthereumAddress | None = None
+    artifact_manifest_sha256: Sha256
+    configuration_sha256: Sha256
+    image_digest: ImageDigest
+    capital_limit_usd: Annotated[Decimal, Field(gt=0)]
+    approver: Annotated[str, Field(min_length=1, max_length=256)]
+    approved_at: datetime
+    expires_at: datetime
+
+    @model_validator(mode="after")
+    def window_and_identity_are_valid(self) -> Self:
+        if self.approved_at.tzinfo is None or self.expires_at.tzinfo is None:
+            raise ValueError("deployment renewal timestamps must be timezone-aware")
+        if self.expires_at <= self.approved_at:
+            raise ValueError("deployment renewal expiry must follow approval time")
+        if self.expires_at - self.approved_at > timedelta(days=7):
+            raise ValueError("deployment renewal cannot remain valid over seven days")
+        if self.vault_address is not None and (
+            self.vault_address.lower() == self.account_address.lower()
+        ):
+            raise ValueError("deployment renewal vault and account must differ")
+        return self
+
+    def is_active(self, now: datetime) -> bool:
+        if now.tzinfo is None:
+            raise ValueError("deployment renewal check timestamp must be timezone-aware")
+        return self.approved_at <= now < self.expires_at
+
+
+class VerifiedDeploymentRenewal(DomainModel):
+    """Signature-verified renewal for one exact active admission."""
+
+    schema_version: Literal[1] = 1
+    authorization_id: Sha256
+    renewal: DeploymentAuthorizationRenewal
+    public_key_sha256: Sha256
+    signature_envelope_sha256: Sha256
+    verified_at: datetime
+
+    @model_validator(mode="after")
+    def identity_matches(self) -> Self:
+        if self.verified_at.tzinfo is None:
+            raise ValueError("deployment renewal verification timestamp must be timezone-aware")
+        identity = self.model_dump(mode="json", exclude={"authorization_id", "verified_at"})
+        if canonical_sha256(identity) != self.authorization_id:
+            raise ValueError("deployment renewal authorization identity does not match")
+        if not self.renewal.is_active(self.verified_at):
+            raise ValueError("deployment renewal is not active at verification")
+        return self
+
+
 class DeploymentAdmissionState(StrEnum):
     ACTIVE = "active"
     SUPERSEDED = "superseded"
@@ -148,10 +210,13 @@ class DeploymentAdmissionState(StrEnum):
 
 
 class DeploymentAdmissionRecord(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     deployment_id: Identifier
     approval_id: Identifier
     admission_id: Sha256
+    authorization_id: Sha256
+    renewal_count: int = Field(ge=0)
+    approval_public_key_sha256: Sha256 | None = None
     stage: Literal[PromotionStage.APPROVED_CANARY, PromotionStage.PRODUCTION]
     account_address: EthereumAddress
     vault_address: EthereumAddress | None = None
@@ -164,6 +229,20 @@ class DeploymentAdmissionRecord(DomainModel):
     state: DeploymentAdmissionState
     actor: Annotated[str, Field(min_length=1, max_length=256)]
     reason: Annotated[str, Field(min_length=1, max_length=512)]
+
+    @model_validator(mode="after")
+    def authorization_and_window_are_valid(self) -> Self:
+        if self.admitted_at.tzinfo is None or self.expires_at.tzinfo is None:
+            raise ValueError("deployment admission timestamps must be timezone-aware")
+        if self.expires_at <= self.admitted_at:
+            raise ValueError("deployment admission expiry must follow admission time")
+        if self.renewal_count == 0 and self.authorization_id != self.admission_id:
+            raise ValueError("initial deployment authorization must equal the admission identity")
+        if self.renewal_count > 0 and self.authorization_id == self.admission_id:
+            raise ValueError("renewed deployment authorization must bind a renewal identity")
+        if self.renewal_count > 0 and self.approval_public_key_sha256 is None:
+            raise ValueError("renewed deployment authorization requires a bound trust root")
+        return self
 
 
 class TestnetLifecycleScenario(StrEnum):

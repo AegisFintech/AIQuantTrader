@@ -641,6 +641,11 @@
           "title": "Admission Id",
           "type": "string"
         },
+        "authorization_expires_ts_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Authorization Expires Ts Ns",
+          "type": "integer"
+        },
         "completed_drills": {
           "items": {
             "$ref": "#/$defs/RequiredNativeDrill"
@@ -685,6 +690,11 @@
           "title": "Reconciliation Failures",
           "type": "integer"
         },
+        "renewal_count": {
+          "minimum": 0,
+          "title": "Renewal Count",
+          "type": "integer"
+        },
         "risk_breaches": {
           "minimum": 0,
           "title": "Risk Breaches",
@@ -700,11 +710,19 @@
           "minimum": 0,
           "title": "Started Ts Ns",
           "type": "integer"
+        },
+        "terminal_authorization_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Terminal Authorization Id",
+          "type": "string"
         }
       },
       "required": [
         "deployment_id",
         "admission_id",
+        "terminal_authorization_id",
+        "renewal_count",
+        "authorization_expires_ts_ns",
         "production_approval_sha256",
         "production_artifact_manifest_sha256",
         "started_ts_ns",
@@ -1075,6 +1093,11 @@
           "title": "Native Admission Id",
           "type": "string"
         },
+        "native_authorization_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Native Authorization Id",
+          "type": "string"
+        },
         "native_deployment_id": {
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
           "title": "Native Deployment Id",
@@ -1126,6 +1149,7 @@
         "generated_ts_ns",
         "native_deployment_id",
         "native_admission_id",
+        "native_authorization_id",
         "archive_manifest_sha256",
         "source_commit_sha",
         "gates",

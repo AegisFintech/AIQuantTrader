@@ -116,6 +116,9 @@ class NativeProductionObservation(DomainModel):
     schema_version: Literal[1] = 1
     deployment_id: Identifier
     admission_id: Sha256
+    terminal_authorization_id: Sha256
+    renewal_count: int = Field(ge=0)
+    authorization_expires_ts_ns: int = Field(gt=0)
     production_approval_sha256: Sha256
     production_artifact_manifest_sha256: Sha256
     started_ts_ns: int = Field(ge=0)
@@ -133,6 +136,14 @@ class NativeProductionObservation(DomainModel):
     def interval_and_drills_are_complete(self) -> Self:
         if self.ended_ts_ns <= self.started_ts_ns:
             raise ValueError("native production observation must have a positive interval")
+        if self.authorization_expires_ts_ns <= self.ended_ts_ns:
+            raise ValueError(
+                "native production authorization must remain active through observation"
+            )
+        if self.renewal_count == 0 and self.terminal_authorization_id != self.admission_id:
+            raise ValueError("unrenewed native authorization must equal admission identity")
+        if self.renewal_count > 0 and self.terminal_authorization_id == self.admission_id:
+            raise ValueError("renewed native authorization must bind the terminal renewal")
         if set(self.completed_drills) != REQUIRED_NATIVE_DRILLS:
             raise ValueError("native production observation must contain every retirement drill")
         return self
@@ -249,6 +260,7 @@ class RetirementReadinessReport(DomainModel):
     generated_ts_ns: int = Field(ge=0)
     native_deployment_id: Identifier
     native_admission_id: Sha256
+    native_authorization_id: Sha256
     archive_manifest_sha256: Sha256
     source_commit_sha: GitCommit
     final_tag_name: Literal["mt5-final"] = "mt5-final"
