@@ -85,6 +85,11 @@ AIQuantTrader is now an MT5-first autonomous demo-trading repo. Trade and optimi
 - Native execution/risk runbook: `docs/operations/EXECUTION_RISK_RUNBOOK.md`.
   Only the isolated testnet overlay may mount wallets during Phase 4 evidence
   collection, and trading/control wallets must remain process-separated.
+- Native live-strategy convergence:
+  `docs/migration/PHASE_4_6_LIVE_STRATEGY_CONVERGENCE.md`. Shared feature and
+  strategy kernels may reach Nautilus only through the risk-managed execution
+  strategy; every checked-in configuration keeps both execution and live alpha
+  disabled.
 - Active EA: `broker/mt5/AIQuantTraderBridgeEA.mq5` (v2.00)
 - EA Modules: `broker/mt5/RiskManagement.mqh`, `SmartMoney.mqh`, `BridgeIO.mqh`
 - Runtime process list: `ecosystem.config.js`

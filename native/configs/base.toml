@@ -24,6 +24,14 @@ adapter_ws_post_timeout_seconds = 10
 normalize_prices = true
 include_builder_attribution = false
 
+[live_strategy]
+enabled = false
+strategy_id = "order-flow-scalper-v1"
+feature_config_path = "features/microstructure-v1.toml"
+strategy_config_path = "strategies/order-flow-scalper-v1.toml"
+estimated_taker_fee_bps = "4.5"
+estimated_slippage_bps = "1"
+
 [sentinel]
 enabled = false
 poll_interval_ms = 1000

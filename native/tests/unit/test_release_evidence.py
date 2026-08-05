@@ -136,7 +136,12 @@ def _observation(**updates: object) -> DressRehearsalObservation:
     return DressRehearsalObservation.model_validate(values)
 
 
-def _shadow_report(*, strategy_sha256: str, passed: bool = True) -> ShadowEvidenceReport:
+def _shadow_report(
+    *,
+    feature_sha256: str,
+    strategy_sha256: str,
+    passed: bool = True,
+) -> ShadowEvidenceReport:
     gate_names = (
         "observation",
         "independent_decisions",
@@ -181,7 +186,7 @@ def _shadow_report(*, strategy_sha256: str, passed: bool = True) -> ShadowEviden
         "image_identity": IMAGE,
         "code_identity": COMMIT,
         "config_fingerprint": "c" * 64,
-        "feature_config_sha256": "d" * 64,
+        "feature_config_sha256": feature_sha256,
         "strategy_config_sha256": strategy_sha256,
         "engine_policy_sha256": "e" * 64,
         "scenario_id": "calibrated-baseline",
@@ -394,8 +399,12 @@ def _release_inputs(
     model_path.write_bytes(model.canonical_bytes())
     strategy_path = config_dir / "strategies" / "order-flow-scalper-v1.toml"
     shadow_path = tmp_path / "shadow-evidence.json"
+    feature_config_path = config_dir / "features" / "microstructure-v1.toml"
     shadow_path.write_bytes(
-        _shadow_report(strategy_sha256=_sha(strategy_path.read_bytes())).canonical_bytes()
+        _shadow_report(
+            feature_sha256=_sha(feature_config_path.read_bytes()),
+            strategy_sha256=_sha(strategy_path.read_bytes()),
+        ).canonical_bytes()
     )
     testnet_path = tmp_path / "testnet-evidence.json"
     spec = ReleaseBundleSpec(
@@ -424,7 +433,10 @@ def _release_inputs(
         ),
     )
     bundle = load_config(config_dir, "canary", environ={})
-    _settings, behavior_payload, behavior_sha = release_behavior_configuration(bundle, spec)
+    settings, behavior_payload, behavior_sha = release_behavior_configuration(bundle, spec)
+    assert settings.execution.enabled
+    assert settings.live_strategy.enabled
+    assert settings.live_strategy.strategy_id == "order-flow-scalper-v1"
     observation = _observation(
         commit_sha=COMMIT,
         image_digest=IMAGE,
@@ -722,9 +734,31 @@ def test_release_bundle_rejects_bad_sources_semantics_and_limits(
             output_dir=(tmp_path / "feature-mismatch").resolve(),
         )
 
+    feature_evidence_mismatch_path = (tmp_path / "feature-evidence-mismatch.json").resolve()
+    feature_evidence_mismatch_path.write_bytes(
+        _shadow_report(
+            feature_sha256="d" * 64,
+            strategy_sha256=_sha(spec.artifacts.strategy_config.read_bytes()),
+        ).canonical_bytes()
+    )
+    feature_evidence_mismatch_spec = spec.model_copy(
+        update={
+            "artifacts": spec.artifacts.model_copy(
+                update={"shadow_evidence": feature_evidence_mismatch_path}
+            )
+        }
+    )
+    with pytest.raises(ValueError, match="shadow evidence does not bind"):
+        prepare_release_bundle(
+            bundle=bundle,
+            spec=feature_evidence_mismatch_spec,
+            output_dir=(tmp_path / "feature-evidence-mismatch").resolve(),
+        )
+
     failed_shadow_path = (tmp_path / "failed-shadow.json").resolve()
     failed_shadow_path.write_bytes(
         _shadow_report(
+            feature_sha256=_sha((config_dir / "features" / "microstructure-v1.toml").read_bytes()),
             strategy_sha256=_sha(spec.artifacts.strategy_config.read_bytes()),
             passed=False,
         ).canonical_bytes()
@@ -743,7 +777,8 @@ def test_release_bundle_rejects_bad_sources_semantics_and_limits(
 
     incomplete_shadow_path = (tmp_path / "incomplete-shadow.json").resolve()
     incomplete_shadow = _shadow_report(
-        strategy_sha256=_sha(spec.artifacts.strategy_config.read_bytes())
+        feature_sha256=_sha((config_dir / "features" / "microstructure-v1.toml").read_bytes()),
+        strategy_sha256=_sha(spec.artifacts.strategy_config.read_bytes()),
     ).model_dump(mode="json")
     incomplete_shadow["gates"] = incomplete_shadow["gates"][:1]
     incomplete_shadow_identity = {

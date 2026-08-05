@@ -12,6 +12,8 @@ The source diagram is
 [`phase-4-execution-risk.mmd`](../architecture/diagrams/phase-4-execution-risk.mmd).
 
 ```text
+managed Nautilus L2/trades -> shared features -> pure strategy kernel
+reconciled account/cache -> immutable risk snapshot
 pure strategy kernel -> typed intent -> synchronous risk authority
   -> single-use approval -> sole Nautilus gateway -> Hyperliquid adapter
   -> durable lifecycle journal -> reconciliation without blind resubmission
@@ -34,7 +36,7 @@ native/
 |- observability/grafana/dashboards/execution-risk.json
 |- src/aiquanttrader_native/
 |  |- domain/execution.py
-|  |- execution/{cli,heartbeat,journal,metrics,node,secrets,strategy}.py
+|  |- execution/{artifacts,cli,heartbeat,journal,live,metrics,node,secrets,strategy}.py
 |  |- risk/{authority,kill_switch}.py
 |  `- sentinel/{cli,metrics,service}.py
 `- tests/{unit,integration}/test_{execution,risk,sentinel}*.py
@@ -49,6 +51,10 @@ docs/
 
 - Alpha components remain pure kernels and cannot call Nautilus. Only
   `RiskManagedExecutionStrategy` invokes the Nautilus order API.
+- The gateway consumes the same bounded feature and strategy kernels used by
+  paper/research. Startup orders are cancel-drained, quote replacement waits
+  for terminal cancel events, and failed/denied commands do not enter alpha
+  memory.
 - An exposure-changing intent is approved against an immutable account/feed
   snapshot. The approval is HMAC-bound to the intent, snapshot, and limits,
   expires after 250 ms by default, and can be consumed once.
@@ -86,6 +92,11 @@ will be pure decision kernels feeding this gateway instead of additional
 Nautilus strategies. Multiple order-capable strategies were rejected because
 they would make the custom economic risk authority bypassable. The tradeoff is
 one in-process translation hop and a deliberately narrow extension point.
+
+Phase 4/6 convergence now composes the selected pure kernel inside this same
+gateway. The composition boundary did not add a second order owner. See
+[`PHASE_4_6_LIVE_STRATEGY_CONVERGENCE.md`](PHASE_4_6_LIVE_STRATEGY_CONVERGENCE.md)
+for artifact, restart, account-state, cancellation, and performance decisions.
 
 ### Local synchronous risk instead of a risk microservice
 
@@ -134,6 +145,9 @@ the raw proposal was sent unchanged.
 - Nautilus's Rust adapter owns HTTP/WebSocket I/O, price normalization, CLOID
   mapping, reconnect, and reconciliation. The native code does not duplicate
   its order state machine.
+- Managed L2 normalization copies at most ten levels per side. Feature windows,
+  strategy work, and cache exposure reads are bounded; the equity baseline
+  writes only on initialization, day rollover, or a new high-water mark.
 - Prometheus label values are closed enums. Client IDs, order IDs, wallet
   addresses, and intent IDs never become labels.
 
@@ -170,6 +184,9 @@ Automated now:
   startup/runtime classification, and no-resubmit behavior;
 - pinned Nautilus configuration, post-only/IOC/reduce-only translation, modify
   and cancel gateway behavior, and event journaling;
+- shared L2/trade normalization, feature/strategy invocation, strict artifact
+  loading, submit-memory commit, cancel-confirm replacement, startup drain, and
+  durable daily/high-water equity behavior;
 - secret-file validation, wallet mount separation, canonical endpoint binding,
   crash-safe heartbeat/kill state, dead-man renewal, and emergency cancel;
 - strict typing, schema export, non-root/read-only containers, metrics, and

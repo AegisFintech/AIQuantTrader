@@ -1,11 +1,13 @@
 flowchart LR
-    K[Pure strategy kernels] -->|OrderIntent| G[Risk-managed Nautilus gateway]
-    S[Account and feed snapshot] --> R[Synchronous risk authority]
+    M[Managed Nautilus L2 trades mark funding] --> F[Shared incremental features]
+    F --> K[Pure selected strategy kernel]
+    K -->|OrderIntent| G[Risk-managed Nautilus gateway]
+    S[Reconciled account cache and durable equity baseline] --> R[Synchronous risk authority]
     O[Persistent operator kill] --> R
     G --> R
     R -->|single-use HMAC approval| G
     R -->|stable denial reason| J[(SQLite WAL execution journal)]
-    G -->|approved submit modify cancel| N[Nautilus Hyperliquid adapter]
+    G -->|approved submit and cancel-confirm replacement| N[Nautilus Hyperliquid adapter]
     N --> H[Hyperliquid testnet - Phase 4]
     N -->|order fill position events| G
     G --> J

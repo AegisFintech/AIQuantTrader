@@ -16,10 +16,12 @@ it cannot sign, admit, fund, or start a mainnet deployment.
   and control wallets;
 - a deterministic target-behavior fingerprint derived from a checked-in,
   execution-disabled canary or production environment plus bounded release
-  inputs;
+  inputs; the rendered target explicitly enables live alpha and derives its
+  strategy ID from the exact release artifact;
 - semantic validation across dependency lock, dataset, selected model, feature
   schema, strategy, risk policy, shadow evidence, testnet evidence, and, for
-  production, canary evidence;
+  production, canary evidence, including live feature-config parity with the
+  shadow run and strategy bounds within the signed hard-risk policy;
 - atomic preparation of a credential-free, unsigned release directory;
 - schema, unit, CLI, security-boundary, Compose, and production-lineage tests.
 

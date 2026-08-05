@@ -21,6 +21,9 @@ x-testnet-environment: &testnet-environment
   AQT_NATIVE__EXCHANGE__TRADING_WALLET_SECRET_PATH: /run/secrets/testnet-trading-wallet
   AQT_NATIVE__EXCHANGE__CONTROL_WALLET_SECRET_PATH: /run/secrets/testnet-control-wallet
   AQT_NATIVE__EXECUTION__ENABLED: "true"
+  AQT_NATIVE__LIVE_STRATEGY__ENABLED: "true"
+  AQT_NATIVE__LIVE_STRATEGY__STRATEGY_ID: ${AQT_TESTNET_LIVE_STRATEGY_ID:-order-flow-scalper-v1}
+  AQT_NATIVE__LIVE_STRATEGY__STRATEGY_CONFIG_PATH: ${AQT_TESTNET_LIVE_STRATEGY_CONFIG_PATH:-strategies/order-flow-scalper-v1.toml}
   AQT_NATIVE__SENTINEL__ENABLED: "true"
 
 services:

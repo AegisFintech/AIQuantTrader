@@ -1,5 +1,66 @@
 {
   "$defs": {
+    "EquityBaseline": {
+      "additionalProperties": false,
+      "properties": {
+        "account_address": {
+          "pattern": "^0x[0-9a-f]{40}$",
+          "title": "Account Address",
+          "type": "string"
+        },
+        "broker_day_utc": {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "title": "Broker Day Utc",
+          "type": "string"
+        },
+        "day_start_equity_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Day Start Equity Usd"
+        },
+        "high_water_equity_usd": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "High Water Equity Usd"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "updated_ts_ns": {
+          "minimum": 0,
+          "title": "Updated Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "account_address",
+        "broker_day_utc",
+        "day_start_equity_usd",
+        "high_water_equity_usd",
+        "updated_ts_ns"
+      ],
+      "title": "EquityBaseline",
+      "type": "object"
+    },
     "ExecutionJournalEvent": {
       "additionalProperties": false,
       "properties": {
@@ -688,6 +749,9 @@
     },
     {
       "$ref": "#/$defs/TradingHeartbeat"
+    },
+    {
+      "$ref": "#/$defs/EquityBaseline"
     }
   ]
 }

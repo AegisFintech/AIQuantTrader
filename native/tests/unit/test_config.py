@@ -66,6 +66,7 @@ def test_checked_in_configs_are_disabled_and_valid(
     assert bundle.settings.exchange.network is network
     assert bundle.settings.instrument.instrument_id == "BTC-USD-PERP.HYPERLIQUID"
     assert not bundle.settings.execution.enabled
+    assert not bundle.settings.live_strategy.enabled
     assert not bundle.settings.can_submit_orders
     assert len(bundle.fingerprint) == 64
 
@@ -98,6 +99,15 @@ def test_testnet_execution_can_be_explicitly_enabled(config_dir: Path) -> None:
 
     assert bundle.settings.can_submit_orders
     assert bundle.settings.exchange.account_address == ACCOUNT
+
+
+def test_live_strategy_cannot_be_enabled_without_execution(config_dir: Path) -> None:
+    with pytest.raises(ConfigLoadError, match="live strategy cannot be enabled"):
+        load_config(
+            config_dir,
+            "testnet",
+            environ={"AQT_NATIVE__LIVE_STRATEGY__ENABLED": "true"},
+        )
 
 
 def test_testnet_execution_requires_startup_reconciliation(config_dir: Path) -> None:

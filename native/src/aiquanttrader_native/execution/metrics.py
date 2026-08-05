@@ -73,6 +73,33 @@ class ExecutionMetrics:
             "Maximum account or vault equity authorized by signed approval",
             registry=self.registry,
         )
+        self.live_market_cycles = Counter(
+            "aqt_execution_live_market_cycles_total",
+            "Causal L2 market cycles processed by the live strategy",
+            ["result"],
+            registry=self.registry,
+        )
+        self.live_strategy_actions = Counter(
+            "aqt_execution_live_strategy_actions_total",
+            "Live strategy commands by bounded action and dispatch result",
+            ["action", "result"],
+            registry=self.registry,
+        )
+        self.feature_ready = Gauge(
+            "aqt_execution_feature_ready",
+            "Whether the live incremental feature engine completed warmup",
+            registry=self.registry,
+        )
+        self.account_equity_usd = Gauge(
+            "aqt_execution_account_equity_usd",
+            "Current reconciled execution-account equity",
+            registry=self.registry,
+        )
+        self.position_base = Gauge(
+            "aqt_execution_position_base",
+            "Current reconciled signed BTC position",
+            registry=self.registry,
+        )
 
     def observe_decision(self, decision: RiskDecision, *, latency_seconds: float) -> None:
         self.risk_decision_latency_seconds.observe(latency_seconds)
@@ -113,3 +140,15 @@ class ExecutionMetrics:
             self.approval_expiry_seconds.set(expiry_seconds)
         if capital_limit_usd is not None:
             self.approved_capital_limit_usd.set(capital_limit_usd)
+
+    def observe_live_cycle(self, *, result: str, feature_ready: bool | None = None) -> None:
+        self.live_market_cycles.labels(result=result).inc()
+        if feature_ready is not None:
+            self.feature_ready.set(1 if feature_ready else 0)
+
+    def observe_live_action(self, action: str, result: str) -> None:
+        self.live_strategy_actions.labels(action=action, result=result).inc()
+
+    def set_live_account(self, *, equity_usd: float, position_base: float) -> None:
+        self.account_equity_usd.set(equity_usd)
+        self.position_base.set(position_base)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 import uuid
 from collections import deque
+from collections.abc import Callable
 from decimal import Decimal
 from typing import Any, Literal, Protocol
 
@@ -29,6 +30,13 @@ from aiquanttrader_native.domain.execution import (
 from aiquanttrader_native.domain.market import OrderSide
 from aiquanttrader_native.execution.heartbeat import HeartbeatPublisher
 from aiquanttrader_native.execution.journal import ExecutionJournal
+from aiquanttrader_native.execution.live import (
+    EquityBaselineStore,
+    LiveAccountState,
+    LiveDecisionPipeline,
+    build_live_risk_snapshot,
+    read_live_account_state,
+)
 from aiquanttrader_native.execution.metrics import ExecutionMetrics
 from aiquanttrader_native.risk.authority import ApprovalError, RiskAuthority
 
@@ -54,6 +62,11 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         heartbeat: HeartbeatPublisher,
         metrics: ExecutionMetrics | None = None,
         admission_guard: AdmissionGuard | None = None,
+        live_pipeline: LiveDecisionPipeline | None = None,
+        equity_baselines: EquityBaselineStore | None = None,
+        connectivity_probe: Callable[[], bool] | None = None,
+        estimated_taker_fee_bps: Decimal = Decimal("4.5"),
+        estimated_slippage_bps: Decimal = Decimal("1"),
     ) -> None:
         super().__init__(
             StrategyConfig(
@@ -70,16 +83,46 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         self._metrics = ExecutionMetrics() if metrics is None else metrics
         self._admission_guard = admission_guard
         self._cancel_times_ns: deque[int] = deque()
+        live_dependencies = (live_pipeline, equity_baselines, connectivity_probe)
+        if any(item is not None for item in live_dependencies) and not all(
+            item is not None for item in live_dependencies
+        ):
+            raise ValueError("live strategy dependencies must be supplied together")
+        self._live_pipeline = live_pipeline
+        self._equity_baselines = equity_baselines
+        self._connectivity_probe = connectivity_probe
+        self._estimated_taker_fee_bps = estimated_taker_fee_bps
+        self._estimated_slippage_bps = estimated_slippage_bps
+        self._funding_rate = Decimal("0")
+        self._mark_price: tuple[Decimal, int] | None = None
+        self._startup_order_drain = False
+        self._risk_cancel_pending = False
+        self._pending_strategy_cancels: set[str] = set()
+        self._reconciliation_complete = False
 
     def on_start(self) -> None:
-        self._subscribe_quotes()
-        self._heartbeat.set_health(execution_healthy=False, reconciliation_complete=False)
+        if self._live_pipeline is None:
+            self._subscribe_quotes()
+        else:
+            self._subscribe_live_data()
+            # Nautilus invokes strategies only after execution reconciliation and
+            # portfolio initialization complete successfully.
+            self._reconciliation_complete = True
+            self._startup_order_drain = bool(self._open_orders())
+            if self._startup_order_drain:
+                self.cancel_all()
+                self._risk_cancel_pending = True
+        self._heartbeat.set_health(
+            execution_healthy=False,
+            reconciliation_complete=self._reconciliation_complete,
+        )
         self._metrics.set_operational_state(
-            reconciled=False,
+            reconciled=self._reconciliation_complete,
             unresolved_commands=self._journal.unresolved_command_count(),
         )
 
     def on_stop(self) -> None:
+        self._reconciliation_complete = False
         self._heartbeat.set_health(execution_healthy=False, reconciliation_complete=False)
         self._metrics.set_operational_state(
             reconciled=False,
@@ -278,6 +321,7 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
     def cancel_all(self) -> None:
         """Cancel all BTC orders through Nautilus; the sentinel remains the crash fallback."""
 
+        self._consume_cancel_budget()
         adapter_started = time.perf_counter()
         try:
             self._cancel_all_nautilus()
@@ -293,12 +337,17 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
     def update_health(self, snapshot: RiskSnapshot, decision: RiskDecision) -> None:
         """Refresh the sentinel lease only after the authority validates freshness."""
 
+        self.update_risk_health(snapshot, decision.state)
+
+    def update_risk_health(self, snapshot: RiskSnapshot, state: RiskState) -> None:
+        """Refresh liveness from a state evaluation even when alpha emits no order."""
+
         healthy = (
             snapshot.exchange_connected
             and snapshot.reconciliation_complete
             and snapshot.deployment_approved
             and not snapshot.operator_kill
-            and decision.state in {RiskState.ACTIVE, RiskState.REDUCE_ONLY, RiskState.FLATTENING}
+            and state in {RiskState.ACTIVE, RiskState.REDUCE_ONLY, RiskState.FLATTENING}
         )
         self._heartbeat.set_health(
             execution_healthy=healthy,
@@ -338,16 +387,33 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         self._record_order_event(event, ExecutionState.ACCEPTED, "cancel-replace accepted")
 
     def on_order_rejected(self, event: Any) -> None:
-        self._record_order_event(event, ExecutionState.REJECTED, self._event_reason(event))
+        intent_id = self._record_order_event(
+            event, ExecutionState.REJECTED, self._event_reason(event)
+        )
+        self._release_terminal_intent(intent_id)
 
     def on_order_denied(self, event: Any) -> None:
-        self._record_order_event(event, ExecutionState.DENIED, self._event_reason(event))
+        intent_id = self._record_order_event(
+            event, ExecutionState.DENIED, self._event_reason(event)
+        )
+        self._release_terminal_intent(intent_id)
 
     def on_order_canceled(self, event: Any) -> None:
-        self._record_order_event(event, ExecutionState.CANCELED, "order canceled")
+        intent_id = self._record_order_event(event, ExecutionState.CANCELED, "order canceled")
+        self._release_terminal_intent(intent_id)
+        self._risk_cancel_pending = False
+
+    def on_order_expired(self, event: Any) -> None:
+        intent_id = self._record_order_event(event, ExecutionState.CANCELED, "order expired")
+        self._release_terminal_intent(intent_id)
 
     def on_order_cancel_rejected(self, event: Any) -> None:
-        self._record_order_event(event, ExecutionState.ACCEPTED, self._event_reason(event))
+        intent_id = self._record_order_event(
+            event, ExecutionState.ACCEPTED, self._event_reason(event)
+        )
+        if intent_id is not None:
+            self._pending_strategy_cancels.discard(intent_id)
+        self._risk_cancel_pending = False
 
     def on_order_modify_rejected(self, event: Any) -> None:
         self._record_order_event(event, ExecutionState.ACCEPTED, self._event_reason(event))
@@ -359,7 +425,39 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         filled = (
             Decimal(str(order.filled_qty)) if order is not None else Decimal(str(event.last_qty))
         )
-        self._record_order_event(event, state, "fill received", filled_quantity=filled)
+        intent_id = self._record_order_event(event, state, "fill received", filled_quantity=filled)
+        if final:
+            self._release_terminal_intent(intent_id)
+
+    def on_trade_tick(self, tick: Any) -> None:
+        if self._live_pipeline is None:
+            return
+        try:
+            self._live_pipeline.market.observe_trade(tick)
+        except Exception:
+            self._fail_closed_live_cycle()
+            raise
+
+    def on_mark_price(self, update: Any) -> None:
+        if str(update.instrument_id) == "BTC-USD-PERP.HYPERLIQUID":
+            self._mark_price = (Decimal(str(update.value)), int(update.ts_init))
+
+    def on_funding_rate(self, update: Any) -> None:
+        if str(update.instrument_id) == "BTC-USD-PERP.HYPERLIQUID":
+            self._funding_rate = Decimal(str(update.rate))
+
+    def on_order_book_deltas(self, deltas: Any) -> None:
+        if self._live_pipeline is None:
+            return
+        try:
+            book = self.cache.order_book(deltas.instrument_id)
+            if book is None:
+                raise ValueError("managed Nautilus order book is unavailable")
+            market = self._live_pipeline.market.observe_book(book, deltas)
+            self._process_live_market(market)
+        except Exception:
+            self._fail_closed_live_cycle()
+            raise
 
     def _make_order(self, intent: OrderIntent) -> Any:
         factory = self._get_order_factory()
@@ -398,6 +496,163 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
     def _subscribe_quotes(self) -> None:
         self.subscribe_quote_ticks(InstrumentId.from_str("BTC-USD-PERP.HYPERLIQUID"))
 
+    def _subscribe_live_data(self) -> None:
+        if self._live_pipeline is None:
+            raise RuntimeError("live subscriptions require a decision pipeline")
+        instrument_id = InstrumentId.from_str("BTC-USD-PERP.HYPERLIQUID")
+        self.subscribe_order_book_deltas(
+            instrument_id,
+            depth=self._live_pipeline.artifacts.feature_config.depth_levels,
+            managed=True,
+        )
+        self.subscribe_trade_ticks(instrument_id)
+        self.subscribe_mark_prices(instrument_id)
+        self.subscribe_funding_rates(instrument_id)
+
+    def _process_live_market(self, market: Any) -> None:
+        pipeline = self._live_pipeline
+        if pipeline is None:
+            return
+        snapshot = self._guarded_snapshot(self._live_risk_snapshot(market))
+        state, _ = self._authority.state(snapshot)
+        self.update_risk_health(snapshot, state)
+        if state is not RiskState.ACTIVE:
+            if snapshot.open_order_count and not self._risk_cancel_pending:
+                self.cancel_all()
+                self._risk_cancel_pending = True
+                self._metrics.observe_live_action("cancel_all", "dispatched")
+            if snapshot.open_order_count or state in {RiskState.CANCEL_ONLY, RiskState.HALTED}:
+                self._metrics.observe_live_cycle(result="risk_blocked")
+                return
+        if self._risk_cancel_pending:
+            if snapshot.open_order_count:
+                self._metrics.observe_live_cycle(result="risk_recovery_drain")
+                return
+            self._risk_cancel_pending = False
+        if self._startup_order_drain:
+            if snapshot.open_order_count:
+                if not self._risk_cancel_pending:
+                    self.cancel_all()
+                    self._risk_cancel_pending = True
+                self._metrics.observe_live_cycle(result="startup_drain")
+                return
+            self._startup_order_drain = False
+
+        margin_utilization = min(
+            Decimal("1"),
+            snapshot.leverage / self._limits.max_leverage,
+        )
+        cycle = pipeline.decide(
+            market,
+            position_base=snapshot.position_base,
+            margin_utilization=margin_utilization,
+            funding_rate=self._funding_rate,
+            estimated_taker_fee_bps=self._estimated_taker_fee_bps,
+            estimated_slippage_bps=self._estimated_slippage_bps,
+        )
+        dispatched_cancels: set[str] = set()
+        dispatched_intents: set[str] = set()
+        cancellations = cycle.transition.decision.cancel_intent_ids
+        if cancellations:
+            for intent_id in cancellations:
+                if intent_id in self._pending_strategy_cancels:
+                    continue
+                row = self._journal.current(intent_id)
+                if row is None:
+                    raise ValueError(f"live strategy references an unjournaled intent: {intent_id}")
+                if ExecutionState(row["state"]) in {
+                    ExecutionState.FILLED,
+                    ExecutionState.CANCELED,
+                    ExecutionState.REJECTED,
+                    ExecutionState.DENIED,
+                }:
+                    pipeline.release_intent(intent_id)
+                    continue
+                self.cancel(intent_id)
+                self._pending_strategy_cancels.add(intent_id)
+                dispatched_cancels.add(intent_id)
+                self._metrics.observe_live_action("cancel", "dispatched")
+            pipeline.commit(
+                cycle,
+                dispatched_intent_ids=dispatched_intents,
+                dispatched_cancel_ids=dispatched_cancels,
+            )
+            self._metrics.observe_live_cycle(
+                result="cancel_before_replace",
+                feature_ready=cycle.features.ready,
+            )
+            return
+
+        try:
+            for intent in cycle.transition.decision.submit:
+                current_snapshot = self._live_risk_snapshot(market)
+                decision, client_order_id = self.execute_intent(intent, current_snapshot)
+                result = "dispatched" if client_order_id is not None else "denied"
+                self._metrics.observe_live_action("submit", result)
+                if decision.allowed and client_order_id is not None:
+                    dispatched_intents.add(intent.intent_id)
+        finally:
+            pipeline.commit(
+                cycle,
+                dispatched_intent_ids=dispatched_intents,
+                dispatched_cancel_ids=dispatched_cancels,
+            )
+        self._metrics.observe_live_cycle(result="processed", feature_ready=cycle.features.ready)
+
+    def _live_risk_snapshot(self, market: Any) -> RiskSnapshot:
+        if self._equity_baselines is None or self._connectivity_probe is None:
+            raise RuntimeError("live risk state dependencies are unavailable")
+        now_ns = time.time_ns()
+        account = self._live_account_state()
+        baseline = self._equity_baselines.observe(account.equity_usd, now_ns=now_ns)
+        mid = (market.bids[0].price + market.asks[0].price) / Decimal("2")
+        mark = mid
+        if self._mark_price is not None:
+            value, received_ns = self._mark_price
+            if received_ns <= now_ns and (
+                now_ns - received_ns <= self._limits.public_data_stale_after_ms * 1_000_000
+            ):
+                mark = value
+        connected = self._connectivity_probe()
+        reconciled = self._reconciliation_complete and self._journal.unknown_command_count() == 0
+        self._metrics.set_live_account(
+            equity_usd=float(account.equity_usd),
+            position_base=float(account.position_base),
+        )
+        return build_live_risk_snapshot(
+            now_ns=now_ns,
+            public_data_ts_ns=market.observed_ts_ns,
+            mark_price=mark,
+            account=account,
+            baseline=baseline,
+            exchange_connected=connected,
+            reconciliation_complete=reconciled,
+        )
+
+    def _live_account_state(self) -> LiveAccountState:
+        return read_live_account_state(self.portfolio, self.cache)
+
+    def _open_orders(self) -> list[Any]:
+        return list(
+            self.cache.orders_open(instrument_id=InstrumentId.from_str("BTC-USD-PERP.HYPERLIQUID"))
+        )
+
+    def _release_terminal_intent(self, intent_id: str | None) -> None:
+        if intent_id is None:
+            return
+        self._pending_strategy_cancels.discard(intent_id)
+        if self._live_pipeline is not None:
+            self._live_pipeline.release_intent(intent_id)
+
+    def _fail_closed_live_cycle(self) -> None:
+        self._metrics.observe_live_cycle(result="error")
+        self._heartbeat.set_health(execution_healthy=False, reconciliation_complete=False)
+        try:
+            if self._open_orders():
+                self.cancel_all()
+        except Exception:
+            pass
+
     def _submit_nautilus(self, order: Any) -> None:
         super().submit_order(order)
 
@@ -423,11 +678,11 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         detail: str,
         *,
         filled_quantity: Decimal = Decimal("0"),
-    ) -> None:
+    ) -> str | None:
         client_order_id = str(event.client_order_id)
         row = self._journal.by_client_order_id(client_order_id)
         if row is None:
-            return
+            return None
         venue_order_id = getattr(event, "venue_order_id", None)
         self._journal_append(
             self._event(
@@ -441,6 +696,7 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
             )
         )
         self._metrics.observe_event(state)
+        return str(row["intent_id"])
 
     def _journal_begin(self, event: ExecutionJournalEvent) -> None:
         started = time.perf_counter()

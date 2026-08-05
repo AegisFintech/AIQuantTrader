@@ -46,6 +46,7 @@ def _enable_testnet(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
         "/run/secrets/testnet-control-wallet",
     )
     monkeypatch.setenv("AQT_NATIVE__EXECUTION__ENABLED", "true")
+    monkeypatch.setenv("AQT_NATIVE__LIVE_STRATEGY__ENABLED", "true")
     monkeypatch.setenv("AQT_NATIVE__SENTINEL__ENABLED", "true")
     monkeypatch.setenv("AQT_NATIVE__STORAGE__STATE_ROOT", str((tmp_path / "state").resolve()))
     monkeypatch.setenv("AQT_NATIVE__STORAGE__DATA_ROOT", str((tmp_path / "data").resolve()))

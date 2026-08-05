@@ -114,6 +114,23 @@ class ExecutionConfig(FrozenModel):
     include_builder_attribution: bool = False
 
 
+class LiveStrategyConfig(FrozenModel):
+    """Exact feature and alpha artifacts consumed by the live Nautilus node."""
+
+    enabled: bool = False
+    strategy_id: Literal["avellaneda-stoikov-v1", "order-flow-scalper-v1"] = "order-flow-scalper-v1"
+    feature_config_path: Path = Path("features/microstructure-v1.toml")
+    strategy_config_path: Path = Path("strategies/order-flow-scalper-v1.toml")
+    estimated_taker_fee_bps: Decimal = Field(default=Decimal("4.5"), ge=0, le=100)
+    estimated_slippage_bps: Decimal = Field(default=Decimal("1"), ge=0, le=100)
+
+    @model_validator(mode="after")
+    def validate_references(self) -> Self:
+        _validate_relative_config_reference(self.feature_config_path)
+        _validate_relative_config_reference(self.strategy_config_path)
+        return self
+
+
 class SentinelConfig(FrozenModel):
     enabled: bool = False
     poll_interval_ms: int = Field(default=1_000, ge=250, le=5_000)
@@ -349,6 +366,7 @@ class NativeSettings(FrozenModel):
     instrument: InstrumentConfig = InstrumentConfig()
     exchange: ExchangeConfig
     execution: ExecutionConfig = ExecutionConfig()
+    live_strategy: LiveStrategyConfig = LiveStrategyConfig()
     sentinel: SentinelConfig = SentinelConfig()
     market_data: MarketDataConfig = MarketDataConfig()
     paper: PaperConfig = PaperConfig()
@@ -369,6 +387,9 @@ class NativeSettings(FrozenModel):
             DeploymentMode.SHADOW,
         }:
             raise ValueError("research, paper, and shadow modes cannot enable execution")
+
+        if self.live_strategy.enabled and not self.execution.enabled:
+            raise ValueError("live strategy cannot be enabled without exchange execution")
 
         if (
             self.mode is DeploymentMode.TESTNET

@@ -38,6 +38,7 @@ ALLOWED_TRANSITIONS: dict[ExecutionState, frozenset[ExecutionState]] = {
             ExecutionState.FILLED,
             ExecutionState.CANCELED,
             ExecutionState.REJECTED,
+            ExecutionState.DENIED,
             ExecutionState.UNKNOWN,
         }
     ),
@@ -233,6 +234,16 @@ class ExecutionJournal:
             row = self._connection.execute(
                 "SELECT COUNT(*) AS count FROM orders WHERE state IN (?, ?, ?, ?, ?)",
                 states,
+            ).fetchone()
+        return int(row["count"])
+
+    def unknown_command_count(self) -> int:
+        """Count commands whose state still requires explicit reconciliation."""
+
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT COUNT(*) AS count FROM orders WHERE state = ?",
+                (ExecutionState.UNKNOWN.value,),
             ).fetchone()
         return int(row["count"])
 

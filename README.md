@@ -47,11 +47,15 @@ and [`docs/operations/BACKTESTING_RUNBOOK.md`](docs/operations/BACKTESTING_RUNBO
 Phase 6 adds causal bounded microstructure features, pure Avellaneda-Stoikov
 and order-flow-scalping kernels, native-format LightGBM/XGBoost/CatBoost
 research adapters, bounded validation-only search, drift and negative controls,
-and an immutable champion-challenger registry. These strategies are research
-candidates and are not connected to the native execution node. Automation has
-no human approval capability and stops at `AWAITING_APPROVAL`. See
+and an immutable champion-challenger registry. The pure strategy kernels now
+feed the sole Nautilus risk gateway through a disabled-by-default live pipeline;
+they remain uncalibrated research candidates, and no checked-in environment can
+trade. Automation has no human approval capability and stops at
+`AWAITING_APPROVAL`. See
 [`docs/migration/PHASE_6_RESEARCH.md`](docs/migration/PHASE_6_RESEARCH.md) and
-[`docs/operations/RESEARCH_RUNBOOK.md`](docs/operations/RESEARCH_RUNBOOK.md).
+[`docs/operations/RESEARCH_RUNBOOK.md`](docs/operations/RESEARCH_RUNBOOK.md),
+plus the
+[`Phase 4/6 convergence design`](docs/migration/PHASE_4_6_LIVE_STRATEGY_CONVERGENCE.md).
 
 Phase 7 runs those exact feature/strategy kernels and the hard risk authority
 on the live public feed, terminating approved intents in a deterministic
