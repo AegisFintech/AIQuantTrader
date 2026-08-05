@@ -43,6 +43,7 @@ def test_retirement_boundary_has_evidence_commands_only(project_root: Path) -> N
     assert 'commands.add_parser("stop")' not in cli
     assert 'commands.add_parser("remove")' not in cli
     assert 'commands.add_parser("cleanup")' not in cli
+    assert 'commands.add_parser("execute-cleanup")' not in cli
 
 
 def test_all_checked_in_environments_default_to_execution_disabled(project_root: Path) -> None:

@@ -1,0 +1,24 @@
+flowchart TD
+    A[Replay native, archive, and disabled evidence] --> B[Replay approved cleanup evidence]
+    B --> C[Verify exact schema-v2 cleanup manifest]
+    C --> D[Verify offline remove_and_clean signature]
+    D --> E[Replay separately recaptured action-time evidence]
+    E --> F{Captured after approval and under five minutes old?}
+    F -- No --> X[Fail closed; no receipt]
+    F -- Yes --> G{Exact target inventory and state hashes?}
+    G -- No --> X
+    G -- Yes --> H[Create short-lived canonical preflight receipt]
+    H --> I[Independent verify-cleanup-preflight replay]
+    I --> J[Operator action still required]
+
+    subgraph Prohibited capabilities
+        K[No service stop]
+        L[No credential revocation]
+        M[No package removal]
+        N[No file deletion]
+    end
+
+    H -. evidence only .-> K
+    H -. evidence only .-> L
+    H -. evidence only .-> M
+    H -. evidence only .-> N

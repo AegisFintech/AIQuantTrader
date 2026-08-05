@@ -1902,6 +1902,110 @@ class LegacyCleanupManifest(DomainModel):
         return self
 
 
+class CleanupPreflightGate(StrEnum):
+    POLICY_BOUND = "policy_bound"
+    DISABLED_OBSERVATION_PASSED = "disabled_observation_passed"
+    APPROVED_MANIFEST_REPLAYED = "approved_manifest_replayed"
+    ACTION_EVIDENCE_REPLAYED = "action_evidence_replayed"
+    ACTION_EVIDENCE_FRESH = "action_evidence_fresh"
+    TARGET_INVENTORY_EXACT = "target_inventory_exact"
+    TARGET_STATE_UNCHANGED = "target_state_unchanged"
+    CLEANUP_APPROVAL_ACTIVE = "cleanup_approval_active"
+
+
+class CleanupPreflightGateResult(DomainModel):
+    gate: CleanupPreflightGate
+    passed: bool
+    actual: Annotated[str, Field(min_length=1, max_length=2_048)]
+    required: Annotated[str, Field(min_length=1, max_length=2_048)]
+
+
+class CleanupPreflightTargetResult(DomainModel):
+    target_id: Identifier
+    kind: CleanupTargetKind
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    action: CleanupAction
+    expected_state_sha256: Sha256
+    observed_state_sha256: Sha256
+    state_matches: bool
+
+
+class CleanupPreflightReceipt(DomainModel):
+    """Short-lived evidence receipt; it never performs or expands cleanup authority."""
+
+    schema_version: Literal[1] = 1
+    receipt_id: Sha256
+    retirement_id: Identifier
+    evaluated_ts_ns: int = Field(ge=0)
+    valid_until_ts_ns: int = Field(gt=0)
+    action_capture_start_ts_ns: int = Field(ge=0)
+    action_capture_end_ts_ns: int = Field(ge=0)
+    action_state_expires_ts_ns: int = Field(gt=0)
+    approval_expires_ts_ns: int = Field(gt=0)
+    policy_id: Identifier
+    policy_sha256: Sha256
+    disabled_observation_report_sha256: Sha256
+    archive_manifest_sha256: Sha256
+    approved_cleanup_manifest_sha256: Sha256
+    action_snapshot_sha256: Sha256
+    action_evidence_manifest_sha256: Sha256
+    action_evidence_bundle_sha256: Sha256
+    cleanup_approval_sha256: Sha256
+    approval_verification_id: Sha256
+    approval_public_key_sha256: Sha256
+    approval_signature_envelope_sha256: Sha256
+    native_deployment_id: Identifier
+    native_admission_id: Sha256
+    source_commit_sha: GitCommit
+    final_tag_name: Literal["mt5-final"] = "mt5-final"
+    execution_mode: Literal["evidence_only"] = "evidence_only"
+    operator_action_required: Literal[True] = True
+    targets: tuple[CleanupPreflightTargetResult, ...] = Field(
+        min_length=1,
+        max_length=2_048,
+    )
+    gates: tuple[CleanupPreflightGateResult, ...]
+    ready_for_operator_action: bool
+
+    @model_validator(mode="after")
+    def identity_timing_and_verdict_match(self) -> Self:
+        if not (
+            self.action_capture_start_ts_ns
+            <= self.action_capture_end_ts_ns
+            <= self.evaluated_ts_ns
+            < self.valid_until_ts_ns
+        ):
+            raise ValueError("cleanup preflight capture or validity interval is invalid")
+        if self.valid_until_ts_ns != min(
+            self.action_state_expires_ts_ns,
+            self.approval_expires_ts_ns,
+        ):
+            raise ValueError("cleanup preflight validity must use the earliest expiry")
+        target_ids = [item.target_id for item in self.targets]
+        target_locators = [(item.kind, item.locator) for item in self.targets]
+        if len(target_ids) != len(set(target_ids)) or len(target_locators) != len(
+            set(target_locators)
+        ):
+            raise ValueError("cleanup preflight targets must be unique")
+
+        names = [item.gate for item in self.gates]
+        if len(names) != len(CleanupPreflightGate) or set(names) != set(CleanupPreflightGate):
+            raise ValueError("cleanup preflight must contain every gate exactly once")
+        expected_verdict = all(item.passed for item in self.gates) and all(
+            item.state_matches for item in self.targets
+        )
+        if self.ready_for_operator_action != expected_verdict:
+            raise ValueError("cleanup preflight verdict does not match its gates and targets")
+
+        identity = self.model_dump(
+            mode="json",
+            exclude={"receipt_id", "ready_for_operator_action"},
+        )
+        if canonical_sha256(identity) != self.receipt_id:
+            raise ValueError("cleanup preflight receipt identity does not match")
+        return self
+
+
 class RetirementActionScope(StrEnum):
     STOP_AND_OBSERVE = "stop_and_observe"
     REMOVE_AND_CLEAN = "remove_and_clean"

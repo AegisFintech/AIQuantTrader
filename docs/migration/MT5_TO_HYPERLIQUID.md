@@ -243,8 +243,9 @@ identity. Phase 9 does not stop, tag, archive, or remove MT5.
 Implementation note: deterministic native/archive/final-state/readiness and
 disabled-window assembly/replay, a frozen baseline policy, short-lived
 scope-specific approvals, exact cleanup manifests, and offline Ed25519
-verification are implemented. The active MT5 deployment is unchanged and no
-retirement approval has been created.
+verification are implemented. A short-lived evidence-only cleanup preflight
+also replays a distinct post-approval full-state capture. The active MT5
+deployment is unchanged and no retirement approval has been created.
 
 Deliverables:
 
@@ -257,6 +258,8 @@ Deliverables:
 - minimum seven-day exact-inventory reversible disabled observation under the
   v1 policy with five-minute capability continuity and source replay;
 - canonical cleanup manifest and separate signed `remove_and_clean` approval;
+- fresh post-approval full-state capture and independently replayed short-lived
+  cleanup preflight receipt;
 - mechanical host cleanup and repository removal PR;
 - ADR 0008 native package/root migration and complete native revalidation.
 

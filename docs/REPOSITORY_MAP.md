@@ -246,6 +246,7 @@ Current Phase 10 legacy-retirement ownership:
 | `native/src/aiquanttrader_native/retirement/readiness.py` | Cross-bundle assembly and replay of the native/archive/final-state readiness observation with completion-time authority and freshness checks. |
 | `native/src/aiquanttrader_native/retirement/disabled.py` | Exact-inventory disabled-window assembly and replay across ordered stop, capability, broker, credential, native, readiness, approval, and archive evidence. |
 | `native/src/aiquanttrader_native/retirement/cleanup.py` | Exact-inventory cleanup-target assembly and independent replay across scope, state, ownership, credential-scan, disabled-report, and archive lineage evidence. |
+| `native/src/aiquanttrader_native/retirement/preflight.py` | Short-lived action-time replay of approved and post-approval cleanup bundles, exact state comparison, and `remove_and_clean` approval verification without execution capability. |
 | `native/src/aiquanttrader_native/retirement/{models,evidence,approval}.py` | Immutable final-archive, terminal native-authorization observation, flat-MT5-state, disabled-window, scoped approval, and exact cleanup-manifest contracts. |
 | `native/configs/retirement/evidence-v1.toml` | Frozen 30-day native, five-minute native and disabled-evidence gaps/final-state skew, one-hour final-state age, seven-day disabled, 365-day archive retention, and credential-scan identity. |
 | `native/configs/retirement/archive-credential-scan-v1.toml` | Frozen recursive detector and zero-finding contract for credential-free legacy archives. |
@@ -257,6 +258,7 @@ Current Phase 10 legacy-retirement ownership:
 | `docs/migration/PHASE_10_READINESS_ASSEMBLY.md` | Native/legacy identity binding, dual-root replay, readiness commands, timing boundary, tests, and rollback. |
 | `docs/migration/PHASE_10_DISABLED_OBSERVATION.md` | Exact disabled bundle, action-time approval proof, cross-root replay, continuity, commands, tests, and rollback. |
 | `docs/migration/PHASE_10_CLEANUP_MANIFEST.md` | Exact cleanup bundle, scope audit, typed target state, ownership, recursive scan, assembly, replay, tests, and rollback. |
+| `docs/migration/PHASE_10_CLEANUP_PREFLIGHT.md` | Post-approval full-state recapture, five-minute freshness, exact target comparison, receipt replay, tests, and rollback. |
 | `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md` | Final archive, exact disable, observation, cleanup approval, host cleanup, removal PR, and failure procedure. |
 
 Phase 10 code is evidence-only. `aqt-retirement` has no command or dependency
@@ -264,6 +266,9 @@ that can stop services, touch brokers/exchanges, revoke credentials, remove
 packages, or delete files. No readiness/disabled evidence or action approval
 has been created, `mt5-final` has not been tagged, and the active MT5 runtime is
 unchanged.
+Cleanup preflight requires a distinct complete evidence recapture after the
+cleanup approval, expires at the earlier state/approval boundary, and cannot
+refresh or expand signed authority.
 The 30-day native observation must retain the ordered renewal chain and end
 before the terminal production authorization expires; an authorization gap
 invalidates the observation window.

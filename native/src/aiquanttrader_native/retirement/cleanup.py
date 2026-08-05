@@ -53,6 +53,32 @@ class InventoryEntry:
     identity: FileIdentity
 
 
+@dataclass(frozen=True, slots=True)
+class CleanupEvidenceReplay:
+    """Verified cleanup evidence plus the typed state used to derive its manifest."""
+
+    cleanup_manifest: LegacyCleanupManifest
+    evidence_manifest: CleanupEvidenceManifest
+    inventory_audit: CleanupInventoryAuditEvidence
+    credential_scan: CleanupCredentialScanEvidence
+    target_evidence: tuple[CleanupTargetEvidence, ...]
+
+    def evidence_timestamps_ns(self) -> tuple[int, ...]:
+        """Return every action-state capture/review boundary used by preflight."""
+
+        return (
+            self.evidence_manifest.created_ts_ns,
+            self.inventory_audit.observed_ts_ns,
+            self.inventory_audit.reviewed_ts_ns,
+            self.credential_scan.started_ts_ns,
+            self.credential_scan.ended_ts_ns,
+            self.credential_scan.reviewed_ts_ns,
+            *(item.captured_ts_ns for item in self.evidence_manifest.artifacts),
+            *(item.captured_ts_ns for item in self.evidence_manifest.controls),
+            *(item.state.captured_ts_ns for item in self.target_evidence),
+        )
+
+
 def assemble_cleanup_manifest(
     evidence_root: Path,
     disabled_report: DisabledObservationReport,
@@ -125,6 +151,25 @@ def _assemble_cleanup_manifest(
     credential_scan_policy: LegacyArchiveCredentialScanPolicy,
     assembled_ts_ns: int,
 ) -> LegacyCleanupManifest:
+    return _replay_cleanup_evidence(
+        evidence_root,
+        disabled_report,
+        archive_manifest,
+        policy=policy,
+        credential_scan_policy=credential_scan_policy,
+        assembled_ts_ns=assembled_ts_ns,
+    ).cleanup_manifest
+
+
+def _replay_cleanup_evidence(
+    evidence_root: Path,
+    disabled_report: DisabledObservationReport,
+    archive_manifest: LegacyArchiveManifest,
+    *,
+    policy: RetirementPolicy,
+    credential_scan_policy: LegacyArchiveCredentialScanPolicy,
+    assembled_ts_ns: int,
+) -> CleanupEvidenceReplay:
     root = _validated_root(evidence_root)
     evidence_manifest = _load_control(root / MANIFEST_NAME, CleanupEvidenceManifest)
     if evidence_manifest.created_ts_ns > assembled_ts_ns:
@@ -198,7 +243,7 @@ def _assemble_cleanup_manifest(
         }
     )
     targets = tuple(item.cleanup_target() for item in target_evidence)
-    return LegacyCleanupManifest(
+    cleanup_manifest = LegacyCleanupManifest(
         retirement_id=evidence_manifest.retirement_id,
         created_ts_ns=assembled_ts_ns,
         policy_id=policy.policy_id,
@@ -210,6 +255,13 @@ def _assemble_cleanup_manifest(
         credential_scan_sha256=scan.sha256(),
         evidence_bundle_sha256=bundle_sha256,
         targets=targets,
+    )
+    return CleanupEvidenceReplay(
+        cleanup_manifest=cleanup_manifest,
+        evidence_manifest=evidence_manifest,
+        inventory_audit=audit,
+        credential_scan=scan,
+        target_evidence=target_evidence,
     )
 
 
