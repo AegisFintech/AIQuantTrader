@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
+from typing import cast
 from unittest.mock import Mock
 
 import pytest
@@ -13,14 +14,22 @@ from aiquanttrader_native.config import load_config
 from aiquanttrader_native.config.loader import ConfigBundle
 from aiquanttrader_native.config.models import ExchangeNetwork, ExecutionConfig, RiskLimits
 from aiquanttrader_native.domain.execution import (
+    ExecutionState,
     OrderIntent,
     OrderKind,
     RiskSnapshot,
+    RiskState,
     TimeInForce,
 )
 from aiquanttrader_native.domain.market import OrderSide
 from aiquanttrader_native.execution.heartbeat import HeartbeatPublisher
 from aiquanttrader_native.execution.journal import ExecutionJournal
+from aiquanttrader_native.execution.live import (
+    EquityBaselineStore,
+    LiveAccountState,
+    LiveDecisionPipeline,
+)
+from aiquanttrader_native.execution.metrics import ExecutionMetrics
 from aiquanttrader_native.execution.node import (
     BuiltTradingNode,
     build_nautilus_config,
@@ -49,6 +58,7 @@ def enabled_bundle(config_dir: Path, tmp_path: Path) -> ConfigBundle:
                 "/run/secrets/testnet-control-wallet"
             ),
             "AQT_NATIVE__EXECUTION__ENABLED": "true",
+            "AQT_NATIVE__LIVE_STRATEGY__ENABLED": "true",
             "AQT_NATIVE__SENTINEL__ENABLED": "true",
             "AQT_NATIVE__STORAGE__DATA_ROOT": str((tmp_path / "data").resolve()),
             "AQT_NATIVE__STORAGE__STATE_ROOT": str((tmp_path / "state").resolve()),
@@ -229,6 +239,49 @@ def test_gateway_denies_exposure_when_deployment_admission_is_inactive(
     journal.close()
 
 
+def test_gateway_fails_closed_when_admission_revokes_before_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class RevokedAdmission:
+        capital_limit_usd = Decimal("10000")
+
+        @staticmethod
+        def is_active() -> bool:
+            return True
+
+        @staticmethod
+        def require_active() -> object:
+            raise ValueError("revoked")
+
+    journal = ExecutionJournal((tmp_path / "revoked.db").resolve())
+    strategy = RiskManagedExecutionStrategy(
+        authority=RiskAuthority(
+            RiskLimits(),
+            ExecutionConfig(),
+            kill_switch=KillSwitchStore((tmp_path / "revoked-kill.json").resolve()),
+            inflight_count=journal.unresolved_command_count,
+            clock_ns=lambda: NOW,
+            signing_key=b"r" * 32,
+        ),
+        journal=journal,
+        limits=RiskLimits(),
+        heartbeat=Mock(),
+        admission_guard=RevokedAdmission(),
+    )
+    monkeypatch.setattr(
+        strategy,
+        "_make_order",
+        lambda intent: SimpleNamespace(client_order_id="cloid-revoked"),
+    )
+
+    with pytest.raises(ValueError, match="revoked"):
+        strategy.execute_intent(_intent(), _snapshot())
+
+    assert journal.current("intent-1")["state"] == ExecutionState.DENIED.value  # type: ignore[index]
+    journal.close()
+
+
 def test_cancel_budget_and_terminal_lookup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     journal = ExecutionJournal((tmp_path / "journal.db").resolve())
     strategy = RiskManagedExecutionStrategy(
@@ -316,7 +369,12 @@ def test_gateway_approved_submit_unknown_and_order_translation(
     assert strategy._make_order(market) == "market-order"
 
 
-def _seed_open_order(journal: ExecutionJournal, intent_id: str = "intent-1") -> None:
+def _seed_open_order(
+    journal: ExecutionJournal,
+    intent_id: str = "intent-1",
+    *,
+    accepted: bool = True,
+) -> None:
     from aiquanttrader_native.domain.execution import ExecutionJournalEvent, ExecutionState
 
     journal.begin(
@@ -340,6 +398,8 @@ def _seed_open_order(journal: ExecutionJournal, intent_id: str = "intent-1") -> 
             source="nautilus",
         )
     )
+    if not accepted:
+        return
     journal.append(
         ExecutionJournalEvent(
             event_id=f"{intent_id}-accepted",
@@ -433,6 +493,89 @@ def test_cancel_exception_becomes_unknown(tmp_path: Path, monkeypatch: pytest.Mo
     assert journal.current("intent-1")["state"] == "unknown"  # type: ignore[index]
 
 
+def test_gateway_replace_and_cancel_adapter_failures_are_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def gateway(name: str) -> tuple[RiskManagedExecutionStrategy, ExecutionJournal]:
+        journal = ExecutionJournal((tmp_path / f"{name}.db").resolve())
+        _seed_open_order(journal)
+        return (
+            RiskManagedExecutionStrategy(
+                authority=RiskAuthority(
+                    RiskLimits(),
+                    ExecutionConfig(),
+                    kill_switch=KillSwitchStore((tmp_path / f"{name}-kill.json").resolve()),
+                    inflight_count=journal.unresolved_command_count,
+                    clock_ns=lambda: NOW,
+                    signing_key=b"f" * 32,
+                ),
+                journal=journal,
+                limits=RiskLimits(),
+                heartbeat=Mock(),
+            ),
+            journal,
+        )
+
+    strategy, journal = gateway("missing-cache")
+    monkeypatch.setattr(strategy, "_cached_order", lambda value: None)
+    with pytest.raises(ValueError, match="absent"):
+        strategy.replace_order(
+            intent_id="intent-1",
+            replacement=_intent(intent_id="replacement"),
+            snapshot=_snapshot(),
+        )
+    with pytest.raises(ValueError, match="absent"):
+        strategy.cancel("intent-1")
+    journal.close()
+
+    strategy, journal = gateway("invalid-replacement")
+    monkeypatch.setattr(strategy, "_cached_order", lambda value: SimpleNamespace())
+    with pytest.raises(ValueError, match="priced limit"):
+        strategy.replace_order(
+            intent_id="intent-1",
+            replacement=_intent(
+                intent_id="replacement",
+                kind=OrderKind.MARKET,
+                limit_price=None,
+                post_only=False,
+                time_in_force=TimeInForce.IOC,
+            ),
+            snapshot=_snapshot(),
+        )
+    denied = strategy.replace_order(
+        intent_id="intent-1",
+        replacement=_intent(intent_id="replacement-denied"),
+        snapshot=_snapshot(operator_kill=True),
+    )
+    assert not denied.allowed
+    journal.close()
+
+    strategy, journal = gateway("modify-unknown")
+    monkeypatch.setattr(strategy, "_cached_order", lambda value: SimpleNamespace())
+    monkeypatch.setattr(
+        strategy,
+        "_modify_nautilus",
+        Mock(side_effect=RuntimeError("transport timeout")),
+    )
+    with pytest.raises(RuntimeError, match="timeout"):
+        strategy.replace_order(
+            intent_id="intent-1",
+            replacement=_intent(intent_id="replacement"),
+            snapshot=_snapshot(),
+        )
+    assert journal.current("intent-1")["state"] == ExecutionState.UNKNOWN.value  # type: ignore[index]
+
+    monkeypatch.setattr(
+        strategy,
+        "_cancel_all_nautilus",
+        Mock(side_effect=RuntimeError("cancel-all timeout")),
+    )
+    with pytest.raises(RuntimeError, match="cancel-all"):
+        strategy.cancel_all()
+    journal.close()
+
+
 def test_gateway_event_callbacks_and_start_health(monkeypatch: pytest.MonkeyPatch) -> None:
     journal = Mock()
     journal.by_client_order_id.return_value = {"intent_id": "intent-1"}
@@ -462,14 +605,15 @@ def test_gateway_event_callbacks_and_start_health(monkeypatch: pytest.MonkeyPatc
         strategy.on_order_rejected,
         strategy.on_order_denied,
         strategy.on_order_canceled,
+        strategy.on_order_expired,
         strategy.on_order_modify_rejected,
     ):
         callback(event)
-    assert journal.append.call_count == 6
+    assert journal.append.call_count == 7
 
     journal.by_client_order_id.return_value = None
     strategy.on_order_accepted(event)
-    assert journal.append.call_count == 6
+    assert journal.append.call_count == 7
 
     journal.by_client_order_id.return_value = {"intent_id": "intent-1"}
     monkeypatch.setattr(
@@ -479,6 +623,318 @@ def test_gateway_event_callbacks_and_start_health(monkeypatch: pytest.MonkeyPatc
     )
     strategy.on_order_filled(event)
     assert journal.append.call_args.args[0].state.value == "filled"
+
+
+def test_gateway_persists_denial_and_expiry_as_terminal_events(tmp_path: Path) -> None:
+    denied_journal = ExecutionJournal((tmp_path / "denied-event.db").resolve())
+    _seed_open_order(denied_journal, accepted=False)
+    denied = RiskManagedExecutionStrategy(
+        authority=Mock(),
+        journal=denied_journal,
+        limits=RiskLimits(),
+        heartbeat=Mock(),
+    )
+    event = SimpleNamespace(client_order_id="cloid-intent-1", venue_order_id=None)
+    denied.on_order_denied(event)
+    assert denied_journal.current("intent-1")["state"] == ExecutionState.DENIED.value  # type: ignore[index]
+    denied_journal.close()
+
+    expired_journal = ExecutionJournal((tmp_path / "expired-event.db").resolve())
+    _seed_open_order(expired_journal)
+    expired = RiskManagedExecutionStrategy(
+        authority=Mock(),
+        journal=expired_journal,
+        limits=RiskLimits(),
+        heartbeat=Mock(),
+    )
+    expired.on_order_expired(event)
+    assert expired_journal.current("intent-1")["state"] == ExecutionState.CANCELED.value  # type: ignore[index]
+    expired_journal.close()
+
+
+def _live_gateway(
+    tmp_path: Path,
+) -> tuple[
+    RiskManagedExecutionStrategy,
+    Mock,
+    Mock,
+    Mock,
+]:
+    pipeline = Mock()
+    journal = Mock()
+    journal.unresolved_command_count.return_value = 0
+    journal.unknown_command_count.return_value = 0
+    authority = Mock()
+    metrics = Mock(spec=ExecutionMetrics)
+    strategy = RiskManagedExecutionStrategy(
+        authority=authority,
+        journal=journal,
+        limits=RiskLimits(),
+        heartbeat=Mock(),
+        metrics=metrics,
+        live_pipeline=pipeline,
+        equity_baselines=EquityBaselineStore(
+            (tmp_path / "live-equity.json").resolve(),
+            account_address=ACCOUNT,
+        ),
+        connectivity_probe=lambda: True,
+    )
+    return strategy, pipeline, journal, metrics
+
+
+def _cycle(
+    *,
+    submit: tuple[OrderIntent, ...] = (),
+    cancel: tuple[str, ...] = (),
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        transition=SimpleNamespace(
+            decision=SimpleNamespace(submit=submit, cancel_intent_ids=cancel),
+        ),
+        features=SimpleNamespace(ready=True),
+    )
+
+
+def test_live_gateway_requires_complete_dependencies(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="supplied together"):
+        RiskManagedExecutionStrategy(
+            authority=Mock(),
+            journal=Mock(),
+            limits=RiskLimits(),
+            heartbeat=Mock(),
+            live_pipeline=Mock(),
+        )
+
+
+def test_live_gateway_risk_overrides_alpha_and_drains_orders(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy, pipeline, _journal, metrics = _live_gateway(tmp_path)
+    market = SimpleNamespace()
+    cancel_all = Mock()
+    monkeypatch.setattr(strategy, "cancel_all", cancel_all)
+    monkeypatch.setattr(
+        strategy, "_live_risk_snapshot", lambda value: _snapshot(open_order_count=1)
+    )
+    authority = cast(Mock, strategy._authority)
+    authority.state.return_value = (RiskState.CANCEL_ONLY, ())
+
+    strategy._process_live_market(market)
+
+    cancel_all.assert_called_once()
+    pipeline.decide.assert_not_called()
+    metrics.observe_live_cycle.assert_called_with(result="risk_blocked")
+
+    cancel_all.reset_mock()
+    authority.state.return_value = (RiskState.ACTIVE, ())
+    strategy._process_live_market(market)
+    cancel_all.assert_not_called()
+    metrics.observe_live_cycle.assert_called_with(result="risk_recovery_drain")
+
+    strategy._risk_cancel_pending = False
+    strategy._startup_order_drain = True
+    strategy._process_live_market(market)
+    cancel_all.assert_called_once()
+    metrics.observe_live_cycle.assert_called_with(result="startup_drain")
+
+
+def test_live_gateway_dispatches_submits_and_cancel_before_replace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy, pipeline, journal, metrics = _live_gateway(tmp_path)
+    market = SimpleNamespace()
+    snapshot = _snapshot()
+    monkeypatch.setattr(strategy, "_live_risk_snapshot", lambda value: snapshot)
+    cast(Mock, strategy._authority).state.return_value = (RiskState.ACTIVE, ())
+    intent = _intent(intent_id="live-intent")
+    pipeline.decide.return_value = _cycle(submit=(intent,))
+    allowed = SimpleNamespace(allowed=True)
+    execute = Mock(return_value=(allowed, "cloid-live"))
+    monkeypatch.setattr(strategy, "execute_intent", execute)
+
+    strategy._process_live_market(market)
+
+    execute.assert_called_once_with(intent, snapshot)
+    pipeline.commit.assert_called_with(
+        pipeline.decide.return_value,
+        dispatched_intent_ids={"live-intent"},
+        dispatched_cancel_ids=set(),
+    )
+    metrics.observe_live_action.assert_called_with("submit", "dispatched")
+
+    pipeline.reset_mock()
+    pipeline.decide.return_value = _cycle(cancel=("live-intent",))
+    journal.current.return_value = {"state": ExecutionState.ACCEPTED.value}
+    cancel = Mock()
+    monkeypatch.setattr(strategy, "cancel", cancel)
+    strategy._process_live_market(market)
+    cancel.assert_called_once_with("live-intent")
+    assert "live-intent" in strategy._pending_strategy_cancels
+    metrics.observe_live_action.assert_called_with("cancel", "dispatched")
+
+    cancel.reset_mock()
+    strategy._process_live_market(market)
+    cancel.assert_not_called()
+
+    strategy._pending_strategy_cancels.clear()
+    journal.current.return_value = {"state": ExecutionState.CANCELED.value}
+    strategy._process_live_market(market)
+    pipeline.release_intent.assert_called_with("live-intent")
+
+    journal.current.return_value = None
+    with pytest.raises(ValueError, match="unjournaled intent"):
+        strategy._process_live_market(market)
+
+
+def test_live_gateway_builds_fresh_cache_bound_risk_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy, _pipeline, journal, metrics = _live_gateway(tmp_path)
+    now = 1_800_000_000_000_000_000
+    market = SimpleNamespace(
+        bids=(SimpleNamespace(price=Decimal("99900")),),
+        asks=(SimpleNamespace(price=Decimal("100100")),),
+        observed_ts_ns=now - 100,
+    )
+    account = LiveAccountState(
+        equity_usd=Decimal("10000"),
+        position_base=Decimal("0.001"),
+        pending_buy_base=Decimal("0.002"),
+        pending_sell_base=Decimal("0.003"),
+        open_order_count=2,
+    )
+    monkeypatch.setattr(strategy, "_live_account_state", lambda: account)
+    monkeypatch.setattr("aiquanttrader_native.execution.strategy.time.time_ns", lambda: now)
+    strategy._reconciliation_complete = True
+    strategy._mark_price = (Decimal("100050"), now - 50)
+
+    snapshot = strategy._live_risk_snapshot(market)
+
+    assert snapshot.mark_price == Decimal("100050")
+    assert snapshot.reconciliation_complete is True
+    assert snapshot.pending_sell_base == Decimal("0.003")
+    journal.unknown_command_count.assert_called_once()
+    metrics.set_live_account.assert_called_once_with(equity_usd=10000.0, position_base=0.001)
+
+    strategy._mark_price = (Decimal("200000"), now - 2_000_000_000)
+    journal.unknown_command_count.return_value = 1
+    stale_mark = strategy._live_risk_snapshot(market)
+    assert stale_mark.mark_price == Decimal("100000")
+    assert stale_mark.reconciliation_complete is False
+
+
+def test_live_gateway_start_subscriptions_and_public_context(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy, pipeline, journal, metrics = _live_gateway(tmp_path)
+    pipeline.artifacts.feature_config.depth_levels = 7
+    subscriptions = {
+        name: Mock()
+        for name in (
+            "subscribe_order_book_deltas",
+            "subscribe_trade_ticks",
+            "subscribe_mark_prices",
+            "subscribe_funding_rates",
+        )
+    }
+    for name, callback in subscriptions.items():
+        monkeypatch.setattr(strategy, name, callback)
+    monkeypatch.setattr(strategy, "_open_orders", lambda: [])
+
+    strategy.on_start()
+
+    subscriptions["subscribe_order_book_deltas"].assert_called_once()
+    assert subscriptions["subscribe_order_book_deltas"].call_args.kwargs == {
+        "depth": 7,
+        "managed": True,
+    }
+    subscriptions["subscribe_trade_ticks"].assert_called_once()
+    assert strategy._reconciliation_complete is True
+    strategy.on_trade_tick("trade")
+    pipeline.market.observe_trade.assert_called_once_with("trade")
+
+    strategy.on_mark_price(
+        SimpleNamespace(
+            instrument_id="BTC-USD-PERP.HYPERLIQUID",
+            value="100123",
+            ts_init=123,
+        )
+    )
+    strategy.on_funding_rate(
+        SimpleNamespace(
+            instrument_id="BTC-USD-PERP.HYPERLIQUID",
+            rate="0.0001",
+        )
+    )
+    assert strategy._mark_price == (Decimal("100123"), 123)
+    assert strategy._funding_rate == Decimal("0.0001")
+
+    strategy.on_mark_price(SimpleNamespace(instrument_id="ETH-USD-PERP.HYPERLIQUID"))
+    strategy.on_funding_rate(SimpleNamespace(instrument_id="ETH-USD-PERP.HYPERLIQUID"))
+    assert strategy._mark_price == (Decimal("100123"), 123)
+    assert strategy._funding_rate == Decimal("0.0001")
+    journal.unresolved_command_count.assert_called()
+    metrics.set_operational_state.assert_called()
+
+
+def test_live_gateway_start_cancel_drains_and_book_errors_fail_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy, pipeline, _journal, metrics = _live_gateway(tmp_path)
+    monkeypatch.setattr(strategy, "_subscribe_live_data", Mock())
+    monkeypatch.setattr(strategy, "_open_orders", lambda: [object()])
+    cancel_all = Mock()
+    monkeypatch.setattr(strategy, "cancel_all", cancel_all)
+
+    strategy.on_start()
+
+    cancel_all.assert_called_once()
+    assert strategy._startup_order_drain is True
+    assert strategy._risk_cancel_pending is True
+
+    fake_cache = SimpleNamespace(order_book=lambda instrument_id: "book")
+    monkeypatch.setattr(RiskManagedExecutionStrategy, "cache", fake_cache, raising=False)
+    pipeline.market.observe_book.return_value = "market"
+    process = Mock()
+    monkeypatch.setattr(strategy, "_process_live_market", process)
+    deltas = SimpleNamespace(instrument_id="BTC-USD-PERP.HYPERLIQUID")
+    strategy.on_order_book_deltas(deltas)
+    process.assert_called_once_with("market")
+
+    fake_cache.order_book = lambda instrument_id: None
+    cancel_all.reset_mock()
+    with pytest.raises(ValueError, match="unavailable"):
+        strategy.on_order_book_deltas(deltas)
+    cancel_all.assert_called_once()
+    metrics.observe_live_cycle.assert_called_with(result="error")
+
+    pipeline.market.observe_trade.side_effect = ValueError("trade overflow")
+    cancel_all.reset_mock()
+    with pytest.raises(ValueError, match="overflow"):
+        strategy.on_trade_tick("trade")
+    cancel_all.assert_called_once()
+
+
+def test_execution_metrics_expose_live_pipeline_state() -> None:
+    metrics = ExecutionMetrics()
+    metrics.observe_live_cycle(result="processed", feature_ready=True)
+    metrics.observe_live_cycle(result="risk_blocked")
+    metrics.observe_live_action("submit", "dispatched")
+    metrics.set_live_account(equity_usd=10000.0, position_base=-0.001)
+
+    samples = {
+        sample.name: sample.value
+        for metric in metrics.registry.collect()
+        for sample in metric.samples
+    }
+    assert samples["aqt_execution_feature_ready"] == 1
+    assert samples["aqt_execution_account_equity_usd"] == 10000
+    assert samples["aqt_execution_position_base"] == -0.001
 
 
 def test_node_factory_wires_only_hyperliquid_execution_owner(
@@ -506,14 +962,21 @@ def test_node_factory_wires_only_hyperliquid_execution_owner(
             calls.append(("build", True))
 
     fake_gateway = object()
+    gateway_arguments: dict[str, object] = {}
+
+    def make_gateway(**kwargs: object) -> object:
+        gateway_arguments.update(kwargs)
+        return fake_gateway
+
     monkeypatch.setattr("aiquanttrader_native.execution.node.TradingNode", FakeNode)
     monkeypatch.setattr(
         "aiquanttrader_native.execution.node.RiskManagedExecutionStrategy",
-        lambda **kwargs: fake_gateway,
+        make_gateway,
     )
     result = build_trading_node(
         bundle,
         PrivateKey("1" * 64),
+        config_dir=config_dir,
         journal=Mock(),
         authority=Mock(),
         heartbeat=Mock(),
@@ -522,6 +985,10 @@ def test_node_factory_wires_only_hyperliquid_execution_owner(
     assert ("data", HYPERLIQUID) in calls
     assert ("exec", HYPERLIQUID) in calls
     assert ("build", True) in calls
+    pipeline = gateway_arguments["live_pipeline"]
+    assert isinstance(pipeline, LiveDecisionPipeline)
+    assert pipeline.artifacts.strategy_config.strategy_id == "order-flow-scalper-v1"
+    assert gateway_arguments["connectivity_probe"] is not None
 
 
 def test_node_lifecycle_and_startup_unknown_marking(tmp_path: Path) -> None:

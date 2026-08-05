@@ -33,6 +33,10 @@ from aiquanttrader_native.governance.ledger import (
     DeploymentAdmissionGuard,
     DeploymentAdmissionLedger,
 )
+from aiquanttrader_native.governance.models import (
+    DeploymentArtifactKind,
+    VerifiedDeploymentAdmission,
+)
 from aiquanttrader_native.risk import KillSwitchStore, RiskAuthority
 
 
@@ -111,6 +115,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 raise ValueError("enabled execution requires trading wallet and account references")
             private_key = read_private_key(secret_path)
             admission = None
+            approval_paths = None
             admission_ledger = None
             admission_guard = None
             if settings.requires_signed_approval:
@@ -122,12 +127,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                     raise ValueError(
                         "mainnet execution requires code, image, and dependency identities"
                     )
+                approval_paths = configured_artifact_paths(
+                    bundle,
+                    runtime_dependency_lock_path=args.dependency_lock_path,
+                )
                 admission = verify_deployment_admission(
                     bundle,
-                    configured_artifact_paths(
-                        bundle,
-                        runtime_dependency_lock_path=args.dependency_lock_path,
-                    ),
+                    approval_paths,
                     code_identity=args.code_identity,
                     image_identity=args.image_identity,
                     wallet_role="trading",
@@ -174,12 +180,18 @@ def main(argv: Sequence[str] | None = None) -> int:
             built = build_trading_node(
                 bundle,
                 private_key,
+                config_dir=args.config_dir,
                 journal=journal,
                 authority=authority,
                 heartbeat=heartbeat,
                 metrics=metrics,
                 admission=admission,
                 admission_guard=admission_guard,
+                approved_strategy_path=(
+                    None
+                    if admission is None or approval_paths is None
+                    else _approved_strategy_path(approval_paths.artifact_root, admission)
+                ),
             )
             try:
                 run_trading_node(
@@ -199,6 +211,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps({"status": "error", "error": str(exc)}), file=sys.stderr)
         return 2
     raise RuntimeError(f"unhandled command: {args.command}")
+
+
+def _approved_strategy_path(root: Path, admission: VerifiedDeploymentAdmission) -> Path:
+    manifest = admission.artifact_manifest
+    binding = next(
+        item for item in manifest.artifacts if item.kind is DeploymentArtifactKind.STRATEGY_CONFIG
+    )
+    candidate = (root / binding.relative_path).resolve(strict=True)
+    resolved_root = root.resolve(strict=True)
+    if not candidate.is_relative_to(resolved_root) or not candidate.is_file():
+        raise ValueError("approved live strategy artifact escapes its verified root")
+    return candidate
 
 
 if __name__ == "__main__":

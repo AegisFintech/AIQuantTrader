@@ -3,10 +3,12 @@
 Status: implementation complete; market calibration and retained full-dataset
 acceptance evidence pending.
 
-Phase 6 adds the first native BTC strategy and forecasting code. It does not
-wire a strategy into the Phase 4 order gateway, mount exchange credentials, or
-alter the deployed MT5 runtime. Research automation can stop only at
-`AWAITING_APPROVAL`.
+Phase 6 adds the first native BTC strategy and forecasting code. This original
+increment did not wire a strategy into the Phase 4 order gateway, mount
+exchange credentials, or alter the deployed MT5 runtime. The later
+[`Phase 4/6 convergence increment`](PHASE_4_6_LIVE_STRATEGY_CONVERGENCE.md)
+wires the same pure kernels behind the sole risk gateway while retaining those
+boundaries. Research automation can stop only at `AWAITING_APPROVAL`.
 
 ## Architecture
 
@@ -26,7 +28,7 @@ The feature engine and strategy kernels own no network, storage, clock, risk,
 or exchange handles. The same incremental update path consumes both offline
 HftBacktest states and normalized Nautilus objects. Strategies emit typed order
 intents; the synchronous Phase 4 risk authority remains the final authority
-when Phase 7 integrates them.
+in paper, shadow, and the disabled-by-default exchange pipeline.
 
 ## Repository delta
 

@@ -1,0 +1,22 @@
+flowchart LR
+    HL[Hyperliquid public L2 trades mark funding] --> NT[Nautilus managed L2 book]
+    NT --> NM[Causal Nautilus normalizer]
+    NM --> FE[Incremental feature engine]
+    FE --> SK[Pure selected strategy kernel]
+    AC[Nautilus reconciled account cache] --> RS[Immutable live risk snapshot]
+    EQ[(Durable UTC-day and high-water equity baseline)] --> RS
+    SK -->|OrderIntent only| GW[Sole risk-managed execution gateway]
+    RS --> RA[Synchronous risk authority]
+    GW --> RA
+    RA -->|single-use approval| GW
+    RA -->|deny or cancel-only| GW
+    GW -->|cancel-confirm before replacement| NA[Nautilus Hyperliquid adapter]
+    NA --> HLX[Hyperliquid execution API]
+    NA -->|ack reject fill cancel position| GW
+    GW --> EJ[(SQLite lifecycle journal)]
+    GW --> HB[Expiring execution heartbeat]
+    HB --> SS[Independent safety sentinel]
+    SS -->|dead-man renew or emergency cancel-all| HLX
+
+    AP[Verified release strategy artifact] --> SK
+    CF[Exact-image feature configuration] --> FE

@@ -25,7 +25,7 @@ from aiquanttrader_native.config.models import (
 from aiquanttrader_native.domain.base import canonical_json_bytes, canonical_sha256
 from aiquanttrader_native.domain.data import DatasetManifest
 from aiquanttrader_native.domain.governance import DeploymentApproval, PromotionStage
-from aiquanttrader_native.features.models import FeatureSchema
+from aiquanttrader_native.features.models import FeatureEngineConfig, FeatureSchema
 from aiquanttrader_native.governance.models import (
     CanaryEvidenceReport,
     DeploymentArtifactBinding,
@@ -145,7 +145,13 @@ def prepare_release_bundle(
     parent = output_dir.parent.resolve(strict=True)
     settings, behavior_payload, behavior_sha256 = release_behavior_configuration(bundle, spec)
 
-    artifacts = _load_and_validate_artifacts(spec, settings, behavior_sha256)
+    feature_config_payload = _live_feature_config_payload(bundle, settings)
+    artifacts = _load_and_validate_artifacts(
+        spec,
+        settings,
+        behavior_sha256,
+        feature_config_payload=feature_config_payload,
+    )
     by_kind = {artifact.kind: artifact for artifact in artifacts}
     manifest = DeploymentArtifactManifest(
         deployment_id=spec.deployment_id,
@@ -267,6 +273,9 @@ def _release_settings(bundle: ConfigBundle, spec: ReleaseBundleSpec) -> NativeSe
     )
     if bundle.settings.mode is not expected_mode:
         raise ValueError("release specification stage does not match configuration environment")
+    strategy = _strategy_configuration(
+        _read_regular(spec.artifacts.strategy_config, maximum_bytes=MAX_RELEASE_ARTIFACT_BYTES)
+    )
     payload = bundle.settings.model_dump(mode="json")
     payload["exchange"].update(
         {
@@ -277,6 +286,12 @@ def _release_settings(bundle: ConfigBundle, spec: ReleaseBundleSpec) -> NativeSe
         }
     )
     payload["execution"]["enabled"] = True
+    payload["live_strategy"].update(
+        {
+            "enabled": True,
+            "strategy_id": strategy.strategy_id,
+        }
+    )
     payload["sentinel"]["enabled"] = True
     payload["risk"] = spec.risk.model_dump(mode="json")
     payload["approval"] = {
@@ -303,6 +318,8 @@ def _load_and_validate_artifacts(
     spec: ReleaseBundleSpec,
     settings: NativeSettings,
     behavior_sha256: str,
+    *,
+    feature_config_payload: bytes,
 ) -> tuple[PreparedArtifact, ...]:
     sources = spec.artifacts
     source_by_kind: dict[DeploymentArtifactKind, Path] = {
@@ -323,7 +340,13 @@ def _load_and_validate_artifacts(
     payloads[DeploymentArtifactKind.RISK_POLICY] = canonical_json_bytes(
         settings.risk.model_dump(mode="json")
     )
-    _validate_semantics(payloads, spec, settings, behavior_sha256)
+    _validate_semantics(
+        payloads,
+        spec,
+        settings,
+        behavior_sha256,
+        feature_config_payload=feature_config_payload,
+    )
     return tuple(
         PreparedArtifact(kind=kind, payload=payloads[kind])
         for kind in DeploymentArtifactKind
@@ -336,6 +359,8 @@ def _validate_semantics(
     spec: ReleaseBundleSpec,
     settings: NativeSettings,
     behavior_sha256: str,
+    *,
+    feature_config_payload: bytes,
 ) -> None:
     DatasetManifest.model_validate_json(payloads[DeploymentArtifactKind.DATASET_MANIFEST])
     feature_schema = FeatureSchema.model_validate_json(
@@ -344,15 +369,20 @@ def _validate_semantics(
     model_selection = DeploymentModelSelection.model_validate_json(
         payloads[DeploymentArtifactKind.MODEL_MANIFEST]
     )
-    try:
-        strategy_payload = tomllib.loads(
-            payloads[DeploymentArtifactKind.STRATEGY_CONFIG].decode("utf-8")
-        )
-    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
-        raise ValueError("release strategy configuration is not valid UTF-8 TOML") from exc
-    strategy = STRATEGY_ADAPTER.validate_python(strategy_payload)
+    strategy = _strategy_configuration(payloads[DeploymentArtifactKind.STRATEGY_CONFIG])
+    FeatureEngineConfig.model_validate(
+        _toml_configuration(feature_config_payload, label="live feature")
+    )
+    if strategy.strategy_id != settings.live_strategy.strategy_id:
+        raise ValueError("release strategy identity does not match target live behavior")
     if strategy.strategy_id != model_selection.strategy_id:
         raise ValueError("release strategy and model selection identities do not match")
+    if strategy.order_quantity_base > settings.risk.max_order_size_base:
+        raise ValueError("release strategy order quantity exceeds the hard order-size limit")
+    if strategy.max_abs_inventory_base > settings.risk.max_position_size_base:
+        raise ValueError("release strategy inventory bound exceeds the hard position limit")
+    if isinstance(strategy, AvellanedaStoikovConfig) and settings.risk.max_open_orders < 2:
+        raise ValueError("release market maker requires one bid and one ask order slot")
     if feature_schema.sha256() != model_selection.feature_schema_sha256:
         raise ValueError("release feature schema and model selection do not match")
     dependency_sha = _sha(payloads[DeploymentArtifactKind.DEPENDENCY_LOCK])
@@ -378,6 +408,7 @@ def _validate_semantics(
     if (
         shadow.code_identity != spec.commit_sha
         or shadow.image_identity != spec.image_digest
+        or shadow.feature_config_sha256 != _sha(feature_config_payload)
         or shadow.strategy_config_sha256 != digests[DeploymentArtifactKind.STRATEGY_CONFIG]
     ):
         raise ValueError("shadow evidence does not bind the proposed release")
@@ -425,6 +456,28 @@ def _validate_semantics(
             raise ValueError("canary evidence has not reached the production approval boundary")
         if canary.deployment_id != spec.rollback_deployment_id:
             raise ValueError("canary evidence does not bind the production rollback deployment")
+
+
+def _live_feature_config_payload(bundle: ConfigBundle, settings: NativeSettings) -> bytes:
+    root = bundle.sources[0].parent.resolve(strict=True)
+    path = (root / settings.live_strategy.feature_config_path).resolve(strict=True)
+    if not path.is_relative_to(root):
+        raise ValueError("release live feature configuration escapes its configuration root")
+    return _read_regular(path, maximum_bytes=MAX_RELEASE_ARTIFACT_BYTES)
+
+
+def _strategy_configuration(payload: bytes) -> StrategyConfiguration:
+    return STRATEGY_ADAPTER.validate_python(_toml_configuration(payload, label="release strategy"))
+
+
+def _toml_configuration(payload: bytes, *, label: str) -> dict[str, Any]:
+    try:
+        parsed = tomllib.loads(payload.decode("utf-8"))
+    except (UnicodeDecodeError, tomllib.TOMLDecodeError) as exc:
+        raise ValueError(f"{label} configuration is not valid UTF-8 TOML") from exc
+    if not isinstance(parsed, dict):  # pragma: no cover - tomllib always returns a dict
+        raise ValueError(f"{label} configuration must contain a TOML table")
+    return parsed
 
 
 def _require_complete_gates(

@@ -64,9 +64,11 @@ aqt-governance prepare-release --config-dir native/configs \
 ```
 
 The command rejects incompatible strategy/model/schema/lock identities,
-unpassed or mismatched evidence, excess capital/inventory, ambiguous files, and
-stage/rollback errors. It never reads a signing key and never writes admission
-state.
+an image-resident live feature configuration that differs from shadow evidence,
+unpassed or mismatched evidence, excess strategy/risk bounds, ambiguous files,
+and stage/rollback errors. The target behavior enables live alpha and derives
+its strategy ID from the exact strategy artifact. The command never reads a
+signing key and never writes admission state.
 
 ## Approval bundle
 
@@ -108,6 +110,11 @@ preparer has already emitted canonical bytes and the receipt binds them.
 Mount the completed directory read-only. Set Compose inputs from a root-owned,
 mode-0600 environment file; inspect rendered configuration without printing
 secret files:
+
+`AQT_MAINNET_LIVE_STRATEGY_ID` must equal the `strategy_id` in the approved
+`artifacts/strategy-config.toml`. A missing or different value either prevents
+Compose rendering or changes the signed behavior fingerprint and fails
+admission.
 
 ```bash
 docker compose -f native/compose.mainnet.yaml \

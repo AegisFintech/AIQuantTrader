@@ -8,6 +8,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 
 from nautilus_trader.adapters.hyperliquid import (
     HYPERLIQUID,
@@ -33,8 +34,10 @@ from nautilus_trader.model.identifiers import TraderId
 from aiquanttrader_native.config.loader import ConfigBundle
 from aiquanttrader_native.config.models import ExchangeNetwork
 from aiquanttrader_native.domain.execution import ExecutionJournalEvent, ExecutionState
+from aiquanttrader_native.execution.artifacts import load_live_strategy_artifacts
 from aiquanttrader_native.execution.heartbeat import HeartbeatPublisher
 from aiquanttrader_native.execution.journal import ExecutionJournal
+from aiquanttrader_native.execution.live import EquityBaselineStore, LiveDecisionPipeline
 from aiquanttrader_native.execution.metrics import ExecutionMetrics
 from aiquanttrader_native.execution.secrets import PrivateKey
 from aiquanttrader_native.execution.strategy import RiskManagedExecutionStrategy
@@ -141,14 +144,43 @@ def build_trading_node(
     bundle: ConfigBundle,
     private_key: PrivateKey,
     *,
+    config_dir: Path,
     journal: ExecutionJournal,
     authority: RiskAuthority,
     heartbeat: HeartbeatPublisher,
     metrics: ExecutionMetrics | None = None,
     admission: VerifiedDeploymentAdmission | None = None,
     admission_guard: DeploymentAdmissionGuard | None = None,
+    approved_strategy_path: Path | None = None,
 ) -> BuiltTradingNode:
+    settings = bundle.settings
+    if settings.exchange.network is ExchangeNetwork.MAINNET and approved_strategy_path is None:
+        raise ValueError("mainnet live execution requires the approved strategy artifact path")
+    artifacts = load_live_strategy_artifacts(
+        config_dir,
+        bundle,
+        approved_strategy_path=approved_strategy_path,
+    )
+    if (
+        admission is not None
+        and artifacts.strategy_config_sha256 != admission.artifact_manifest.strategy_config_sha256
+    ):
+        raise ValueError("loaded live strategy does not match deployment admission")
+    pipeline = LiveDecisionPipeline(artifacts)
+    execution_address = settings.exchange.execution_account_address
+    if execution_address is None:
+        raise ValueError("live execution account identity is unavailable")
+    baselines = EquityBaselineStore(
+        settings.storage.state_root / "execution" / "equity-baseline.json",
+        account_address=execution_address,
+    )
     node = TradingNode(config=build_nautilus_config(bundle, private_key, admission=admission))
+
+    def connectivity_probe() -> bool:
+        return bool(
+            node.kernel.data_engine.check_connected() and node.kernel.exec_engine.check_connected()
+        )
+
     gateway = RiskManagedExecutionStrategy(
         authority=authority,
         journal=journal,
@@ -156,6 +188,11 @@ def build_trading_node(
         heartbeat=heartbeat,
         metrics=metrics,
         admission_guard=admission_guard,
+        live_pipeline=pipeline,
+        equity_baselines=baselines,
+        connectivity_probe=connectivity_probe,
+        estimated_taker_fee_bps=settings.live_strategy.estimated_taker_fee_bps,
+        estimated_slippage_bps=settings.live_strategy.estimated_slippage_bps,
     )
     node.trader.add_strategy(gateway)
     node.add_data_client_factory(HYPERLIQUID, HyperliquidLiveDataClientFactory)

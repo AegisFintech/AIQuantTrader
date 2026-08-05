@@ -1,6 +1,6 @@
 # AIQuantTrader Repository Map
 
-Last verified: 2026-08-04
+Last verified: 2026-08-05
 
 Use this document as the first navigation aid for repo work. It identifies the
 active runtime, code ownership boundaries, data flows, and known validation
@@ -101,6 +101,24 @@ The Phase 3 code gates are implemented. Phase 3 must not be marked accepted
 until the runbook's sustained public-feed soak finishes and every observed gap
 is classified.
 
+Current Phase 4/6 live strategy and execution ownership:
+
+| Path | Responsibility |
+|---|---|
+| `native/src/aiquanttrader_native/execution/{artifacts,live}.py` | Strict live artifact loading, causal managed-L2 normalization, shared feature/strategy coordination, and restart-safe equity baselines. |
+| `native/src/aiquanttrader_native/execution/strategy.py` | Sole Nautilus order owner; cache-derived risk snapshots, cancel-confirm replacement, terminal memory release, and lifecycle journaling. |
+| `native/src/aiquanttrader_native/execution/node.py` | Pinned Hyperliquid node, live-pipeline construction, and synchronous client-connectivity probe. |
+| `native/src/aiquanttrader_native/risk/` | Unbypassable synchronous limits, single-use approvals, and persistent operator kill. |
+| `native/src/aiquanttrader_native/sentinel/` | Independently credentialed dead-man renewal and emergency cancel-only process. |
+| `native/configs/base.toml` (`live_strategy`) | Disabled exact feature/strategy selection and bounded fee/slippage assumptions. |
+| `docs/operations/EXECUTION_RISK_RUNBOOK.md` | Credentialed testnet matrix, live-pipeline checks, incidents, and rollback. |
+
+Phase 4/6 code convergence is automated, but execution remains disabled in all
+checked-in environments. Acceptance still requires real testnet lifecycle,
+latency, restart, stale/disconnect, unknown-outcome, dead-man, economic-baseline,
+and strategy evidence. Mainnet additionally consumes the signed bundle's exact
+strategy artifact; this does not create or activate an approval.
+
 Current Phase 5 backtesting ownership:
 
 | Path | Responsibility |
@@ -135,8 +153,8 @@ Current Phase 6 feature, strategy, and research ownership:
 Phase 6 implementation gates are automated. Acceptance still requires retained
 multi-regime studies, reviewed fill/queue/arrival/latency/cost calibration,
 strategy-risk load evidence, and a registry backup/restore drill. Its strategy
-kernels are not wired to the native execution node, and the automation CLI has
-no human approval capability.
+kernels now feed the native node only through the sole Phase 4 risk gateway;
+the automation CLI still has no human approval capability.
 
 Current Phase 7 paper ownership:
 
@@ -192,8 +210,10 @@ performed by the repository implementation.
 The Phase 9 release-evidence increment adds typed final-testnet observations,
 the frozen complete scenario evaluator, exact target-behavior fingerprints,
 and deterministic unsigned bundle preparation. `governance/bundle.py` rejects
-incompatible artifacts and evidence before offline signing; it contains no
-signer or admission action. See
+incompatible artifacts and evidence before offline signing, binds the live
+strategy identity into target behavior, and verifies that the image-resident
+feature configuration matches shadow evidence; it contains no signer or
+admission action. See
 `docs/migration/PHASE_9_RELEASE_EVIDENCE.md`.
 
 ## Current Legacy System Topology
@@ -236,7 +256,7 @@ currently provide:
 | Deployment policy | `native/src/aiquanttrader_native/{config,governance}/`; checked configs remain disabled, while runtime mainnet requires exact signed artifacts plus explicit durable admission. |
 | Public market data | `native/src/aiquanttrader_native/market_data/`; independent raw-first Hyperliquid recorder and normalizer. |
 | Hard risk | `native/src/aiquanttrader_native/risk/`; synchronous approval authority and persistent operator kill. |
-| Normal execution | `native/src/aiquanttrader_native/execution/`; only `RiskManagedExecutionStrategy` may call Nautilus order APIs. |
+| Normal execution | `native/src/aiquanttrader_native/execution/`; shared live features/kernels feed the sole cache-derived hard-risk gateway, and only `RiskManagedExecutionStrategy` may call Nautilus order APIs. |
 | Emergency control | `native/src/aiquanttrader_native/sentinel/`; independent SDK control wallet, dead-man renewal, and cancel-all only. |
 | Testnet deployment | `native/compose.testnet.yaml`; trading and control secrets are mounted into different processes. |
 | Final release rehearsal | `native/compose.rehearsal.yaml`; exact digest and target behavior are exercised on testnet before unsigned bundle preparation. |

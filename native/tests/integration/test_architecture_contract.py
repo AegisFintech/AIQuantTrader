@@ -25,6 +25,7 @@ def test_all_checked_in_environments_default_to_execution_disabled(project_root:
         with path.open("rb") as handle:
             payload = tomllib.load(handle)
         assert payload.get("execution", {}).get("enabled", False) is False, path
+        assert payload.get("live_strategy", {}).get("enabled", False) is False, path
 
 
 def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path) -> None:
@@ -69,6 +70,7 @@ def test_mainnet_overlay_is_exact_image_admission_gated_and_wallet_isolated(
     sentinel = overlay.split("  safety-sentinel:", 1)[1].split("\nsecrets:", 1)[0]
 
     assert "@${AQT_MAINNET_IMAGE_DIGEST:" in overlay
+    assert "AQT_MAINNET_LIVE_STRATEGY_ID:?set approved live strategy id" in overlay
     assert "build:" not in overlay
     assert 'profiles: ["mainnet-admission"]' in controller
     assert "secrets:" not in controller
@@ -107,6 +109,8 @@ def test_release_rehearsal_is_exact_image_testnet_only_and_wallet_isolated(
     assert '"--environment", "testnet"' in sentinel
     assert "AQT_RELEASE_COMMIT_SHA" in overlay
     assert "AQT_RELEASE_BEHAVIOR_SHA256" in overlay
+    assert "AQT_REHEARSAL_STRATEGY_CONFIG_FILE:?set exact release strategy artifact" in trading
+    assert "strategies/rehearsal-strategy.toml:ro" in trading
     assert "source: rehearsal_trading_wallet" in trading
     assert "source: rehearsal_control_wallet" not in trading
     assert "source: rehearsal_control_wallet" in sentinel
@@ -251,6 +255,7 @@ def test_mainnet_compose_renders_exact_image_when_docker_is_available(project_ro
             "AQT_MAINNET_PUBLIC_KEY_SHA256": "c" * 64,
             "AQT_MAINNET_ENVIRONMENT": "canary",
             "AQT_MAINNET_COMMIT_SHA": "d" * 40,
+            "AQT_MAINNET_LIVE_STRATEGY_ID": "order-flow-scalper-v1",
             "AQT_APPROVAL_BUNDLE_DIR": "/tmp/approval-bundle",
             "AQT_MAINNET_TRADING_WALLET_FILE": "/tmp/mainnet-trading-wallet",
             "AQT_MAINNET_CONTROL_WALLET_FILE": "/tmp/mainnet-control-wallet",
@@ -288,6 +293,7 @@ def test_rehearsal_compose_renders_exact_image_when_docker_is_available(
             "AQT_REHEARSAL_ACCOUNT_ADDRESS": "0x" + "1" * 40,
             "AQT_REHEARSAL_TRADING_WALLET_FILE": "/tmp/rehearsal-trading-wallet",
             "AQT_REHEARSAL_CONTROL_WALLET_FILE": "/tmp/rehearsal-control-wallet",
+            "AQT_REHEARSAL_STRATEGY_CONFIG_FILE": "/tmp/rehearsal-strategy.toml",
         }
     )
     subprocess.run(

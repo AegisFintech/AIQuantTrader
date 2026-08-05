@@ -24,6 +24,9 @@ boundary:
   operator-kill risk authority with short-lived single-use approvals;
 - one risk-managed NautilusTrader Hyperliquid execution gateway and a durable
   SQLite order journal with unknown-outcome reconciliation;
+- the same incremental features and pure market-making/scalping kernels wired
+  into that sole gateway using managed Nautilus L2/trade data, reconciled
+  account state, cancel-confirm quote replacement, and durable equity baselines;
 - a separately credentialed SDK sentinel for exchange dead-man renewal and
   emergency cancel-all.
 - deterministic Tardis and admitted-Parquet conversion into HftBacktest events
@@ -61,9 +64,8 @@ boundary:
   and atomic semantic preparation of unsigned release bundles for offline
   review and signing.
 
-The Phase 6 strategies are research candidates and are wired only into the
-credential-free Phase 7 simulator, not the exchange node. The exchange order
-path remains disabled in every checked-in
+The Phase 6 strategy kernels are now wired into the sole Phase 4 exchange
+gateway, but the exchange order path remains disabled in every checked-in
 environment. Configuration accepts only secret file references. Phase 4
 permits explicit testnet runtime enablement. Phase 9 permits structural mainnet
 enablement only when complete approval references are supplied; startup and
@@ -118,6 +120,8 @@ docker compose -f compose.yaml -f compose.testnet.yaml \
 only the independently approved testnet control wallet. The exact setup,
 scenario matrix, kill procedure, evidence requirements, and rollback are in
 [`EXECUTION_RISK_RUNBOOK.md`](../docs/operations/EXECUTION_RISK_RUNBOOK.md).
+The live strategy pipeline and its cancel-confirm/restart invariants are in
+[`PHASE_4_6_LIVE_STRATEGY_CONVERGENCE.md`](../docs/migration/PHASE_4_6_LIVE_STRATEGY_CONVERGENCE.md).
 
 ## Market data
 

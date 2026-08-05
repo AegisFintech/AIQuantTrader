@@ -87,6 +87,31 @@
       ],
       "title": "Reconciliation and unresolved commands",
       "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "id": 9,
+      "targets": [
+        {"expr": "sum by (result) (increase(aqt_execution_live_market_cycles_total[15m]))", "refId": "A"},
+        {"expr": "sum by (action, result) (increase(aqt_execution_live_strategy_actions_total[15m]))", "refId": "B"}
+      ],
+      "title": "Live strategy cycles and actions",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "id": 10,
+      "targets": [
+        {"expr": "aqt_execution_feature_ready", "refId": "A"},
+        {"expr": "aqt_execution_position_base", "refId": "B"},
+        {"expr": "aqt_execution_account_equity_usd", "refId": "C"}
+      ],
+      "title": "Feature readiness, inventory, and equity",
+      "type": "timeseries"
     }
   ],
   "refresh": "5s",

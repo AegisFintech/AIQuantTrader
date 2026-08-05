@@ -34,6 +34,7 @@ from aiquanttrader_native.domain.execution import (
 from aiquanttrader_native.domain.features import FeatureSnapshot
 from aiquanttrader_native.domain.governance import DeploymentApproval, ExperimentManifest
 from aiquanttrader_native.domain.market import DataCapabilities, MarketEvent
+from aiquanttrader_native.execution.live import EquityBaseline
 from aiquanttrader_native.features.models import (
     FeatureDatasetManifest,
     FeatureEngineConfig,
@@ -120,7 +121,12 @@ SCHEMAS: dict[str, SchemaFactory] = {
     "deployment-approval.schema.json": lambda: _model_schema(DeploymentApproval),
     "experiment.schema.json": lambda: _model_schema(ExperimentManifest),
     "execution.schema.json": lambda: TypeAdapter(
-        OrderIntent | RiskSnapshot | RiskDecision | ExecutionJournalEvent | TradingHeartbeat
+        OrderIntent
+        | RiskSnapshot
+        | RiskDecision
+        | ExecutionJournalEvent
+        | TradingHeartbeat
+        | EquityBaseline
     ).json_schema(),
     "features.schema.json": lambda: TypeAdapter(
         FeatureSnapshot

@@ -19,12 +19,21 @@ The account address identifies the master account. Supplying an agent key
 without this address causes account queries and private subscriptions to follow
 the empty agent account and prevents correct reconciliation.
 
+The execution overlay explicitly sets both
+`AQT_NATIVE__EXECUTION__ENABLED=true` and
+`AQT_NATIVE__LIVE_STRATEGY__ENABLED=true`. The node refuses to build the live
+pipeline if either selected feature/strategy artifact is missing, malformed,
+inconsistent with the selected strategy ID, or exceeds hard order/inventory
+limits. Every checked-in environment still sets both switches false.
+
 ## Build and preflight
 
 ```bash
 export AQT_TESTNET_ACCOUNT_ADDRESS=0x...
 export AQT_TESTNET_TRADING_WALLET_FILE=/secure/path/testnet-trading.key
 export AQT_TESTNET_CONTROL_WALLET_FILE=/secure/path/testnet-control.key
+export AQT_TESTNET_LIVE_STRATEGY_ID=order-flow-scalper-v1
+export AQT_TESTNET_LIVE_STRATEGY_CONFIG_PATH=strategies/order-flow-scalper-v1.toml
 
 docker compose -f compose.yaml -f compose.testnet.yaml \
   --profile execution-testnet config --quiet
@@ -55,6 +64,18 @@ Before an order drill, confirm:
 - exchange UI/API account, positions, and open orders match the journal/cache;
 - configured leverage is no greater than the deployment limit. Nautilus does
   not set leverage automatically.
+- `state/execution/equity-baseline.json` exists with mode `0600`, belongs to the
+  exact execution account, and preserves the expected UTC-day start and
+  lifetime high-water equity after a controlled restart;
+- any reconciled startup orders were canceled and the cache reached zero open
+  orders before `aqt_execution_live_market_cycles_total{result="processed"}`
+  increased;
+- the selected live strategy ID and strategy SHA-256 match the test evidence.
+
+The checked-in order-flow scalper is a seed configuration, not profitability
+or promotion evidence. The checked-in market-maker remains inert because it
+requires a calibrated fill model while the seed feature file is explicitly
+uncalibrated. Do not weaken that gate to manufacture testnet activity.
 
 ## Required scenario matrix
 
@@ -75,6 +96,10 @@ case.
 | Duplicate intent | second call rejected locally; one venue order maximum |
 | Forced response timeout | state becomes `UNKNOWN`; reconciliation resolves by CLOID; no resubmit |
 | Node restart | open orders, fills, and position reconcile before approval resumes |
+| Strategy restart with resting quotes | reconciled quotes cancel; alpha waits for zero open orders; no duplicate quote |
+| Quote revision | old quote cancel is confirmed before replacement submit |
+| Feature warmup | no intent before the configured causal warmup count |
+| Strategy denial | denied intent is absent from alpha memory and may be reconsidered only as a new deterministic intent |
 | Public/private stale data | new exposure denied; cancel remains available |
 | Daily loss/drawdown | only bounded reduce-only orders remain available |
 | Operator kill | local approvals halt and sentinel cancels all resting orders |
@@ -94,8 +119,11 @@ dependency lock, dataset/model/feature/strategy artifacts, risk, and all other
 behavior remain bound to the proposed release.
 
 Set the exact digest, commit, fingerprint, testnet account, two testnet secret
-file paths, and every risk override from the release specification. Do not
-mount or reference a mainnet credential:
+file paths, `AQT_REHEARSAL_LIVE_STRATEGY_ID` from the release strategy artifact,
+`AQT_REHEARSAL_STRATEGY_CONFIG_FILE` pointing to those exact artifact bytes,
+and every risk override from the release specification. Compose mounts that
+file read-only under the configured rehearsal-only path. Do not mount or
+reference a mainnet credential:
 
 ```bash
 docker compose -f compose.rehearsal.yaml \
@@ -159,6 +187,31 @@ Use the original client order ID to reconcile open orders, historical order
 status, fills, and position. If those disagree, keep the operator kill active,
 cancel through the sentinel, preserve evidence, and escalate. A fresh intent ID
 is not a valid workaround for an unresolved old intent.
+
+## Live pipeline integrity
+
+The normal path is:
+
+```text
+managed L2 deltas + trades -> KernelMarketState -> MicrostructureSnapshot
+-> pure selected kernel -> OrderIntent -> synchronous risk -> sole gateway
+```
+
+Any empty/crossed book, unexpected instrument, noncausal timestamp, or
+non-increasing L2 receipt timestamp is fatal. The gateway marks its heartbeat
+unhealthy, requests cancel-all when possible, and lets the node shut down; the
+independent sentinel is the final cancellation boundary.
+
+The private-data freshness field records a successful synchronous data and
+execution client connectivity check over a portfolio that Nautilus reconciled
+before strategy start. Private streams are change-based, so an unchanged
+account is not made stale by inventing periodic account events. Public-data
+freshness always uses the actual L2 local receipt timestamp.
+
+Do not delete or edit `equity-baseline.json` to clear a breaker. Corruption,
+account mismatch, or clock rollback fails startup/runtime closed. Preserve the
+file with the order journal during backup, restore, incident response, and
+rollback.
 
 ## Planned stop
 

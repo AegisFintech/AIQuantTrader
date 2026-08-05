@@ -62,6 +62,8 @@ Every phase requires:
 - Unknown submission outcomes resolve by reconciliation without duplicate risk.
 - Strategies cannot bypass hard position, inventory, leverage, order, loss,
   drawdown, stale-data, or kill controls.
+- Reconciled startup orders drain before alpha, replacements wait for terminal
+  cancel outcomes, and daily/high-water equity baselines survive restart.
 - Exchange dead-man cancellation and local/operator kills are demonstrated.
 - No mainnet key is available to the testnet deployment.
 
