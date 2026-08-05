@@ -16,6 +16,11 @@ from aiquanttrader_native.retirement.approval import (
     RetirementApprovalPaths,
     verify_retirement_approval,
 )
+from aiquanttrader_native.retirement.collector import (
+    assemble_native_production_observation,
+    load_native_production_observation,
+    verify_native_production_observation,
+)
 from aiquanttrader_native.retirement.evidence import (
     evaluate_disabled_observation,
     evaluate_retirement_readiness,
@@ -36,6 +41,20 @@ def _parser() -> argparse.ArgumentParser:
         description="Evaluate retirement evidence; this command cannot stop or remove services.",
     )
     commands = parser.add_subparsers(dest="command", required=True)
+
+    assemble_native = commands.add_parser("assemble-native")
+    assemble_native.add_argument("--evidence-root", type=Path, required=True)
+    assemble_native.add_argument("--policy", type=Path, required=True)
+    assemble_native.add_argument("--output", type=Path, required=True)
+    assemble_native.add_argument("--approval-key-id", required=True)
+    assemble_native.add_argument("--approval-public-key-sha256", required=True)
+
+    verify_native = commands.add_parser("verify-native")
+    verify_native.add_argument("--evidence-root", type=Path, required=True)
+    verify_native.add_argument("--observation", type=Path, required=True)
+    verify_native.add_argument("--policy", type=Path, required=True)
+    verify_native.add_argument("--approval-key-id", required=True)
+    verify_native.add_argument("--approval-public-key-sha256", required=True)
 
     readiness = commands.add_parser("evaluate-readiness")
     readiness.add_argument("--observation", type=Path, required=True)
@@ -79,6 +98,29 @@ def _parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
+        if args.command == "assemble-native":
+            native_observation = assemble_native_production_observation(
+                args.evidence_root,
+                policy=load_retirement_policy(args.policy),
+                expected_key_id=args.approval_key_id,
+                expected_public_key_sha256=args.approval_public_key_sha256,
+            )
+            _atomic_write_new(args.output, native_observation.canonical_bytes() + b"\n")
+            print(native_observation.model_dump_json())
+            return 0
+
+        if args.command == "verify-native":
+            native_observation = load_native_production_observation(args.observation)
+            verified_native = verify_native_production_observation(
+                args.evidence_root,
+                native_observation,
+                policy=load_retirement_policy(args.policy),
+                expected_key_id=args.approval_key_id,
+                expected_public_key_sha256=args.approval_public_key_sha256,
+            )
+            print(verified_native.model_dump_json())
+            return 0
+
         if args.command == "evaluate-readiness":
             observation = RetirementReadinessObservation.model_validate_json(
                 args.observation.read_bytes()

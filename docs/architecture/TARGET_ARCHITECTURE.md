@@ -304,6 +304,14 @@ capital exactly; it cannot revive an expired admission or carry a champion,
 risk, or capital change. This keeps weekly human review while allowing the same
 production admission to accumulate the continuous Phase 10 observation.
 
+Phase 10 reconstructs that observation offline from the signed release,
+checkpointed schema-v2 ledger, every detached renewal, exact deployed artifact,
+hash-linked execution/sentinel audits, reviewed incident register, and frozen
+drill reports. The assembler requires the signer key ID and fingerprint from an
+independent trust record and enforces five-minute sentinel/dead-man continuity.
+It has no live venue, credential, signer, process, or cleanup capability. See
+[`diagrams/phase-10-production-evidence.mmd`](diagrams/phase-10-production-evidence.mmd).
+
 Promotion gates are frozen before an experiment begins and evaluate post-cost
 PnL, drawdown and tail loss, consistency, inventory exposure, fill calibration,
 maker ratio, markouts, latency, operational failures, and drift. Prediction

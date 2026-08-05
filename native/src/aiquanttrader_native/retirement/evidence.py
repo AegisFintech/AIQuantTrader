@@ -54,18 +54,36 @@ def evaluate_retirement_readiness(
         and observation.native.reconciliation_failures == 0
         and observation.native.risk_breaches == 0
     )
+    policy_bound = (
+        observation.native.policy_id == policy.policy_id
+        and observation.native.policy_sha256 == policy.sha256()
+    )
     gates = (
         _readiness_gate(
             RetirementReadinessGate.POLICY_FROZEN,
-            policy.frozen_at_ns <= observation.native.started_ts_ns,
-            policy.frozen_at_ns,
-            f"<= {observation.native.started_ts_ns}",
+            policy.frozen_at_ns <= observation.native.started_ts_ns and policy_bound,
+            (
+                f"frozen={policy.frozen_at_ns},native_policy={observation.native.policy_id},"
+                f"native_policy_sha256={observation.native.policy_sha256}"
+            ),
+            (
+                f"frozen<={observation.native.started_ts_ns},policy={policy.policy_id},"
+                f"policy_sha256={policy.sha256()}"
+            ),
         ),
         _readiness_gate(
             RetirementReadinessGate.NATIVE_OBSERVATION,
-            native_duration >= policy.minimum_native_production_observation_ns,
-            native_duration,
-            policy.minimum_native_production_observation_ns,
+            native_duration >= policy.minimum_native_production_observation_ns
+            and observation.native.maximum_operational_gap_ns
+            <= policy.maximum_native_operational_gap_ns,
+            (
+                f"duration={native_duration},samples={observation.native.sentinel_health_samples},"
+                f"max_gap={observation.native.maximum_operational_gap_ns}"
+            ),
+            (
+                f"duration>={policy.minimum_native_production_observation_ns},"
+                f"max_gap<={policy.maximum_native_operational_gap_ns}"
+            ),
         ),
         _readiness_gate(
             RetirementReadinessGate.NATIVE_CLEAN,

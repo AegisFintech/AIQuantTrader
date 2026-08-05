@@ -134,6 +134,14 @@
           "default": null,
           "title": "Prior Event Sha256"
         },
+        "risk_reasons": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RiskReason"
+          },
+          "title": "Risk Reasons",
+          "type": "array"
+        },
         "risk_state": {
           "anyOf": [
             {
@@ -172,6 +180,36 @@
       ],
       "title": "OperationalEvidenceEvent",
       "type": "object"
+    },
+    "RiskReason": {
+      "enum": [
+        "approved",
+        "operator_kill",
+        "flatten_requested",
+        "exchange_disconnected",
+        "reconciliation_incomplete",
+        "public_data_stale",
+        "private_data_stale",
+        "invalid_account_state",
+        "deployment_approval_invalid",
+        "capital_limit",
+        "daily_loss_limit",
+        "drawdown_limit",
+        "order_size_limit",
+        "order_notional_limit",
+        "position_limit",
+        "inventory_limit",
+        "leverage_limit",
+        "open_order_limit",
+        "inflight_request_limit",
+        "order_rate_limit",
+        "reduce_only_required",
+        "not_position_reducing",
+        "intent_too_old",
+        "invalid_timestamp"
+      ],
+      "title": "RiskReason",
+      "type": "string"
     },
     "RiskState": {
       "enum": [

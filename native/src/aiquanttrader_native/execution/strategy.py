@@ -26,6 +26,7 @@ from aiquanttrader_native.domain.execution import (
     OrderIntent,
     OrderKind,
     RiskDecision,
+    RiskReason,
     RiskSnapshot,
     RiskState,
     TimeInForce,
@@ -560,6 +561,7 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
                 success=True,
                 detail=",".join(reason.value for reason in reasons) or "active",
                 risk_state=state,
+                risk_reasons=reasons,
             )
             self._last_risk_state = state
         if state is not RiskState.ACTIVE:
@@ -712,6 +714,7 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         detail: str,
         order_count: int | None = None,
         risk_state: RiskState | None = None,
+        risk_reasons: tuple[RiskReason, ...] = (),
     ) -> None:
         if self._operational_log is None:
             return
@@ -722,6 +725,7 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
             detail=detail,
             order_count=order_count,
             risk_state=risk_state,
+            risk_reasons=risk_reasons,
         )
 
     def _submit_nautilus(self, order: Any) -> None:

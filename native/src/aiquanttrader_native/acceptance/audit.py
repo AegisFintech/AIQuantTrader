@@ -13,7 +13,7 @@ from aiquanttrader_native.acceptance.models import (
     OperationalEventKind,
     OperationalEvidenceEvent,
 )
-from aiquanttrader_native.domain.execution import RiskState
+from aiquanttrader_native.domain.execution import RiskReason, RiskState
 
 MAX_AUDIT_BYTES = 67_108_864
 MAX_AUDIT_EVENTS = 1_000_000
@@ -38,6 +38,7 @@ class OperationalEvidenceLog:
         detail: str,
         order_count: int | None = None,
         risk_state: RiskState | None = None,
+        risk_reasons: tuple[RiskReason, ...] = (),
     ) -> OperationalEvidenceEvent:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         flags = os.O_RDWR | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0)
@@ -61,6 +62,7 @@ class OperationalEvidenceLog:
                     success=success,
                     order_count=order_count,
                     risk_state=risk_state,
+                    risk_reasons=risk_reasons,
                     detail=detail,
                 )
                 record = event.canonical_bytes() + b"\n"

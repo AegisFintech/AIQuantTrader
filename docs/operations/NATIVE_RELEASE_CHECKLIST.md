@@ -62,6 +62,10 @@ checklist while MT5 remains deployed.
 - [ ] For continued production, the next signed renewal binds the current
   authorization and unchanged admission/release/capital, is applied before
   expiry, and its ledger/heartbeat/sentinel expiry values agree.
+- [ ] If the release contributes to Phase 10 observation, preserve checkpointed
+  ledger generations, signed renewal/envelope pairs, exact release artifacts,
+  hash-linked audits with typed risk reasons, incident review, and drill
+  reports; sentinel/dead-man sample gaps remain below five minutes.
 - [ ] The complete 15-scenario final-testnet report passed with real retained
   evidence, flat final state, resolved unknown outcomes, and no mainnet key.
 - [ ] The unsigned bundle was created at a new path, all receipt hashes and

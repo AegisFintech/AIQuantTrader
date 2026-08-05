@@ -10,7 +10,7 @@ from typing import Annotated, Literal, Self
 from pydantic import Field, StringConstraints, model_validator
 
 from aiquanttrader_native.domain.base import DomainModel
-from aiquanttrader_native.domain.execution import RiskState
+from aiquanttrader_native.domain.execution import RiskReason, RiskState
 from aiquanttrader_native.governance.models import TestnetLifecycleScenario
 
 Identifier = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")]
@@ -214,6 +214,7 @@ class OperationalEvidenceEvent(DomainModel):
     success: bool
     order_count: int | None = Field(default=None, ge=0)
     risk_state: RiskState | None = None
+    risk_reasons: tuple[RiskReason, ...] = ()
     detail: Annotated[str, Field(min_length=1, max_length=1_024)]
 
     @model_validator(mode="after")
@@ -236,4 +237,13 @@ class OperationalEvidenceEvent(DomainModel):
             raise ValueError("risk-state events require the observed state")
         if self.kind is not OperationalEventKind.RISK_STATE and self.risk_state is not None:
             raise ValueError("only risk-state events may include risk state")
+        if self.kind is not OperationalEventKind.RISK_STATE and self.risk_reasons:
+            raise ValueError("only risk-state events may include risk reasons")
+        if len(self.risk_reasons) != len(set(self.risk_reasons)):
+            raise ValueError("operational risk reasons must be unique")
+        if self.kind is OperationalEventKind.RISK_STATE:
+            if self.risk_state is RiskState.ACTIVE and self.risk_reasons:
+                raise ValueError("active risk-state events cannot contain risk reasons")
+            if self.risk_state is not RiskState.ACTIVE and not self.risk_reasons:
+                raise ValueError("non-active risk-state events require typed risk reasons")
         return self

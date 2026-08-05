@@ -68,6 +68,11 @@ Migration rules:
   renewal chained to the current ledger authorization. Renewal must preserve
   the exact deployment, admission, account/vault, artifacts, configuration,
   image, and capital; it cannot revive expired authority or change behavior.
+- Phase 10 native-production facts must be reconstructed with `aqt-retirement
+  assemble-native` from an immutable exact-inventory bundle and independently
+  pinned approval key ID/fingerprint. The frozen policy permits no sentinel
+  health-evidence gap over five minutes. Never hand-author a passing native
+  observation or treat assembly as stop authority.
 - Every checked-in overlay must remain execution-disabled. Never create, sign,
   admit, fund, or activate a mainnet release merely because the Phase 9 code is
   present.
@@ -93,6 +98,7 @@ AIQuantTrader is now an MT5-first autonomous demo-trading repo. Trade and optimi
 - Repository navigation map: `docs/REPOSITORY_MAP.md` (read this before broad rescans)
 - Native legacy-retirement boundary:
   `docs/migration/PHASE_10_LEGACY_RETIREMENT.md` and
+  `docs/migration/PHASE_10_PRODUCTION_EVIDENCE.md` plus
   `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md`. `aqt-retirement` is
   evidence-only and must never gain PM2, deletion, package-manager, credential,
   broker, exchange, or network actions.

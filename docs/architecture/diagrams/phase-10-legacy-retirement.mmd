@@ -1,5 +1,6 @@
 flowchart TD
-    native["Stable native production<br/>exact deployment + admission evidence"]
+    nativeRaw["Retained native production<br/>signed release + ledger + renewals + audits"]
+    native["aqt-retirement assemble-native + verify-native<br/>pinned trust root + bounded continuity"]
     legacy["Final MT5 demo state<br/>paused + flat + no pending orders"]
     archive["Restore-tested archive<br/>mt5-final + 365-day retention"]
     readiness["aqt-retirement evaluate-readiness<br/>credential-free + no side effects"]
@@ -16,6 +17,7 @@ flowchart TD
     cleanup["Mechanical cleanup PR<br/>host retirement + native package cutover"]
     halted["HALTED<br/>no automatic action or MT5 restart"]
 
+    nativeRaw --> native
     native --> readiness
     legacy --> readiness
     archive --> readiness

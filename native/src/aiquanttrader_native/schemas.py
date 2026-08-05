@@ -96,6 +96,10 @@ from aiquanttrader_native.retirement.models import (
     DisabledObservationReport,
     LegacyArchiveManifest,
     LegacyCleanupManifest,
+    NativeDrillEvidence,
+    NativeProductionObservation,
+    ProductionEvidenceManifest,
+    ProductionIncidentRegister,
     RetirementActionApproval,
     RetirementApprovalSignature,
     RetirementPolicy,
@@ -215,6 +219,10 @@ SCHEMAS: dict[str, SchemaFactory] = {
     "retirement.schema.json": lambda: TypeAdapter(
         LegacyArchiveManifest
         | LegacyCleanupManifest
+        | ProductionEvidenceManifest
+        | ProductionIncidentRegister
+        | NativeDrillEvidence
+        | NativeProductionObservation
         | RetirementPolicy
         | RetirementReadinessObservation
         | RetirementReadinessReport

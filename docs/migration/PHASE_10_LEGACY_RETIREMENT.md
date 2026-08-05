@@ -1,7 +1,8 @@
 # Phase 10: Legacy MT5 Retirement and Native Repository Cutover
 
-Status: evidence contracts and offline approval verification implemented;
-retirement is not authorized and the deployed MT5 runtime remains unchanged
+Status: evidence contracts, independent native-production assembly, and offline
+approval verification implemented; retirement is not authorized and the
+deployed MT5 runtime remains unchanged
 
 Phase 10 is a separately approved operational migration after native production,
 not a side effect of Phase 9 admission. It stops the MT5/Wine deployment,
@@ -46,6 +47,10 @@ native deployment leaves both venues halted and does not silently restart MT5.
 
 The `aiquanttrader_native.retirement` package provides:
 
+- exact-inventory native-production assembly which independently verifies the
+  pinned signer, deployed release, checkpointed admission ledger, complete
+  signed renewal chain, typed operational audits, incident register, and
+  frozen drill checks;
 - an exact eleven-category, credential-free final archive manifest;
 - a native-production observation bound to its deployment, admission, approval,
   terminal chained authorization, renewal count/expiry, artifact manifest,
@@ -71,6 +76,8 @@ The contracts are exported in
 The v1 policy requires at least:
 
 - 30 days of stable native production after policy freeze;
+- successful sentinel/dead-man evidence spanning that production interval with
+  no gap over five minutes;
 - an unbroken signed production-authorization chain whose terminal expiry is
   later than the observation end;
 - every native rollback, backup/restore, alert-delivery, and operator-access
@@ -109,6 +116,20 @@ All inputs are operator-created retained evidence. These commands do not collect
 live facts or perform actions.
 
 ```bash
+aqt-retirement assemble-native \
+  --evidence-root /absolute/evidence/native-production \
+  --policy native/configs/retirement/evidence-v1.toml \
+  --approval-key-id <independently-recorded-key-id> \
+  --approval-public-key-sha256 <independently-pinned-fingerprint> \
+  --output /absolute/evidence/native-production-observation.json
+
+aqt-retirement verify-native \
+  --evidence-root /absolute/evidence/native-production \
+  --policy native/configs/retirement/evidence-v1.toml \
+  --approval-key-id <independently-recorded-key-id> \
+  --approval-public-key-sha256 <independently-pinned-fingerprint> \
+  --observation /absolute/evidence/native-production-observation.json
+
 aqt-retirement evaluate-readiness \
   --observation /absolute/evidence/readiness-observation.json \
   --policy native/configs/retirement/evidence-v1.toml \
@@ -167,12 +188,15 @@ change. New behavior requires a separate PR.
 
 ## Tests
 
-Unit tests cover archive completeness and binding, path safety, exact gate sets,
-stable report identities, approval scope/expiry, Ed25519 tampering, trust-root
-mismatch, broad cleanup targets, and failed observations. Integration tests
-exercise CLI canonicalization and verification and prove there is no `stop`
-action command. Schema determinism and repository documentation checks remain
-part of native CI.
+Unit tests cover exact production inventories, signature and trust-root
+tampering, release hashes, SQLite integrity, renewal terminal consistency,
+typed audit derivation, sentinel continuity, drill check sets, archive
+completeness and binding, path safety, exact gate sets, stable report
+identities, approval scope/expiry, broad cleanup targets, and failed
+observations. Integration tests exercise CLI assembly, independent replay,
+canonicalization, and verification and prove there is no `stop` action command.
+Schema determinism and repository documentation checks remain part of native
+CI.
 
 ## Migration and rollback
 

@@ -71,6 +71,10 @@ and Phase 10 evidence-only legacy-retirement boundary:
 - typed final-archive/readiness and disabled-window evidence, scoped retirement
   approvals, exact cleanup manifests, and offline Ed25519 verification with no
   stop, removal, credential, package-manager, network, or trading capability.
+- independent native-production evidence assembly over the signed release,
+  checkpointed admission ledger, complete renewal chain, exact artifacts,
+  hash-linked audits, typed risk reasons, bounded sentinel continuity,
+  incidents, and four recovery drills.
 
 The Phase 6 strategy kernels are now wired into the sole Phase 4 exchange
 gateway, but the exchange order path remains disabled in every checked-in
@@ -113,6 +117,12 @@ Evaluate retained Phase 10 evidence without performing any operational action:
 
 ```bash
 uv run aqt-retirement --help
+uv run aqt-retirement assemble-native \
+  --evidence-root /absolute/retained/native-production \
+  --policy configs/retirement/evidence-v1.toml \
+  --approval-key-id <pinned-key-id> \
+  --approval-public-key-sha256 <pinned-fingerprint> \
+  --output /absolute/retained/native-production-observation.json
 ```
 
 Configuration never accepts a private key value. It accepts only absolute
@@ -124,6 +134,9 @@ promotes automatically and a separate signed approval is required for scale.
 Chained production renewal is specified in
 `../docs/migration/PHASE_9_PRODUCTION_RENEWAL.md`; it cannot alter a release or
 revive expired authority.
+Phase 10 production-evidence assembly is specified in
+`../docs/migration/PHASE_10_PRODUCTION_EVIDENCE.md`; its output grants no stop
+or cleanup authority.
 
 ## Execution and risk
 
