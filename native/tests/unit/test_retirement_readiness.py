@@ -70,6 +70,7 @@ def _policy() -> RetirementPolicy:
         minimum_native_production_observation_ns=1,
         maximum_native_operational_gap_ns=native_testkit._policy().maximum_native_operational_gap_ns,
         minimum_disabled_observation_ns=1,
+        maximum_disabled_evidence_gap_ns=1,
         minimum_archive_retention_ns=int(timedelta(days=365).total_seconds() * 1_000_000_000),
         maximum_final_state_capture_skew_ns=int(
             timedelta(minutes=5).total_seconds() * 1_000_000_000
@@ -109,7 +110,8 @@ def _write_policy_files(tmp_path: Path, policy: RetirementPolicy) -> tuple[Path,
                 f"frozen_at_ns = {policy.frozen_at_ns}",
                 "minimum_native_production_observation_ns = 1",
                 f"maximum_native_operational_gap_ns = {policy.maximum_native_operational_gap_ns}",
-                "minimum_disabled_observation_ns = 1",
+                f"minimum_disabled_observation_ns = {policy.minimum_disabled_observation_ns}",
+                f"maximum_disabled_evidence_gap_ns = {policy.maximum_disabled_evidence_gap_ns}",
                 f"minimum_archive_retention_ns = {policy.minimum_archive_retention_ns}",
                 "maximum_final_state_capture_skew_ns = "
                 f"{policy.maximum_final_state_capture_skew_ns}",

@@ -4,6 +4,7 @@ frozen_at_ns = 1785888000000000000
 minimum_native_production_observation_ns = 2592000000000000
 maximum_native_operational_gap_ns = 300000000000
 minimum_disabled_observation_ns = 604800000000000
+maximum_disabled_evidence_gap_ns = 300000000000
 minimum_archive_retention_ns = 31536000000000000
 maximum_final_state_capture_skew_ns = 300000000000
 maximum_final_state_age_ns = 3600000000000

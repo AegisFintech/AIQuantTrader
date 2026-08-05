@@ -147,10 +147,10 @@ retained evidence and human approval.
 ## Phase 10: Legacy retirement and cleanup
 
 Implementation status: typed evidence, frozen baseline policy, deterministic
-native-production, legacy-archive, final-state, and cross-bundle readiness
-assembly, evaluators, exact cleanup-manifest validation, and offline Ed25519
-verification are present. The active MT5 runtime is not authorized for shutdown
-or removal.
+native-production, legacy-archive, final-state, cross-bundle readiness, and
+disabled-window assembly/replay, exact cleanup-manifest validation, and offline
+Ed25519 verification are present. The active MT5 runtime is not authorized for
+shutdown or removal.
 
 - The exact native production deployment and admission complete the frozen
   stable-observation window with zero critical incidents, reconciliation
@@ -183,7 +183,9 @@ or removal.
 - Every PM2, cron, nginx, logrotate, autostart, Wine/MT5, and command-writer
   capability remains disabled with zero active instances for the frozen window.
 - The disabled window has zero legacy broker orders, stable native operation,
-  quarantined legacy credentials, and a reverified archive.
+  quarantined legacy credentials, a reverified archive, and no capability
+  evidence gap over five minutes. `evaluate-disabled` replays every immutable
+  root and external trust input before emitting a report.
 - A separate non-expired signed `remove_and_clean` approval binds the exact
   disabled report and canonical cleanup manifest.
 - Cleanup targets contain no globs, traversal, unresolved variables, broad host

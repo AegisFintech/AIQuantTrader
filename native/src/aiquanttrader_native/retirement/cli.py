@@ -27,6 +27,12 @@ from aiquanttrader_native.retirement.collector import (
     load_native_production_observation,
     verify_native_production_observation,
 )
+from aiquanttrader_native.retirement.disabled import (
+    assemble_disabled_observation,
+    load_disabled_observation,
+    load_retirement_readiness_report,
+    verify_disabled_observation,
+)
 from aiquanttrader_native.retirement.evidence import (
     evaluate_disabled_observation,
     evaluate_retirement_readiness,
@@ -119,9 +125,17 @@ def _parser() -> argparse.ArgumentParser:
     _add_readiness_replay_arguments(readiness)
     readiness.add_argument("--output", type=Path)
 
+    assemble_disabled = commands.add_parser("assemble-disabled")
+    _add_disabled_source_arguments(assemble_disabled)
+    assemble_disabled.add_argument("--output", type=Path, required=True)
+
+    verify_disabled = commands.add_parser("verify-disabled")
+    _add_disabled_source_arguments(verify_disabled)
+    verify_disabled.add_argument("--observation", type=Path, required=True)
+
     disabled = commands.add_parser("evaluate-disabled")
+    _add_disabled_source_arguments(disabled)
     disabled.add_argument("--observation", type=Path, required=True)
-    disabled.add_argument("--policy", type=Path, required=True)
     disabled.add_argument("--output", type=Path)
 
     canonicalize = commands.add_parser("canonicalize-approval")
@@ -287,14 +301,50 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(report.model_dump_json())
             return 0 if report.awaiting_stop_approval else 1
 
+        if args.command == "assemble-disabled":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            _require_output_outside_disabled_roots(args, args.output)
+            disabled_observation = _assemble_disabled_from_args(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            _atomic_write_new(args.output, disabled_observation.canonical_bytes() + b"\n")
+            print(disabled_observation.model_dump_json())
+            return 0
+
+        if args.command == "verify-disabled":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            verified_disabled = _verify_disabled_from_args(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            print(verified_disabled.model_dump_json())
+            return 0
+
         if args.command == "evaluate-disabled":
-            disabled_observation = DisabledObservation.model_validate_json(
-                args.observation.read_bytes()
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_observation = _verify_disabled_from_args(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
             )
             disabled_report = evaluate_disabled_observation(
                 observation=disabled_observation,
-                policy=load_retirement_policy(args.policy),
+                policy=policy,
             )
+            if args.output is not None:
+                _require_output_outside_disabled_roots(args, args.output)
             _write_optional(args.output, disabled_report.canonical_bytes() + b"\n")
             print(disabled_report.model_dump_json())
             return 0 if disabled_report.awaiting_cleanup_approval else 1
@@ -359,6 +409,25 @@ def _add_readiness_replay_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--approval-public-key-sha256", required=True)
 
 
+def _add_disabled_source_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--disabled-evidence-root", type=Path, required=True)
+    parser.add_argument("--native-evidence-root", type=Path, required=True)
+    parser.add_argument("--legacy-evidence-root", type=Path, required=True)
+    parser.add_argument("--readiness-observation", type=Path, required=True)
+    parser.add_argument("--readiness-report", type=Path, required=True)
+    parser.add_argument("--native-observation", type=Path, required=True)
+    parser.add_argument("--archive-manifest", type=Path, required=True)
+    parser.add_argument("--stop-approval", type=Path, required=True)
+    parser.add_argument("--stop-signature", type=Path, required=True)
+    parser.add_argument("--stop-public-key", type=Path, required=True)
+    parser.add_argument("--policy", type=Path, required=True)
+    parser.add_argument("--credential-scan-policy", type=Path, required=True)
+    parser.add_argument("--native-approval-key-id", required=True)
+    parser.add_argument("--native-approval-public-key-sha256", required=True)
+    parser.add_argument("--stop-approval-key-id", required=True)
+    parser.add_argument("--stop-approval-public-key-sha256", required=True)
+
+
 def _verify_readiness_from_args(
     args: argparse.Namespace,
     *,
@@ -374,6 +443,69 @@ def _verify_readiness_from_args(
         expected_key_id=args.approval_key_id,
         expected_public_key_sha256=args.approval_public_key_sha256,
     )
+
+
+def _assemble_disabled_from_args(
+    args: argparse.Namespace,
+    *,
+    policy: RetirementPolicy,
+    credential_scan_policy: LegacyArchiveCredentialScanPolicy,
+) -> DisabledObservation:
+    return assemble_disabled_observation(
+        args.disabled_evidence_root,
+        args.native_evidence_root,
+        args.legacy_evidence_root,
+        load_retirement_readiness_observation(args.readiness_observation),
+        load_retirement_readiness_report(args.readiness_report),
+        load_native_production_observation(args.native_observation),
+        load_legacy_archive_manifest(args.archive_manifest),
+        stop_approval_paths=RetirementApprovalPaths(
+            approval_path=args.stop_approval,
+            signature_path=args.stop_signature,
+            public_key_path=args.stop_public_key,
+        ),
+        policy=policy,
+        credential_scan_policy=credential_scan_policy,
+        expected_native_key_id=args.native_approval_key_id,
+        expected_native_public_key_sha256=args.native_approval_public_key_sha256,
+        expected_stop_key_id=args.stop_approval_key_id,
+        expected_stop_public_key_sha256=args.stop_approval_public_key_sha256,
+    )
+
+
+def _verify_disabled_from_args(
+    args: argparse.Namespace,
+    *,
+    policy: RetirementPolicy,
+    credential_scan_policy: LegacyArchiveCredentialScanPolicy,
+) -> DisabledObservation:
+    return verify_disabled_observation(
+        args.disabled_evidence_root,
+        args.native_evidence_root,
+        args.legacy_evidence_root,
+        load_disabled_observation(args.observation),
+        load_retirement_readiness_observation(args.readiness_observation),
+        load_retirement_readiness_report(args.readiness_report),
+        load_native_production_observation(args.native_observation),
+        load_legacy_archive_manifest(args.archive_manifest),
+        stop_approval_paths=RetirementApprovalPaths(
+            approval_path=args.stop_approval,
+            signature_path=args.stop_signature,
+            public_key_path=args.stop_public_key,
+        ),
+        policy=policy,
+        credential_scan_policy=credential_scan_policy,
+        expected_native_key_id=args.native_approval_key_id,
+        expected_native_public_key_sha256=args.native_approval_public_key_sha256,
+        expected_stop_key_id=args.stop_approval_key_id,
+        expected_stop_public_key_sha256=args.stop_approval_public_key_sha256,
+    )
+
+
+def _require_output_outside_disabled_roots(args: argparse.Namespace, output: Path) -> None:
+    _require_output_outside_evidence_root(args.disabled_evidence_root, output)
+    _require_output_outside_evidence_root(args.native_evidence_root, output)
+    _require_output_outside_evidence_root(args.legacy_evidence_root, output)
 
 
 def _write_optional(path: Path | None, payload: bytes) -> None:

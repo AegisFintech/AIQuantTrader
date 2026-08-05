@@ -226,20 +226,30 @@ def evaluate_disabled_observation(
         == REQUIRED_DISABLED_CAPABILITIES
     )
     all_disabled = exact_capabilities and all(item.disabled for item in capabilities.values())
+    all_disabled = all_disabled and observation.capability_audit_invalidating_events == 0
+    disabled_capabilities = sorted(
+        item.capability.value for item in observation.capabilities if item.disabled
+    )
     zero_active = exact_capabilities and all(
         item.active_instance_count == 0 for item in capabilities.values()
     )
     native_stable = (
-        observation.native_critical_incidents == 0
+        observation.native_audit_complete
+        and observation.native_critical_incidents == 0
         and observation.native_reconciliation_failures == 0
         and observation.native_risk_breaches == 0
     )
     gates = (
         _disabled_gate(
             DisabledObservationGate.POLICY_FROZEN,
-            policy.frozen_at_ns <= observation.started_ts_ns,
-            policy.frozen_at_ns,
-            f"<= {observation.started_ts_ns}",
+            policy.frozen_at_ns <= observation.started_ts_ns
+            and observation.policy_id == policy.policy_id
+            and observation.policy_sha256 == policy.sha256(),
+            (
+                f"frozen={policy.frozen_at_ns},id={observation.policy_id},"
+                f"sha256={observation.policy_sha256}"
+            ),
+            (f"frozen<={observation.started_ts_ns},id={policy.policy_id},sha256={policy.sha256()}"),
         ),
         _disabled_gate(
             DisabledObservationGate.OBSERVATION_WINDOW,
@@ -248,9 +258,21 @@ def evaluate_disabled_observation(
             policy.minimum_disabled_observation_ns,
         ),
         _disabled_gate(
+            DisabledObservationGate.EVIDENCE_CONTINUITY,
+            observation.maximum_capability_gap_ns <= policy.maximum_disabled_evidence_gap_ns,
+            (
+                f"samples={observation.capability_sample_count},"
+                f"maximum_gap_ns={observation.maximum_capability_gap_ns}"
+            ),
+            f"maximum_gap_ns<={policy.maximum_disabled_evidence_gap_ns}",
+        ),
+        _disabled_gate(
             DisabledObservationGate.ALL_CAPABILITIES_DISABLED,
             all_disabled,
-            sorted(item.capability.value for item in observation.capabilities if item.disabled),
+            (
+                f"disabled={disabled_capabilities},"
+                f"invalidating_events={observation.capability_audit_invalidating_events}"
+            ),
             sorted(item.value for item in REQUIRED_DISABLED_CAPABILITIES),
         ),
         _disabled_gate(
@@ -261,19 +283,24 @@ def evaluate_disabled_observation(
         ),
         _disabled_gate(
             DisabledObservationGate.NO_LEGACY_ORDERS,
-            observation.legacy_broker_orders_after_stop == 0,
-            observation.legacy_broker_orders_after_stop,
-            0,
+            observation.legacy_broker_order_audit_complete
+            and observation.legacy_broker_orders_after_stop == 0,
+            (
+                f"complete={observation.legacy_broker_order_audit_complete},"
+                f"orders={observation.legacy_broker_orders_after_stop}"
+            ),
+            "complete=True,orders=0",
         ),
         _disabled_gate(
             DisabledObservationGate.NATIVE_STABLE,
             native_stable,
             (
+                f"complete={observation.native_audit_complete},"
                 f"critical={observation.native_critical_incidents},"
                 f"reconciliation={observation.native_reconciliation_failures},"
                 f"risk={observation.native_risk_breaches}"
             ),
-            "critical=0,reconciliation=0,risk=0",
+            "complete=True,critical=0,reconciliation=0,risk=0",
         ),
         _disabled_gate(
             DisabledObservationGate.ARCHIVE_REVERIFIED,
@@ -290,7 +317,7 @@ def evaluate_disabled_observation(
     )
     generated = time.time_ns() if generated_ts_ns is None else generated_ts_ns
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "retirement_id": observation.retirement_id,
         "policy_id": policy.policy_id,
         "policy_sha256": policy.sha256(),

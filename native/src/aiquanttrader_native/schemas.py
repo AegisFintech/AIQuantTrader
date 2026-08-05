@@ -92,6 +92,8 @@ from aiquanttrader_native.research.models import (
     SearchReceipt,
 )
 from aiquanttrader_native.retirement.models import (
+    DisabledCredentialScanEvidence,
+    DisabledEvidenceManifest,
     DisabledObservation,
     DisabledObservationReport,
     LegacyArchiveCredentialScanEvidence,
@@ -100,11 +102,16 @@ from aiquanttrader_native.retirement.models import (
     LegacyArchiveManifest,
     LegacyArchiveRestoreEvidence,
     LegacyBrokerAccountStateEvidence,
+    LegacyBrokerOrderAuditEvidence,
+    LegacyCapabilityAuditEvidence,
     LegacyCleanupManifest,
+    LegacyCredentialQuarantineEvidence,
     LegacyFinalState,
     LegacyFinalTagEvidence,
     LegacyFinalTradeReportEvidence,
     LegacyServiceConfigurationEvidence,
+    LegacyStopExecutionEvidence,
+    NativeDisabledWindowEvidence,
     NativeDrillEvidence,
     NativeProductionObservation,
     ProductionEvidenceManifest,
@@ -246,6 +253,13 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | RetirementReadinessReport
         | DisabledObservation
         | DisabledObservationReport
+        | DisabledEvidenceManifest
+        | DisabledCredentialScanEvidence
+        | LegacyStopExecutionEvidence
+        | LegacyCapabilityAuditEvidence
+        | LegacyBrokerOrderAuditEvidence
+        | LegacyCredentialQuarantineEvidence
+        | NativeDisabledWindowEvidence
         | RetirementActionApproval
         | RetirementApprovalSignature
         | VerifiedRetirementApproval

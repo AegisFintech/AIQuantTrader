@@ -1,0 +1,18 @@
+flowchart LR
+    D[Immutable disabled evidence root<br/>6 controls + fully referenced raw files] --> A[assemble-disabled]
+    RO[Canonical readiness observation<br/>passing readiness report] --> A
+    SA[Detached stop approval + signature<br/>external Ed25519 trust identity] --> A
+    N[Immutable native-production root<br/>current authorization replay] --> A
+    L[Immutable legacy archive root<br/>restore, scan, tag, retention replay] --> A
+    P[Frozen retirement and scan policies] --> A
+
+    A --> C{Exact lineage, ordered stop,<br/>complete intervals and inventory?}
+    C -- no --> X[Fail closed<br/>no observation or report]
+    C -- yes --> O[Canonical DisabledObservation v2]
+    O --> V[verify-disabled<br/>replay every root and trust input]
+    V --> E[evaluate-disabled<br/>replay again before gates]
+    E --> G{Nine gates pass?}
+    G -- no --> H[Observation failed<br/>cleanup blocked]
+    G -- yes --> W[AWAITING CLEANUP APPROVAL]
+
+    B[No PM2, broker, exchange, wallet, signer,<br/>credential, stop, delete or network capability] -. security boundary .- A

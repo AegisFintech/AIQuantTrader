@@ -84,6 +84,10 @@ and Phase 10 evidence-only legacy-retirement boundary:
 - cross-bundle retirement-readiness assembly with a shared retirement identity,
   dual immutable-root replay, completion-time authority/freshness checks, and
   mandatory source replay during readiness report evaluation.
+- exact disabled-window assembly over ordered stop execution, six independently
+  reviewed controls, bounded capability continuity, complete broker history,
+  credential quarantine, native stability, action-time stop-approval
+  verification, and mandatory source replay before cleanup review.
 
 The Phase 6 strategy kernels are now wired into the sole Phase 4 exchange
 gateway, but the exchange order path remains disabled in every checked-in
@@ -165,6 +169,9 @@ create the final tag, or prove the broker account is flat.
 Phase 10 final-state assembly is specified in
 `../docs/migration/PHASE_10_FINAL_STATE.md`; it reads retained evidence only and
 cannot pause, flatten, stop, or otherwise act on MT5 or the broker.
+Phase 10 disabled-window assembly is specified in
+`../docs/migration/PHASE_10_DISABLED_OBSERVATION.md`; it verifies retained
+post-stop evidence and can only produce `AWAITING CLEANUP APPROVAL`.
 
 ## Execution and risk
 

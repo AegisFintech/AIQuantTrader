@@ -77,6 +77,10 @@ checklist while MT5 remains deployed.
 - [ ] Assemble and independently verify readiness against both immutable roots;
   schema-v3 native and legacy retirement identities match, authority and final
   state remain current after replay, and evaluation repeats source verification.
+- [ ] Before cleanup review, assemble and independently replay the exact
+  disabled-window bundle; stop approval was valid at action completion, all ten
+  capabilities have five-minute continuity, broker/credential/native intervals
+  are complete, and evaluation repeats all source and trust verification.
 - [ ] The complete 15-scenario final-testnet report passed with real retained
   evidence, flat final state, resolved unknown outcomes, and no mainnet key.
 - [ ] The unsigned bundle was created at a new path, all receipt hashes and

@@ -833,6 +833,7 @@ class RetirementPolicy(DomainModel):
     minimum_native_production_observation_ns: int = Field(gt=0)
     maximum_native_operational_gap_ns: int = Field(gt=0)
     minimum_disabled_observation_ns: int = Field(gt=0)
+    maximum_disabled_evidence_gap_ns: int = Field(gt=0)
     minimum_archive_retention_ns: int = Field(gt=0)
     maximum_final_state_capture_skew_ns: int = Field(gt=0)
     maximum_final_state_age_ns: int = Field(gt=0)
@@ -916,6 +917,396 @@ class RetirementReadinessReport(DomainModel):
         return self
 
 
+class DisabledEvidenceArtifactKind(StrEnum):
+    STOP_EXECUTION_OUTPUT = "stop_execution_output"
+    CAPABILITY_SNAPSHOT = "capability_snapshot"
+    BROKER_ORDER_EXPORT = "broker_order_export"
+    CREDENTIAL_QUARANTINE_AUDIT = "credential_quarantine_audit"
+    NATIVE_OPERATIONAL_AUDIT = "native_operational_audit"
+
+
+REQUIRED_DISABLED_EVIDENCE_ARTIFACT_KINDS = frozenset(DisabledEvidenceArtifactKind)
+
+
+class DisabledEvidenceArtifact(DomainModel):
+    artifact_id: Identifier
+    kind: DisabledEvidenceArtifactKind
+    relative_path: Annotated[str, Field(min_length=1, max_length=512)]
+    content_sha256: Sha256
+    byte_count: int = Field(gt=0, le=268_435_456)
+    captured_start_ts_ns: int = Field(ge=0)
+    captured_end_ts_ns: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def path_and_interval_are_bounded(self) -> Self:
+        path = PurePosixPath(self.relative_path)
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or len(path.parts) < 2
+            or path.parts[0] != "raw"
+        ):
+            raise ValueError("disabled evidence artifacts must be below raw/ without traversal")
+        if self.captured_end_ts_ns < self.captured_start_ts_ns:
+            raise ValueError("disabled evidence artifact interval is reversed")
+        return self
+
+
+class DisabledEvidenceControlKind(StrEnum):
+    STOP_EXECUTION = "stop_execution"
+    CAPABILITY_AUDIT = "capability_audit"
+    BROKER_ORDER_AUDIT = "broker_order_audit"
+    CREDENTIAL_QUARANTINE = "credential_quarantine"
+    NATIVE_STABILITY_AUDIT = "native_stability_audit"
+    CREDENTIAL_SCAN = "credential_scan"
+
+
+REQUIRED_DISABLED_EVIDENCE_CONTROLS = frozenset(DisabledEvidenceControlKind)
+
+
+class DisabledEvidenceControl(DomainModel):
+    kind: DisabledEvidenceControlKind
+    relative_path: Annotated[str, Field(min_length=1, max_length=512)]
+    content_sha256: Sha256
+    byte_count: int = Field(gt=0, le=16_777_216)
+    captured_ts_ns: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def path_is_bounded_to_controls(self) -> Self:
+        path = PurePosixPath(self.relative_path)
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or len(path.parts) < 2
+            or path.parts[0] != "controls"
+        ):
+            raise ValueError("disabled evidence controls must be below controls/ without traversal")
+        return self
+
+
+class RequiredLegacyStopAction(StrEnum):
+    STOP_WATCHDOG = "stop_watchdog"
+    STOP_REVIEW = "stop_review"
+    STOP_MT5 = "stop_mt5"
+    STOP_DASHBOARD = "stop_dashboard"
+    REMOVE_PM2_STARTUP = "remove_pm2_startup"
+    DISABLE_CRON = "disable_cron"
+    DISABLE_NGINX_ROUTE = "disable_nginx_route"
+    DISABLE_LOGROTATE = "disable_logrotate"
+    DISABLE_MT5_AUTOSTART = "disable_mt5_autostart"
+    QUARANTINE_CREDENTIALS = "quarantine_credentials"
+    VERIFY_ZERO_MT5_PROCESSES = "verify_zero_mt5_processes"
+    VERIFY_ZERO_COMMAND_WRITERS = "verify_zero_command_writers"
+    VERIFY_ZERO_BROKER_ORDERS = "verify_zero_broker_orders"
+
+
+REQUIRED_LEGACY_STOP_ACTIONS = tuple(RequiredLegacyStopAction)
+
+
+class LegacyStopActionEvidence(DomainModel):
+    action: RequiredLegacyStopAction
+    completed_ts_ns: int = Field(ge=0)
+    succeeded: Literal[True] = True
+    evidence_path: Annotated[str, Field(min_length=1, max_length=512)]
+
+    @model_validator(mode="after")
+    def evidence_path_is_safe(self) -> Self:
+        path = PurePosixPath(self.evidence_path)
+        if not path.parts or path.is_absolute() or ".." in path.parts or path.parts[0] != "raw":
+            raise ValueError("legacy stop action evidence must reference raw/ without traversal")
+        return self
+
+
+class LegacyStopExecutionEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    readiness_report_sha256: Sha256
+    stop_approval_sha256: Sha256
+    started_ts_ns: int = Field(ge=0)
+    ended_ts_ns: int = Field(ge=0)
+    operator: Annotated[str, Field(min_length=1, max_length=256)]
+    reviewer: Annotated[str, Field(min_length=1, max_length=256)]
+    actions: tuple[LegacyStopActionEvidence, ...] = Field(
+        min_length=len(REQUIRED_LEGACY_STOP_ACTIONS),
+        max_length=len(REQUIRED_LEGACY_STOP_ACTIONS),
+    )
+    invalidating_events: tuple[Identifier, ...] = ()
+
+    @model_validator(mode="after")
+    def interval_order_and_review_are_valid(self) -> Self:
+        if self.ended_ts_ns <= self.started_ts_ns:
+            raise ValueError("legacy stop execution must have a positive interval")
+        if self.operator == self.reviewer:
+            raise ValueError("legacy stop execution requires an independent reviewer")
+        if tuple(item.action for item in self.actions) != REQUIRED_LEGACY_STOP_ACTIONS:
+            raise ValueError("legacy stop execution actions must be exact and ordered")
+        timestamps = tuple(item.completed_ts_ns for item in self.actions)
+        if (
+            timestamps != tuple(sorted(timestamps))
+            or timestamps[0] < self.started_ts_ns
+            or timestamps[-1] > self.ended_ts_ns
+        ):
+            raise ValueError("legacy stop execution action timing is invalid")
+        if len(self.invalidating_events) != len(set(self.invalidating_events)):
+            raise ValueError("legacy stop execution invalidating events must be unique")
+        if self.invalidating_events:
+            raise ValueError("legacy stop execution contains invalidating events")
+        return self
+
+
+class LegacyCapabilityState(DomainModel):
+    capability: LegacyCapability
+    disabled: bool
+    active_instance_count: int = Field(ge=0, le=65_536)
+
+
+class LegacyCapabilitySample(DomainModel):
+    observed_ts_ns: int = Field(ge=0)
+    evidence_path: Annotated[str, Field(min_length=1, max_length=512)]
+    states: tuple[LegacyCapabilityState, ...] = Field(
+        min_length=len(REQUIRED_DISABLED_CAPABILITIES),
+        max_length=len(REQUIRED_DISABLED_CAPABILITIES),
+    )
+
+    @model_validator(mode="after")
+    def capability_set_and_path_are_exact(self) -> Self:
+        capabilities = [item.capability for item in self.states]
+        if (
+            len(capabilities) != len(set(capabilities))
+            or set(capabilities) != REQUIRED_DISABLED_CAPABILITIES
+        ):
+            raise ValueError("disabled capability sample must cover every capability")
+        path = PurePosixPath(self.evidence_path)
+        if not path.parts or path.is_absolute() or ".." in path.parts or path.parts[0] != "raw":
+            raise ValueError("disabled capability sample must reference raw/ without traversal")
+        return self
+
+
+class LegacyCapabilityAuditEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    started_ts_ns: int = Field(ge=0)
+    ended_ts_ns: int = Field(ge=0)
+    reviewed_ts_ns: int = Field(ge=0)
+    collected_by: Annotated[str, Field(min_length=1, max_length=256)]
+    reviewed_by: Annotated[str, Field(min_length=1, max_length=256)]
+    samples: tuple[LegacyCapabilitySample, ...] = Field(min_length=2, max_length=8_192)
+    invalidating_events: tuple[Identifier, ...] = ()
+
+    @model_validator(mode="after")
+    def interval_samples_and_review_are_valid(self) -> Self:
+        if self.ended_ts_ns <= self.started_ts_ns or self.reviewed_ts_ns < self.ended_ts_ns:
+            raise ValueError("legacy capability audit interval or review time is invalid")
+        if self.collected_by == self.reviewed_by:
+            raise ValueError("legacy capability audit requires an independent reviewer")
+        timestamps = tuple(item.observed_ts_ns for item in self.samples)
+        if timestamps != tuple(sorted(set(timestamps))):
+            raise ValueError("legacy capability samples must be unique and ordered")
+        if timestamps[0] < self.started_ts_ns or timestamps[-1] > self.ended_ts_ns:
+            raise ValueError("legacy capability sample escapes the audited interval")
+        if len(self.invalidating_events) != len(set(self.invalidating_events)):
+            raise ValueError("legacy capability invalidating events must be unique")
+        return self
+
+
+class LegacyPostStopBrokerOrder(DomainModel):
+    order_id_sha256: Sha256
+    instrument_id: Identifier
+    created_ts_ns: int = Field(ge=0)
+
+
+class LegacyBrokerOrderAuditEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    queried_start_ts_ns: int = Field(ge=0)
+    queried_end_ts_ns: int = Field(ge=0)
+    captured_ts_ns: int = Field(ge=0)
+    reviewed_ts_ns: int = Field(ge=0)
+    captured_by: Annotated[str, Field(min_length=1, max_length=256)]
+    reviewed_by: Annotated[str, Field(min_length=1, max_length=256)]
+    account_login_sha256: Sha256
+    broker_server_sha256: Sha256
+    coverage_complete: bool
+    source_evidence_path: Annotated[str, Field(min_length=1, max_length=512)]
+    orders: tuple[LegacyPostStopBrokerOrder, ...] = Field(default=(), max_length=100_000)
+
+    @model_validator(mode="after")
+    def interval_inventory_and_review_are_valid(self) -> Self:
+        if (
+            self.queried_end_ts_ns <= self.queried_start_ts_ns
+            or self.captured_ts_ns < self.queried_end_ts_ns
+            or self.reviewed_ts_ns < self.captured_ts_ns
+        ):
+            raise ValueError("legacy broker order audit interval is invalid")
+        if self.captured_by == self.reviewed_by:
+            raise ValueError("legacy broker order audit requires an independent reviewer")
+        order_ids = [item.order_id_sha256 for item in self.orders]
+        if len(order_ids) != len(set(order_ids)):
+            raise ValueError("legacy broker order audit contains duplicate orders")
+        if any(
+            not self.queried_start_ts_ns <= item.created_ts_ns <= self.queried_end_ts_ns
+            for item in self.orders
+        ):
+            raise ValueError("legacy broker order escapes the queried interval")
+        path = PurePosixPath(self.source_evidence_path)
+        if not path.parts or path.is_absolute() or ".." in path.parts or path.parts[0] != "raw":
+            raise ValueError("legacy broker order audit must reference raw/ without traversal")
+        return self
+
+
+class LegacyCredentialQuarantineCheck(DomainModel):
+    credential_id: Identifier
+    quarantined: bool
+    active_reader_count: int = Field(ge=0, le=65_536)
+    evidence_path: Annotated[str, Field(min_length=1, max_length=512)]
+
+    @model_validator(mode="after")
+    def evidence_path_is_safe(self) -> Self:
+        path = PurePosixPath(self.evidence_path)
+        if not path.parts or path.is_absolute() or ".." in path.parts or path.parts[0] != "raw":
+            raise ValueError("credential quarantine check must reference raw/ without traversal")
+        return self
+
+
+class LegacyCredentialQuarantineEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    started_ts_ns: int = Field(ge=0)
+    observed_through_ts_ns: int = Field(ge=0)
+    reviewed_ts_ns: int = Field(ge=0)
+    collected_by: Annotated[str, Field(min_length=1, max_length=256)]
+    reviewed_by: Annotated[str, Field(min_length=1, max_length=256)]
+    inventory_complete: bool
+    continuous_audit: bool
+    checks: tuple[LegacyCredentialQuarantineCheck, ...] = Field(min_length=1, max_length=128)
+
+    @model_validator(mode="after")
+    def interval_inventory_and_review_are_valid(self) -> Self:
+        if (
+            self.observed_through_ts_ns <= self.started_ts_ns
+            or self.reviewed_ts_ns < self.observed_through_ts_ns
+        ):
+            raise ValueError("credential quarantine interval or review time is invalid")
+        if self.collected_by == self.reviewed_by:
+            raise ValueError("credential quarantine requires an independent reviewer")
+        identities = [item.credential_id for item in self.checks]
+        if len(identities) != len(set(identities)):
+            raise ValueError("credential quarantine inventory contains duplicates")
+        return self
+
+
+class NativeDisabledWindowEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    native_deployment_id: Identifier
+    native_admission_id: Sha256
+    started_ts_ns: int = Field(ge=0)
+    ended_ts_ns: int = Field(ge=0)
+    reviewed_ts_ns: int = Field(ge=0)
+    collected_by: Annotated[str, Field(min_length=1, max_length=256)]
+    reviewed_by: Annotated[str, Field(min_length=1, max_length=256)]
+    continuous_monitoring: bool
+    critical_incidents: int = Field(ge=0)
+    reconciliation_failures: int = Field(ge=0)
+    risk_breaches: int = Field(ge=0)
+    evidence_paths: tuple[Annotated[str, Field(min_length=1, max_length=512)], ...] = Field(
+        min_length=1,
+        max_length=1_024,
+    )
+
+    @model_validator(mode="after")
+    def interval_references_and_review_are_valid(self) -> Self:
+        if self.ended_ts_ns <= self.started_ts_ns or self.reviewed_ts_ns < self.ended_ts_ns:
+            raise ValueError("native disabled-window audit interval or review time is invalid")
+        if self.collected_by == self.reviewed_by:
+            raise ValueError("native disabled-window audit requires an independent reviewer")
+        if len(self.evidence_paths) != len(set(self.evidence_paths)):
+            raise ValueError("native disabled-window evidence paths must be unique")
+        for value in self.evidence_paths:
+            path = PurePosixPath(value)
+            if not path.parts or path.is_absolute() or ".." in path.parts or path.parts[0] != "raw":
+                raise ValueError("native disabled-window audit must reference raw/ evidence")
+        return self
+
+
+class DisabledCredentialScanCheck(DomainModel):
+    artifact_id: Identifier
+    artifact_sha256: Sha256
+    recursive_scan_completed: Literal[True] = True
+    finding_count: Literal[0] = 0
+
+
+class DisabledCredentialScanEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    started_ts_ns: int = Field(ge=0)
+    ended_ts_ns: int = Field(ge=0)
+    reviewed_ts_ns: int = Field(ge=0)
+    reviewer: Annotated[str, Field(min_length=1, max_length=256)]
+    scanner_name: Annotated[str, Field(min_length=1, max_length=128)]
+    scanner_version: Annotated[str, Field(min_length=1, max_length=128)]
+    policy_id: Identifier
+    policy_sha256: Sha256
+    checks: tuple[DisabledCredentialScanCheck, ...] = Field(min_length=5, max_length=8_192)
+    findings: tuple[Identifier, ...] = ()
+
+    @model_validator(mode="after")
+    def interval_checks_and_findings_are_valid(self) -> Self:
+        if self.ended_ts_ns <= self.started_ts_ns or self.reviewed_ts_ns < self.ended_ts_ns:
+            raise ValueError("disabled credential scan interval or review time is invalid")
+        artifact_ids = [item.artifact_id for item in self.checks]
+        if len(artifact_ids) != len(set(artifact_ids)):
+            raise ValueError("disabled credential scan contains duplicate artifact checks")
+        if self.findings:
+            raise ValueError("disabled credential scan contains findings")
+        return self
+
+
+class DisabledEvidenceManifest(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    created_ts_ns: int = Field(ge=0)
+    started_ts_ns: int = Field(ge=0)
+    ended_ts_ns: int = Field(ge=0)
+    readiness_report_sha256: Sha256
+    stop_approval_sha256: Sha256
+    archive_manifest_sha256: Sha256
+    native_deployment_id: Identifier
+    native_admission_id: Sha256
+    contains_credentials: Literal[False] = False
+    artifacts: tuple[DisabledEvidenceArtifact, ...] = Field(min_length=5, max_length=8_192)
+    controls: tuple[DisabledEvidenceControl, ...] = Field(
+        min_length=len(REQUIRED_DISABLED_EVIDENCE_CONTROLS),
+        max_length=len(REQUIRED_DISABLED_EVIDENCE_CONTROLS),
+    )
+
+    @model_validator(mode="after")
+    def interval_and_inventory_are_exact(self) -> Self:
+        if self.ended_ts_ns <= self.started_ts_ns or self.created_ts_ns < self.ended_ts_ns:
+            raise ValueError("disabled evidence interval or creation time is invalid")
+        artifact_ids = [item.artifact_id for item in self.artifacts]
+        artifact_paths = [item.relative_path for item in self.artifacts]
+        control_kinds = [item.kind for item in self.controls]
+        control_paths = [item.relative_path for item in self.controls]
+        if len(artifact_ids) != len(set(artifact_ids)):
+            raise ValueError("disabled evidence artifact identities must be unique")
+        if set(item.kind for item in self.artifacts) != REQUIRED_DISABLED_EVIDENCE_ARTIFACT_KINDS:
+            raise ValueError("disabled evidence artifact categories are incomplete")
+        if (
+            len(control_kinds) != len(set(control_kinds))
+            or set(control_kinds) != REQUIRED_DISABLED_EVIDENCE_CONTROLS
+        ):
+            raise ValueError("disabled evidence control inventory is not exact")
+        paths = (*artifact_paths, *control_paths)
+        if len(paths) != len(set(paths)):
+            raise ValueError("disabled evidence paths must be unique")
+        if any(item.captured_end_ts_ns > self.created_ts_ns for item in self.artifacts) or any(
+            item.captured_ts_ns > self.created_ts_ns for item in self.controls
+        ):
+            raise ValueError("disabled evidence cannot be captured after manifest creation")
+        return self
+
+
 class LegacyCapabilityObservation(DomainModel):
     capability: LegacyCapability
     disabled: bool
@@ -924,31 +1315,46 @@ class LegacyCapabilityObservation(DomainModel):
 
 
 class DisabledObservation(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     retirement_id: Identifier
+    policy_id: Identifier
+    policy_sha256: Sha256
+    assembled_ts_ns: int = Field(ge=0)
     readiness_report_sha256: Sha256
     stop_approval_sha256: Sha256
+    stop_approval_verification_id: Sha256
     archive_manifest_sha256: Sha256
+    archive_bundle_sha256: Sha256
     native_deployment_id: Identifier
     native_admission_id: Sha256
+    native_observation_sha256: Sha256
     started_ts_ns: int = Field(ge=0)
     ended_ts_ns: int = Field(ge=0)
+    capability_sample_count: int = Field(ge=2, le=8_192)
+    maximum_capability_gap_ns: int = Field(gt=0)
+    capability_audit_invalidating_events: int = Field(ge=0)
     native_critical_incidents: int = Field(ge=0)
     native_reconciliation_failures: int = Field(ge=0)
     native_risk_breaches: int = Field(ge=0)
+    native_audit_complete: bool
     legacy_broker_orders_after_stop: int = Field(ge=0)
-    archive_reverified: bool
+    legacy_broker_order_audit_complete: bool
+    archive_reverified: Literal[True] = True
     legacy_credentials_quarantined: bool
     capabilities: tuple[LegacyCapabilityObservation, ...] = Field(
         min_length=len(REQUIRED_DISABLED_CAPABILITIES),
         max_length=len(REQUIRED_DISABLED_CAPABILITIES),
     )
+    evidence_manifest_sha256: Sha256
+    credential_scan_sha256: Sha256
     evidence_bundle_sha256: Sha256
 
     @model_validator(mode="after")
     def interval_and_capabilities_are_exact(self) -> Self:
         if self.ended_ts_ns <= self.started_ts_ns:
             raise ValueError("disabled observation must have a positive interval")
+        if self.assembled_ts_ns < self.ended_ts_ns:
+            raise ValueError("disabled observation assembly cannot predate its interval")
         capabilities = [item.capability for item in self.capabilities]
         if (
             len(capabilities) != len(set(capabilities))
@@ -961,6 +1367,7 @@ class DisabledObservation(DomainModel):
 class DisabledObservationGate(StrEnum):
     POLICY_FROZEN = "policy_frozen"
     OBSERVATION_WINDOW = "observation_window"
+    EVIDENCE_CONTINUITY = "evidence_continuity"
     ALL_CAPABILITIES_DISABLED = "all_capabilities_disabled"
     ZERO_ACTIVE_INSTANCES = "zero_active_instances"
     NO_LEGACY_ORDERS = "no_legacy_orders"
@@ -977,7 +1384,7 @@ class DisabledGateResult(DomainModel):
 
 
 class DisabledObservationReport(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     report_id: Sha256
     retirement_id: Identifier
     policy_id: Identifier
