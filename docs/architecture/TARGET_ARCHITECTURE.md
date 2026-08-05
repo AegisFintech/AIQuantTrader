@@ -3,7 +3,7 @@
 Status: accepted; implemented incrementally under phase acceptance gates
 Target venue: Hyperliquid
 Target instrument: `BTC-USD-PERP.HYPERLIQUID`
-Legacy runtime: MT5/XAUUSD remains operational until Phase 9 cutover
+Legacy runtime: MT5/XAUUSD remains operational until separately approved Phase 10 retirement
 
 ## Objectives
 
@@ -319,7 +319,7 @@ minimum permissions required for their services.
 During the parallel migration, native Python is isolated under
 `native/src/aiquanttrader_native` so its dependency graph cannot alter the
 deployed MT5 package. The final `src/aiquanttrader` topology shown in this
-document is established only during the Phase 9 legacy-removal cutover. ADR 0008
+document is established only during the Phase 10 legacy-removal cutover. ADR 0008
 records this temporary package boundary and its removal condition.
 
 ## Performance policy

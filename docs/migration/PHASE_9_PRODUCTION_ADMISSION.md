@@ -93,10 +93,12 @@ flatten through the venue control plane when required.
   restart/reconciliation, credential-rotation, operator-kill, and dead-man
   evidence;
 - a separate signed approval before production scale;
-- explicit owner approval for the final MT5 archival and retirement runbook.
+- separate Phase 10 readiness evidence plus signed stop and cleanup approvals
+  for the final MT5 archival and retirement runbook.
 
 See the [mainnet runbook](../operations/MAINNET_CANARY_RUNBOOK.md),
-[retirement runbook](../operations/LEGACY_RETIREMENT_RUNBOOK.md), and
+[retirement runbook](../operations/LEGACY_RETIREMENT_RUNBOOK.md),
+[Phase 10 retirement design](PHASE_10_LEGACY_RETIREMENT.md), and
 [admission diagram](../architecture/diagrams/phase-9-production-admission.mmd).
 The preceding preparation boundary is specified in
 [Phase 9 release evidence](PHASE_9_RELEASE_EVIDENCE.md).

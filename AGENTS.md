@@ -20,6 +20,7 @@ only the standard BTC perpetual, represented as
 - `docs/migration/PHASE_8_SHADOW.md`
 - `docs/migration/PHASE_9_PRODUCTION_ADMISSION.md`
 - `docs/migration/PHASE_9_RELEASE_EVIDENCE.md`
+- `docs/migration/PHASE_10_LEGACY_RETIREMENT.md`
 - `docs/operations/NATIVE_PLATFORM_THREAT_MODEL.md`
 - `docs/operations/NATIVE_RELEASE_CHECKLIST.md`
 - `docs/operations/EXECUTION_RISK_RUNBOOK.md`
@@ -44,12 +45,14 @@ Migration rules:
   approval pass.
 - Keep native trading, control, research, and legacy MT5 credentials and process
   ownership separate.
-- Do not delete or disable legacy components until the Phase 9 archival and
-  retirement procedure is approved and completed.
+- Do not disable legacy components until Phase 10 has a passing exact readiness
+  report and a verified `stop_and_observe` approval. Do not remove legacy
+  components until the disabled observation passes and a separate verified
+  `remove_and_clean` approval binds the exact cleanup manifest.
 - When migration and legacy instructions differ, apply migration instructions
   only to native-platform files and legacy instructions only to the deployed
   MT5 runtime.
-- Until Phase 9 retirement, native Python belongs under
+- Until Phase 10 cleanup, native Python belongs under
   `native/src/aiquanttrader_native`; do not introduce native dependencies into
   the deployed legacy `aiquanttrader` package. See ADR 0008.
 - Checked-in native environment overlays must keep execution disabled. The
@@ -83,6 +86,11 @@ AIQuantTrader is now an MT5-first autonomous demo-trading repo. Trade and optimi
 ## Source of truth
 
 - Repository navigation map: `docs/REPOSITORY_MAP.md` (read this before broad rescans)
+- Native legacy-retirement boundary:
+  `docs/migration/PHASE_10_LEGACY_RETIREMENT.md` and
+  `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md`. `aqt-retirement` is
+  evidence-only and must never gain PM2, deletion, package-manager, credential,
+  broker, exchange, or network actions.
 - Native public-data runbook: `docs/operations/MARKET_DATA_RUNBOOK.md`. The
   recorder and normalizer are isolated from the deployed MT5 processes and
   cannot submit orders. Phase 3 acceptance remains gated on a sustained soak.

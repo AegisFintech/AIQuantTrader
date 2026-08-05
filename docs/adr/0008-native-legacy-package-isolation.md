@@ -19,7 +19,8 @@ It cannot import the legacy package, and legacy code cannot import the native
 package. Root pytest discovery remains scoped to `tests/`; the native project
 owns and runs `native/tests/` from its independently locked environment.
 
-After Phase 9 disables and archives MT5, a dedicated mechanical migration will:
+After Phase 10 disables, observes, archives, and separately approves MT5
+cleanup, a dedicated mechanical migration will:
 
 1. remove the retired root package;
 2. move `native/src/aiquanttrader_native` to `src/aiquanttrader`;

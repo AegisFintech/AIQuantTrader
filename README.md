@@ -10,10 +10,11 @@ and [`docs/migration/MT5_TO_HYPERLIQUID.md`](docs/migration/MT5_TO_HYPERLIQUID.m
 
 The migration is a parallel replacement. No native production trading is
 authorized by the architecture approval alone, and automated research may not
-promote a model into production. Until the Phase 9 cutover is separately
-approved, the deployed runtime remains the MT5 demo system described below.
+promote a model into production. Until Phase 10 retirement completes under two
+separate signed approvals, the deployed runtime remains the MT5 demo system
+described below.
 
-Phases 2-9 now provide the isolated native foundation, raw-first Hyperliquid
+Phases 2-10 now provide the isolated native foundation, raw-first Hyperliquid
 market-data path, fail-closed execution/risk path, causal BTC replay and
 validation, BTC feature/strategy/research framework, and credential-free live
 paper trading, plus network-isolated shadow deployment. Phase 4 uses
@@ -39,6 +40,17 @@ funds, or activates mainnet, and MT5 is not retired. See
 [`docs/migration/PHASE_9_RELEASE_EVIDENCE.md`](docs/migration/PHASE_9_RELEASE_EVIDENCE.md),
 and
 [`docs/operations/MAINNET_CANARY_RUNBOOK.md`](docs/operations/MAINNET_CANARY_RUNBOOK.md).
+
+Phase 10 is the explicit legacy stop, observation, removal, and repository
+cleanup phase. Its credential-free tooling can evaluate immutable evidence,
+validate an exact cleanup manifest, and verify short-lived offline signatures;
+it cannot stop services or delete anything. MT5 shutdown requires a signed
+`stop_and_observe` approval after stable native production and a final restored
+archive. Removal requires seven days disabled under the baseline policy plus a
+separate signed `remove_and_clean` approval. See
+[`docs/migration/PHASE_10_LEGACY_RETIREMENT.md`](docs/migration/PHASE_10_LEGACY_RETIREMENT.md)
+and the
+[`legacy retirement runbook`](docs/operations/LEGACY_RETIREMENT_RUNBOOK.md).
 
 Phase 5 converts manifest-admitted Tardis and local captures into deterministic
 HftBacktest events, runs versioned baseline/pessimistic execution assumptions,
@@ -241,7 +253,7 @@ rm -rf .runtime
 ## Legacy runtime guardrails
 
 - These guardrails remain authoritative for the deployed MT5 runtime until its
-  Phase 9 retirement.
+  approved Phase 10 retirement completes.
 - Demo-only unless the owner explicitly says otherwise.
 - Trade only `XAUUSD`.
 - Keep PM2 as the service manager.

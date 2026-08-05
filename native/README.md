@@ -7,9 +7,9 @@ perpetual platform. During migration it deliberately uses the import package
 
 The package currently provides the Phase 2 foundation, Phase 3 public market
 data path, Phase 4 fail-closed execution/risk path, Phase 5 causal backtesting
-framework, Phase 6 BTC research/strategy framework, Phase 7 paper path, and
-Phase 8 network-isolated shadow path, and the Phase 9 production-admission
-boundary:
+framework, Phase 6 BTC research/strategy framework, Phase 7 paper path,
+Phase 8 network-isolated shadow path, Phase 9 production-admission boundary,
+and Phase 10 evidence-only legacy-retirement boundary:
 
 - typed, fail-closed deployment configuration;
 - versioned market-data, feature, experiment, and deployment schemas;
@@ -65,6 +65,9 @@ boundary:
   review and signing.
 - hash-linked execution/sentinel safety evidence plus a credential-free,
   deterministic assembler for strict stopped final-testnet bundles.
+- typed final-archive/readiness and disabled-window evidence, scoped retirement
+  approvals, exact cleanup manifests, and offline Ed25519 verification with no
+  stop, removal, credential, package-manager, network, or trading capability.
 
 The Phase 6 strategy kernels are now wired into the sole Phase 4 exchange
 gateway, but the exchange order path remains disabled in every checked-in
@@ -99,6 +102,12 @@ Environment overrides use a double-underscore path and the prefix
 ```bash
 AQT_NATIVE__OBSERVABILITY__HEALTH_PORT=9200 \
   uv run aqt-native validate-config --config-dir configs --environment paper
+```
+
+Evaluate retained Phase 10 evidence without performing any operational action:
+
+```bash
+uv run aqt-retirement --help
 ```
 
 Configuration never accepts a private key value. It accepts only absolute

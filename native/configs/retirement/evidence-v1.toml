@@ -1,0 +1,37 @@
+schema_version = 1
+policy_id = "legacy-mt5-retirement-v1"
+frozen_at_ns = 1785859200000000000
+minimum_native_production_observation_ns = 2592000000000000
+minimum_disabled_observation_ns = 604800000000000
+minimum_archive_retention_ns = 31536000000000000
+required_archive_artifacts = [
+  "final_trade_report",
+  "broker_account_state",
+  "deployed_release",
+  "runtime_configuration",
+  "common_files",
+  "deal_order_history",
+  "strategy_research",
+  "service_configuration",
+  "operational_logs",
+  "restore_test",
+  "operator_timeline",
+]
+required_disabled_capabilities = [
+  "pm2_aiquanttrader_mt5",
+  "pm2_aiquanttrader_watchdog",
+  "pm2_aiquanttrader_review",
+  "pm2_aiquanttrader_dashboard",
+  "aiquanttrader_cron",
+  "legacy_dashboard_nginx_route",
+  "legacy_logrotate_policy",
+  "mt5_autostart",
+  "wine_mt5_process",
+  "mt5_command_file_writer",
+]
+required_native_drills = [
+  "native_rollback",
+  "backup_restore",
+  "alert_delivery",
+  "operator_access",
+]
