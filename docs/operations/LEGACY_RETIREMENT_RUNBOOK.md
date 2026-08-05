@@ -178,10 +178,18 @@ evidence. Only then obtain a new `remove_and_clean` approval. This approval must
 bind the disabled report and source-replayed exact cleanup manifest. A stop
 approval cannot authorize cleanup.
 
+After signing, capture every approved target again into a distinct complete
+cleanup-evidence root. Run `prepare-cleanup-preflight`, then have another
+operator run `verify-cleanup-preflight` against the same roots and external
+trust pins. The entire new evidence capture must postdate approval, remain
+inside the frozen five-minute bound, and reproduce every target inventory and
+stable state hash. An expired receipt is never refreshed; recapture and repeat.
+See [`PHASE_10_CLEANUP_PREFLIGHT.md`](../migration/PHASE_10_CLEANUP_PREFLIGHT.md).
+
 ## Gate E: cleanup execution and PR
 
-1. Snapshot current host inventory and reverify approval, archive, disabled
-   state, and cleanup-manifest hashes.
+1. Require a still-valid independently replayed cleanup-preflight receipt. It
+   proves current evidence only and does not execute or expand the approval.
 2. Move recoverable runtime targets to an approved dated quarantine location
    before permanent deletion when practical. Never use an unresolved variable,
    wildcard, repository root, home directory, or broad recursive target.

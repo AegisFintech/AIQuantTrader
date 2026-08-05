@@ -149,8 +149,10 @@ retained evidence and human approval.
 Implementation status: typed evidence, frozen baseline policy, deterministic
 native-production, legacy-archive, final-state, cross-bundle readiness, and
 disabled-window assembly/replay, exact cleanup-manifest validation, and offline
-Ed25519 verification are present. The active MT5 runtime is not authorized for
-shutdown or removal.
+Ed25519 verification are present. Action-time preflight now requires a fresh
+post-approval full evidence replay and exact target-state equality before it can
+emit a short-lived evidence-only receipt. The active MT5 runtime is not
+authorized for shutdown or removal.
 
 - The exact native production deployment and admission complete the frozen
   stable-observation window with zero critical incidents, reconciliation
@@ -194,6 +196,11 @@ shutdown or removal.
   schema-only validation is insufficient.
 - Cleanup targets contain no globs, traversal, unresolved variables, broad host
   roots, or unowned shared-package removals.
+- Immediately before action, an independently reviewed post-approval cleanup
+  bundle reproduces every target and stable state hash within the frozen
+  five-minute bound. Independent preflight replay completes before the earlier
+  state/approval expiry; a receipt performs no cleanup and cannot extend the
+  signed authority.
 - The removal PR is mechanical, completes ADR 0008, preserves evidence and Git
   history, changes no strategy/risk behavior, and passes the entire native suite
   from a clean checkout.

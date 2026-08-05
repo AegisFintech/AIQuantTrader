@@ -88,6 +88,10 @@ and Phase 10 evidence-only legacy-retirement boundary:
   reviewed controls, bounded capability continuity, complete broker history,
   credential quarantine, native stability, action-time stop-approval
   verification, and mandatory source replay before cleanup review.
+- a post-approval cleanup preflight that replays a second complete evidence
+  bundle, enforces five-minute freshness, compares every stable target hash,
+  revalidates the exact `remove_and_clean` signature, and emits only a
+  short-lived evidence receipt.
 
 The Phase 6 strategy kernels are now wired into the sole Phase 4 exchange
 gateway, but the exchange order path remains disabled in every checked-in
@@ -172,6 +176,9 @@ cannot pause, flatten, stop, or otherwise act on MT5 or the broker.
 Phase 10 disabled-window assembly is specified in
 `../docs/migration/PHASE_10_DISABLED_OBSERVATION.md`; it verifies retained
 post-stop evidence and can only produce `AWAITING CLEANUP APPROVAL`.
+Phase 10 action-time cleanup preflight is specified in
+`../docs/migration/PHASE_10_CLEANUP_PREFLIGHT.md`; it recaptures no state and
+cannot stop, revoke, remove, migrate, or delete anything.
 
 ## Execution and risk
 

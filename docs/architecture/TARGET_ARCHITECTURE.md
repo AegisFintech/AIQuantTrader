@@ -344,6 +344,14 @@ cleanup review. Five-minute capability continuity and all report totals are
 derived during replay. See
 [`diagrams/phase-10-disabled-observation.mmd`](diagrams/phase-10-disabled-observation.mmd).
 
+Cleanup action-time preflight then replays the approved cleanup bundle and a
+second complete post-approval capture. It verifies the exact short-lived
+`remove_and_clean` signature, enforces the frozen five-minute freshness bound,
+and requires identical target inventory and stable state hashes. Its receipt
+expires at the first approval/state boundary and explicitly remains
+evidence-only. See
+[`diagrams/phase-10-cleanup-preflight.mmd`](diagrams/phase-10-cleanup-preflight.mmd).
+
 Promotion gates are frozen before an experiment begins and evaluate post-cost
 PnL, drawdown and tail loss, consistency, inventory exposure, fill calibration,
 maker ratio, markouts, latency, operational failures, and drift. Prediction

@@ -60,6 +60,11 @@ from aiquanttrader_native.retirement.models import (
     RetirementPolicy,
     RetirementReadinessObservation,
 )
+from aiquanttrader_native.retirement.preflight import (
+    evaluate_cleanup_preflight,
+    load_cleanup_preflight_receipt,
+    verify_cleanup_preflight,
+)
 from aiquanttrader_native.retirement.readiness import (
     assemble_retirement_readiness_observation,
     load_retirement_readiness_observation,
@@ -161,6 +166,14 @@ def _parser() -> argparse.ArgumentParser:
     cleanup = commands.add_parser("validate-cleanup-manifest")
     cleanup.add_argument("--manifest", type=Path, required=True)
     cleanup.add_argument("--output", type=Path)
+
+    prepare_cleanup_preflight = commands.add_parser("prepare-cleanup-preflight")
+    _add_cleanup_preflight_arguments(prepare_cleanup_preflight)
+    prepare_cleanup_preflight.add_argument("--output", type=Path, required=True)
+
+    verify_cleanup_preflight_parser = commands.add_parser("verify-cleanup-preflight")
+    _add_cleanup_preflight_arguments(verify_cleanup_preflight_parser)
+    verify_cleanup_preflight_parser.add_argument("--preflight", type=Path, required=True)
 
     verify = commands.add_parser("verify-approval")
     verify.add_argument("--approval", type=Path, required=True)
@@ -431,6 +444,67 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return 0
 
+        if args.command == "prepare-cleanup-preflight":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_report, archive_manifest = _replay_cleanup_sources(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            _require_output_outside_cleanup_preflight_roots(args, args.output)
+            receipt = evaluate_cleanup_preflight(
+                args.evidence_root,
+                args.action_evidence_root,
+                load_cleanup_manifest(args.cleanup_manifest),
+                disabled_report,
+                archive_manifest,
+                cleanup_approval_paths=RetirementApprovalPaths(
+                    approval_path=args.cleanup_approval,
+                    signature_path=args.cleanup_signature,
+                    public_key_path=args.cleanup_public_key,
+                ),
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+                expected_cleanup_key_id=args.cleanup_approval_key_id,
+                expected_cleanup_public_key_sha256=args.cleanup_approval_public_key_sha256,
+            )
+            _atomic_write_new(args.output, receipt.canonical_bytes() + b"\n")
+            print(receipt.model_dump_json())
+            return 0
+
+        if args.command == "verify-cleanup-preflight":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_report, archive_manifest = _replay_cleanup_sources(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            receipt = verify_cleanup_preflight(
+                args.evidence_root,
+                args.action_evidence_root,
+                load_cleanup_preflight_receipt(args.preflight),
+                load_cleanup_manifest(args.cleanup_manifest),
+                disabled_report,
+                archive_manifest,
+                cleanup_approval_paths=RetirementApprovalPaths(
+                    approval_path=args.cleanup_approval,
+                    signature_path=args.cleanup_signature,
+                    public_key_path=args.cleanup_public_key,
+                ),
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+                expected_cleanup_key_id=args.cleanup_approval_key_id,
+                expected_cleanup_public_key_sha256=args.cleanup_approval_public_key_sha256,
+            )
+            print(receipt.model_dump_json())
+            return 0
+
         if args.command == "verify-approval":
             verified = verify_retirement_approval(
                 paths=RetirementApprovalPaths(
@@ -493,6 +567,17 @@ def _add_cleanup_source_arguments(parser: argparse.ArgumentParser) -> None:
     _add_disabled_source_arguments(parser)
     parser.add_argument("--disabled-observation", type=Path, required=True)
     parser.add_argument("--disabled-report", type=Path, required=True)
+
+
+def _add_cleanup_preflight_arguments(parser: argparse.ArgumentParser) -> None:
+    _add_cleanup_source_arguments(parser)
+    parser.add_argument("--action-evidence-root", type=Path, required=True)
+    parser.add_argument("--cleanup-manifest", type=Path, required=True)
+    parser.add_argument("--cleanup-approval", type=Path, required=True)
+    parser.add_argument("--cleanup-signature", type=Path, required=True)
+    parser.add_argument("--cleanup-public-key", type=Path, required=True)
+    parser.add_argument("--cleanup-approval-key-id", required=True)
+    parser.add_argument("--cleanup-approval-public-key-sha256", required=True)
 
 
 def _verify_readiness_from_args(
@@ -598,6 +683,15 @@ def _require_output_outside_disabled_roots(args: argparse.Namespace, output: Pat
     _require_output_outside_evidence_root(args.disabled_evidence_root, output)
     _require_output_outside_evidence_root(args.native_evidence_root, output)
     _require_output_outside_evidence_root(args.legacy_evidence_root, output)
+
+
+def _require_output_outside_cleanup_preflight_roots(
+    args: argparse.Namespace,
+    output: Path,
+) -> None:
+    _require_output_outside_evidence_root(args.evidence_root, output)
+    _require_output_outside_evidence_root(args.action_evidence_root, output)
+    _require_output_outside_disabled_roots(args, output)
 
 
 def _write_optional(path: Path | None, payload: bytes) -> None:

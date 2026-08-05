@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import time
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
+from Crypto.PublicKey import ECC
+from Crypto.Signature import eddsa
 from pydantic import ValidationError
 
 import aiquanttrader_native.retirement.cleanup as cleanup_module
+import aiquanttrader_native.retirement.preflight as preflight_module
 from aiquanttrader_native.domain.base import canonical_sha256
+from aiquanttrader_native.retirement.approval import RetirementApprovalPaths
 from aiquanttrader_native.retirement.archive import (
     load_legacy_archive_credential_scan_policy,
 )
@@ -33,6 +39,8 @@ from aiquanttrader_native.retirement.models import (
     CleanupPathInventoryEvidence,
     CleanupPathObjectType,
     CleanupPathState,
+    CleanupPreflightGate,
+    CleanupPreflightReceipt,
     CleanupScopeCheck,
     CleanupSecretState,
     CleanupTargetEvidence,
@@ -43,6 +51,15 @@ from aiquanttrader_native.retirement.models import (
     LegacyArchiveArtifact,
     LegacyArchiveArtifactKind,
     LegacyArchiveManifest,
+    LegacyCleanupManifest,
+    RetirementActionApproval,
+    RetirementActionScope,
+    RetirementApprovalSignature,
+)
+from aiquanttrader_native.retirement.preflight import (
+    evaluate_cleanup_preflight,
+    load_cleanup_preflight_receipt,
+    verify_cleanup_preflight,
 )
 
 NATIVE_ROOT = Path(__file__).parents[2]
@@ -119,6 +136,9 @@ def _bundle(
     now_ns: int,
     archive: LegacyArchiveManifest,
     report: DisabledObservationReport,
+    *,
+    root_state_sha256: str = "9" * 64,
+    rationale: str = "MQL5 execution is retired after the disabled observation",
 ) -> None:
     policy = load_retirement_policy(POLICY_PATH)
     scan_policy = load_legacy_archive_credential_scan_policy(SCAN_POLICY_PATH)
@@ -131,7 +151,7 @@ def _bundle(
             CleanupPathInventoryEntry(
                 relative_path=".",
                 object_type=CleanupPathObjectType.DIRECTORY,
-                state_sha256="9" * 64,
+                state_sha256=root_state_sha256,
                 byte_count=0,
                 mode="0755",
             ),
@@ -149,7 +169,7 @@ def _bundle(
         retirement_id=archive.retirement_id,
         target_id="legacy-mt5-source",
         action=CleanupAction.REMOVE,
-        rationale="MQL5 execution is retired after the disabled observation",
+        rationale=rationale,
         collected_by="cleanup-operator",
         reviewed_by="cleanup-reviewer",
         state=CleanupPathState(
@@ -311,6 +331,54 @@ def _bundle_controls(
         for item in target_bindings
     )
     return manifest, audit, scan, target_bindings, targets
+
+
+def _cleanup_approval(
+    root: Path,
+    manifest: LegacyCleanupManifest,
+    report: DisabledObservationReport,
+    archive: LegacyArchiveManifest,
+    approved_at: datetime,
+) -> tuple[RetirementApprovalPaths, str, str, RetirementActionApproval]:
+    root.mkdir(parents=True, exist_ok=True)
+    approval = RetirementActionApproval(
+        approval_id="cleanup-approval-test",
+        retirement_id=manifest.retirement_id,
+        scope=RetirementActionScope.REMOVE_AND_CLEAN,
+        report_sha256=report.sha256(),
+        native_deployment_id=report.native_deployment_id,
+        native_admission_id=report.native_admission_id,
+        archive_manifest_sha256=archive.sha256(),
+        source_commit_sha=manifest.source_commit_sha,
+        cleanup_manifest_sha256=manifest.sha256(),
+        approver="offline-cleanup-approver",
+        approved_at=approved_at,
+        expires_at=approved_at + timedelta(hours=1),
+    )
+    key = ECC.generate(curve="Ed25519")
+    key_id = "cleanup-approver-test"
+    signature = RetirementApprovalSignature(
+        key_id=key_id,
+        approval_sha256=approval.sha256(),
+        signature_base64=base64.b64encode(
+            eddsa.new(key, "rfc8032").sign(approval.canonical_bytes())
+        ).decode("ascii"),
+    )
+    approval_path = root / "cleanup-approval.json"
+    signature_path = root / "cleanup-approval.sig.json"
+    public_key_path = root / "cleanup-approver.pub"
+    approval_path.write_bytes(approval.canonical_bytes() + b"\n")
+    signature_path.write_bytes(signature.canonical_bytes() + b"\n")
+    public_key_path.write_text(key.public_key().export_key(format="PEM"), encoding="ascii")
+    public_key_sha256 = hashlib.sha256(
+        key.public_key().export_key(format="DER", compress=False)
+    ).hexdigest()
+    return (
+        RetirementApprovalPaths(approval_path, signature_path, public_key_path),
+        key_id,
+        public_key_sha256,
+        approval,
+    )
 
 
 def test_cleanup_manifest_is_assembled_from_exact_replayable_evidence(
@@ -1258,4 +1326,428 @@ def test_cleanup_loader_replay_and_filesystem_tamper_guards(
                 captured_ts_ns=1,
                 raw_artifact_id="runtime-inventory",
             ),
+        )
+
+
+def test_cleanup_preflight_requires_fresh_post_approval_unchanged_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluated_ts_ns = time.time_ns() // 1_000 * 1_000
+    approved_bundle_ts_ns = evaluated_ts_ns - 120_000_000_000
+    manifest_ts_ns = evaluated_ts_ns - 90_000_000_000
+    archive = _archive(approved_bundle_ts_ns)
+    report = _disabled_report(approved_bundle_ts_ns, archive)
+    policy = load_retirement_policy(POLICY_PATH)
+    scan_policy = load_legacy_archive_credential_scan_policy(SCAN_POLICY_PATH)
+    approved_root = tmp_path / "approved-cleanup-evidence"
+    action_root = tmp_path / "action-cleanup-evidence"
+    _bundle(approved_root, approved_bundle_ts_ns, archive, report)
+    _bundle(action_root, evaluated_ts_ns, archive, report)
+
+    monkeypatch.setattr(cleanup_module, "time_ns", lambda: manifest_ts_ns)
+    manifest = assemble_cleanup_manifest(
+        approved_root,
+        report,
+        archive,
+        policy=policy,
+        credential_scan_policy=scan_policy,
+    )
+    approved_at = datetime.fromtimestamp(
+        (evaluated_ts_ns - 60_000_000_000) / 1_000_000_000,
+        UTC,
+    )
+    approval_paths, key_id, public_key_sha256, _ = _cleanup_approval(
+        tmp_path,
+        manifest,
+        report,
+        archive,
+        approved_at,
+    )
+    monkeypatch.setattr(cleanup_module, "time_ns", lambda: evaluated_ts_ns)
+    monkeypatch.setattr(preflight_module, "time_ns", lambda: evaluated_ts_ns)
+
+    receipt = evaluate_cleanup_preflight(
+        approved_root,
+        action_root,
+        manifest,
+        report,
+        archive,
+        cleanup_approval_paths=approval_paths,
+        policy=policy,
+        credential_scan_policy=scan_policy,
+        expected_cleanup_key_id=key_id,
+        expected_cleanup_public_key_sha256=public_key_sha256,
+    )
+
+    assert receipt.ready_for_operator_action is True
+    assert receipt.execution_mode == "evidence_only"
+    assert receipt.operator_action_required is True
+    assert receipt.approved_cleanup_manifest_sha256 == manifest.sha256()
+    assert receipt.targets[0].state_matches is True
+    assert {item.gate for item in receipt.gates} == set(CleanupPreflightGate)
+
+    monkeypatch.setattr(preflight_module, "time_ns", lambda: evaluated_ts_ns - 1)
+    with pytest.raises(ValueError, match="dated after verification"):
+        verify_cleanup_preflight(
+            approved_root,
+            action_root,
+            receipt,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+    monkeypatch.setattr(preflight_module, "time_ns", lambda: evaluated_ts_ns)
+    assert (
+        verify_cleanup_preflight(
+            approved_root,
+            action_root,
+            receipt,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+        == receipt
+    )
+    receipt_path = tmp_path / "cleanup-preflight.json"
+    receipt_path.write_bytes(receipt.canonical_bytes() + b"\n")
+    assert load_cleanup_preflight_receipt(receipt_path) == receipt
+    receipt_path.write_bytes(receipt.canonical_bytes())
+    with pytest.raises(ValueError, match="not canonical JSON"):
+        load_cleanup_preflight_receipt(receipt_path)
+
+    with pytest.raises(ValueError, match="predates cleanup approval"):
+        evaluate_cleanup_preflight(
+            approved_root,
+            approved_root,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+
+    with pytest.raises(ValueError, match="does not permit cleanup preflight"):
+        evaluate_cleanup_preflight(
+            approved_root,
+            action_root,
+            manifest,
+            report.model_copy(update={"awaiting_cleanup_approval": False}),
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+
+    with pytest.raises(ValueError, match="cannot be negative"):
+        preflight_module._evaluate_cleanup_preflight(
+            approved_root,
+            action_root,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+            evaluated_ts_ns=-1,
+        )
+
+    early_paths, early_key_id, early_public_key_sha256, _ = _cleanup_approval(
+        tmp_path / "early-approval",
+        manifest,
+        report,
+        archive,
+        datetime.fromtimestamp(
+            (manifest_ts_ns - 10_000_000_000) / 1_000_000_000,
+            UTC,
+        ),
+    )
+    with pytest.raises(ValueError, match="predates the approved cleanup manifest"):
+        evaluate_cleanup_preflight(
+            approved_root,
+            action_root,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=early_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=early_key_id,
+            expected_cleanup_public_key_sha256=early_public_key_sha256,
+        )
+
+    inventory_drift_root = tmp_path / "inventory-drifted-action-evidence"
+    _bundle(
+        inventory_drift_root,
+        evaluated_ts_ns,
+        archive,
+        report,
+        rationale="different cleanup rationale",
+    )
+    with pytest.raises(ValueError, match="target inventory differs"):
+        evaluate_cleanup_preflight(
+            approved_root,
+            inventory_drift_root,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+
+    drift_root = tmp_path / "drifted-action-evidence"
+    _bundle(
+        drift_root,
+        evaluated_ts_ns,
+        archive,
+        report,
+        root_state_sha256="0" * 64,
+    )
+    with pytest.raises(ValueError, match="target state differs"):
+        evaluate_cleanup_preflight(
+            approved_root,
+            drift_root,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+
+    with pytest.raises(ValueError, match="is stale"):
+        preflight_module._evaluate_cleanup_preflight(
+            approved_root,
+            action_root,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+            evaluated_ts_ns=(evaluated_ts_ns + policy.maximum_final_state_capture_skew_ns),
+        )
+
+    manifest_path = tmp_path / "approved-cleanup-manifest.json"
+    cli_receipt_path = tmp_path / "cli-cleanup-preflight.json"
+    manifest_path.write_bytes(manifest.canonical_bytes() + b"\n")
+    monkeypatch.setattr(
+        "aiquanttrader_native.retirement.cli._replay_cleanup_sources",
+        lambda *args, **kwargs: (report, archive),
+    )
+    dummy = str(tmp_path / "source-placeholder.json")
+    preflight_args = [
+        "--evidence-root",
+        str(approved_root),
+        "--action-evidence-root",
+        str(action_root),
+        "--disabled-evidence-root",
+        str(approved_root),
+        "--native-evidence-root",
+        str(approved_root),
+        "--legacy-evidence-root",
+        str(approved_root),
+        "--readiness-observation",
+        dummy,
+        "--readiness-report",
+        dummy,
+        "--native-observation",
+        dummy,
+        "--archive-manifest",
+        dummy,
+        "--stop-approval",
+        dummy,
+        "--stop-signature",
+        dummy,
+        "--stop-public-key",
+        dummy,
+        "--disabled-observation",
+        dummy,
+        "--disabled-report",
+        dummy,
+        "--policy",
+        str(POLICY_PATH),
+        "--credential-scan-policy",
+        str(SCAN_POLICY_PATH),
+        "--native-approval-key-id",
+        "native-test",
+        "--native-approval-public-key-sha256",
+        "a" * 64,
+        "--stop-approval-key-id",
+        "stop-test",
+        "--stop-approval-public-key-sha256",
+        "b" * 64,
+        "--cleanup-manifest",
+        str(manifest_path),
+        "--cleanup-approval",
+        str(approval_paths.approval_path),
+        "--cleanup-signature",
+        str(approval_paths.signature_path),
+        "--cleanup-public-key",
+        str(approval_paths.public_key_path),
+        "--cleanup-approval-key-id",
+        key_id,
+        "--cleanup-approval-public-key-sha256",
+        public_key_sha256,
+    ]
+    assert (
+        retirement_main(
+            [
+                "prepare-cleanup-preflight",
+                *preflight_args,
+                "--output",
+                str(cli_receipt_path),
+            ]
+        )
+        == 0
+    )
+    assert (
+        retirement_main(
+            [
+                "verify-cleanup-preflight",
+                *preflight_args,
+                "--preflight",
+                str(cli_receipt_path),
+            ]
+        )
+        == 0
+    )
+
+    monkeypatch.setattr(
+        preflight_module,
+        "time_ns",
+        lambda: receipt.valid_until_ts_ns,
+    )
+    with pytest.raises(ValueError, match="has expired"):
+        verify_cleanup_preflight(
+            approved_root,
+            action_root,
+            receipt,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+
+
+def test_cleanup_preflight_receipt_contract_rejects_forged_verdict_and_inventory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluated_ts_ns = time.time_ns() // 1_000 * 1_000
+    approved_bundle_ts_ns = evaluated_ts_ns - 120_000_000_000
+    archive = _archive(approved_bundle_ts_ns)
+    report = _disabled_report(approved_bundle_ts_ns, archive)
+    policy = load_retirement_policy(POLICY_PATH)
+    scan_policy = load_legacy_archive_credential_scan_policy(SCAN_POLICY_PATH)
+    approved_root = tmp_path / "approved"
+    action_root = tmp_path / "action"
+    _bundle(approved_root, approved_bundle_ts_ns, archive, report)
+    _bundle(action_root, evaluated_ts_ns, archive, report)
+    monkeypatch.setattr(cleanup_module, "time_ns", lambda: evaluated_ts_ns - 90_000_000_000)
+    manifest = assemble_cleanup_manifest(
+        approved_root,
+        report,
+        archive,
+        policy=policy,
+        credential_scan_policy=scan_policy,
+    )
+    approval_paths, key_id, public_key_sha256, _ = _cleanup_approval(
+        tmp_path,
+        manifest,
+        report,
+        archive,
+        datetime.fromtimestamp(
+            (evaluated_ts_ns - 60_000_000_000) / 1_000_000_000,
+            UTC,
+        ),
+    )
+    monkeypatch.setattr(cleanup_module, "time_ns", lambda: evaluated_ts_ns)
+    monkeypatch.setattr(preflight_module, "time_ns", lambda: evaluated_ts_ns)
+    receipt = evaluate_cleanup_preflight(
+        approved_root,
+        action_root,
+        manifest,
+        report,
+        archive,
+        cleanup_approval_paths=approval_paths,
+        policy=policy,
+        credential_scan_policy=scan_policy,
+        expected_cleanup_key_id=key_id,
+        expected_cleanup_public_key_sha256=public_key_sha256,
+    )
+    payload = receipt.model_dump(mode="json")
+
+    with pytest.raises(ValidationError, match="capture or validity interval"):
+        CleanupPreflightReceipt.model_validate(
+            {
+                **payload,
+                "action_capture_start_ts_ns": payload["evaluated_ts_ns"] + 1,
+            }
+        )
+    with pytest.raises(ValidationError, match="earliest expiry"):
+        CleanupPreflightReceipt.model_validate(
+            {**payload, "valid_until_ts_ns": payload["valid_until_ts_ns"] + 1}
+        )
+    with pytest.raises(ValidationError, match="verdict"):
+        CleanupPreflightReceipt.model_validate({**payload, "ready_for_operator_action": False})
+    with pytest.raises(ValidationError, match="targets must be unique"):
+        CleanupPreflightReceipt.model_validate(
+            {**payload, "targets": [payload["targets"][0], payload["targets"][0]]}
+        )
+    with pytest.raises(ValidationError, match="every gate exactly once"):
+        CleanupPreflightReceipt.model_validate({**payload, "gates": payload["gates"][:-1]})
+    with pytest.raises(ValidationError, match="identity does not match"):
+        CleanupPreflightReceipt.model_validate({**payload, "receipt_id": "0" * 64})
+
+    forged = {**payload, "gates": [*payload["gates"]]}
+    forged["gates"][0] = {**forged["gates"][0], "actual": "forged-current-state"}
+    identity = {
+        key: value
+        for key, value in forged.items()
+        if key not in {"receipt_id", "ready_for_operator_action"}
+    }
+    forged["receipt_id"] = canonical_sha256(identity)
+    forged_receipt = CleanupPreflightReceipt.model_validate(forged)
+    with pytest.raises(ValueError, match="does not match source replay"):
+        verify_cleanup_preflight(
+            approved_root,
+            action_root,
+            forged_receipt,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
         )

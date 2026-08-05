@@ -77,8 +77,11 @@ Immediately before any separately authorized action, an operator must capture
 the same state shape and compare its hash to `expected_state_sha256`. Capture
 time is retained as audit metadata but deliberately excluded from the stable
 state fingerprint, so unchanged state can compare equal. A changed state
-invalidates both manifest and approval; this module deliberately does not
-implement that action-time collector or any destructive executor.
+invalidates both manifest and approval. The separate
+[`PHASE_10_CLEANUP_PREFLIGHT.md`](PHASE_10_CLEANUP_PREFLIGHT.md) workflow
+consumes a newly reviewed complete bundle and automates that replay and
+comparison. Neither module implements an action-time collector or a destructive
+executor.
 
 ## Credential scan
 

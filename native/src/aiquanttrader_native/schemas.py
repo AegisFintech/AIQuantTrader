@@ -95,6 +95,7 @@ from aiquanttrader_native.retirement.models import (
     CleanupCredentialScanEvidence,
     CleanupEvidenceManifest,
     CleanupInventoryAuditEvidence,
+    CleanupPreflightReceipt,
     CleanupTargetEvidence,
     DisabledCredentialScanEvidence,
     DisabledEvidenceManifest,
@@ -252,6 +253,7 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | CleanupInventoryAuditEvidence
         | CleanupTargetEvidence
         | CleanupCredentialScanEvidence
+        | CleanupPreflightReceipt
         | ProductionEvidenceManifest
         | ProductionIncidentRegister
         | NativeDrillEvidence
