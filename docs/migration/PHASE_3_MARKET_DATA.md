@@ -1,6 +1,7 @@
 # Phase 3: Linux-native BTC Market Data
 
-Status: implementation complete; sustained-soak acceptance evidence pending.
+Status: implementation and automated acceptance evaluator complete;
+deployment-host sustained-soak verdict pending.
 
 Phase 3 adds an independent, public-only Hyperliquid recorder and a separate
 normalization worker. It does not add an order path, mount a wallet, change the
@@ -28,6 +29,9 @@ Tardis HTTPS
 
 raw + normalized manifests + quality policy
   -> admitted research dataset or explicit rejection
+
+deployment identity + state + metrics + soak-window artifacts
+  -> content-addressed acceptance report or fail-closed rejection
 ```
 
 The source diagram is
@@ -59,6 +63,7 @@ native/
 |  `- market_data/
 |     |- catalog.py
 |     |- cli.py
+|     |- evidence.py
 |     |- integrity.py
 |     |- io.py
 |     |- metrics.py
@@ -165,6 +170,9 @@ latency or throughput budget. This avoids an unearned FFI boundary.
 - Normalization scans a raw segment twice: once for full verification and once
   for conversion. This intentionally spends offline I/O to prevent partial
   evidence from reaching research.
+- The continuous normalizer ignores active and orphan partial files. Recovery
+  quarantine is an explicit offline command so a worker can never rename the
+  recorder's open segment across process boundaries.
 - Duplicate tracking is bounded to one million trade identities.
 - Prometheus labels are fixed enums; connection IDs, instruments, and payload
   hashes are never labels.
@@ -178,9 +186,13 @@ latency or throughput budget. This avoids an unearned FFI boundary.
 3. Start the `market-data` Compose profile.
 4. Verify recorder health, frame counters, raw segment growth, and free disk.
 5. Let the normalizer finalize the first segment and verify both manifests.
-6. Run a six-hour minimum public-feed soak and save the command output,
-   manifests, gap report, image digest, and commit SHA as acceptance evidence.
-7. Admit a dataset only after the soak's gaps pass the frozen policy.
+6. Run a six-hour minimum public-feed soak and retain the metrics, restart
+   counts, image digest, configuration fingerprint, and separate runtime and
+   collector commit identities.
+7. Run `aqt-market-data evaluate-soak` with the frozen policy. It discovers
+   only in-window segments, verifies all raw and normalized hashes, admits the
+   dataset, evaluates the operational gates, and writes a content-addressed
+   accepted or rejected report.
 
 No MT5 service is stopped in this phase.
 
@@ -207,13 +219,18 @@ Implemented and automated:
 - policy rejection for unexplained and excessive gaps;
 - immutable Tardis download validation;
 - explicit false market-wide liquidation capability;
-- strict typing, unit/integration tests, locked dependencies, non-root images.
+- strict typing, unit/integration tests, locked dependencies, non-root images;
+- frozen six-hour host-soak policy and typed Prometheus snapshot parsing;
+- automatic window-bounded artifact discovery that excludes pre-soak data;
+- content-addressed acceptance/rejection reports binding code, image,
+  configuration, state, metrics, restart counts, disk floors, and dataset
+  lineage.
 
 Still required before Phase 3 is declared accepted:
 
-- a sustained public mainnet feed soak on the deployment host, with every
-  observed discontinuity classified and the evidence retained. A short CI or
-  developer smoke test does not satisfy this gate.
+- completion and acceptance of the currently running sustained public mainnet
+  feed soak on the deployment host, with the generated report retained. A
+  short CI or developer smoke test does not satisfy this gate.
 
 ### Bounded live smoke evidence
 

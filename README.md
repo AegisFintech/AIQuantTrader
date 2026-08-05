@@ -233,6 +233,9 @@ so a code-only release does not duplicate the multi-GiB dependency layer.
 Operational procedures, failure handling, Tardis downloads, dataset admission,
 and the required soak are in
 [`MARKET_DATA_RUNBOOK.md`](docs/operations/MARKET_DATA_RUNBOOK.md).
+The credential-free offline soak evaluator produces a content-addressed
+accepted or rejected report. Missing, corrupt, or ambiguous evidence fails
+without a report and cannot enable execution.
 
 ## Backtesting
 

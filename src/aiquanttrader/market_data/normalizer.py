@@ -6,10 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from aiquanttrader.market_data.catalog import ManifestCatalog
-from aiquanttrader.market_data.raw import (
-    load_segment_manifest,
-    quarantine_incomplete_segments,
-)
+from aiquanttrader.market_data.raw import load_segment_manifest
 from aiquanttrader.market_data.storage import (
     QuarantinedSegmentError,
     load_normalized_manifest,
@@ -32,7 +29,6 @@ class NormalizationWorker:
         self.catalog = catalog
 
     def run_once(self) -> NormalizationBatch:
-        quarantine_incomplete_segments(self.data_root)
         normalized_count = 0
         complete_count = 0
         quarantined_count = 0

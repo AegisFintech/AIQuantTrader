@@ -21,6 +21,11 @@ from prometheus_client import start_http_server
 from aiquanttrader.config import ConfigLoadError, load_config
 from aiquanttrader.domain.data import DataQualityPolicy, NormalizerState, RecorderState
 from aiquanttrader.market_data.catalog import CatalogLockedError, ManifestCatalog
+from aiquanttrader.market_data.evidence import (
+    evaluate_market_data_soak,
+    load_soak_policy,
+    parse_recorder_metrics,
+)
 from aiquanttrader.market_data.io import atomic_replace_bytes, atomic_write_bytes
 from aiquanttrader.market_data.metrics import RecorderMetrics
 from aiquanttrader.market_data.normalizer import NormalizationBatch, NormalizationWorker
@@ -96,6 +101,26 @@ def _parser() -> argparse.ArgumentParser:
     )
     normalizer_health.add_argument("--state-root", type=Path, required=True)
     normalizer_health.add_argument("--stale-after-seconds", type=float, default=120)
+
+    soak = commands.add_parser(
+        "evaluate-soak", help="generate immutable deployment-host soak evidence"
+    )
+    soak.add_argument("--config-dir", type=Path, required=True)
+    soak.add_argument("--environment", default="paper")
+    soak.add_argument("--policy", type=Path, required=True)
+    soak.add_argument("--data-root", type=Path, required=True)
+    soak.add_argument("--state-root", type=Path, required=True)
+    soak.add_argument("--metrics-snapshot", type=Path, required=True)
+    soak.add_argument("--metrics-captured-ts-ns", type=int, required=True)
+    soak.add_argument("--requested-started-ts-ns", type=int, required=True)
+    soak.add_argument("--runtime-code-identity", required=True)
+    soak.add_argument("--collector-code-identity", required=True)
+    soak.add_argument("--image-digest", required=True)
+    soak.add_argument("--runtime-config-fingerprint", required=True)
+    soak.add_argument("--start-free-bytes", type=int, required=True)
+    soak.add_argument("--recorder-restart-count", type=int, required=True)
+    soak.add_argument("--normalizer-restart-count", type=int, required=True)
+    soak.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -209,6 +234,42 @@ def _normalizer_healthcheck(state_root: Path, stale_after_seconds: float) -> int
     return 0 if ready else 1
 
 
+def _evaluate_soak(args: argparse.Namespace) -> int:
+    bundle = load_config(args.config_dir, args.environment)
+    policy = load_soak_policy(args.policy)
+    metrics = parse_recorder_metrics(
+        args.metrics_snapshot.resolve(strict=True).read_text(encoding="utf-8"),
+        captured_ts_ns=args.metrics_captured_ts_ns,
+    )
+    report = evaluate_market_data_soak(
+        bundle=bundle,
+        policy=policy,
+        data_root=args.data_root,
+        state_root=args.state_root,
+        metrics=metrics,
+        requested_started_ts_ns=args.requested_started_ts_ns,
+        runtime_code_identity=args.runtime_code_identity,
+        collector_code_identity=args.collector_code_identity,
+        image_digest=args.image_digest,
+        expected_config_fingerprint=args.runtime_config_fingerprint,
+        start_free_bytes=args.start_free_bytes,
+        recorder_restart_count=args.recorder_restart_count,
+        normalizer_restart_count=args.normalizer_restart_count,
+    )
+    atomic_write_bytes(args.output.resolve(), report.canonical_bytes() + b"\n")
+    print(
+        json.dumps(
+            {
+                "status": "accepted" if report.accepted else "rejected",
+                "report_id": report.report_id,
+                "output": str(args.output.resolve()),
+            },
+            sort_keys=True,
+        )
+    )
+    return 0 if report.accepted else 1
+
+
 def _write_normalizer_state(
     state_root: Path,
     status: Literal["starting", "running", "completed", "stopped", "failed"],
@@ -309,6 +370,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _healthcheck(args.state_root, args.stale_after_seconds)
         if args.command == "normalizer-healthcheck":
             return _normalizer_healthcheck(args.state_root, args.stale_after_seconds)
+        if args.command == "evaluate-soak":
+            return _evaluate_soak(args)
     except (
         CatalogLockedError,
         ConfigLoadError,
