@@ -1,6 +1,7 @@
 name: Native platform CI
 
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - ".github/workflows/native-ci.yml"
