@@ -244,8 +244,10 @@ Implementation note: deterministic native/archive/final-state/readiness and
 disabled-window assembly/replay, a frozen baseline policy, short-lived
 scope-specific approvals, exact cleanup manifests, and offline Ed25519
 verification are implemented. A short-lived evidence-only cleanup preflight
-also replays a distinct post-approval full-state capture. The active MT5
-deployment is unchanged and no retirement approval has been created.
+also replays a distinct post-approval full-state capture. Exact post-action
+outcome assembly can later prove typed cleanup results without executing them
+or extending expired authority. The active MT5 deployment is unchanged and no
+retirement approval has been created.
 
 Deliverables:
 
@@ -261,6 +263,8 @@ Deliverables:
 - fresh post-approval full-state capture and independently replayed short-lived
   cleanup preflight receipt;
 - mechanical host cleanup and repository removal PR;
+- exact credential-scanned outcome bundle and independently replayed canonical
+  cleanup completion report;
 - ADR 0008 native package/root migration and complete native revalidation.
 
 Tests and review:

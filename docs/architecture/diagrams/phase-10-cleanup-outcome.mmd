@@ -1,0 +1,15 @@
+flowchart LR
+    A[Approved cleanup evidence] --> P[Historical preflight replay]
+    B[Action-time cleanup evidence] --> P
+    C[Signed remove_and_clean approval] --> P
+    D[Retained preflight receipt] --> P
+    P --> W{Each action started<br/>before receipt expiry?}
+    W -- no --> F[Fail closed]
+    W -- yes --> O[Exact post-action evidence bundle]
+    E[Typed approved action contract] --> O
+    O --> S[Policy-bound zero-finding scan]
+    S --> V[Postcondition and lineage verifier]
+    V --> R[Canonical cleanup completion report]
+    R --> Q[Independent replay after receipt expiry]
+
+    X[No stop / revoke / package / file / Git executor] -. trust boundary .- V

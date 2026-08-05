@@ -32,7 +32,7 @@ native/tests/unit/test_retirement_cleanup.py
 
 The preparer supplies all existing source-replay inputs plus:
 
-- the approved cleanup-evidence root and its canonical schema-v2 manifest;
+- the approved cleanup-evidence root and its canonical schema-v3 manifest;
 - a distinct, fully reviewed action-time cleanup-evidence root;
 - the offline `remove_and_clean` approval, detached Ed25519 signature, public
   key, externally pinned key ID, and externally pinned key fingerprint.
@@ -58,7 +58,8 @@ fresh-state boundary and the signed approval expiry.
 3. an active signature for `remove_and_clean`, the exact disabled report,
    native deployment/admission, archive, source commit, and cleanup manifest;
 4. a new complete action-time evidence replay captured after that approval;
-5. exact equality of target ID, kind, locator, action, and rationale;
+5. exact equality of target ID, kind, locator, action, migration destination,
+   and rationale;
 6. exact equality of every stable target-state SHA-256;
 7. a positive remaining approval and state-freshness window.
 
@@ -133,6 +134,10 @@ An independent reviewer uses the same arguments with
 Because this increment is read-only apart from writing a new receipt, rollback
 is simply removal of the untrusted receipt from the operator workflow. Evidence
 roots and approvals are never edited in place.
+
+After separately authorized operator action, the evidence-only
+[`PHASE_10_CLEANUP_OUTCOME.md`](PHASE_10_CLEANUP_OUTCOME.md) workflow proves
+typed postconditions without refreshing this receipt or performing cleanup.
 
 ## Tests
 

@@ -22,6 +22,7 @@ from aiquanttrader_native.retirement.final_state import (
     verify_legacy_final_state,
 )
 from aiquanttrader_native.retirement.models import (
+    CleanupCompletionReport,
     CleanupPreflightReceipt,
     DisabledObservation,
     DisabledObservationReport,
@@ -29,6 +30,10 @@ from aiquanttrader_native.retirement.models import (
     RetirementActionScope,
     RetirementReadinessObservation,
     RetirementReadinessReport,
+)
+from aiquanttrader_native.retirement.outcome import (
+    assemble_cleanup_completion,
+    verify_cleanup_completion,
 )
 from aiquanttrader_native.retirement.preflight import (
     evaluate_cleanup_preflight,
@@ -40,6 +45,7 @@ from aiquanttrader_native.retirement.readiness import (
 )
 
 __all__ = [
+    "CleanupCompletionReport",
     "CleanupPreflightReceipt",
     "DisabledObservation",
     "DisabledObservationReport",
@@ -47,6 +53,7 @@ __all__ = [
     "RetirementActionScope",
     "RetirementReadinessObservation",
     "RetirementReadinessReport",
+    "assemble_cleanup_completion",
     "assemble_disabled_observation",
     "assemble_legacy_archive_manifest",
     "assemble_legacy_final_state",
@@ -56,6 +63,7 @@ __all__ = [
     "evaluate_disabled_observation",
     "evaluate_retirement_readiness",
     "load_retirement_policy",
+    "verify_cleanup_completion",
     "verify_cleanup_preflight",
     "verify_disabled_observation",
     "verify_legacy_archive_manifest",

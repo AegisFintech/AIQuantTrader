@@ -68,10 +68,12 @@ invalidating event, and derives one `LegacyCleanupTarget`:
 | Host integration/package | Installed version, configuration state, ownership evidence, project ownership, and zero shared consumers | Canonical hash of installed/configuration/ownership state |
 | Secret reference/session | Provider identifier, hashed provider record identity, provider state, and active-session inventory; never secret material | Canonical hash of provider/session state |
 
-The existing target rules still reject globs, shell operators, traversal,
+The schema-v3 target rules still reject globs, shell operators, traversal,
 unresolved variables, broad host roots, invalid actions, duplicate identities,
-and duplicate locators. Host dependencies cannot enter the manifest without
-explicit ownership and zero-shared-consumer evidence.
+duplicate locators, and duplicate migration destinations. `migrate_native`
+targets must name one distinct safe repository destination before approval;
+other actions cannot name a destination. Host dependencies cannot enter the
+manifest without explicit ownership and zero-shared-consumer evidence.
 
 Immediately before any separately authorized action, an operator must capture
 the same state shape and compare its hash to `expected_state_sha256`. Capture
@@ -149,7 +151,7 @@ aqt-retirement verify-cleanup-manifest \
 The legacy `validate-cleanup-manifest` command remains a schema/canonicalization
 utility only. It is not sufficient for approval. The offline
 `remove_and_clean` signature must bind the SHA-256 of the source-replayed,
-schema-v2 cleanup manifest.
+schema-v3 cleanup manifest.
 
 Both commands first replay the complete disabled, native, and archive evidence
 roots and both pinned signer identities. They reproduce the disabled report at

@@ -12,6 +12,7 @@ from Crypto.Signature import eddsa
 from pydantic import ValidationError
 
 import aiquanttrader_native.retirement.cleanup as cleanup_module
+import aiquanttrader_native.retirement.outcome as outcome_module
 import aiquanttrader_native.retirement.preflight as preflight_module
 from aiquanttrader_native.domain.base import canonical_sha256
 from aiquanttrader_native.retirement.approval import RetirementApprovalPaths
@@ -26,25 +27,39 @@ from aiquanttrader_native.retirement.cli import main as retirement_main
 from aiquanttrader_native.retirement.evidence import load_retirement_policy
 from aiquanttrader_native.retirement.models import (
     CleanupAction,
+    CleanupArchiveOnlyResult,
+    CleanupCompletionReport,
     CleanupCredentialScanCheck,
     CleanupCredentialScanEvidence,
     CleanupEvidenceArtifact,
     CleanupEvidenceControl,
     CleanupEvidenceControlKind,
     CleanupEvidenceManifest,
+    CleanupHostAbsenceEvidence,
     CleanupHostState,
     CleanupInventoryAuditEvidence,
     CleanupInventoryScope,
+    CleanupNativeMigrationResult,
+    CleanupOutcomeControl,
+    CleanupOutcomeControlKind,
+    CleanupOutcomeEvidenceManifest,
+    CleanupOutcomeGate,
+    CleanupPathAbsenceEvidence,
     CleanupPathInventoryEntry,
     CleanupPathInventoryEvidence,
     CleanupPathObjectType,
     CleanupPathState,
     CleanupPreflightGate,
     CleanupPreflightReceipt,
+    CleanupPreflightTargetResult,
+    CleanupRemovedHostResult,
+    CleanupRemovedPathResult,
+    CleanupRevokedSecretResult,
     CleanupScopeCheck,
     CleanupSecretState,
     CleanupTargetEvidence,
     CleanupTargetKind,
+    CleanupTargetOutcomeEvidence,
     DisabledGateResult,
     DisabledObservationGate,
     DisabledObservationReport,
@@ -52,9 +67,15 @@ from aiquanttrader_native.retirement.models import (
     LegacyArchiveArtifactKind,
     LegacyArchiveManifest,
     LegacyCleanupManifest,
+    LegacyCleanupTarget,
     RetirementActionApproval,
     RetirementActionScope,
     RetirementApprovalSignature,
+)
+from aiquanttrader_native.retirement.outcome import (
+    assemble_cleanup_completion,
+    load_cleanup_completion_report,
+    verify_cleanup_completion,
 )
 from aiquanttrader_native.retirement.preflight import (
     evaluate_cleanup_preflight,
@@ -400,7 +421,7 @@ def test_cleanup_manifest_is_assembled_from_exact_replayable_evidence(
         credential_scan_policy=load_legacy_archive_credential_scan_policy(SCAN_POLICY_PATH),
     )
 
-    assert manifest.schema_version == 2
+    assert manifest.schema_version == 3
     assert manifest.source_commit_sha == COMMIT
     assert manifest.disabled_observation_report_sha256 == report.sha256()
     assert [item.target_id for item in manifest.targets] == ["legacy-mt5-source"]
@@ -1751,3 +1772,844 @@ def test_cleanup_preflight_receipt_contract_rejects_forged_verdict_and_inventory
             expected_cleanup_key_id=key_id,
             expected_cleanup_public_key_sha256=public_key_sha256,
         )
+
+
+def _outcome_bundle(
+    root: Path,
+    *,
+    receipt: CleanupPreflightReceipt,
+    manifest: LegacyCleanupManifest,
+    archive: LegacyArchiveManifest,
+    report: DisabledObservationReport,
+    action_started_ts_ns: int | None = None,
+) -> int:
+    policy = load_retirement_policy(POLICY_PATH)
+    scan_policy = load_legacy_archive_credential_scan_policy(SCAN_POLICY_PATH)
+    started_ts_ns = (
+        receipt.evaluated_ts_ns + 1_000_000_000
+        if action_started_ts_ns is None
+        else action_started_ts_ns
+    )
+    completed_ts_ns = started_ts_ns + 1_000_000_000
+    raw_ts_ns = completed_ts_ns + 1_000_000_000
+    target_ts_ns = raw_ts_ns + 1_000_000_000
+    scan_start_ts_ns = target_ts_ns + 1_000_000_000
+    scan_end_ts_ns = scan_start_ts_ns + 1_000_000_000
+    scan_reviewed_ts_ns = scan_end_ts_ns + 1_000_000_000
+    created_ts_ns = scan_reviewed_ts_ns + 1_000_000_000
+
+    absence = CleanupPathAbsenceEvidence(
+        kind=CleanupTargetKind.REPOSITORY_PATH,
+        locator=manifest.targets[0].locator,
+        observed_commit_sha="c" * 40,
+        captured_ts_ns=raw_ts_ns,
+        observation_source="git-tree-audit",
+    )
+    raw_payload = absence.canonical_bytes() + b"\n"
+    raw_sha, raw_size = _write(root / "raw/repository/legacy-mt5-absence.json", raw_payload)
+    artifact = CleanupEvidenceArtifact(
+        artifact_id="legacy-mt5-absence",
+        relative_path="raw/repository/legacy-mt5-absence.json",
+        content_sha256=raw_sha,
+        byte_count=raw_size,
+        captured_ts_ns=raw_ts_ns,
+    )
+    target = CleanupTargetOutcomeEvidence(
+        retirement_id=manifest.retirement_id,
+        target_id=manifest.targets[0].target_id,
+        kind=CleanupTargetKind.REPOSITORY_PATH,
+        locator=manifest.targets[0].locator,
+        action=CleanupAction.REMOVE,
+        pre_action_state_sha256=manifest.targets[0].expected_state_sha256,
+        action_started_ts_ns=started_ts_ns,
+        action_completed_ts_ns=completed_ts_ns,
+        captured_ts_ns=target_ts_ns,
+        collected_by="cleanup-operator",
+        reviewed_by="cleanup-reviewer",
+        result=CleanupRemovedPathResult(
+            kind=CleanupTargetKind.REPOSITORY_PATH,
+            locator=manifest.targets[0].locator,
+            observed_commit_sha="c" * 40,
+            raw_artifact_id=artifact.artifact_id,
+        ),
+    )
+    target_sha, target_size = _write(
+        root / "controls/targets/legacy-mt5-source.json",
+        target.canonical_bytes() + b"\n",
+    )
+    target_control = CleanupOutcomeControl(
+        kind=CleanupOutcomeControlKind.TARGET_OUTCOME,
+        reference_id=target.target_id,
+        relative_path="controls/targets/legacy-mt5-source.json",
+        content_sha256=target_sha,
+        byte_count=target_size,
+        captured_ts_ns=target_ts_ns,
+    )
+    scan = CleanupCredentialScanEvidence(
+        retirement_id=manifest.retirement_id,
+        started_ts_ns=scan_start_ts_ns,
+        ended_ts_ns=scan_end_ts_ns,
+        reviewed_ts_ns=scan_reviewed_ts_ns,
+        reviewer="security-reviewer",
+        scanner_name="gitleaks-and-private-key-scan",
+        scanner_version="1.0.0",
+        policy_id=scan_policy.policy_id,
+        policy_sha256=scan_policy.sha256(),
+        checks=(
+            CleanupCredentialScanCheck(
+                relative_path=artifact.relative_path,
+                content_sha256=artifact.content_sha256,
+            ),
+            CleanupCredentialScanCheck(
+                relative_path=target_control.relative_path,
+                content_sha256=target_control.content_sha256,
+            ),
+        ),
+    )
+    scan_sha, scan_size = _write(
+        root / "controls/credential-scan.json",
+        scan.canonical_bytes() + b"\n",
+    )
+    scan_control = CleanupOutcomeControl(
+        kind=CleanupOutcomeControlKind.CREDENTIAL_SCAN,
+        reference_id="credential-scan",
+        relative_path="controls/credential-scan.json",
+        content_sha256=scan_sha,
+        byte_count=scan_size,
+        captured_ts_ns=scan_reviewed_ts_ns,
+    )
+    outcome_manifest = CleanupOutcomeEvidenceManifest(
+        retirement_id=manifest.retirement_id,
+        created_ts_ns=created_ts_ns,
+        policy_id=policy.policy_id,
+        policy_sha256=policy.sha256(),
+        credential_scan_policy_id=scan_policy.policy_id,
+        credential_scan_policy_sha256=scan_policy.sha256(),
+        source_commit_sha=manifest.source_commit_sha,
+        archive_manifest_sha256=archive.sha256(),
+        disabled_observation_report_sha256=report.sha256(),
+        cleanup_manifest_sha256=manifest.sha256(),
+        cleanup_preflight_receipt_sha256=receipt.sha256(),
+        artifacts=(artifact,),
+        controls=(target_control, scan_control),
+    )
+    _write(
+        root / outcome_module.OUTCOME_MANIFEST_NAME,
+        outcome_manifest.canonical_bytes() + b"\n",
+    )
+    return created_ts_ns + 1_000_000_000
+
+
+def _completion_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[
+    Path,
+    Path,
+    LegacyCleanupManifest,
+    DisabledObservationReport,
+    LegacyArchiveManifest,
+    RetirementApprovalPaths,
+    str,
+    str,
+    CleanupPreflightReceipt,
+]:
+    evaluated_ts_ns = time.time_ns() // 1_000 * 1_000
+    approved_ts_ns = evaluated_ts_ns - 120_000_000_000
+    archive = _archive(approved_ts_ns)
+    report = _disabled_report(approved_ts_ns, archive)
+    policy = load_retirement_policy(POLICY_PATH)
+    scan_policy = load_legacy_archive_credential_scan_policy(SCAN_POLICY_PATH)
+    approved_root = tmp_path / "approved-cleanup"
+    action_root = tmp_path / "action-cleanup"
+    _bundle(approved_root, approved_ts_ns, archive, report)
+    _bundle(action_root, evaluated_ts_ns, archive, report)
+    monkeypatch.setattr(cleanup_module, "time_ns", lambda: evaluated_ts_ns - 90_000_000_000)
+    manifest = assemble_cleanup_manifest(
+        approved_root,
+        report,
+        archive,
+        policy=policy,
+        credential_scan_policy=scan_policy,
+    )
+    approval_paths, key_id, public_key_sha256, _ = _cleanup_approval(
+        tmp_path / "approval",
+        manifest,
+        report,
+        archive,
+        datetime.fromtimestamp((evaluated_ts_ns - 60_000_000_000) / 1_000_000_000, UTC),
+    )
+    monkeypatch.setattr(cleanup_module, "time_ns", lambda: evaluated_ts_ns)
+    monkeypatch.setattr(preflight_module, "time_ns", lambda: evaluated_ts_ns)
+    receipt = evaluate_cleanup_preflight(
+        approved_root,
+        action_root,
+        manifest,
+        report,
+        archive,
+        cleanup_approval_paths=approval_paths,
+        policy=policy,
+        credential_scan_policy=scan_policy,
+        expected_cleanup_key_id=key_id,
+        expected_cleanup_public_key_sha256=public_key_sha256,
+    )
+    return (
+        approved_root,
+        action_root,
+        manifest,
+        report,
+        archive,
+        approval_paths,
+        key_id,
+        public_key_sha256,
+        receipt,
+    )
+
+
+def test_cleanup_completion_replays_exact_postconditions_after_receipt_expiry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        approved_root,
+        action_root,
+        manifest,
+        report,
+        archive,
+        approval_paths,
+        key_id,
+        public_key_sha256,
+        receipt,
+    ) = _completion_sources(tmp_path, monkeypatch)
+    outcome_root = tmp_path / "cleanup-outcome"
+    generated_ts_ns = _outcome_bundle(
+        outcome_root,
+        receipt=receipt,
+        manifest=manifest,
+        archive=archive,
+        report=report,
+    )
+    policy = load_retirement_policy(POLICY_PATH)
+    scan_policy = load_legacy_archive_credential_scan_policy(SCAN_POLICY_PATH)
+    monkeypatch.setattr(outcome_module, "time_ns", lambda: generated_ts_ns)
+
+    completion = assemble_cleanup_completion(
+        outcome_root,
+        approved_root,
+        action_root,
+        receipt,
+        manifest,
+        report,
+        archive,
+        cleanup_approval_paths=approval_paths,
+        policy=policy,
+        credential_scan_policy=scan_policy,
+        expected_cleanup_key_id=key_id,
+        expected_cleanup_public_key_sha256=public_key_sha256,
+    )
+
+    assert completion.cleanup_complete is True
+    assert completion.verification_mode == "evidence_only"
+    assert completion.operator_actions_observed is True
+    assert completion.targets[0].postcondition_met is True
+    assert {item.gate for item in completion.gates} == set(CleanupOutcomeGate)
+
+    report_path = tmp_path / "cleanup-completion.json"
+    report_path.write_bytes(completion.canonical_bytes() + b"\n")
+    assert load_cleanup_completion_report(report_path) == completion
+    report_path.write_bytes(completion.canonical_bytes())
+    with pytest.raises(ValueError, match="not canonical JSON"):
+        load_cleanup_completion_report(report_path)
+    report_path.write_bytes(completion.canonical_bytes() + b"\n")
+    with pytest.raises(ValidationError, match="verdict"):
+        CleanupCompletionReport.model_validate(
+            {**completion.model_dump(mode="json"), "cleanup_complete": False}
+        )
+    monkeypatch.setattr(outcome_module, "time_ns", lambda: receipt.valid_until_ts_ns + 1)
+    assert (
+        verify_cleanup_completion(
+            outcome_root,
+            approved_root,
+            action_root,
+            completion,
+            receipt,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+        == completion
+    )
+
+    manifest_path = tmp_path / "cleanup-manifest.json"
+    receipt_path = tmp_path / "cleanup-preflight.json"
+    cli_report_path = tmp_path / "cli-cleanup-completion.json"
+    manifest_path.write_bytes(manifest.canonical_bytes() + b"\n")
+    receipt_path.write_bytes(receipt.canonical_bytes() + b"\n")
+    monkeypatch.setattr(outcome_module, "time_ns", lambda: generated_ts_ns)
+    monkeypatch.setattr(
+        "aiquanttrader_native.retirement.cli._replay_cleanup_sources",
+        lambda *args, **kwargs: (report, archive),
+    )
+    dummy = str(tmp_path / "source-placeholder.json")
+    cli_args = [
+        "--evidence-root",
+        str(approved_root),
+        "--action-evidence-root",
+        str(action_root),
+        "--outcome-evidence-root",
+        str(outcome_root),
+        "--preflight",
+        str(receipt_path),
+        "--cleanup-manifest",
+        str(manifest_path),
+        "--disabled-evidence-root",
+        str(approved_root),
+        "--native-evidence-root",
+        str(approved_root),
+        "--legacy-evidence-root",
+        str(approved_root),
+        "--readiness-observation",
+        dummy,
+        "--readiness-report",
+        dummy,
+        "--native-observation",
+        dummy,
+        "--archive-manifest",
+        dummy,
+        "--stop-approval",
+        dummy,
+        "--stop-signature",
+        dummy,
+        "--stop-public-key",
+        dummy,
+        "--disabled-observation",
+        dummy,
+        "--disabled-report",
+        dummy,
+        "--policy",
+        str(POLICY_PATH),
+        "--credential-scan-policy",
+        str(SCAN_POLICY_PATH),
+        "--native-approval-key-id",
+        "native-test",
+        "--native-approval-public-key-sha256",
+        "a" * 64,
+        "--stop-approval-key-id",
+        "stop-test",
+        "--stop-approval-public-key-sha256",
+        "b" * 64,
+        "--cleanup-approval",
+        str(approval_paths.approval_path),
+        "--cleanup-signature",
+        str(approval_paths.signature_path),
+        "--cleanup-public-key",
+        str(approval_paths.public_key_path),
+        "--cleanup-approval-key-id",
+        key_id,
+        "--cleanup-approval-public-key-sha256",
+        public_key_sha256,
+    ]
+    assert (
+        retirement_main(
+            ["assemble-cleanup-completion", *cli_args, "--output", str(cli_report_path)]
+        )
+        == 0
+    )
+    assert (
+        retirement_main(["verify-cleanup-completion", *cli_args, "--report", str(cli_report_path)])
+        == 0
+    )
+
+    (outcome_root / "raw/repository/legacy-mt5-absence.json").write_text(
+        '{"exists":true}\n',
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="digest or size differs"):
+        verify_cleanup_completion(
+            outcome_root,
+            approved_root,
+            action_root,
+            completion,
+            receipt,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+
+
+def test_cleanup_completion_rejects_action_started_at_expiry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        approved_root,
+        action_root,
+        manifest,
+        report,
+        archive,
+        approval_paths,
+        key_id,
+        public_key_sha256,
+        receipt,
+    ) = _completion_sources(tmp_path, monkeypatch)
+    outcome_root = tmp_path / "late-cleanup-outcome"
+    generated_ts_ns = _outcome_bundle(
+        outcome_root,
+        receipt=receipt,
+        manifest=manifest,
+        archive=archive,
+        report=report,
+        action_started_ts_ns=receipt.valid_until_ts_ns,
+    )
+    monkeypatch.setattr(outcome_module, "time_ns", lambda: generated_ts_ns)
+
+    with pytest.raises(ValueError, match="did not start inside preflight validity"):
+        assemble_cleanup_completion(
+            outcome_root,
+            approved_root,
+            action_root,
+            receipt,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=load_retirement_policy(POLICY_PATH),
+            credential_scan_policy=load_legacy_archive_credential_scan_policy(SCAN_POLICY_PATH),
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+
+
+def test_cleanup_action_contract_requires_exact_native_destination() -> None:
+    target = LegacyCleanupTarget(
+        target_id="native-package-migration",
+        kind=CleanupTargetKind.REPOSITORY_PATH,
+        locator="native/src/aiquanttrader_native",
+        action=CleanupAction.MIGRATE_NATIVE,
+        destination_locator="src/aiquanttrader",
+        expected_state_sha256="a" * 64,
+        rationale="migrate the isolated native package after legacy removal",
+    )
+    assert target.destination_locator == "src/aiquanttrader"
+
+    with pytest.raises(ValidationError, match="explicit destination"):
+        LegacyCleanupTarget(
+            target_id="missing-destination",
+            kind=CleanupTargetKind.REPOSITORY_PATH,
+            locator="native/src/aiquanttrader_native",
+            action=CleanupAction.MIGRATE_NATIVE,
+            expected_state_sha256="a" * 64,
+            rationale="migrate the isolated native package after legacy removal",
+        )
+    with pytest.raises(ValidationError, match="only native migration"):
+        LegacyCleanupTarget(
+            target_id="unexpected-destination",
+            kind=CleanupTargetKind.REPOSITORY_PATH,
+            locator="broker/mt5",
+            action=CleanupAction.REMOVE,
+            destination_locator="src/aiquanttrader",
+            expected_state_sha256="a" * 64,
+            rationale="migrate the isolated native package after legacy removal",
+        )
+    with pytest.raises(ValidationError, match="distinct safe repository path"):
+        LegacyCleanupTarget(
+            target_id="unsafe-destination",
+            kind=CleanupTargetKind.REPOSITORY_PATH,
+            locator="native/src/aiquanttrader_native",
+            action=CleanupAction.MIGRATE_NATIVE,
+            destination_locator="../src/aiquanttrader",
+            expected_state_sha256="a" * 64,
+            rationale="unsafe destination must fail",
+        )
+    with pytest.raises(ValidationError, match="only secret references"):
+        LegacyCleanupTarget(
+            target_id="wrong-revoke-kind",
+            kind=CleanupTargetKind.REPOSITORY_PATH,
+            locator="broker/mt5",
+            action=CleanupAction.REVOKE,
+            expected_state_sha256="a" * 64,
+            rationale="repository paths cannot be revoked",
+        )
+    with pytest.raises(ValidationError, match="host packages"):
+        LegacyCleanupTarget(
+            target_id="wrong-archive-kind",
+            kind=CleanupTargetKind.HOST_PACKAGE,
+            locator="wine64",
+            action=CleanupAction.RETAIN_ARCHIVE_ONLY,
+            expected_state_sha256="a" * 64,
+            rationale="packages cannot be archive-only targets",
+        )
+    with pytest.raises(ValidationError, match="action and outcome result kind differ"):
+        CleanupTargetOutcomeEvidence(
+            retirement_id="retirement-cleanup-test",
+            target_id="native-package-migration",
+            kind=CleanupTargetKind.REPOSITORY_PATH,
+            locator="native/src/aiquanttrader_native",
+            action=CleanupAction.MIGRATE_NATIVE,
+            destination_locator="src/aiquanttrader",
+            pre_action_state_sha256="a" * 64,
+            action_started_ts_ns=1,
+            action_completed_ts_ns=2,
+            captured_ts_ns=3,
+            collected_by="operator",
+            reviewed_by="reviewer",
+            result=CleanupRemovedPathResult(
+                kind=CleanupTargetKind.REPOSITORY_PATH,
+                locator="native/src/aiquanttrader_native",
+                observed_commit_sha="b" * 40,
+                raw_artifact_id="source-proof",
+            ),
+        )
+    result = CleanupNativeMigrationResult(
+        locator="native/src/aiquanttrader_native",
+        destination_locator="src/aiquanttrader",
+        migration_commit_sha="b" * 40,
+        destination_inventory_sha256="c" * 64,
+        raw_artifact_ids=("source-proof", "destination-inventory"),
+    )
+    assert result.destination_exists is True
+
+    overlapping = LegacyCleanupTarget(
+        target_id="nested-source",
+        kind=CleanupTargetKind.REPOSITORY_PATH,
+        locator="native/src/aiquanttrader_native/retirement",
+        action=CleanupAction.REMOVE,
+        expected_state_sha256="d" * 64,
+        rationale="overlapping removal must fail at manifest validation",
+    )
+    with pytest.raises(ValidationError, match="target paths cannot overlap"):
+        LegacyCleanupManifest(
+            retirement_id="retirement-cleanup-test",
+            created_ts_ns=1,
+            policy_id="retirement-policy",
+            policy_sha256="e" * 64,
+            source_commit_sha=COMMIT,
+            archive_manifest_sha256="f" * 64,
+            disabled_observation_report_sha256="1" * 64,
+            evidence_manifest_sha256="2" * 64,
+            credential_scan_sha256="3" * 64,
+            evidence_bundle_sha256="4" * 64,
+            targets=(target, overlapping),
+        )
+
+
+def test_cleanup_outcome_verifies_archive_host_migration_and_secret_postconditions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (
+        _approved_root,
+        _action_root,
+        base_manifest,
+        _report,
+        archive,
+        _approval_paths,
+        _key_id,
+        _public_key_sha256,
+        base_receipt,
+    ) = _completion_sources(tmp_path, monkeypatch)
+    started = base_receipt.evaluated_ts_ns + 1_000_000_000
+    completed = started + 1_000_000_000
+    captured = completed + 1_000_000_000
+    artifact_models: list[CleanupEvidenceArtifact] = []
+
+    def write_artifact(artifact_id: str, relative_path: str, payload: bytes) -> None:
+        sha256, size = _write(tmp_path / "variant-outcome" / relative_path, payload)
+        artifact_models.append(
+            CleanupEvidenceArtifact(
+                artifact_id=artifact_id,
+                relative_path=relative_path,
+                content_sha256=sha256,
+                byte_count=size,
+                captured_ts_ns=completed,
+            )
+        )
+
+    archive_absence = CleanupPathAbsenceEvidence(
+        kind=CleanupTargetKind.RUNTIME_PATH,
+        locator="/root/AIQuantTrader/.runtime/legacy-archive-only",
+        captured_ts_ns=completed,
+        observation_source="filesystem-audit",
+    )
+    write_artifact(
+        "archive-absence",
+        "raw/runtime/archive-absence.json",
+        archive_absence.canonical_bytes() + b"\n",
+    )
+    host_proofs = tuple(
+        CleanupHostAbsenceEvidence(
+            kind=CleanupTargetKind.HOST_PACKAGE,
+            locator="wine64",
+            captured_ts_ns=completed,
+            observation_source=source,
+        )
+        for source in ("dpkg-query", "executable-path-audit")
+    )
+    for index, proof in enumerate(host_proofs, start=1):
+        write_artifact(
+            f"host-absence-{index}",
+            f"raw/host/host-absence-{index}.json",
+            proof.canonical_bytes() + b"\n",
+        )
+
+    migration_absence = CleanupPathAbsenceEvidence(
+        kind=CleanupTargetKind.REPOSITORY_PATH,
+        locator="native/src/aiquanttrader_native",
+        observed_commit_sha="d" * 40,
+        captured_ts_ns=completed,
+        observation_source="git-tree-audit",
+    )
+    write_artifact(
+        "migration-source-absence",
+        "raw/repository/migration-source-absence.json",
+        migration_absence.canonical_bytes() + b"\n",
+    )
+    destination_inventory = CleanupPathInventoryEvidence(
+        kind=CleanupTargetKind.REPOSITORY_PATH,
+        locator="src/aiquanttrader",
+        source_commit_sha="d" * 40,
+        captured_ts_ns=completed,
+        entries=(
+            CleanupPathInventoryEntry(
+                relative_path=".",
+                object_type=CleanupPathObjectType.DIRECTORY,
+                state_sha256="e" * 64,
+                byte_count=0,
+                mode="0755",
+            ),
+        ),
+    )
+    write_artifact(
+        "migration-destination-inventory",
+        "raw/repository/migration-destination-inventory.json",
+        destination_inventory.canonical_bytes() + b"\n",
+    )
+    provider_payload = b'{"revoked":true}\n'
+    sessions_payload = b'{"active_sessions":[]}\n'
+    write_artifact("secret-provider", "raw/credentials/provider.json", provider_payload)
+    write_artifact("secret-sessions", "raw/credentials/sessions.json", sessions_payload)
+
+    secret_state = CleanupSecretState(
+        locator="MT5_PASSWORD",
+        provider="broker-vault",
+        provider_record_id_sha256="5" * 64,
+        provider_state_sha256="6" * 64,
+        active_sessions_sha256="7" * 64,
+        captured_ts_ns=1,
+        raw_artifact_ids=("approved-provider", "approved-sessions"),
+    )
+    targets = (
+        LegacyCleanupTarget(
+            target_id="archive-only-runtime",
+            kind=CleanupTargetKind.RUNTIME_PATH,
+            locator=archive_absence.locator,
+            action=CleanupAction.RETAIN_ARCHIVE_ONLY,
+            expected_state_sha256="1" * 64,
+            rationale="retain only the final credential-free archive",
+        ),
+        LegacyCleanupTarget(
+            target_id="host-package-removal",
+            kind=CleanupTargetKind.HOST_PACKAGE,
+            locator="wine64",
+            action=CleanupAction.REMOVE,
+            expected_state_sha256="2" * 64,
+            rationale="remove a project-owned package with no shared consumer",
+        ),
+        LegacyCleanupTarget(
+            target_id="native-package-migration",
+            kind=CleanupTargetKind.REPOSITORY_PATH,
+            locator=migration_absence.locator,
+            action=CleanupAction.MIGRATE_NATIVE,
+            destination_locator=destination_inventory.locator,
+            expected_state_sha256="3" * 64,
+            rationale="perform the approved ADR 0008 package migration",
+        ),
+        LegacyCleanupTarget(
+            target_id="secret-revocation",
+            kind=CleanupTargetKind.SECRET_REFERENCE,
+            locator=secret_state.locator,
+            action=CleanupAction.REVOKE,
+            expected_state_sha256=secret_state.expected_state_sha256(),
+            rationale="revoke the exact legacy provider record and sessions",
+        ),
+    )
+    cleanup_manifest = LegacyCleanupManifest.model_validate(
+        {**base_manifest.model_dump(mode="json"), "targets": targets}
+    )
+    preflight_targets = tuple(
+        CleanupPreflightTargetResult(
+            target_id=item.target_id,
+            kind=item.kind,
+            locator=item.locator,
+            action=item.action,
+            destination_locator=item.destination_locator,
+            expected_state_sha256=item.expected_state_sha256,
+            observed_state_sha256=item.expected_state_sha256,
+            state_matches=True,
+        )
+        for item in targets
+    )
+    receipt_payload = base_receipt.model_dump(
+        mode="json",
+        exclude={"receipt_id", "ready_for_operator_action"},
+    )
+    receipt_payload["targets"] = [item.model_dump(mode="json") for item in preflight_targets]
+    preflight = CleanupPreflightReceipt.model_validate(
+        {
+            **receipt_payload,
+            "receipt_id": canonical_sha256(receipt_payload),
+            "ready_for_operator_action": True,
+        }
+    )
+    artifact_by_id = {item.artifact_id: item for item in artifact_models}
+    outcomes = (
+        CleanupTargetOutcomeEvidence(
+            retirement_id=cleanup_manifest.retirement_id,
+            target_id=targets[0].target_id,
+            kind=targets[0].kind,
+            locator=targets[0].locator,
+            action=targets[0].action,
+            pre_action_state_sha256=targets[0].expected_state_sha256,
+            action_started_ts_ns=started,
+            action_completed_ts_ns=completed,
+            captured_ts_ns=captured,
+            collected_by="operator",
+            reviewed_by="reviewer",
+            result=CleanupArchiveOnlyResult(
+                kind=CleanupTargetKind.RUNTIME_PATH,
+                locator=targets[0].locator,
+                archive_manifest_sha256=archive.sha256(),
+                raw_artifact_id="archive-absence",
+            ),
+        ),
+        CleanupTargetOutcomeEvidence(
+            retirement_id=cleanup_manifest.retirement_id,
+            target_id=targets[1].target_id,
+            kind=targets[1].kind,
+            locator=targets[1].locator,
+            action=targets[1].action,
+            pre_action_state_sha256=targets[1].expected_state_sha256,
+            action_started_ts_ns=started,
+            action_completed_ts_ns=completed,
+            captured_ts_ns=captured,
+            collected_by="operator",
+            reviewed_by="reviewer",
+            result=CleanupRemovedHostResult(
+                kind=CleanupTargetKind.HOST_PACKAGE,
+                locator=targets[1].locator,
+                raw_artifact_ids=("host-absence-1", "host-absence-2"),
+            ),
+        ),
+        CleanupTargetOutcomeEvidence(
+            retirement_id=cleanup_manifest.retirement_id,
+            target_id=targets[2].target_id,
+            kind=targets[2].kind,
+            locator=targets[2].locator,
+            action=targets[2].action,
+            destination_locator=targets[2].destination_locator,
+            pre_action_state_sha256=targets[2].expected_state_sha256,
+            action_started_ts_ns=started,
+            action_completed_ts_ns=completed,
+            captured_ts_ns=captured,
+            collected_by="operator",
+            reviewed_by="reviewer",
+            result=CleanupNativeMigrationResult(
+                locator=targets[2].locator,
+                destination_locator=destination_inventory.locator,
+                migration_commit_sha="d" * 40,
+                destination_inventory_sha256=destination_inventory.state_sha256(),
+                raw_artifact_ids=(
+                    "migration-source-absence",
+                    "migration-destination-inventory",
+                ),
+            ),
+        ),
+        CleanupTargetOutcomeEvidence(
+            retirement_id=cleanup_manifest.retirement_id,
+            target_id=targets[3].target_id,
+            kind=targets[3].kind,
+            locator=targets[3].locator,
+            action=targets[3].action,
+            pre_action_state_sha256=targets[3].expected_state_sha256,
+            action_started_ts_ns=started,
+            action_completed_ts_ns=completed,
+            captured_ts_ns=captured,
+            collected_by="operator",
+            reviewed_by="reviewer",
+            result=CleanupRevokedSecretResult(
+                locator=secret_state.locator,
+                provider=secret_state.provider,
+                provider_record_id_sha256=secret_state.provider_record_id_sha256,
+                provider_state_sha256=artifact_by_id["secret-provider"].content_sha256,
+                active_sessions_sha256=artifact_by_id["secret-sessions"].content_sha256,
+                raw_artifact_ids=("secret-provider", "secret-sessions"),
+            ),
+        ),
+    )
+    policy = load_retirement_policy(POLICY_PATH)
+    scan_policy = load_legacy_archive_credential_scan_policy(SCAN_POLICY_PATH)
+    outcome_controls = (
+        *(
+            CleanupOutcomeControl(
+                kind=CleanupOutcomeControlKind.TARGET_OUTCOME,
+                reference_id=item.target_id,
+                relative_path=f"controls/targets/{item.target_id}.json",
+                content_sha256=item.sha256(),
+                byte_count=1,
+                captured_ts_ns=captured,
+            )
+            for item in outcomes
+        ),
+        CleanupOutcomeControl(
+            kind=CleanupOutcomeControlKind.CREDENTIAL_SCAN,
+            reference_id="credential-scan",
+            relative_path="controls/credential-scan.json",
+            content_sha256="8" * 64,
+            byte_count=1,
+            captured_ts_ns=captured,
+        ),
+    )
+    outcome_manifest = CleanupOutcomeEvidenceManifest(
+        retirement_id=cleanup_manifest.retirement_id,
+        created_ts_ns=captured + 1,
+        policy_id=policy.policy_id,
+        policy_sha256=policy.sha256(),
+        credential_scan_policy_id=scan_policy.policy_id,
+        credential_scan_policy_sha256=scan_policy.sha256(),
+        source_commit_sha=cleanup_manifest.source_commit_sha,
+        archive_manifest_sha256=archive.sha256(),
+        disabled_observation_report_sha256="9" * 64,
+        cleanup_manifest_sha256=cleanup_manifest.sha256(),
+        cleanup_preflight_receipt_sha256=preflight.sha256(),
+        artifacts=tuple(artifact_models),
+        controls=outcome_controls,
+    )
+    approved_secret = CleanupTargetEvidence(
+        retirement_id=cleanup_manifest.retirement_id,
+        target_id=targets[3].target_id,
+        action=CleanupAction.REVOKE,
+        rationale=targets[3].rationale,
+        collected_by="operator",
+        reviewed_by="reviewer",
+        state=secret_state,
+    )
+
+    outcome_module._verify_target_outcomes(
+        tmp_path / "variant-outcome",
+        outcome_manifest,
+        outcomes,
+        cleanup_manifest,
+        preflight,
+        (approved_secret,),
+        archive,
+    )

@@ -46,8 +46,9 @@ cleanup phase. Its credential-free tooling can evaluate immutable evidence,
 derive and independently replay an exact cleanup manifest, and verify
 short-lived offline signatures. It can also prepare and independently replay a
 short-lived action-time preflight only when a second complete evidence capture
-matches every approved target state;
-it cannot stop services or delete anything. MT5 shutdown requires a signed
+matches every approved target state, then independently verify typed
+post-action outcomes without extending that authority. It cannot stop services
+or delete anything. MT5 shutdown requires a signed
 `stop_and_observe` approval after stable native production and a final restored
 archive. Removal requires seven days disabled under the baseline policy plus a
 separate signed `remove_and_clean` approval. See
@@ -58,6 +59,8 @@ and
 [`docs/migration/PHASE_10_CLEANUP_MANIFEST.md`](docs/migration/PHASE_10_CLEANUP_MANIFEST.md)
 and
 [`docs/migration/PHASE_10_CLEANUP_PREFLIGHT.md`](docs/migration/PHASE_10_CLEANUP_PREFLIGHT.md)
+and post-action evidence in
+[`docs/migration/PHASE_10_CLEANUP_OUTCOME.md`](docs/migration/PHASE_10_CLEANUP_OUTCOME.md)
 and the
 [`legacy retirement runbook`](docs/operations/LEGACY_RETIREMENT_RUNBOOK.md).
 

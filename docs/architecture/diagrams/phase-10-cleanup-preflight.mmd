@@ -1,6 +1,6 @@
 flowchart TD
     A[Replay native, archive, and disabled evidence] --> B[Replay approved cleanup evidence]
-    B --> C[Verify exact schema-v2 cleanup manifest]
+    B --> C[Verify exact schema-v3 cleanup manifest]
     C --> D[Verify offline remove_and_clean signature]
     D --> E[Replay separately recaptured action-time evidence]
     E --> F{Captured after approval and under five minutes old?}

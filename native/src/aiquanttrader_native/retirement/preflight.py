@@ -192,6 +192,7 @@ def _evaluate_cleanup_preflight(
             kind=item.kind,
             locator=item.locator,
             action=item.action,
+            destination_locator=item.destination_locator,
             expected_state_sha256=item.expected_state_sha256,
             observed_state_sha256=observed_by_id[item.target_id].expected_state_sha256,
             state_matches=(
@@ -292,6 +293,7 @@ def _target_inventory(target: LegacyCleanupTarget) -> tuple[object, ...]:
         target.kind,
         target.locator,
         target.action,
+        target.destination_locator,
         target.rationale,
     )
 

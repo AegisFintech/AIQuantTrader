@@ -190,7 +190,7 @@ authorized for shutdown or removal.
   root and external trust input before emitting a report.
 - A separate non-expired signed `remove_and_clean` approval binds the exact
   disabled report and canonical cleanup manifest.
-- The canonical cleanup manifest is schema v2, derived with
+- The canonical cleanup manifest is schema v3, derived with
   `assemble-cleanup-manifest`, and reproduced by an independent
   `verify-cleanup-manifest` replay of the exact scope/state/ownership bundle;
   schema-only validation is insufficient.
@@ -204,6 +204,10 @@ authorized for shutdown or removal.
 - The removal PR is mechanical, completes ADR 0008, preserves evidence and Git
   history, changes no strategy/risk behavior, and passes the entire native suite
   from a clean checkout.
+- An exact post-action bundle proves every target began inside its preflight
+  window and satisfies the approved typed postcondition. Independent
+  `verify-cleanup-completion` replay must pass after a complete credential scan;
+  the completion report cannot execute or authorize cleanup.
 
 ## Promotion metrics
 

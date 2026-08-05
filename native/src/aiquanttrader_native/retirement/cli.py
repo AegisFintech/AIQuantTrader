@@ -60,6 +60,11 @@ from aiquanttrader_native.retirement.models import (
     RetirementPolicy,
     RetirementReadinessObservation,
 )
+from aiquanttrader_native.retirement.outcome import (
+    assemble_cleanup_completion,
+    load_cleanup_completion_report,
+    verify_cleanup_completion,
+)
 from aiquanttrader_native.retirement.preflight import (
     evaluate_cleanup_preflight,
     load_cleanup_preflight_receipt,
@@ -174,6 +179,14 @@ def _parser() -> argparse.ArgumentParser:
     verify_cleanup_preflight_parser = commands.add_parser("verify-cleanup-preflight")
     _add_cleanup_preflight_arguments(verify_cleanup_preflight_parser)
     verify_cleanup_preflight_parser.add_argument("--preflight", type=Path, required=True)
+
+    assemble_cleanup_completion_parser = commands.add_parser("assemble-cleanup-completion")
+    _add_cleanup_outcome_arguments(assemble_cleanup_completion_parser)
+    assemble_cleanup_completion_parser.add_argument("--output", type=Path, required=True)
+
+    verify_cleanup_completion_parser = commands.add_parser("verify-cleanup-completion")
+    _add_cleanup_outcome_arguments(verify_cleanup_completion_parser)
+    verify_cleanup_completion_parser.add_argument("--report", type=Path, required=True)
 
     verify = commands.add_parser("verify-approval")
     verify.add_argument("--approval", type=Path, required=True)
@@ -505,6 +518,59 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(receipt.model_dump_json())
             return 0
 
+        if args.command in {"assemble-cleanup-completion", "verify-cleanup-completion"}:
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_report, archive_manifest = _replay_cleanup_sources(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            preflight_receipt = load_cleanup_preflight_receipt(args.preflight)
+            cleanup_manifest = load_cleanup_manifest(args.cleanup_manifest)
+            cleanup_approval_paths = RetirementApprovalPaths(
+                approval_path=args.cleanup_approval,
+                signature_path=args.cleanup_signature,
+                public_key_path=args.cleanup_public_key,
+            )
+            if args.command == "assemble-cleanup-completion":
+                _require_output_outside_cleanup_outcome_roots(args, args.output)
+                completion = assemble_cleanup_completion(
+                    args.outcome_evidence_root,
+                    args.evidence_root,
+                    args.action_evidence_root,
+                    preflight_receipt,
+                    cleanup_manifest,
+                    disabled_report,
+                    archive_manifest,
+                    cleanup_approval_paths=cleanup_approval_paths,
+                    policy=policy,
+                    credential_scan_policy=credential_scan_policy,
+                    expected_cleanup_key_id=args.cleanup_approval_key_id,
+                    expected_cleanup_public_key_sha256=(args.cleanup_approval_public_key_sha256),
+                )
+                _atomic_write_new(args.output, completion.canonical_bytes() + b"\n")
+            else:
+                completion = verify_cleanup_completion(
+                    args.outcome_evidence_root,
+                    args.evidence_root,
+                    args.action_evidence_root,
+                    report=load_cleanup_completion_report(args.report),
+                    preflight_receipt=preflight_receipt,
+                    cleanup_manifest=cleanup_manifest,
+                    disabled_report=disabled_report,
+                    archive_manifest=archive_manifest,
+                    cleanup_approval_paths=cleanup_approval_paths,
+                    policy=policy,
+                    credential_scan_policy=credential_scan_policy,
+                    expected_cleanup_key_id=args.cleanup_approval_key_id,
+                    expected_cleanup_public_key_sha256=(args.cleanup_approval_public_key_sha256),
+                )
+            print(completion.model_dump_json())
+            return 0
+
         if args.command == "verify-approval":
             verified = verify_retirement_approval(
                 paths=RetirementApprovalPaths(
@@ -578,6 +644,12 @@ def _add_cleanup_preflight_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--cleanup-public-key", type=Path, required=True)
     parser.add_argument("--cleanup-approval-key-id", required=True)
     parser.add_argument("--cleanup-approval-public-key-sha256", required=True)
+
+
+def _add_cleanup_outcome_arguments(parser: argparse.ArgumentParser) -> None:
+    _add_cleanup_preflight_arguments(parser)
+    parser.add_argument("--outcome-evidence-root", type=Path, required=True)
+    parser.add_argument("--preflight", type=Path, required=True)
 
 
 def _verify_readiness_from_args(
@@ -692,6 +764,14 @@ def _require_output_outside_cleanup_preflight_roots(
     _require_output_outside_evidence_root(args.evidence_root, output)
     _require_output_outside_evidence_root(args.action_evidence_root, output)
     _require_output_outside_disabled_roots(args, output)
+
+
+def _require_output_outside_cleanup_outcome_roots(
+    args: argparse.Namespace,
+    output: Path,
+) -> None:
+    _require_output_outside_cleanup_preflight_roots(args, output)
+    _require_output_outside_evidence_root(args.outcome_evidence_root, output)
 
 
 def _write_optional(path: Path | None, payload: bytes) -> None:
