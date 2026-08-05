@@ -249,6 +249,7 @@ Current Phase 10 legacy-retirement ownership:
 | `native/src/aiquanttrader_native/retirement/preflight.py` | Short-lived action-time replay of approved and post-approval cleanup bundles, exact state comparison, and `remove_and_clean` approval verification without execution capability. |
 | `native/src/aiquanttrader_native/retirement/action_plan.py` | Active-preflight replay and deterministic typed manual-action ordering with exact outcome-evidence requirements and no executor. |
 | `native/src/aiquanttrader_native/retirement/outcome.py` | Exact post-action bundle replay, historical preflight validation, typed cleanup postconditions, and canonical completion reporting without execution capability. |
+| `native/src/aiquanttrader_native/retirement/closeout.py` | Full historical completion replay and deterministic plan-ordered operator closeout ledger assembly without execution capability. |
 | `native/src/aiquanttrader_native/retirement/{models,evidence,approval}.py` | Immutable final-archive, terminal native-authorization observation, flat-MT5-state, disabled-window, scoped approval, and exact cleanup-manifest contracts. |
 | `native/configs/retirement/evidence-v1.toml` | Frozen 30-day native, five-minute native and disabled-evidence gaps/final-state skew, one-hour final-state age, seven-day disabled, 365-day archive retention, and credential-scan identity. |
 | `native/configs/retirement/archive-credential-scan-v1.toml` | Frozen recursive detector and zero-finding contract for credential-free legacy archives. |
@@ -262,7 +263,8 @@ Current Phase 10 legacy-retirement ownership:
 | `docs/migration/PHASE_10_CLEANUP_MANIFEST.md` | Exact cleanup bundle, scope audit, typed target state, ownership, recursive scan, assembly, replay, tests, and rollback. |
 | `docs/migration/PHASE_10_CLEANUP_PREFLIGHT.md` | Post-approval full-state recapture, five-minute freshness, exact target comparison, receipt replay, tests, and rollback. |
 | `docs/migration/PHASE_10_CLEANUP_ACTION_PLAN.md` | Canonical expiring manual-action order, typed evidence requirements, independent replay, tests, and rollback. |
-| `docs/migration/PHASE_10_CLEANUP_OUTCOME.md` | Schema-v3 action postconditions, exact outcome bundle, historical authority replay, completion gates, tests, and rollback. |
+| `docs/migration/PHASE_10_CLEANUP_OUTCOME.md` | Schema-v3 action postconditions, schema-v2 plan-bound outcomes, historical authority/plan replay, completion gates, tests, and rollback. |
+| `docs/migration/PHASE_10_CLEANUP_CLOSEOUT.md` | Canonical plan-ordered operator ledger, full independent replay, commands, tests, and rollback. |
 | `docs/operations/LEGACY_RETIREMENT_RUNBOOK.md` | Final archive, exact disable, observation, cleanup approval, host cleanup, removal PR, and failure procedure. |
 
 Phase 10 code is evidence-only. `aqt-retirement` has no command or dependency

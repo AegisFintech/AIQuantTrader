@@ -1,0 +1,15 @@
+flowchart LR
+    A[Immutable approved and action-time evidence] --> R[Historical preflight replay]
+    P[Canonical cleanup action plan] --> Q[Deterministic plan replay]
+    R --> Q
+    O[Exact outcome bundle and credential scan] --> C[Schema-v2 completion replay]
+    Q --> C
+    CR[Retained cleanup completion report] --> C
+    C --> G{Complete, exact, retention active?}
+    G -->|No| F[Fail closed; no ledger]
+    G -->|Yes| L[Canonical operator closeout ledger]
+    L --> V[Independent full replay at retained timestamp]
+
+    X[No stop, remove, revoke, migrate, delete, or trade capability] -. constrains .-> R
+    X -. constrains .-> C
+    X -. constrains .-> V

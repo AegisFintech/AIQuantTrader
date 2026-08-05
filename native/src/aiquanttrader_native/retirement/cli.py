@@ -33,6 +33,11 @@ from aiquanttrader_native.retirement.cleanup import (
     load_disabled_observation_report,
     verify_cleanup_manifest,
 )
+from aiquanttrader_native.retirement.closeout import (
+    assemble_cleanup_closeout,
+    load_cleanup_operator_ledger,
+    verify_cleanup_closeout,
+)
 from aiquanttrader_native.retirement.collector import (
     assemble_native_production_observation,
     load_native_production_observation,
@@ -200,6 +205,16 @@ def _parser() -> argparse.ArgumentParser:
     verify_cleanup_completion_parser = commands.add_parser("verify-cleanup-completion")
     _add_cleanup_outcome_arguments(verify_cleanup_completion_parser)
     verify_cleanup_completion_parser.add_argument("--report", type=Path, required=True)
+
+    assemble_cleanup_closeout_parser = commands.add_parser("assemble-cleanup-closeout")
+    _add_cleanup_outcome_arguments(assemble_cleanup_closeout_parser)
+    assemble_cleanup_closeout_parser.add_argument("--report", type=Path, required=True)
+    assemble_cleanup_closeout_parser.add_argument("--output", type=Path, required=True)
+
+    verify_cleanup_closeout_parser = commands.add_parser("verify-cleanup-closeout")
+    _add_cleanup_outcome_arguments(verify_cleanup_closeout_parser)
+    verify_cleanup_closeout_parser.add_argument("--report", type=Path, required=True)
+    verify_cleanup_closeout_parser.add_argument("--ledger", type=Path, required=True)
 
     verify = commands.add_parser("verify-approval")
     verify.add_argument("--approval", type=Path, required=True)
@@ -582,7 +597,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(action_plan.model_dump_json())
             return 0
 
-        if args.command in {"assemble-cleanup-completion", "verify-cleanup-completion"}:
+        if args.command in {
+            "assemble-cleanup-completion",
+            "verify-cleanup-completion",
+            "assemble-cleanup-closeout",
+            "verify-cleanup-closeout",
+        }:
             policy = load_retirement_policy(args.policy)
             credential_scan_policy = load_legacy_archive_credential_scan_policy(
                 args.credential_scan_policy
@@ -593,6 +613,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 credential_scan_policy=credential_scan_policy,
             )
             preflight_receipt = load_cleanup_preflight_receipt(args.preflight)
+            cleanup_action_plan = load_cleanup_action_plan(args.action_plan)
             cleanup_manifest = load_cleanup_manifest(args.cleanup_manifest)
             cleanup_approval_paths = RetirementApprovalPaths(
                 approval_path=args.cleanup_approval,
@@ -606,6 +627,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.evidence_root,
                     args.action_evidence_root,
                     preflight_receipt,
+                    cleanup_action_plan,
                     cleanup_manifest,
                     disabled_report,
                     archive_manifest,
@@ -616,13 +638,16 @@ def main(argv: Sequence[str] | None = None) -> int:
                     expected_cleanup_public_key_sha256=(args.cleanup_approval_public_key_sha256),
                 )
                 _atomic_write_new(args.output, completion.canonical_bytes() + b"\n")
-            else:
+                print(completion.model_dump_json())
+                return 0
+            if args.command == "verify-cleanup-completion":
                 completion = verify_cleanup_completion(
                     args.outcome_evidence_root,
                     args.evidence_root,
                     args.action_evidence_root,
                     report=load_cleanup_completion_report(args.report),
                     preflight_receipt=preflight_receipt,
+                    cleanup_action_plan=cleanup_action_plan,
                     cleanup_manifest=cleanup_manifest,
                     disabled_report=disabled_report,
                     archive_manifest=archive_manifest,
@@ -632,7 +657,48 @@ def main(argv: Sequence[str] | None = None) -> int:
                     expected_cleanup_key_id=args.cleanup_approval_key_id,
                     expected_cleanup_public_key_sha256=(args.cleanup_approval_public_key_sha256),
                 )
-            print(completion.model_dump_json())
+                print(completion.model_dump_json())
+                return 0
+
+            completion = load_cleanup_completion_report(args.report)
+            if args.command == "assemble-cleanup-closeout":
+                _require_output_outside_cleanup_outcome_roots(args, args.output)
+                ledger = assemble_cleanup_closeout(
+                    args.outcome_evidence_root,
+                    args.evidence_root,
+                    args.action_evidence_root,
+                    completion,
+                    preflight_receipt,
+                    cleanup_action_plan,
+                    cleanup_manifest,
+                    disabled_report,
+                    archive_manifest,
+                    cleanup_approval_paths=cleanup_approval_paths,
+                    policy=policy,
+                    credential_scan_policy=credential_scan_policy,
+                    expected_cleanup_key_id=args.cleanup_approval_key_id,
+                    expected_cleanup_public_key_sha256=(args.cleanup_approval_public_key_sha256),
+                )
+                _atomic_write_new(args.output, ledger.canonical_bytes() + b"\n")
+            else:
+                ledger = verify_cleanup_closeout(
+                    args.outcome_evidence_root,
+                    args.evidence_root,
+                    args.action_evidence_root,
+                    load_cleanup_operator_ledger(args.ledger),
+                    completion,
+                    preflight_receipt,
+                    cleanup_action_plan,
+                    cleanup_manifest,
+                    disabled_report,
+                    archive_manifest,
+                    cleanup_approval_paths=cleanup_approval_paths,
+                    policy=policy,
+                    credential_scan_policy=credential_scan_policy,
+                    expected_cleanup_key_id=args.cleanup_approval_key_id,
+                    expected_cleanup_public_key_sha256=(args.cleanup_approval_public_key_sha256),
+                )
+            print(ledger.model_dump_json())
             return 0
 
         if args.command == "verify-approval":
@@ -714,6 +780,7 @@ def _add_cleanup_outcome_arguments(parser: argparse.ArgumentParser) -> None:
     _add_cleanup_preflight_arguments(parser)
     parser.add_argument("--outcome-evidence-root", type=Path, required=True)
     parser.add_argument("--preflight", type=Path, required=True)
+    parser.add_argument("--action-plan", type=Path, required=True)
 
 
 def _add_cleanup_action_plan_arguments(parser: argparse.ArgumentParser) -> None:

@@ -85,6 +85,10 @@ checklist while MT5 remains deployed.
   all nine scopes are audited, every target state is raw-evidence-bound, host
   dependencies are project-owned with zero shared consumers, and the recursive
   credential scan has zero findings. Schema-only validation is not sufficient.
+- [ ] After separately authorized cleanup, every schema-v2 outcome binds its
+  exact plan step and sequence; completion replay passes, and the independently
+  replayed closeout ledger has one verified entry per canonical step with the
+  required archive retention still active.
 - [ ] The complete 15-scenario final-testnet report passed with real retained
   evidence, flat final state, resolved unknown outcomes, and no mainnet key.
 - [ ] The unsigned bundle was created at a new path, all receipt hashes and

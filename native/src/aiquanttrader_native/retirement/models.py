@@ -2409,8 +2409,11 @@ CleanupTargetOutcome = Annotated[
 
 
 class CleanupTargetOutcomeEvidence(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     retirement_id: Identifier
+    plan_step_id: Sha256
+    plan_sequence: int = Field(gt=0, le=2_048)
+    plan_stage: CleanupActionStage
     target_id: Identifier
     kind: CleanupTargetKind
     locator: Annotated[str, Field(min_length=1, max_length=512)]
@@ -2489,7 +2492,7 @@ class CleanupOutcomeControl(DomainModel):
 
 
 class CleanupOutcomeEvidenceManifest(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     retirement_id: Identifier
     created_ts_ns: int = Field(ge=0)
     policy_id: Identifier
@@ -2501,6 +2504,7 @@ class CleanupOutcomeEvidenceManifest(DomainModel):
     disabled_observation_report_sha256: Sha256
     cleanup_manifest_sha256: Sha256
     cleanup_preflight_receipt_sha256: Sha256
+    cleanup_action_plan_sha256: Sha256
     contains_credentials: Literal[False] = False
     artifacts: tuple[CleanupEvidenceArtifact, ...] = Field(min_length=1, max_length=4_096)
     controls: tuple[CleanupOutcomeControl, ...] = Field(min_length=2, max_length=2_049)
@@ -2531,6 +2535,8 @@ class CleanupOutcomeEvidenceManifest(DomainModel):
 
 class CleanupOutcomeGate(StrEnum):
     PREFLIGHT_REPLAYED = "preflight_replayed"
+    ACTION_PLAN_REPLAYED = "action_plan_replayed"
+    PLAN_SEQUENCE_EXACT = "plan_sequence_exact"
     ACTIONS_STARTED_WHILE_AUTHORIZED = "actions_started_while_authorized"
     TARGET_INVENTORY_EXACT = "target_inventory_exact"
     PRE_ACTION_STATE_BOUND = "pre_action_state_bound"
@@ -2549,6 +2555,9 @@ class CleanupOutcomeGateResult(DomainModel):
 
 
 class CleanupOutcomeTargetResult(DomainModel):
+    plan_step_id: Sha256
+    plan_sequence: int = Field(gt=0, le=2_048)
+    plan_stage: CleanupActionStage
     target_id: Identifier
     kind: CleanupTargetKind
     locator: Annotated[str, Field(min_length=1, max_length=512)]
@@ -2564,7 +2573,7 @@ class CleanupOutcomeTargetResult(DomainModel):
 class CleanupCompletionReport(DomainModel):
     """Immutable evidence verdict; it cannot perform or authorize cleanup."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     report_id: Sha256
     retirement_id: Identifier
     generated_ts_ns: int = Field(ge=0)
@@ -2575,6 +2584,7 @@ class CleanupCompletionReport(DomainModel):
     disabled_observation_report_sha256: Sha256
     cleanup_manifest_sha256: Sha256
     cleanup_preflight_receipt_sha256: Sha256
+    cleanup_action_plan_sha256: Sha256
     outcome_evidence_manifest_sha256: Sha256
     outcome_evidence_bundle_sha256: Sha256
     credential_scan_sha256: Sha256
@@ -2594,6 +2604,12 @@ class CleanupCompletionReport(DomainModel):
             set(target_locators)
         ):
             raise ValueError("cleanup completion targets must be unique")
+        plan_step_ids = tuple(item.plan_step_id for item in self.targets)
+        plan_sequences = tuple(item.plan_sequence for item in self.targets)
+        if len(plan_step_ids) != len(set(plan_step_ids)) or plan_sequences != tuple(
+            range(1, len(self.targets) + 1)
+        ):
+            raise ValueError("cleanup completion plan sequence must be unique and contiguous")
         names = [item.gate for item in self.gates]
         if len(names) != len(CleanupOutcomeGate) or set(names) != set(CleanupOutcomeGate):
             raise ValueError("cleanup completion must contain every gate exactly once")
@@ -2605,6 +2621,101 @@ class CleanupCompletionReport(DomainModel):
         identity = self.model_dump(mode="json", exclude={"report_id", "cleanup_complete"})
         if canonical_sha256(identity) != self.report_id:
             raise ValueError("cleanup completion report identity does not match")
+        return self
+
+
+class CleanupOperatorLedgerEntry(DomainModel):
+    sequence: int = Field(gt=0, le=2_048)
+    plan_step_id: Sha256
+    stage: CleanupActionStage
+    target_id: Identifier
+    kind: CleanupTargetKind
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    action: CleanupAction
+    destination_locator: Annotated[str, Field(min_length=1, max_length=512)] | None = None
+    expected_state_sha256: Sha256
+    required_outcome: CleanupActionOutcomeKind
+    evidence_requirements: tuple[CleanupActionEvidenceRequirement, ...] = Field(
+        min_length=6,
+        max_length=8,
+    )
+    action_started_ts_ns: int = Field(ge=0)
+    action_completed_ts_ns: int = Field(ge=0)
+    target_outcome_evidence_sha256: Sha256
+    postcondition_sha256: Sha256
+    collected_by: Annotated[str, Field(min_length=1, max_length=256)]
+    reviewed_by: Annotated[str, Field(min_length=1, max_length=256)]
+    status: Literal["verified_complete"] = "verified_complete"
+
+    @model_validator(mode="after")
+    def timing_and_review_are_valid(self) -> Self:
+        if self.action_completed_ts_ns < self.action_started_ts_ns:
+            raise ValueError("cleanup operator ledger action interval is reversed")
+        if self.collected_by == self.reviewed_by:
+            raise ValueError("cleanup operator ledger requires an independent reviewer")
+        target = LegacyCleanupTarget(
+            target_id=self.target_id,
+            kind=self.kind,
+            locator=self.locator,
+            action=self.action,
+            destination_locator=self.destination_locator,
+            expected_state_sha256=self.expected_state_sha256,
+            rationale="canonical cleanup operator ledger entry",
+        )
+        if self.stage is not cleanup_action_stage_for(target):
+            raise ValueError("cleanup operator ledger stage does not match its target")
+        if self.required_outcome is not cleanup_action_outcome_for(target):
+            raise ValueError("cleanup operator ledger outcome does not match its target")
+        if self.evidence_requirements != cleanup_action_evidence_for(target):
+            raise ValueError("cleanup operator ledger evidence requirements are not exact")
+        return self
+
+
+class CleanupOperatorLedger(DomainModel):
+    """Canonical closeout record derived from a complete evidence replay."""
+
+    schema_version: Literal[1] = 1
+    ledger_id: Sha256
+    retirement_id: Identifier
+    generated_ts_ns: int = Field(ge=0)
+    policy_id: Identifier
+    policy_sha256: Sha256
+    source_commit_sha: GitCommit
+    archive_manifest_sha256: Sha256
+    disabled_observation_report_sha256: Sha256
+    cleanup_manifest_sha256: Sha256
+    cleanup_preflight_receipt_sha256: Sha256
+    cleanup_action_plan_sha256: Sha256
+    cleanup_approval_sha256: Sha256
+    approval_verification_id: Sha256
+    cleanup_completion_report_sha256: Sha256
+    outcome_evidence_manifest_sha256: Sha256
+    outcome_evidence_bundle_sha256: Sha256
+    credential_scan_sha256: Sha256
+    native_deployment_id: Identifier
+    native_admission_id: Sha256
+    verification_mode: Literal["evidence_only"] = "evidence_only"
+    operator_actions_observed: Literal[True] = True
+    entries: tuple[CleanupOperatorLedgerEntry, ...] = Field(min_length=1, max_length=2_048)
+    closeout_complete: Literal[True] = True
+
+    @model_validator(mode="after")
+    def identity_order_and_timing_match(self) -> Self:
+        sequences = tuple(item.sequence for item in self.entries)
+        if sequences != tuple(range(1, len(self.entries) + 1)):
+            raise ValueError("cleanup operator ledger sequence must be contiguous")
+        step_ids = tuple(item.plan_step_id for item in self.entries)
+        target_ids = tuple(item.target_id for item in self.entries)
+        if len(step_ids) != len(set(step_ids)) or len(target_ids) != len(set(target_ids)):
+            raise ValueError("cleanup operator ledger steps and targets must be unique")
+        stage_order = tuple(_CLEANUP_ACTION_STAGE_ORDER[item.stage] for item in self.entries)
+        if stage_order != tuple(sorted(stage_order)):
+            raise ValueError("cleanup operator ledger stages must follow the safe order")
+        if any(item.action_completed_ts_ns > self.generated_ts_ns for item in self.entries):
+            raise ValueError("cleanup operator ledger cannot predate completed actions")
+        identity = self.model_dump(mode="json", exclude={"ledger_id", "closeout_complete"})
+        if canonical_sha256(identity) != self.ledger_id:
+            raise ValueError("cleanup operator ledger identity does not match")
         return self
 
 

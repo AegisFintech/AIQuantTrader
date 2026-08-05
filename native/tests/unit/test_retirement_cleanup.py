@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 import aiquanttrader_native.retirement.action_plan as action_plan_module
 import aiquanttrader_native.retirement.cleanup as cleanup_module
+import aiquanttrader_native.retirement.closeout as closeout_module
 import aiquanttrader_native.retirement.outcome as outcome_module
 import aiquanttrader_native.retirement.preflight as preflight_module
 from aiquanttrader_native.domain.base import canonical_sha256
@@ -30,6 +31,11 @@ from aiquanttrader_native.retirement.cleanup import (
     verify_cleanup_manifest,
 )
 from aiquanttrader_native.retirement.cli import main as retirement_main
+from aiquanttrader_native.retirement.closeout import (
+    assemble_cleanup_closeout,
+    load_cleanup_operator_ledger,
+    verify_cleanup_closeout,
+)
 from aiquanttrader_native.retirement.evidence import load_retirement_policy
 from aiquanttrader_native.retirement.models import (
     CleanupAction,
@@ -50,6 +56,7 @@ from aiquanttrader_native.retirement.models import (
     CleanupInventoryAuditEvidence,
     CleanupInventoryScope,
     CleanupNativeMigrationResult,
+    CleanupOperatorLedger,
     CleanupOutcomeControl,
     CleanupOutcomeControlKind,
     CleanupOutcomeEvidenceManifest,
@@ -2006,6 +2013,7 @@ def _outcome_bundle(
     root: Path,
     *,
     receipt: CleanupPreflightReceipt,
+    action_plan: CleanupActionPlan,
     manifest: LegacyCleanupManifest,
     archive: LegacyArchiveManifest,
     report: DisabledObservationReport,
@@ -2042,8 +2050,12 @@ def _outcome_bundle(
         byte_count=raw_size,
         captured_ts_ns=raw_ts_ns,
     )
+    step = action_plan.steps[0]
     target = CleanupTargetOutcomeEvidence(
         retirement_id=manifest.retirement_id,
+        plan_step_id=step.step_id,
+        plan_sequence=step.sequence,
+        plan_stage=step.stage,
         target_id=manifest.targets[0].target_id,
         kind=CleanupTargetKind.REPOSITORY_PATH,
         locator=manifest.targets[0].locator,
@@ -2118,6 +2130,7 @@ def _outcome_bundle(
         disabled_observation_report_sha256=report.sha256(),
         cleanup_manifest_sha256=manifest.sha256(),
         cleanup_preflight_receipt_sha256=receipt.sha256(),
+        cleanup_action_plan_sha256=action_plan.sha256(),
         artifacts=(artifact,),
         controls=(target_control, scan_control),
     )
@@ -2141,6 +2154,7 @@ def _completion_sources(
     str,
     str,
     CleanupPreflightReceipt,
+    CleanupActionPlan,
 ]:
     evaluated_ts_ns = time.time_ns() // 1_000 * 1_000
     approved_ts_ns = evaluated_ts_ns - 120_000_000_000
@@ -2181,6 +2195,11 @@ def _completion_sources(
         expected_cleanup_key_id=key_id,
         expected_cleanup_public_key_sha256=public_key_sha256,
     )
+    action_plan = action_plan_module._build_cleanup_action_plan(
+        receipt,
+        manifest,
+        prepared_ts_ns=evaluated_ts_ns + 500_000_000,
+    )
     return (
         approved_root,
         action_root,
@@ -2191,6 +2210,7 @@ def _completion_sources(
         key_id,
         public_key_sha256,
         receipt,
+        action_plan,
     )
 
 
@@ -2208,11 +2228,13 @@ def test_cleanup_completion_replays_exact_postconditions_after_receipt_expiry(
         key_id,
         public_key_sha256,
         receipt,
+        action_plan,
     ) = _completion_sources(tmp_path, monkeypatch)
     outcome_root = tmp_path / "cleanup-outcome"
     generated_ts_ns = _outcome_bundle(
         outcome_root,
         receipt=receipt,
+        action_plan=action_plan,
         manifest=manifest,
         archive=archive,
         report=report,
@@ -2226,6 +2248,7 @@ def test_cleanup_completion_replays_exact_postconditions_after_receipt_expiry(
         approved_root,
         action_root,
         receipt,
+        action_plan,
         manifest,
         report,
         archive,
@@ -2253,6 +2276,10 @@ def test_cleanup_completion_replays_exact_postconditions_after_receipt_expiry(
         CleanupCompletionReport.model_validate(
             {**completion.model_dump(mode="json"), "cleanup_complete": False}
         )
+    out_of_order = completion.model_dump(mode="json")
+    out_of_order["targets"][0]["plan_sequence"] = 2
+    with pytest.raises(ValidationError, match="plan sequence"):
+        CleanupCompletionReport.model_validate(out_of_order)
     monkeypatch.setattr(outcome_module, "time_ns", lambda: receipt.valid_until_ts_ns + 1)
     assert (
         verify_cleanup_completion(
@@ -2261,6 +2288,7 @@ def test_cleanup_completion_replays_exact_postconditions_after_receipt_expiry(
             action_root,
             completion,
             receipt,
+            action_plan,
             manifest,
             report,
             archive,
@@ -2275,9 +2303,11 @@ def test_cleanup_completion_replays_exact_postconditions_after_receipt_expiry(
 
     manifest_path = tmp_path / "cleanup-manifest.json"
     receipt_path = tmp_path / "cleanup-preflight.json"
+    action_plan_path = tmp_path / "cleanup-action-plan.json"
     cli_report_path = tmp_path / "cli-cleanup-completion.json"
     manifest_path.write_bytes(manifest.canonical_bytes() + b"\n")
     receipt_path.write_bytes(receipt.canonical_bytes() + b"\n")
+    action_plan_path.write_bytes(action_plan.canonical_bytes() + b"\n")
     monkeypatch.setattr(outcome_module, "time_ns", lambda: generated_ts_ns)
     monkeypatch.setattr(
         "aiquanttrader_native.retirement.cli._replay_cleanup_sources",
@@ -2293,6 +2323,8 @@ def test_cleanup_completion_replays_exact_postconditions_after_receipt_expiry(
         str(outcome_root),
         "--preflight",
         str(receipt_path),
+        "--action-plan",
+        str(action_plan_path),
         "--cleanup-manifest",
         str(manifest_path),
         "--disabled-evidence-root",
@@ -2353,6 +2385,111 @@ def test_cleanup_completion_replays_exact_postconditions_after_receipt_expiry(
         == 0
     )
 
+    closeout_ts_ns = generated_ts_ns + 1_000_000_000
+    monkeypatch.setattr(
+        closeout_module,
+        "time_ns",
+        lambda: archive.retention_expires_ts_ns - policy.minimum_archive_retention_ns + 1,
+    )
+    with pytest.raises(ValueError, match="remaining archive retention"):
+        assemble_cleanup_closeout(
+            outcome_root,
+            approved_root,
+            action_root,
+            completion,
+            receipt,
+            action_plan,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+    monkeypatch.setattr(closeout_module, "time_ns", lambda: closeout_ts_ns)
+    ledger = assemble_cleanup_closeout(
+        outcome_root,
+        approved_root,
+        action_root,
+        completion,
+        receipt,
+        action_plan,
+        manifest,
+        report,
+        archive,
+        cleanup_approval_paths=approval_paths,
+        policy=policy,
+        credential_scan_policy=scan_policy,
+        expected_cleanup_key_id=key_id,
+        expected_cleanup_public_key_sha256=public_key_sha256,
+    )
+    assert ledger.closeout_complete is True
+    assert ledger.cleanup_action_plan_sha256 == action_plan.sha256()
+    assert ledger.cleanup_completion_report_sha256 == completion.sha256()
+    assert tuple(item.plan_step_id for item in ledger.entries) == tuple(
+        item.step_id for item in action_plan.steps
+    )
+    ledger_path = tmp_path / "cleanup-closeout.json"
+    ledger_path.write_bytes(ledger.canonical_bytes() + b"\n")
+    assert load_cleanup_operator_ledger(ledger_path) == ledger
+    with pytest.raises(ValidationError, match="identity"):
+        CleanupOperatorLedger.model_validate(
+            {**ledger.model_dump(mode="json"), "cleanup_action_plan_sha256": "0" * 64}
+        )
+
+    monkeypatch.setattr(closeout_module, "time_ns", lambda: receipt.valid_until_ts_ns + 1)
+    assert (
+        verify_cleanup_closeout(
+            outcome_root,
+            approved_root,
+            action_root,
+            ledger,
+            completion,
+            receipt,
+            action_plan,
+            manifest,
+            report,
+            archive,
+            cleanup_approval_paths=approval_paths,
+            policy=policy,
+            credential_scan_policy=scan_policy,
+            expected_cleanup_key_id=key_id,
+            expected_cleanup_public_key_sha256=public_key_sha256,
+        )
+        == ledger
+    )
+
+    cli_ledger_path = tmp_path / "cli-cleanup-closeout.json"
+    monkeypatch.setattr(closeout_module, "time_ns", lambda: closeout_ts_ns)
+    assert (
+        retirement_main(
+            [
+                "assemble-cleanup-closeout",
+                *cli_args,
+                "--report",
+                str(cli_report_path),
+                "--output",
+                str(cli_ledger_path),
+            ]
+        )
+        == 0
+    )
+    assert (
+        retirement_main(
+            [
+                "verify-cleanup-closeout",
+                *cli_args,
+                "--report",
+                str(cli_report_path),
+                "--ledger",
+                str(cli_ledger_path),
+            ]
+        )
+        == 0
+    )
+
     (outcome_root / "raw/repository/legacy-mt5-absence.json").write_text(
         '{"exists":true}\n',
         encoding="utf-8",
@@ -2364,6 +2501,7 @@ def test_cleanup_completion_replays_exact_postconditions_after_receipt_expiry(
             action_root,
             completion,
             receipt,
+            action_plan,
             manifest,
             report,
             archive,
@@ -2389,11 +2527,13 @@ def test_cleanup_completion_rejects_action_started_at_expiry(
         key_id,
         public_key_sha256,
         receipt,
+        action_plan,
     ) = _completion_sources(tmp_path, monkeypatch)
     outcome_root = tmp_path / "late-cleanup-outcome"
     generated_ts_ns = _outcome_bundle(
         outcome_root,
         receipt=receipt,
+        action_plan=action_plan,
         manifest=manifest,
         archive=archive,
         report=report,
@@ -2407,6 +2547,7 @@ def test_cleanup_completion_rejects_action_started_at_expiry(
             approved_root,
             action_root,
             receipt,
+            action_plan,
             manifest,
             report,
             archive,
@@ -2568,6 +2709,9 @@ def test_cleanup_action_contract_requires_exact_native_destination() -> None:
     with pytest.raises(ValidationError, match="action and outcome result kind differ"):
         CleanupTargetOutcomeEvidence(
             retirement_id="retirement-cleanup-test",
+            plan_step_id="f" * 64,
+            plan_sequence=1,
+            plan_stage=CleanupActionStage.NATIVE_REPOSITORY_MIGRATION,
             target_id="native-package-migration",
             kind=CleanupTargetKind.REPOSITORY_PATH,
             locator="native/src/aiquanttrader_native",
@@ -2633,6 +2777,7 @@ def test_cleanup_outcome_verifies_archive_host_migration_and_secret_postconditio
         _key_id,
         _public_key_sha256,
         base_receipt,
+        _base_action_plan,
     ) = _completion_sources(tmp_path, monkeypatch)
     started = base_receipt.evaluated_ts_ns + 1_000_000_000
     completed = started + 1_000_000_000
@@ -2780,6 +2925,7 @@ def test_cleanup_outcome_verifies_archive_host_migration_and_secret_postconditio
         exclude={"receipt_id", "ready_for_operator_action"},
     )
     receipt_payload["targets"] = [item.model_dump(mode="json") for item in preflight_targets]
+    receipt_payload["approved_cleanup_manifest_sha256"] = cleanup_manifest.sha256()
     preflight = CleanupPreflightReceipt.model_validate(
         {
             **receipt_payload,
@@ -2787,10 +2933,19 @@ def test_cleanup_outcome_verifies_archive_host_migration_and_secret_postconditio
             "ready_for_operator_action": True,
         }
     )
+    action_plan = action_plan_module._build_cleanup_action_plan(
+        preflight,
+        cleanup_manifest,
+        prepared_ts_ns=preflight.evaluated_ts_ns + 500_000_000,
+    )
+    step_by_target = {item.target_id: item for item in action_plan.steps}
     artifact_by_id = {item.artifact_id: item for item in artifact_models}
     outcomes = (
         CleanupTargetOutcomeEvidence(
             retirement_id=cleanup_manifest.retirement_id,
+            plan_step_id=step_by_target[targets[0].target_id].step_id,
+            plan_sequence=step_by_target[targets[0].target_id].sequence,
+            plan_stage=step_by_target[targets[0].target_id].stage,
             target_id=targets[0].target_id,
             kind=targets[0].kind,
             locator=targets[0].locator,
@@ -2810,6 +2965,9 @@ def test_cleanup_outcome_verifies_archive_host_migration_and_secret_postconditio
         ),
         CleanupTargetOutcomeEvidence(
             retirement_id=cleanup_manifest.retirement_id,
+            plan_step_id=step_by_target[targets[1].target_id].step_id,
+            plan_sequence=step_by_target[targets[1].target_id].sequence,
+            plan_stage=step_by_target[targets[1].target_id].stage,
             target_id=targets[1].target_id,
             kind=targets[1].kind,
             locator=targets[1].locator,
@@ -2828,6 +2986,9 @@ def test_cleanup_outcome_verifies_archive_host_migration_and_secret_postconditio
         ),
         CleanupTargetOutcomeEvidence(
             retirement_id=cleanup_manifest.retirement_id,
+            plan_step_id=step_by_target[targets[2].target_id].step_id,
+            plan_sequence=step_by_target[targets[2].target_id].sequence,
+            plan_stage=step_by_target[targets[2].target_id].stage,
             target_id=targets[2].target_id,
             kind=targets[2].kind,
             locator=targets[2].locator,
@@ -2852,6 +3013,9 @@ def test_cleanup_outcome_verifies_archive_host_migration_and_secret_postconditio
         ),
         CleanupTargetOutcomeEvidence(
             retirement_id=cleanup_manifest.retirement_id,
+            plan_step_id=step_by_target[targets[3].target_id].step_id,
+            plan_sequence=step_by_target[targets[3].target_id].sequence,
+            plan_stage=step_by_target[targets[3].target_id].stage,
             target_id=targets[3].target_id,
             kind=targets[3].kind,
             locator=targets[3].locator,
@@ -2907,6 +3071,7 @@ def test_cleanup_outcome_verifies_archive_host_migration_and_secret_postconditio
         disabled_observation_report_sha256="9" * 64,
         cleanup_manifest_sha256=cleanup_manifest.sha256(),
         cleanup_preflight_receipt_sha256=preflight.sha256(),
+        cleanup_action_plan_sha256=action_plan.sha256(),
         artifacts=tuple(artifact_models),
         controls=outcome_controls,
     )
@@ -2924,8 +3089,21 @@ def test_cleanup_outcome_verifies_archive_host_migration_and_secret_postconditio
         tmp_path / "variant-outcome",
         outcome_manifest,
         outcomes,
+        action_plan,
         cleanup_manifest,
         preflight,
         (approved_secret,),
         archive,
     )
+    forged = outcomes[0].model_copy(update={"plan_step_id": "0" * 64})
+    with pytest.raises(ValueError, match="exact action plan step"):
+        outcome_module._verify_target_outcomes(
+            tmp_path / "variant-outcome",
+            outcome_manifest,
+            (forged, *outcomes[1:]),
+            action_plan,
+            cleanup_manifest,
+            preflight,
+            (approved_secret,),
+            archive,
+        )

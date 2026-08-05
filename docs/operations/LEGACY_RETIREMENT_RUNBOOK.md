@@ -219,6 +219,10 @@ See [`PHASE_10_CLEANUP_PREFLIGHT.md`](../migration/PHASE_10_CLEANUP_PREFLIGHT.md
     `verify-cleanup-completion`. Cleanup is incomplete until the canonical
     report has every gate and target postcondition passed. See
     [`PHASE_10_CLEANUP_OUTCOME.md`](../migration/PHASE_10_CLEANUP_OUTCOME.md).
+14. Run `assemble-cleanup-closeout`, then require another operator to run
+    `verify-cleanup-closeout`. Retain the canonical plan-ordered operator ledger
+    beside the completion report and immutable evidence. See
+    [`PHASE_10_CLEANUP_CLOSEOUT.md`](../migration/PHASE_10_CLEANUP_CLOSEOUT.md).
 
 ## Failure and rollback
 

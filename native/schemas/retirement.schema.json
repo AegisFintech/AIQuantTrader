@@ -307,6 +307,11 @@
           "title": "Archive Manifest Sha256",
           "type": "string"
         },
+        "cleanup_action_plan_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Cleanup Action Plan Sha256",
+          "type": "string"
+        },
         "cleanup_complete": {
           "title": "Cleanup Complete",
           "type": "boolean"
@@ -390,8 +395,8 @@
           "type": "string"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -427,6 +432,7 @@
         "disabled_observation_report_sha256",
         "cleanup_manifest_sha256",
         "cleanup_preflight_receipt_sha256",
+        "cleanup_action_plan_sha256",
         "outcome_evidence_manifest_sha256",
         "outcome_evidence_bundle_sha256",
         "credential_scan_sha256",
@@ -987,6 +993,289 @@
       "title": "CleanupInventoryScope",
       "type": "string"
     },
+    "CleanupOperatorLedger": {
+      "additionalProperties": false,
+      "description": "Canonical closeout record derived from a complete evidence replay.",
+      "properties": {
+        "approval_verification_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Approval Verification Id",
+          "type": "string"
+        },
+        "archive_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Archive Manifest Sha256",
+          "type": "string"
+        },
+        "cleanup_action_plan_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Cleanup Action Plan Sha256",
+          "type": "string"
+        },
+        "cleanup_approval_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Cleanup Approval Sha256",
+          "type": "string"
+        },
+        "cleanup_completion_report_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Cleanup Completion Report Sha256",
+          "type": "string"
+        },
+        "cleanup_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Cleanup Manifest Sha256",
+          "type": "string"
+        },
+        "cleanup_preflight_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Cleanup Preflight Receipt Sha256",
+          "type": "string"
+        },
+        "closeout_complete": {
+          "const": true,
+          "default": true,
+          "title": "Closeout Complete",
+          "type": "boolean"
+        },
+        "credential_scan_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Credential Scan Sha256",
+          "type": "string"
+        },
+        "disabled_observation_report_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Disabled Observation Report Sha256",
+          "type": "string"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/CleanupOperatorLedgerEntry"
+          },
+          "maxItems": 2048,
+          "minItems": 1,
+          "title": "Entries",
+          "type": "array"
+        },
+        "generated_ts_ns": {
+          "minimum": 0,
+          "title": "Generated Ts Ns",
+          "type": "integer"
+        },
+        "ledger_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Ledger Id",
+          "type": "string"
+        },
+        "native_admission_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Native Admission Id",
+          "type": "string"
+        },
+        "native_deployment_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Native Deployment Id",
+          "type": "string"
+        },
+        "operator_actions_observed": {
+          "const": true,
+          "default": true,
+          "title": "Operator Actions Observed",
+          "type": "boolean"
+        },
+        "outcome_evidence_bundle_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Outcome Evidence Bundle Sha256",
+          "type": "string"
+        },
+        "outcome_evidence_manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Outcome Evidence Manifest Sha256",
+          "type": "string"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "retirement_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Retirement Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source_commit_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Source Commit Sha",
+          "type": "string"
+        },
+        "verification_mode": {
+          "const": "evidence_only",
+          "default": "evidence_only",
+          "title": "Verification Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ledger_id",
+        "retirement_id",
+        "generated_ts_ns",
+        "policy_id",
+        "policy_sha256",
+        "source_commit_sha",
+        "archive_manifest_sha256",
+        "disabled_observation_report_sha256",
+        "cleanup_manifest_sha256",
+        "cleanup_preflight_receipt_sha256",
+        "cleanup_action_plan_sha256",
+        "cleanup_approval_sha256",
+        "approval_verification_id",
+        "cleanup_completion_report_sha256",
+        "outcome_evidence_manifest_sha256",
+        "outcome_evidence_bundle_sha256",
+        "credential_scan_sha256",
+        "native_deployment_id",
+        "native_admission_id",
+        "entries"
+      ],
+      "title": "CleanupOperatorLedger",
+      "type": "object"
+    },
+    "CleanupOperatorLedgerEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/CleanupAction"
+        },
+        "action_completed_ts_ns": {
+          "minimum": 0,
+          "title": "Action Completed Ts Ns",
+          "type": "integer"
+        },
+        "action_started_ts_ns": {
+          "minimum": 0,
+          "title": "Action Started Ts Ns",
+          "type": "integer"
+        },
+        "collected_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Collected By",
+          "type": "string"
+        },
+        "destination_locator": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Destination Locator"
+        },
+        "evidence_requirements": {
+          "items": {
+            "$ref": "#/$defs/CleanupActionEvidenceRequirement"
+          },
+          "maxItems": 8,
+          "minItems": 6,
+          "title": "Evidence Requirements",
+          "type": "array"
+        },
+        "expected_state_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Expected State Sha256",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/CleanupTargetKind"
+        },
+        "locator": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Locator",
+          "type": "string"
+        },
+        "plan_step_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Plan Step Id",
+          "type": "string"
+        },
+        "postcondition_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Postcondition Sha256",
+          "type": "string"
+        },
+        "required_outcome": {
+          "$ref": "#/$defs/CleanupActionOutcomeKind"
+        },
+        "reviewed_by": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reviewed By",
+          "type": "string"
+        },
+        "sequence": {
+          "exclusiveMinimum": 0,
+          "maximum": 2048,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "stage": {
+          "$ref": "#/$defs/CleanupActionStage"
+        },
+        "status": {
+          "const": "verified_complete",
+          "default": "verified_complete",
+          "title": "Status",
+          "type": "string"
+        },
+        "target_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Target Id",
+          "type": "string"
+        },
+        "target_outcome_evidence_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Target Outcome Evidence Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "sequence",
+        "plan_step_id",
+        "stage",
+        "target_id",
+        "kind",
+        "locator",
+        "action",
+        "expected_state_sha256",
+        "required_outcome",
+        "evidence_requirements",
+        "action_started_ts_ns",
+        "action_completed_ts_ns",
+        "target_outcome_evidence_sha256",
+        "postcondition_sha256",
+        "collected_by",
+        "reviewed_by"
+      ],
+      "title": "CleanupOperatorLedgerEntry",
+      "type": "object"
+    },
     "CleanupOutcomeControl": {
       "additionalProperties": false,
       "properties": {
@@ -1057,6 +1346,11 @@
           "title": "Artifacts",
           "type": "array"
         },
+        "cleanup_action_plan_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Cleanup Action Plan Sha256",
+          "type": "string"
+        },
         "cleanup_manifest_sha256": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Cleanup Manifest Sha256",
@@ -1118,8 +1412,8 @@
           "type": "string"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -1141,6 +1435,7 @@
         "disabled_observation_report_sha256",
         "cleanup_manifest_sha256",
         "cleanup_preflight_receipt_sha256",
+        "cleanup_action_plan_sha256",
         "artifacts",
         "controls"
       ],
@@ -1150,6 +1445,8 @@
     "CleanupOutcomeGate": {
       "enum": [
         "preflight_replayed",
+        "action_plan_replayed",
+        "plan_sequence_exact",
         "actions_started_while_authorized",
         "target_inventory_exact",
         "pre_action_state_bound",
@@ -1233,6 +1530,20 @@
           "title": "Locator",
           "type": "string"
         },
+        "plan_sequence": {
+          "exclusiveMinimum": 0,
+          "maximum": 2048,
+          "title": "Plan Sequence",
+          "type": "integer"
+        },
+        "plan_stage": {
+          "$ref": "#/$defs/CleanupActionStage"
+        },
+        "plan_step_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Plan Step Id",
+          "type": "string"
+        },
         "postcondition_met": {
           "title": "Postcondition Met",
           "type": "boolean"
@@ -1254,6 +1565,9 @@
         }
       },
       "required": [
+        "plan_step_id",
+        "plan_sequence",
+        "plan_stage",
         "target_id",
         "kind",
         "locator",
@@ -5667,6 +5981,9 @@
     },
     {
       "$ref": "#/$defs/CleanupCompletionReport"
+    },
+    {
+      "$ref": "#/$defs/CleanupOperatorLedger"
     },
     {
       "$ref": "#/$defs/CleanupPathAbsenceEvidence"

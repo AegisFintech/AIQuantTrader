@@ -61,6 +61,8 @@ and
 [`docs/migration/PHASE_10_CLEANUP_PREFLIGHT.md`](docs/migration/PHASE_10_CLEANUP_PREFLIGHT.md)
 and post-action evidence in
 [`docs/migration/PHASE_10_CLEANUP_OUTCOME.md`](docs/migration/PHASE_10_CLEANUP_OUTCOME.md)
+and the canonical closeout ledger in
+[`docs/migration/PHASE_10_CLEANUP_CLOSEOUT.md`](docs/migration/PHASE_10_CLEANUP_CLOSEOUT.md)
 and the
 [`legacy retirement runbook`](docs/operations/LEGACY_RETIREMENT_RUNBOOK.md).
 

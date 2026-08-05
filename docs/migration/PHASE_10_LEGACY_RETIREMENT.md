@@ -335,6 +335,12 @@ and report evaluation are documented in
 Exact cleanup scope/state packaging, ownership proof, recursive scanning,
 assembly, and independent replay are documented in
 [`Phase 10: Cleanup Manifest Evidence`](PHASE_10_CLEANUP_MANIFEST.md).
+Action-time recapture, canonical action ordering, plan-bound postconditions,
+and the final independently replayable operator ledger are documented in
+[`Cleanup Preflight`](PHASE_10_CLEANUP_PREFLIGHT.md),
+[`Cleanup Action Plan`](PHASE_10_CLEANUP_ACTION_PLAN.md),
+[`Cleanup Outcome Evidence`](PHASE_10_CLEANUP_OUTCOME.md), and
+[`Cleanup Closeout Ledger`](PHASE_10_CLEANUP_CLOSEOUT.md).
 Before the cleanup approval, rollback means leaving native safe and halted while
 the owner decides whether to issue new, explicit MT5 reactivation authority.
 After cleanup, recovery uses the immutable archive and `mt5-final` tag in a
