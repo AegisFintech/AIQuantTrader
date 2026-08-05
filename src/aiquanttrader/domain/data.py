@@ -222,3 +222,14 @@ class RecorderState(DomainModel):
     current_segment_id: SafeIdentifier | None = None
     reconnect_count: int = Field(ge=0)
     last_error_code: Annotated[str, Field(min_length=1, max_length=128)] | None = None
+
+
+class NormalizerState(DomainModel):
+    schema_version: Literal[1] = 1
+    status: Literal["starting", "running", "completed", "stopped", "failed"]
+    heartbeat_ts_ns: int = Field(ge=0)
+    discovered: int = Field(ge=0)
+    normalized: int = Field(ge=0)
+    already_complete: int = Field(ge=0)
+    quarantined: int = Field(ge=0)
+    last_error_code: Annotated[str, Field(min_length=1, max_length=128)] | None = None

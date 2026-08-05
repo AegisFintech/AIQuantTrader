@@ -10,13 +10,18 @@ WORKDIR /build
 RUN python -m pip install --no-cache-dir uv==0.11.29
 
 COPY pyproject.toml uv.lock README.md ./
+
+RUN uv sync --frozen --no-dev --no-editable --no-install-project
+
+FROM builder AS package-builder
+
 COPY src ./src
 
-RUN uv sync --frozen --no-dev --no-editable
+RUN uv build --wheel --out-dir /build/dist
 
 FROM builder AS research-builder
 
-RUN uv sync --frozen --no-dev --no-editable --extra research
+RUN uv sync --frozen --no-dev --no-editable --extra research --no-install-project
 
 FROM python:3.12.13-slim-bookworm@sha256:d50fb7611f86d04a3b0471b46d7557818d88983fc3136726336b2a4c657aa30b AS runtime-base
 
@@ -43,6 +48,11 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=research-builder --chown=65532:65532 /opt/aiquanttrader/.venv /opt/aiquanttrader/.venv
+COPY --from=package-builder --chown=65532:65532 /build/dist/aiquanttrader-0.1.0-py3-none-any.whl /tmp/aiquanttrader-0.1.0-py3-none-any.whl
+
+RUN /usr/local/bin/python -m pip --python /opt/aiquanttrader/.venv install \
+        --no-cache-dir --no-deps /tmp/aiquanttrader-0.1.0-py3-none-any.whl \
+    && rm /tmp/aiquanttrader-0.1.0-py3-none-any.whl
 
 USER 65532:65532
 ENTRYPOINT ["aqt-research"]
@@ -51,6 +61,11 @@ CMD ["--help"]
 FROM runtime-base AS runtime
 
 COPY --from=builder --chown=65532:65532 /opt/aiquanttrader/.venv /opt/aiquanttrader/.venv
+COPY --from=package-builder --chown=65532:65532 /build/dist/aiquanttrader-0.1.0-py3-none-any.whl /tmp/aiquanttrader-0.1.0-py3-none-any.whl
+
+RUN /usr/local/bin/python -m pip --python /opt/aiquanttrader/.venv install \
+        --no-cache-dir --no-deps /tmp/aiquanttrader-0.1.0-py3-none-any.whl \
+    && rm /tmp/aiquanttrader-0.1.0-py3-none-any.whl
 
 EXPOSE 9108 9109 9110 9111 9112 9113
 

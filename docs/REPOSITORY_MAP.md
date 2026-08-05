@@ -42,7 +42,7 @@ the migration record; none of those systems has runtime authority.
 | `backtest/` | Tardis/Parquet conversion, HftBacktest replay, scenarios, statistics, and purged validation. |
 | `config/` | Immutable typed configuration, environment overlays, validation, and fingerprints. |
 | `domain/` | Versioned market, data, feature, execution, experiment, and governance contracts. |
-| `market_data/` | Raw-first WebSocket capture, reconnects, integrity, normalization, cataloging, and Tardis acquisition. |
+| `market_data/` | Raw-first WebSocket capture, reconnects, integrity, normalization, service-specific health, cataloging, and Tardis acquisition. |
 | `features/` | Incremental microstructure features and deterministic Parquet lineage. |
 | `strategies/` | Pure Avellaneda-Stoikov market-maker and order-flow scalper kernels. |
 | `execution/` | Nautilus execution gateway, strategy wiring, order journal, reconciliation, and metrics. |
@@ -90,6 +90,8 @@ repository artifacts.
 - Raw frames are archived before parsing and finalized atomically with hashes.
 - Normalization is an independent worker; corrupt or incomplete data is
   quarantined rather than repaired in place.
+- Recorder and normalizer publish separate atomic typed state; neither service
+  can satisfy the other's healthcheck.
 - Parquet is the immutable analytical format and DuckDB is the query/catalog
   layer.
 - SQLite journals own restart continuity for live, paper, shadow, admission,

@@ -1,0 +1,71 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "already_complete": {
+      "minimum": 0,
+      "title": "Already Complete",
+      "type": "integer"
+    },
+    "discovered": {
+      "minimum": 0,
+      "title": "Discovered",
+      "type": "integer"
+    },
+    "heartbeat_ts_ns": {
+      "minimum": 0,
+      "title": "Heartbeat Ts Ns",
+      "type": "integer"
+    },
+    "last_error_code": {
+      "anyOf": [
+        {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Last Error Code"
+    },
+    "normalized": {
+      "minimum": 0,
+      "title": "Normalized",
+      "type": "integer"
+    },
+    "quarantined": {
+      "minimum": 0,
+      "title": "Quarantined",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "status": {
+      "enum": [
+        "starting",
+        "running",
+        "completed",
+        "stopped",
+        "failed"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "status",
+    "heartbeat_ts_ns",
+    "discovered",
+    "normalized",
+    "already_complete",
+    "quarantined"
+  ],
+  "title": "NormalizerState",
+  "type": "object"
+}

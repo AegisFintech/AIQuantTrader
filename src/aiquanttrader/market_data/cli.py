@@ -19,11 +19,11 @@ from typing import Literal
 from prometheus_client import start_http_server
 
 from aiquanttrader.config import ConfigLoadError, load_config
-from aiquanttrader.domain.data import DataQualityPolicy, RecorderState
+from aiquanttrader.domain.data import DataQualityPolicy, NormalizerState, RecorderState
 from aiquanttrader.market_data.catalog import CatalogLockedError, ManifestCatalog
-from aiquanttrader.market_data.io import atomic_write_bytes
+from aiquanttrader.market_data.io import atomic_replace_bytes, atomic_write_bytes
 from aiquanttrader.market_data.metrics import RecorderMetrics
-from aiquanttrader.market_data.normalizer import NormalizationWorker
+from aiquanttrader.market_data.normalizer import NormalizationBatch, NormalizationWorker
 from aiquanttrader.market_data.raw import (
     RawSegmentError,
     RawSegmentReader,
@@ -90,6 +90,12 @@ def _parser() -> argparse.ArgumentParser:
     health = commands.add_parser("healthcheck", help="validate recorder heartbeat")
     health.add_argument("--state-root", type=Path, required=True)
     health.add_argument("--stale-after-seconds", type=float, default=30)
+
+    normalizer_health = commands.add_parser(
+        "normalizer-healthcheck", help="validate normalizer heartbeat"
+    )
+    normalizer_health.add_argument("--state-root", type=Path, required=True)
+    normalizer_health.add_argument("--stale-after-seconds", type=float, default=120)
     return parser
 
 
@@ -184,6 +190,46 @@ def _healthcheck(state_root: Path, stale_after_seconds: float) -> int:
     return 0 if ready else 1
 
 
+def _normalizer_healthcheck(state_root: Path, stale_after_seconds: float) -> int:
+    if stale_after_seconds <= 0:
+        raise ValueError("stale threshold must be positive")
+    path = state_root.resolve() / "market-data" / "normalizer-state.json"
+    try:
+        state = NormalizerState.model_validate_json(path.read_bytes())
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"invalid normalizer state: {exc}") from exc
+    age_seconds = max(0, time.time_ns() - state.heartbeat_ts_ns) / 1e9
+    ready = state.status == "running" and age_seconds <= stale_after_seconds
+    print(
+        json.dumps(
+            {"status": "ready" if ready else "not_ready", "age_seconds": age_seconds},
+            sort_keys=True,
+        )
+    )
+    return 0 if ready else 1
+
+
+def _write_normalizer_state(
+    state_root: Path,
+    status: Literal["starting", "running", "completed", "stopped", "failed"],
+    batch: NormalizationBatch | None = None,
+    *,
+    error: str | None = None,
+) -> None:
+    counts = batch or NormalizationBatch(0, 0, 0, 0)
+    state = NormalizerState(
+        status=status,
+        heartbeat_ts_ns=time.time_ns(),
+        discovered=counts.discovered,
+        normalized=counts.normalized,
+        already_complete=counts.already_complete,
+        quarantined=counts.quarantined,
+        last_error_code=error,
+    )
+    path = state_root.resolve() / "market-data" / "normalizer-state.json"
+    atomic_replace_bytes(path, state.canonical_bytes() + b"\n")
+
+
 def _normalize_pending(args: argparse.Namespace) -> int:
     if args.poll_seconds is not None and not 1 <= args.poll_seconds <= 3_600:
         raise ValueError("normalizer poll interval must be in [1, 3600] seconds")
@@ -194,15 +240,27 @@ def _normalize_pending(args: argparse.Namespace) -> int:
 
     signal.signal(signal.SIGINT, request_stop)
     signal.signal(signal.SIGTERM, request_stop)
-    catalog_path = args.state_root.resolve() / "market-data" / "normalized-catalog.duckdb"
-    with ManifestCatalog(catalog_path) as catalog:
-        worker = NormalizationWorker(args.data_root, catalog)
-        while not stop.is_set():
-            batch = worker.run_once()
-            print(json.dumps(asdict(batch), sort_keys=True), flush=True)
-            if args.poll_seconds is None:
-                break
-            stop.wait(args.poll_seconds)
+    state_root = args.state_root.resolve()
+    catalog_path = state_root / "market-data" / "normalized-catalog.duckdb"
+    batch: NormalizationBatch | None = None
+    _write_normalizer_state(state_root, "starting")
+    try:
+        with ManifestCatalog(catalog_path) as catalog:
+            worker = NormalizationWorker(args.data_root, catalog)
+            while not stop.is_set():
+                batch = worker.run_once()
+                status: Literal["completed", "running"] = (
+                    "completed" if args.poll_seconds is None else "running"
+                )
+                _write_normalizer_state(state_root, status, batch)
+                print(json.dumps(asdict(batch), sort_keys=True), flush=True)
+                if args.poll_seconds is None:
+                    return 0
+                stop.wait(args.poll_seconds)
+        _write_normalizer_state(state_root, "stopped", batch)
+    except Exception as exc:
+        _write_normalizer_state(state_root, "failed", batch, error=type(exc).__name__)
+        raise
     return 0
 
 
@@ -249,6 +307,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _build_dataset(args)
         if args.command == "healthcheck":
             return _healthcheck(args.state_root, args.stale_after_seconds)
+        if args.command == "normalizer-healthcheck":
+            return _normalizer_healthcheck(args.state_root, args.stale_after_seconds)
     except (
         CatalogLockedError,
         ConfigLoadError,

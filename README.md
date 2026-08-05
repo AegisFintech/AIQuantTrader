@@ -224,8 +224,14 @@ docker compose --profile market-data up --build \
 
 The recorder writes and flushes the exact logical WebSocket frame before any
 parsing. The normalizer is a separate process so Arrow/Parquet work cannot
-delay capture. Operational procedures, failure handling, Tardis downloads,
-dataset admission, and the required soak are in
+delay capture. Each service publishes its own typed atomic heartbeat and is
+healthchecked independently. The deployment procedure inspects the built image,
+prunes disposable builder cache, and verifies the recorder's disk headroom
+before capture; the hard disk floor is never relaxed to force startup. Locked
+third-party dependencies and the application wheel are separate image layers,
+so a code-only release does not duplicate the multi-GiB dependency layer.
+Operational procedures, failure handling, Tardis downloads, dataset admission,
+and the required soak are in
 [`MARKET_DATA_RUNBOOK.md`](docs/operations/MARKET_DATA_RUNBOOK.md).
 
 ## Backtesting
