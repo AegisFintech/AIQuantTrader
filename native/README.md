@@ -92,6 +92,9 @@ and Phase 10 evidence-only legacy-retirement boundary:
   bundle, enforces five-minute freshness, compares every stable target hash,
   revalidates the exact `remove_and_clean` signature, and emits only a
   short-lived evidence receipt.
+- an exact post-action outcome replay that proves every action started inside
+  that receipt window, validates typed removal/revocation/migration/archive
+  postconditions, scans all evidence, and emits a canonical completion report.
 
 The Phase 6 strategy kernels are now wired into the sole Phase 4 exchange
 gateway, but the exchange order path remains disabled in every checked-in
@@ -179,6 +182,9 @@ post-stop evidence and can only produce `AWAITING CLEANUP APPROVAL`.
 Phase 10 action-time cleanup preflight is specified in
 `../docs/migration/PHASE_10_CLEANUP_PREFLIGHT.md`; it recaptures no state and
 cannot stop, revoke, remove, migrate, or delete anything.
+Phase 10 cleanup outcome evidence is specified in
+`../docs/migration/PHASE_10_CLEANUP_OUTCOME.md`; it verifies retained operator
+evidence and cannot execute or authorize cleanup.
 
 ## Execution and risk
 

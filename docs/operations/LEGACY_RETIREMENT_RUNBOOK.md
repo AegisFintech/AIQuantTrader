@@ -207,6 +207,13 @@ See [`PHASE_10_CLEANUP_PREFLIGHT.md`](../migration/PHASE_10_CLEANUP_PREFLIGHT.md
 9. Retain the final archive, readiness/disabled reports, both signed approvals,
    cleanup manifest, operator timeline, removal commit, and `mt5-final` tag for
    the approved retention period.
+10. Capture every typed postcondition in a distinct exact-inventory outcome
+    bundle. Each target action must have started before its preflight receipt
+    expired; completion evidence may be reviewed afterward.
+11. Run `assemble-cleanup-completion`, then require another operator to run
+    `verify-cleanup-completion`. Cleanup is incomplete until the canonical
+    report has every gate and target postcondition passed. See
+    [`PHASE_10_CLEANUP_OUTCOME.md`](../migration/PHASE_10_CLEANUP_OUTCOME.md).
 
 ## Failure and rollback
 

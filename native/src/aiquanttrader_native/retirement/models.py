@@ -1601,6 +1601,7 @@ class CleanupTargetEvidence(DomainModel):
     retirement_id: Identifier
     target_id: Identifier
     action: CleanupAction
+    destination_locator: Annotated[str, Field(min_length=1, max_length=512)] | None = None
     rationale: Annotated[str, Field(min_length=1, max_length=512)]
     collected_by: Annotated[str, Field(min_length=1, max_length=256)]
     reviewed_by: Annotated[str, Field(min_length=1, max_length=256)]
@@ -1620,6 +1621,7 @@ class CleanupTargetEvidence(DomainModel):
             kind=self.state.kind,
             locator=self.state.locator,
             action=self.action,
+            destination_locator=self.destination_locator,
             expected_state_sha256=self.state.expected_state_sha256(),
             rationale=self.rationale,
         )
@@ -1631,6 +1633,7 @@ class CleanupTargetEvidence(DomainModel):
             kind=self.state.kind,
             locator=self.state.locator,
             action=self.action,
+            destination_locator=self.destination_locator,
             expected_state_sha256=self.state.expected_state_sha256(),
             rationale=self.rationale,
         )
@@ -1823,6 +1826,7 @@ class LegacyCleanupTarget(DomainModel):
     kind: CleanupTargetKind
     locator: Annotated[str, Field(min_length=1, max_length=512)]
     action: CleanupAction
+    destination_locator: Annotated[str, Field(min_length=1, max_length=512)] | None = None
     expected_state_sha256: Sha256
     rationale: Annotated[str, Field(min_length=1, max_length=512)]
 
@@ -1835,6 +1839,8 @@ class LegacyCleanupTarget(DomainModel):
             "]",
             "\n",
             "\r",
+            "\x00",
+            "\\",
             "$",
             "`",
             ";",
@@ -1873,11 +1879,46 @@ class LegacyCleanupTarget(DomainModel):
             raise ValueError("secret references must use the revoke action")
         if self.kind is CleanupTargetKind.HOST_PACKAGE and self.action is not CleanupAction.REMOVE:
             raise ValueError("host packages may only use the remove action")
+        if (
+            self.kind is CleanupTargetKind.HOST_INTEGRATION
+            and self.action is not CleanupAction.REMOVE
+        ):
+            raise ValueError("host integrations may only use the remove action")
+        if (
+            self.action is CleanupAction.REVOKE
+            and self.kind is not CleanupTargetKind.SECRET_REFERENCE
+        ):
+            raise ValueError("only secret references may use the revoke action")
+        if self.action is CleanupAction.MIGRATE_NATIVE:
+            if self.kind is not CleanupTargetKind.REPOSITORY_PATH:
+                raise ValueError("native migration requires a repository path target")
+            if self.destination_locator is None:
+                raise ValueError("native migration requires an explicit destination locator")
+            destination = PurePosixPath(self.destination_locator)
+            if (
+                any(token in self.destination_locator for token in forbidden_tokens)
+                or destination.is_absolute()
+                or ".." in destination.parts
+                or str(destination) in {"", "."}
+                or destination == PurePosixPath(self.locator)
+            ):
+                raise ValueError(
+                    "native migration destination must be a distinct safe repository path"
+                )
+        elif self.destination_locator is not None:
+            raise ValueError("only native migration may declare a destination locator")
+        if self.action is CleanupAction.RETAIN_ARCHIVE_ONLY and self.kind not in {
+            CleanupTargetKind.REPOSITORY_PATH,
+            CleanupTargetKind.RUNTIME_PATH,
+        }:
+            raise ValueError("archive-only cleanup requires a repository or runtime path")
+        if self.action is CleanupAction.REMOVE and self.kind is CleanupTargetKind.SECRET_REFERENCE:
+            raise ValueError("secret references cannot use the remove action")
         return self
 
 
 class LegacyCleanupManifest(DomainModel):
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     retirement_id: Identifier
     created_ts_ns: int = Field(ge=0)
     policy_id: Identifier
@@ -1899,6 +1940,38 @@ class LegacyCleanupManifest(DomainModel):
             raise ValueError("cleanup target identities must be unique")
         if len(locators) != len(set(locators)):
             raise ValueError("cleanup target locators must be unique within each kind")
+        destinations = [
+            target.destination_locator
+            for target in self.targets
+            if target.destination_locator is not None
+        ]
+        if len(destinations) != len(set(destinations)):
+            raise ValueError("cleanup migration destinations must be unique")
+        path_targets = {
+            kind: tuple(
+                PurePosixPath(target.locator) for target in self.targets if target.kind is kind
+            )
+            for kind in (
+                CleanupTargetKind.REPOSITORY_PATH,
+                CleanupTargetKind.RUNTIME_PATH,
+                CleanupTargetKind.HOST_INTEGRATION,
+            )
+        }
+        for kind, paths in path_targets.items():
+            for index, left in enumerate(paths):
+                for right in paths[index + 1 :]:
+                    if left in right.parents or right in left.parents:
+                        raise ValueError(f"{kind.value} cleanup target paths cannot overlap")
+        repository_source_paths = path_targets[CleanupTargetKind.REPOSITORY_PATH]
+        for destination_value in destinations:
+            destination = PurePosixPath(destination_value)
+            if any(
+                destination == source
+                or destination in source.parents
+                or source in destination.parents
+                for source in repository_source_paths
+            ):
+                raise ValueError("cleanup migration destinations cannot overlap cleanup sources")
         return self
 
 
@@ -1925,6 +1998,7 @@ class CleanupPreflightTargetResult(DomainModel):
     kind: CleanupTargetKind
     locator: Annotated[str, Field(min_length=1, max_length=512)]
     action: CleanupAction
+    destination_locator: Annotated[str, Field(min_length=1, max_length=512)] | None = None
     expected_state_sha256: Sha256
     observed_state_sha256: Sha256
     state_matches: bool
@@ -2003,6 +2077,347 @@ class CleanupPreflightReceipt(DomainModel):
         )
         if canonical_sha256(identity) != self.receipt_id:
             raise ValueError("cleanup preflight receipt identity does not match")
+        return self
+
+
+class CleanupRemovedPathResult(DomainModel):
+    result_kind: Literal["removed_path"] = "removed_path"
+    kind: Literal[CleanupTargetKind.REPOSITORY_PATH, CleanupTargetKind.RUNTIME_PATH]
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    exists: Literal[False] = False
+    observed_commit_sha: GitCommit | None = None
+    raw_artifact_id: Identifier
+
+    @model_validator(mode="after")
+    def repository_result_is_commit_bound(self) -> Self:
+        if (self.kind is CleanupTargetKind.REPOSITORY_PATH) != (
+            self.observed_commit_sha is not None
+        ):
+            raise ValueError("only removed repository paths bind an observed commit")
+        return self
+
+    def artifact_ids(self) -> tuple[str, ...]:
+        return (self.raw_artifact_id,)
+
+
+class CleanupPathAbsenceEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    kind: Literal[CleanupTargetKind.REPOSITORY_PATH, CleanupTargetKind.RUNTIME_PATH]
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    exists: Literal[False] = False
+    observed_commit_sha: GitCommit | None = None
+    captured_ts_ns: int = Field(ge=0)
+    observation_source: Identifier
+
+    @model_validator(mode="after")
+    def repository_evidence_is_commit_bound(self) -> Self:
+        if (self.kind is CleanupTargetKind.REPOSITORY_PATH) != (
+            self.observed_commit_sha is not None
+        ):
+            raise ValueError("only repository absence evidence binds an observed commit")
+        return self
+
+
+class CleanupRemovedHostResult(DomainModel):
+    result_kind: Literal["removed_host"] = "removed_host"
+    kind: Literal[CleanupTargetKind.HOST_INTEGRATION, CleanupTargetKind.HOST_PACKAGE]
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    installed: Literal[False] = False
+    raw_artifact_ids: tuple[Identifier, Identifier]
+
+    @model_validator(mode="after")
+    def raw_artifacts_are_distinct(self) -> Self:
+        if len(set(self.raw_artifact_ids)) != 2:
+            raise ValueError("removed host result requires two distinct proofs")
+        return self
+
+    def artifact_ids(self) -> tuple[str, ...]:
+        return self.raw_artifact_ids
+
+
+class CleanupHostAbsenceEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    kind: Literal[CleanupTargetKind.HOST_INTEGRATION, CleanupTargetKind.HOST_PACKAGE]
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    installed: Literal[False] = False
+    captured_ts_ns: int = Field(ge=0)
+    observation_source: Identifier
+
+
+class CleanupRevokedSecretResult(DomainModel):
+    result_kind: Literal["revoked_secret"] = "revoked_secret"
+    kind: Literal[CleanupTargetKind.SECRET_REFERENCE] = CleanupTargetKind.SECRET_REFERENCE
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    provider: Identifier
+    provider_record_id_sha256: Sha256
+    revoked: Literal[True] = True
+    active_session_count: Literal[0] = 0
+    provider_state_sha256: Sha256
+    active_sessions_sha256: Sha256
+    secret_material_included: Literal[False] = False
+    raw_artifact_ids: tuple[Identifier, Identifier]
+
+    @model_validator(mode="after")
+    def raw_artifacts_are_distinct(self) -> Self:
+        if len(set(self.raw_artifact_ids)) != 2:
+            raise ValueError("revoked secret result requires distinct provider and session proofs")
+        return self
+
+    def artifact_ids(self) -> tuple[str, ...]:
+        return self.raw_artifact_ids
+
+
+class CleanupNativeMigrationResult(DomainModel):
+    result_kind: Literal["native_migration"] = "native_migration"
+    kind: Literal[CleanupTargetKind.REPOSITORY_PATH] = CleanupTargetKind.REPOSITORY_PATH
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    destination_locator: Annotated[str, Field(min_length=1, max_length=512)]
+    source_exists: Literal[False] = False
+    destination_exists: Literal[True] = True
+    migration_commit_sha: GitCommit
+    destination_inventory_sha256: Sha256
+    raw_artifact_ids: tuple[Identifier, Identifier]
+
+    @model_validator(mode="after")
+    def paths_and_artifacts_are_distinct(self) -> Self:
+        if self.locator == self.destination_locator:
+            raise ValueError("native migration source and destination must differ")
+        if len(set(self.raw_artifact_ids)) != 2:
+            raise ValueError("native migration requires distinct source and destination proofs")
+        return self
+
+    def artifact_ids(self) -> tuple[str, ...]:
+        return self.raw_artifact_ids
+
+
+class CleanupArchiveOnlyResult(DomainModel):
+    result_kind: Literal["archive_only"] = "archive_only"
+    kind: Literal[CleanupTargetKind.REPOSITORY_PATH, CleanupTargetKind.RUNTIME_PATH]
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    exists: Literal[False] = False
+    observed_commit_sha: GitCommit | None = None
+    archive_manifest_sha256: Sha256
+    raw_artifact_id: Identifier
+
+    @model_validator(mode="after")
+    def repository_result_is_commit_bound(self) -> Self:
+        if (self.kind is CleanupTargetKind.REPOSITORY_PATH) != (
+            self.observed_commit_sha is not None
+        ):
+            raise ValueError("only archived repository paths bind an observed commit")
+        return self
+
+    def artifact_ids(self) -> tuple[str, ...]:
+        return (self.raw_artifact_id,)
+
+
+CleanupTargetOutcome = Annotated[
+    CleanupRemovedPathResult
+    | CleanupRemovedHostResult
+    | CleanupRevokedSecretResult
+    | CleanupNativeMigrationResult
+    | CleanupArchiveOnlyResult,
+    Field(discriminator="result_kind"),
+]
+
+
+class CleanupTargetOutcomeEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    target_id: Identifier
+    kind: CleanupTargetKind
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    action: CleanupAction
+    destination_locator: Annotated[str, Field(min_length=1, max_length=512)] | None = None
+    pre_action_state_sha256: Sha256
+    action_started_ts_ns: int = Field(ge=0)
+    action_completed_ts_ns: int = Field(ge=0)
+    captured_ts_ns: int = Field(ge=0)
+    collected_by: Annotated[str, Field(min_length=1, max_length=256)]
+    reviewed_by: Annotated[str, Field(min_length=1, max_length=256)]
+    result: CleanupTargetOutcome
+    invalidating_events: tuple[Identifier, ...] = ()
+
+    @model_validator(mode="after")
+    def action_result_and_review_are_exact(self) -> Self:
+        if not (self.action_started_ts_ns <= self.action_completed_ts_ns <= self.captured_ts_ns):
+            raise ValueError("cleanup outcome action or capture interval is invalid")
+        if self.collected_by == self.reviewed_by:
+            raise ValueError("cleanup outcome requires an independent reviewer")
+        if len(self.invalidating_events) != len(set(self.invalidating_events)):
+            raise ValueError("cleanup outcome invalidating events must be unique")
+        if self.invalidating_events:
+            raise ValueError("cleanup outcome contains invalidating events")
+        if self.result.kind is not self.kind or self.result.locator != self.locator:
+            raise ValueError("cleanup outcome result target differs")
+        expected_result_kind = {
+            CleanupAction.MIGRATE_NATIVE: "native_migration",
+            CleanupAction.REVOKE: "revoked_secret",
+            CleanupAction.RETAIN_ARCHIVE_ONLY: "archive_only",
+        }.get(self.action)
+        if self.action is CleanupAction.REMOVE:
+            expected_result_kind = (
+                "removed_path"
+                if self.kind in {CleanupTargetKind.REPOSITORY_PATH, CleanupTargetKind.RUNTIME_PATH}
+                else "removed_host"
+            )
+        if self.result.result_kind != expected_result_kind:
+            raise ValueError("cleanup action and outcome result kind differ")
+        result_destination = getattr(self.result, "destination_locator", None)
+        if result_destination != self.destination_locator:
+            raise ValueError("cleanup outcome migration destination differs")
+        return self
+
+    def artifact_ids(self) -> tuple[str, ...]:
+        return self.result.artifact_ids()
+
+    def postcondition_sha256(self) -> str:
+        return self.result.sha256()
+
+
+class CleanupOutcomeControlKind(StrEnum):
+    TARGET_OUTCOME = "target_outcome"
+    CREDENTIAL_SCAN = "credential_scan"
+
+
+class CleanupOutcomeControl(DomainModel):
+    kind: CleanupOutcomeControlKind
+    reference_id: Identifier
+    relative_path: Annotated[str, Field(min_length=1, max_length=512)]
+    content_sha256: Sha256
+    byte_count: int = Field(gt=0, le=16_777_216)
+    captured_ts_ns: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def path_is_bounded_to_controls(self) -> Self:
+        path = PurePosixPath(self.relative_path)
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or len(path.parts) < 2
+            or path.parts[0] != "controls"
+        ):
+            raise ValueError("cleanup outcome controls must be below controls/ without traversal")
+        return self
+
+
+class CleanupOutcomeEvidenceManifest(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    created_ts_ns: int = Field(ge=0)
+    policy_id: Identifier
+    policy_sha256: Sha256
+    credential_scan_policy_id: Identifier
+    credential_scan_policy_sha256: Sha256
+    source_commit_sha: GitCommit
+    archive_manifest_sha256: Sha256
+    disabled_observation_report_sha256: Sha256
+    cleanup_manifest_sha256: Sha256
+    cleanup_preflight_receipt_sha256: Sha256
+    contains_credentials: Literal[False] = False
+    artifacts: tuple[CleanupEvidenceArtifact, ...] = Field(min_length=1, max_length=4_096)
+    controls: tuple[CleanupOutcomeControl, ...] = Field(min_length=2, max_length=2_049)
+
+    @model_validator(mode="after")
+    def inventory_is_exact(self) -> Self:
+        artifact_ids = [item.artifact_id for item in self.artifacts]
+        paths = [item.relative_path for item in self.artifacts]
+        control_refs = [(item.kind, item.reference_id) for item in self.controls]
+        paths.extend(item.relative_path for item in self.controls)
+        if len(artifact_ids) != len(set(artifact_ids)):
+            raise ValueError("cleanup outcome artifact identities must be unique")
+        if len(control_refs) != len(set(control_refs)):
+            raise ValueError("cleanup outcome control references must be unique")
+        if len(paths) != len(set(paths)):
+            raise ValueError("cleanup outcome evidence paths must be unique")
+        kinds = [item.kind for item in self.controls]
+        if kinds.count(CleanupOutcomeControlKind.CREDENTIAL_SCAN) != 1:
+            raise ValueError("cleanup outcome requires one credential scan")
+        if CleanupOutcomeControlKind.TARGET_OUTCOME not in kinds:
+            raise ValueError("cleanup outcome requires target controls")
+        if any(item.captured_ts_ns > self.created_ts_ns for item in self.artifacts) or any(
+            item.captured_ts_ns > self.created_ts_ns for item in self.controls
+        ):
+            raise ValueError("cleanup outcome evidence cannot postdate its manifest")
+        return self
+
+
+class CleanupOutcomeGate(StrEnum):
+    PREFLIGHT_REPLAYED = "preflight_replayed"
+    ACTIONS_STARTED_WHILE_AUTHORIZED = "actions_started_while_authorized"
+    TARGET_INVENTORY_EXACT = "target_inventory_exact"
+    PRE_ACTION_STATE_BOUND = "pre_action_state_bound"
+    POSTCONDITIONS_VERIFIED = "postconditions_verified"
+    OUTCOME_EVIDENCE_EXACT = "outcome_evidence_exact"
+    CREDENTIAL_SCAN_PASSED = "credential_scan_passed"
+    ARCHIVE_RETENTION_ACTIVE = "archive_retention_active"
+    INDEPENDENT_REVIEW_COMPLETE = "independent_review_complete"
+
+
+class CleanupOutcomeGateResult(DomainModel):
+    gate: CleanupOutcomeGate
+    passed: bool
+    actual: Annotated[str, Field(min_length=1, max_length=2_048)]
+    required: Annotated[str, Field(min_length=1, max_length=2_048)]
+
+
+class CleanupOutcomeTargetResult(DomainModel):
+    target_id: Identifier
+    kind: CleanupTargetKind
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    action: CleanupAction
+    destination_locator: Annotated[str, Field(min_length=1, max_length=512)] | None = None
+    pre_action_state_sha256: Sha256
+    postcondition_sha256: Sha256
+    action_started_ts_ns: int = Field(ge=0)
+    action_completed_ts_ns: int = Field(ge=0)
+    postcondition_met: bool
+
+
+class CleanupCompletionReport(DomainModel):
+    """Immutable evidence verdict; it cannot perform or authorize cleanup."""
+
+    schema_version: Literal[1] = 1
+    report_id: Sha256
+    retirement_id: Identifier
+    generated_ts_ns: int = Field(ge=0)
+    policy_id: Identifier
+    policy_sha256: Sha256
+    source_commit_sha: GitCommit
+    archive_manifest_sha256: Sha256
+    disabled_observation_report_sha256: Sha256
+    cleanup_manifest_sha256: Sha256
+    cleanup_preflight_receipt_sha256: Sha256
+    outcome_evidence_manifest_sha256: Sha256
+    outcome_evidence_bundle_sha256: Sha256
+    credential_scan_sha256: Sha256
+    native_deployment_id: Identifier
+    native_admission_id: Sha256
+    verification_mode: Literal["evidence_only"] = "evidence_only"
+    operator_actions_observed: Literal[True] = True
+    targets: tuple[CleanupOutcomeTargetResult, ...] = Field(min_length=1, max_length=2_048)
+    gates: tuple[CleanupOutcomeGateResult, ...]
+    cleanup_complete: bool
+
+    @model_validator(mode="after")
+    def identity_and_verdict_match(self) -> Self:
+        target_ids = [item.target_id for item in self.targets]
+        target_locators = [(item.kind, item.locator) for item in self.targets]
+        if len(target_ids) != len(set(target_ids)) or len(target_locators) != len(
+            set(target_locators)
+        ):
+            raise ValueError("cleanup completion targets must be unique")
+        names = [item.gate for item in self.gates]
+        if len(names) != len(CleanupOutcomeGate) or set(names) != set(CleanupOutcomeGate):
+            raise ValueError("cleanup completion must contain every gate exactly once")
+        expected_verdict = all(item.passed for item in self.gates) and all(
+            item.postcondition_met for item in self.targets
+        )
+        if self.cleanup_complete != expected_verdict:
+            raise ValueError("cleanup completion verdict does not match gates and targets")
+        identity = self.model_dump(mode="json", exclude={"report_id", "cleanup_complete"})
+        if canonical_sha256(identity) != self.report_id:
+            raise ValueError("cleanup completion report identity does not match")
         return self
 
 
