@@ -81,6 +81,10 @@ checklist while MT5 remains deployed.
   disabled-window bundle; stop approval was valid at action completion, all ten
   capabilities have five-minute continuity, broker/credential/native intervals
   are complete, and evaluation repeats all source and trust verification.
+- [ ] Assemble and independently replay the exact cleanup-evidence bundle;
+  all nine scopes are audited, every target state is raw-evidence-bound, host
+  dependencies are project-owned with zero shared consumers, and the recursive
+  credential scan has zero findings. Schema-only validation is not sufficient.
 - [ ] The complete 15-scenario final-testnet report passed with real retained
   evidence, flat final state, resolved unknown outcomes, and no mainnet key.
 - [ ] The unsigned bundle was created at a new path, all receipt hashes and

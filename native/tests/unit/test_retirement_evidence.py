@@ -379,9 +379,14 @@ def test_cleanup_manifest_rejects_broad_targets_globs_and_wrong_secret_actions()
     manifest = LegacyCleanupManifest(
         retirement_id="retirement-test-001",
         created_ts_ns=1,
+        policy_id="retirement-policy-test",
+        policy_sha256="0" * 64,
         source_commit_sha=COMMIT,
         archive_manifest_sha256="1" * 64,
         disabled_observation_report_sha256="2" * 64,
+        evidence_manifest_sha256="3" * 64,
+        credential_scan_sha256="4" * 64,
+        evidence_bundle_sha256="5" * 64,
         targets=(target,),
     )
     assert manifest.targets == (target,)
@@ -424,9 +429,14 @@ def test_retirement_evidence_cli_writes_reports_and_validates_cleanup(
     manifest = LegacyCleanupManifest(
         retirement_id="retirement-test-001",
         created_ts_ns=1,
+        policy_id="retirement-policy-test",
+        policy_sha256="0" * 64,
         source_commit_sha=COMMIT,
         archive_manifest_sha256="1" * 64,
         disabled_observation_report_sha256="2" * 64,
+        evidence_manifest_sha256="3" * 64,
+        credential_scan_sha256="4" * 64,
+        evidence_bundle_sha256="5" * 64,
         targets=(
             LegacyCleanupTarget(
                 target_id="legacy-source",
@@ -676,9 +686,14 @@ def test_cleanup_approval_and_signature_edge_contracts_are_rejected() -> None:
     manifest_payload = {
         "retirement_id": "retirement-test-001",
         "created_ts_ns": 1,
+        "policy_id": "retirement-policy-test",
+        "policy_sha256": "0" * 64,
         "source_commit_sha": COMMIT,
         "archive_manifest_sha256": "1" * 64,
         "disabled_observation_report_sha256": "2" * 64,
+        "evidence_manifest_sha256": "3" * 64,
+        "credential_scan_sha256": "4" * 64,
+        "evidence_bundle_sha256": "5" * 64,
     }
     with pytest.raises(ValidationError, match="identities must be unique"):
         LegacyCleanupManifest.model_validate(

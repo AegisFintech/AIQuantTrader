@@ -1427,6 +1427,397 @@ class CleanupAction(StrEnum):
     RETAIN_ARCHIVE_ONLY = "retain_archive_only"
 
 
+class CleanupInventoryScope(StrEnum):
+    MQL5_SOURCE = "mql5_source"
+    LEGACY_LIFECYCLE = "legacy_lifecycle"
+    LEGACY_RESEARCH = "legacy_research"
+    LEGACY_OPERATIONS = "legacy_operations"
+    LEGACY_TESTS_AND_DOCS = "legacy_tests_and_docs"
+    RUNTIME_STATE = "runtime_state"
+    HOST_DEPENDENCIES = "host_dependencies"
+    CREDENTIALS_AND_SESSIONS = "credentials_and_sessions"
+    NATIVE_PACKAGE_MIGRATION = "native_package_migration"
+
+
+REQUIRED_CLEANUP_INVENTORY_SCOPES = frozenset(CleanupInventoryScope)
+
+
+class CleanupPathObjectType(StrEnum):
+    FILE = "file"
+    DIRECTORY = "directory"
+    SYMLINK = "symlink"
+
+
+class CleanupPathInventoryEntry(DomainModel):
+    relative_path: Annotated[str, Field(min_length=1, max_length=512)]
+    object_type: CleanupPathObjectType
+    state_sha256: Sha256
+    byte_count: int = Field(ge=0, le=268_435_456)
+    mode: Annotated[str, StringConstraints(pattern=r"^[0-7]{4}$")]
+
+    @model_validator(mode="after")
+    def relative_path_is_explicit(self) -> Self:
+        path = PurePosixPath(self.relative_path)
+        if self.relative_path != "." and (path.is_absolute() or ".." in path.parts):
+            raise ValueError("cleanup path inventory entries must be relative without traversal")
+        return self
+
+
+class CleanupPathInventoryEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    kind: Literal[CleanupTargetKind.REPOSITORY_PATH, CleanupTargetKind.RUNTIME_PATH]
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    source_commit_sha: GitCommit | None = None
+    captured_ts_ns: int = Field(ge=0)
+    entries: tuple[CleanupPathInventoryEntry, ...] = Field(
+        min_length=1,
+        max_length=1_000_000,
+    )
+
+    @model_validator(mode="after")
+    def inventory_is_ordered_and_source_bound(self) -> Self:
+        paths = tuple(item.relative_path for item in self.entries)
+        if paths != tuple(sorted(set(paths))) or paths[0] != ".":
+            raise ValueError("cleanup path inventory entries must be unique, ordered, and rooted")
+        if (self.kind is CleanupTargetKind.REPOSITORY_PATH) != (self.source_commit_sha is not None):
+            raise ValueError("only repository path inventories bind a source commit")
+        return self
+
+    def state_sha256(self) -> str:
+        return canonical_sha256(
+            {
+                "schema_version": self.schema_version,
+                "kind": self.kind,
+                "locator": self.locator,
+                "source_commit_sha": self.source_commit_sha,
+                "entries": [item.model_dump(mode="json") for item in self.entries],
+            }
+        )
+
+    @property
+    def total_bytes(self) -> int:
+        return sum(item.byte_count for item in self.entries)
+
+
+class CleanupPathState(DomainModel):
+    state_kind: Literal["path"] = "path"
+    kind: Literal[CleanupTargetKind.REPOSITORY_PATH, CleanupTargetKind.RUNTIME_PATH]
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    object_type: CleanupPathObjectType
+    exists: Literal[True] = True
+    inventory_sha256: Sha256
+    entry_count: int = Field(gt=0, le=1_000_000)
+    total_bytes: int = Field(ge=0, le=1_099_511_627_776)
+    captured_ts_ns: int = Field(ge=0)
+    raw_artifact_id: Identifier
+
+    def expected_state_sha256(self) -> str:
+        return self.inventory_sha256
+
+    def artifact_ids(self) -> tuple[str, ...]:
+        return (self.raw_artifact_id,)
+
+
+class CleanupHostState(DomainModel):
+    state_kind: Literal["host_dependency"] = "host_dependency"
+    kind: Literal[CleanupTargetKind.HOST_INTEGRATION, CleanupTargetKind.HOST_PACKAGE]
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    installed: Literal[True] = True
+    installed_version: Annotated[str, Field(min_length=1, max_length=256)]
+    configuration_sha256: Sha256
+    ownership_sha256: Sha256
+    owned_by_aiquanttrader: Literal[True] = True
+    shared_consumer_count: Literal[0] = 0
+    captured_ts_ns: int = Field(ge=0)
+    raw_artifact_ids: tuple[Identifier, Identifier]
+
+    @model_validator(mode="after")
+    def raw_artifacts_are_distinct(self) -> Self:
+        if len(set(self.raw_artifact_ids)) != 2:
+            raise ValueError("host cleanup state requires distinct state and ownership evidence")
+        return self
+
+    def expected_state_sha256(self) -> str:
+        return canonical_sha256(
+            {
+                "kind": self.kind,
+                "locator": self.locator,
+                "installed": self.installed,
+                "installed_version": self.installed_version,
+                "configuration_sha256": self.configuration_sha256,
+                "ownership_sha256": self.ownership_sha256,
+                "owned_by_aiquanttrader": self.owned_by_aiquanttrader,
+                "shared_consumer_count": self.shared_consumer_count,
+            }
+        )
+
+    def artifact_ids(self) -> tuple[str, ...]:
+        return self.raw_artifact_ids
+
+
+class CleanupSecretState(DomainModel):
+    state_kind: Literal["secret_reference"] = "secret_reference"
+    kind: Literal[CleanupTargetKind.SECRET_REFERENCE] = CleanupTargetKind.SECRET_REFERENCE
+    locator: Annotated[str, Field(min_length=1, max_length=512)]
+    provider: Identifier
+    provider_record_id_sha256: Sha256
+    provider_state_sha256: Sha256
+    active_sessions_sha256: Sha256
+    secret_material_included: Literal[False] = False
+    captured_ts_ns: int = Field(ge=0)
+    raw_artifact_ids: tuple[Identifier, Identifier]
+
+    @model_validator(mode="after")
+    def raw_artifacts_are_distinct(self) -> Self:
+        if len(set(self.raw_artifact_ids)) != 2:
+            raise ValueError("secret cleanup state requires distinct provider and session evidence")
+        return self
+
+    def expected_state_sha256(self) -> str:
+        return canonical_sha256(
+            {
+                "kind": self.kind,
+                "locator": self.locator,
+                "provider": self.provider,
+                "provider_record_id_sha256": self.provider_record_id_sha256,
+                "provider_state_sha256": self.provider_state_sha256,
+                "active_sessions_sha256": self.active_sessions_sha256,
+                "secret_material_included": self.secret_material_included,
+            }
+        )
+
+    def artifact_ids(self) -> tuple[str, ...]:
+        return self.raw_artifact_ids
+
+
+CleanupTargetState = Annotated[
+    CleanupPathState | CleanupHostState | CleanupSecretState,
+    Field(discriminator="state_kind"),
+]
+
+
+class CleanupTargetEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    target_id: Identifier
+    action: CleanupAction
+    rationale: Annotated[str, Field(min_length=1, max_length=512)]
+    collected_by: Annotated[str, Field(min_length=1, max_length=256)]
+    reviewed_by: Annotated[str, Field(min_length=1, max_length=256)]
+    state: CleanupTargetState
+    invalidating_events: tuple[Identifier, ...] = ()
+
+    @model_validator(mode="after")
+    def target_is_independently_reviewed_and_actionable(self) -> Self:
+        if self.collected_by == self.reviewed_by:
+            raise ValueError("cleanup target evidence requires an independent reviewer")
+        if len(self.invalidating_events) != len(set(self.invalidating_events)):
+            raise ValueError("cleanup target invalidating events must be unique")
+        if self.invalidating_events:
+            raise ValueError("cleanup target evidence contains invalidating events")
+        LegacyCleanupTarget(
+            target_id=self.target_id,
+            kind=self.state.kind,
+            locator=self.state.locator,
+            action=self.action,
+            expected_state_sha256=self.state.expected_state_sha256(),
+            rationale=self.rationale,
+        )
+        return self
+
+    def cleanup_target(self) -> LegacyCleanupTarget:
+        return LegacyCleanupTarget(
+            target_id=self.target_id,
+            kind=self.state.kind,
+            locator=self.state.locator,
+            action=self.action,
+            expected_state_sha256=self.state.expected_state_sha256(),
+            rationale=self.rationale,
+        )
+
+
+class CleanupScopeCheck(DomainModel):
+    scope: CleanupInventoryScope
+    present: bool
+    target_ids: tuple[Identifier, ...] = Field(default=(), max_length=2_048)
+    evidence_artifact_ids: tuple[Identifier, ...] = Field(min_length=1, max_length=2_048)
+
+    @model_validator(mode="after")
+    def presence_and_references_match(self) -> Self:
+        if self.present != bool(self.target_ids):
+            raise ValueError("cleanup scope presence must match its target inventory")
+        if len(self.target_ids) != len(set(self.target_ids)):
+            raise ValueError("cleanup scope target identities must be unique")
+        if len(self.evidence_artifact_ids) != len(set(self.evidence_artifact_ids)):
+            raise ValueError("cleanup scope evidence identities must be unique")
+        return self
+
+
+class CleanupInventoryAuditEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    source_commit_sha: GitCommit
+    observed_ts_ns: int = Field(ge=0)
+    reviewed_ts_ns: int = Field(ge=0)
+    collected_by: Annotated[str, Field(min_length=1, max_length=256)]
+    reviewed_by: Annotated[str, Field(min_length=1, max_length=256)]
+    inventory_complete: Literal[True] = True
+    scopes: tuple[CleanupScopeCheck, ...] = Field(
+        min_length=len(REQUIRED_CLEANUP_INVENTORY_SCOPES),
+        max_length=len(REQUIRED_CLEANUP_INVENTORY_SCOPES),
+    )
+    invalidating_events: tuple[Identifier, ...] = ()
+
+    @model_validator(mode="after")
+    def scope_inventory_and_review_are_exact(self) -> Self:
+        if self.reviewed_ts_ns < self.observed_ts_ns:
+            raise ValueError("cleanup inventory review cannot predate observation")
+        if self.collected_by == self.reviewed_by:
+            raise ValueError("cleanup inventory audit requires an independent reviewer")
+        scopes = [item.scope for item in self.scopes]
+        if len(scopes) != len(set(scopes)) or set(scopes) != REQUIRED_CLEANUP_INVENTORY_SCOPES:
+            raise ValueError("cleanup inventory audit must cover every scope exactly once")
+        target_ids = [target_id for scope in self.scopes for target_id in scope.target_ids]
+        if len(target_ids) != len(set(target_ids)):
+            raise ValueError("cleanup targets must belong to exactly one inventory scope")
+        if len(self.invalidating_events) != len(set(self.invalidating_events)):
+            raise ValueError("cleanup inventory invalidating events must be unique")
+        if self.invalidating_events:
+            raise ValueError("cleanup inventory contains invalidating events")
+        return self
+
+
+class CleanupEvidenceArtifact(DomainModel):
+    artifact_id: Identifier
+    relative_path: Annotated[str, Field(min_length=1, max_length=512)]
+    content_sha256: Sha256
+    byte_count: int = Field(gt=0, le=268_435_456)
+    captured_ts_ns: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def path_is_bounded_to_raw(self) -> Self:
+        path = PurePosixPath(self.relative_path)
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or len(path.parts) < 2
+            or path.parts[0] != "raw"
+        ):
+            raise ValueError("cleanup evidence artifacts must be below raw/ without traversal")
+        return self
+
+
+class CleanupEvidenceControlKind(StrEnum):
+    INVENTORY_AUDIT = "inventory_audit"
+    TARGET_STATE = "target_state"
+    CREDENTIAL_SCAN = "credential_scan"
+
+
+class CleanupEvidenceControl(DomainModel):
+    kind: CleanupEvidenceControlKind
+    reference_id: Identifier
+    relative_path: Annotated[str, Field(min_length=1, max_length=512)]
+    content_sha256: Sha256
+    byte_count: int = Field(gt=0, le=16_777_216)
+    captured_ts_ns: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def path_is_bounded_to_controls(self) -> Self:
+        path = PurePosixPath(self.relative_path)
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or len(path.parts) < 2
+            or path.parts[0] != "controls"
+        ):
+            raise ValueError("cleanup evidence controls must be below controls/ without traversal")
+        return self
+
+
+class CleanupCredentialScanCheck(DomainModel):
+    relative_path: Annotated[str, Field(min_length=1, max_length=512)]
+    content_sha256: Sha256
+    recursive_scan_completed: Literal[True] = True
+    finding_count: Literal[0] = 0
+
+    @model_validator(mode="after")
+    def path_is_bounded_to_bundle(self) -> Self:
+        path = PurePosixPath(self.relative_path)
+        if (
+            path.is_absolute()
+            or ".." in path.parts
+            or len(path.parts) < 2
+            or path.parts[0] not in {"raw", "controls"}
+        ):
+            raise ValueError("cleanup scan checks must reference raw/ or controls/")
+        return self
+
+
+class CleanupCredentialScanEvidence(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    started_ts_ns: int = Field(ge=0)
+    ended_ts_ns: int = Field(ge=0)
+    reviewed_ts_ns: int = Field(ge=0)
+    reviewer: Annotated[str, Field(min_length=1, max_length=256)]
+    scanner_name: Annotated[str, Field(min_length=1, max_length=128)]
+    scanner_version: Annotated[str, Field(min_length=1, max_length=128)]
+    policy_id: Identifier
+    policy_sha256: Sha256
+    checks: tuple[CleanupCredentialScanCheck, ...] = Field(min_length=2, max_length=4_096)
+    findings: tuple[Identifier, ...] = ()
+
+    @model_validator(mode="after")
+    def interval_checks_and_findings_are_valid(self) -> Self:
+        if self.ended_ts_ns <= self.started_ts_ns or self.reviewed_ts_ns < self.ended_ts_ns:
+            raise ValueError("cleanup credential scan interval or review time is invalid")
+        references = [item.relative_path for item in self.checks]
+        if len(references) != len(set(references)):
+            raise ValueError("cleanup credential scan contains duplicate checks")
+        if self.findings:
+            raise ValueError("cleanup credential scan contains findings")
+        return self
+
+
+class CleanupEvidenceManifest(DomainModel):
+    schema_version: Literal[1] = 1
+    retirement_id: Identifier
+    policy_id: Identifier
+    policy_sha256: Sha256
+    created_ts_ns: int = Field(ge=0)
+    source_commit_sha: GitCommit
+    archive_manifest_sha256: Sha256
+    disabled_observation_report_sha256: Sha256
+    credential_scan_policy_id: Identifier
+    credential_scan_policy_sha256: Sha256
+    contains_credentials: Literal[False] = False
+    artifacts: tuple[CleanupEvidenceArtifact, ...] = Field(min_length=2, max_length=4_096)
+    controls: tuple[CleanupEvidenceControl, ...] = Field(min_length=3, max_length=2_050)
+
+    @model_validator(mode="after")
+    def inventory_is_exact(self) -> Self:
+        artifact_ids = [item.artifact_id for item in self.artifacts]
+        paths = [item.relative_path for item in self.artifacts]
+        control_refs = [(item.kind, item.reference_id) for item in self.controls]
+        paths.extend(item.relative_path for item in self.controls)
+        if len(artifact_ids) != len(set(artifact_ids)):
+            raise ValueError("cleanup evidence artifact identities must be unique")
+        if len(control_refs) != len(set(control_refs)):
+            raise ValueError("cleanup evidence control references must be unique")
+        if len(paths) != len(set(paths)):
+            raise ValueError("cleanup evidence paths must be unique")
+        kinds = [item.kind for item in self.controls]
+        if kinds.count(CleanupEvidenceControlKind.INVENTORY_AUDIT) != 1:
+            raise ValueError("cleanup evidence requires one inventory audit")
+        if kinds.count(CleanupEvidenceControlKind.CREDENTIAL_SCAN) != 1:
+            raise ValueError("cleanup evidence requires one credential scan")
+        if any(item.captured_ts_ns > self.created_ts_ns for item in self.artifacts) or any(
+            item.captured_ts_ns > self.created_ts_ns for item in self.controls
+        ):
+            raise ValueError("cleanup evidence cannot be captured after manifest creation")
+        return self
+
+
 class LegacyCleanupTarget(DomainModel):
     target_id: Identifier
     kind: CleanupTargetKind
@@ -1486,13 +1877,18 @@ class LegacyCleanupTarget(DomainModel):
 
 
 class LegacyCleanupManifest(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     retirement_id: Identifier
     created_ts_ns: int = Field(ge=0)
+    policy_id: Identifier
+    policy_sha256: Sha256
     source_commit_sha: GitCommit
     final_tag_name: Literal["mt5-final"] = "mt5-final"
     archive_manifest_sha256: Sha256
     disabled_observation_report_sha256: Sha256
+    evidence_manifest_sha256: Sha256
+    credential_scan_sha256: Sha256
+    evidence_bundle_sha256: Sha256
     targets: tuple[LegacyCleanupTarget, ...] = Field(min_length=1, max_length=2_048)
 
     @model_validator(mode="after")

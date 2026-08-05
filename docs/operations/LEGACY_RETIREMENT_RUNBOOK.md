@@ -147,14 +147,15 @@ stops Gate C. A passing report says only `awaiting_cleanup_approval`.
 
 ## Gate D: exact cleanup approval
 
-Create a cleanup manifest with one explicit target per repository path, runtime
-path, host integration, secret reference, or host package. The validator rejects
-globs, traversal, duplicate locators, and broad roots such as `/`, `/root`,
-`/tmp`, `/etc`, `/usr`, and `/var`. Bind every target to a canonical expected
-state hash: file bytes or tree inventory for paths, installed-state evidence for
-packages/integrations, and provider record identity for credential revocation.
-Recompute and compare that state immediately before action; any mismatch
-invalidates the manifest and cleanup approval.
+Freeze the exact cleanup-evidence bundle described by
+`PHASE_10_CLEANUP_MANIFEST.md`. Its independent audit must cover all nine
+cleanup scopes, and its typed target controls must bind every repository path,
+runtime path, host integration, secret reference, or host package to raw state
+evidence. The assembler rejects globs, traversal, duplicate locators, broad
+roots such as `/`, `/root`, `/tmp`, `/etc`, `/usr`, and `/var`, incomplete
+scope coverage, unowned/shared host dependencies, undeclared files, and
+unscanned evidence. Recompute and compare each expected-state hash immediately
+before action; any mismatch invalidates the manifest and cleanup approval.
 
 The manifest must include, where present and independently verified:
 
@@ -169,10 +170,13 @@ The manifest must include, where present and independently verified:
 - MT5 credentials and broker sessions as revocation targets;
 - the ADR 0008 native package and project-root migration actions.
 
-Run `aqt-retirement validate-cleanup-manifest`, retain its canonical bytes and
-hash, then obtain a new `remove_and_clean` approval. This approval must bind the
-disabled report and exact cleanup manifest. A stop approval cannot authorize
-cleanup.
+Run `aqt-retirement assemble-cleanup-manifest`, retain its canonical bytes and
+hash, then have a second operator run `verify-cleanup-manifest` against the same
+immutable bundle, passing disabled report, archive manifest, and both frozen
+policies. `validate-cleanup-manifest` is schema-only and is not approval
+evidence. Only then obtain a new `remove_and_clean` approval. This approval must
+bind the disabled report and source-replayed exact cleanup manifest. A stop
+approval cannot authorize cleanup.
 
 ## Gate E: cleanup execution and PR
 

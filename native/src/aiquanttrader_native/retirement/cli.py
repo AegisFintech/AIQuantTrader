@@ -22,6 +22,12 @@ from aiquanttrader_native.retirement.archive import (
     load_legacy_archive_manifest,
     verify_legacy_archive_manifest,
 )
+from aiquanttrader_native.retirement.cleanup import (
+    assemble_cleanup_manifest,
+    load_cleanup_manifest,
+    load_disabled_observation_report,
+    verify_cleanup_manifest,
+)
 from aiquanttrader_native.retirement.collector import (
     assemble_native_production_observation,
     load_native_production_observation,
@@ -45,7 +51,9 @@ from aiquanttrader_native.retirement.final_state import (
 )
 from aiquanttrader_native.retirement.models import (
     DisabledObservation,
+    DisabledObservationReport,
     LegacyArchiveCredentialScanPolicy,
+    LegacyArchiveManifest,
     LegacyCleanupManifest,
     RetirementActionApproval,
     RetirementActionScope,
@@ -141,6 +149,14 @@ def _parser() -> argparse.ArgumentParser:
     canonicalize = commands.add_parser("canonicalize-approval")
     canonicalize.add_argument("--input", type=Path, required=True)
     canonicalize.add_argument("--output", type=Path, required=True)
+
+    assemble_cleanup = commands.add_parser("assemble-cleanup-manifest")
+    _add_cleanup_source_arguments(assemble_cleanup)
+    assemble_cleanup.add_argument("--output", type=Path, required=True)
+
+    verify_cleanup = commands.add_parser("verify-cleanup-manifest")
+    _add_cleanup_source_arguments(verify_cleanup)
+    verify_cleanup.add_argument("--manifest", type=Path, required=True)
 
     cleanup = commands.add_parser("validate-cleanup-manifest")
     cleanup.add_argument("--manifest", type=Path, required=True)
@@ -355,6 +371,50 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(json.dumps({"approval_sha256": approval.sha256()}, sort_keys=True))
             return 0
 
+        if args.command == "assemble-cleanup-manifest":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_report, archive_manifest = _replay_cleanup_sources(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            _require_output_outside_evidence_root(args.evidence_root, args.output)
+            _require_output_outside_disabled_roots(args, args.output)
+            cleanup_manifest = assemble_cleanup_manifest(
+                args.evidence_root,
+                disabled_report,
+                archive_manifest,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            _atomic_write_new(args.output, cleanup_manifest.canonical_bytes() + b"\n")
+            print(cleanup_manifest.model_dump_json())
+            return 0
+
+        if args.command == "verify-cleanup-manifest":
+            policy = load_retirement_policy(args.policy)
+            credential_scan_policy = load_legacy_archive_credential_scan_policy(
+                args.credential_scan_policy
+            )
+            disabled_report, archive_manifest = _replay_cleanup_sources(
+                args,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            cleanup_manifest = verify_cleanup_manifest(
+                args.evidence_root,
+                load_cleanup_manifest(args.manifest),
+                disabled_report,
+                archive_manifest,
+                policy=policy,
+                credential_scan_policy=credential_scan_policy,
+            )
+            print(cleanup_manifest.model_dump_json())
+            return 0
+
         if args.command == "validate-cleanup-manifest":
             manifest = LegacyCleanupManifest.model_validate_json(args.manifest.read_bytes())
             _write_optional(args.output, manifest.canonical_bytes() + b"\n")
@@ -428,6 +488,13 @@ def _add_disabled_source_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--stop-approval-public-key-sha256", required=True)
 
 
+def _add_cleanup_source_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--evidence-root", type=Path, required=True)
+    _add_disabled_source_arguments(parser)
+    parser.add_argument("--disabled-observation", type=Path, required=True)
+    parser.add_argument("--disabled-report", type=Path, required=True)
+
+
 def _verify_readiness_from_args(
     args: argparse.Namespace,
     *,
@@ -479,11 +546,14 @@ def _verify_disabled_from_args(
     policy: RetirementPolicy,
     credential_scan_policy: LegacyArchiveCredentialScanPolicy,
 ) -> DisabledObservation:
+    observation_path = getattr(args, "observation", None)
+    if observation_path is None:
+        observation_path = args.disabled_observation
     return verify_disabled_observation(
         args.disabled_evidence_root,
         args.native_evidence_root,
         args.legacy_evidence_root,
-        load_disabled_observation(args.observation),
+        load_disabled_observation(observation_path),
         load_retirement_readiness_observation(args.readiness_observation),
         load_retirement_readiness_report(args.readiness_report),
         load_native_production_observation(args.native_observation),
@@ -500,6 +570,28 @@ def _verify_disabled_from_args(
         expected_stop_key_id=args.stop_approval_key_id,
         expected_stop_public_key_sha256=args.stop_approval_public_key_sha256,
     )
+
+
+def _replay_cleanup_sources(
+    args: argparse.Namespace,
+    *,
+    policy: RetirementPolicy,
+    credential_scan_policy: LegacyArchiveCredentialScanPolicy,
+) -> tuple[DisabledObservationReport, LegacyArchiveManifest]:
+    disabled_observation = _verify_disabled_from_args(
+        args,
+        policy=policy,
+        credential_scan_policy=credential_scan_policy,
+    )
+    disabled_report = load_disabled_observation_report(args.disabled_report)
+    replayed_report = evaluate_disabled_observation(
+        observation=disabled_observation,
+        policy=policy,
+        generated_ts_ns=disabled_report.generated_ts_ns,
+    )
+    if replayed_report != disabled_report:
+        raise ValueError("disabled observation report does not match source replay")
+    return disabled_report, load_legacy_archive_manifest(args.archive_manifest)
 
 
 def _require_output_outside_disabled_roots(args: argparse.Namespace, output: Path) -> None:

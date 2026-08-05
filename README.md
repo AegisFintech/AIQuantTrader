@@ -43,7 +43,8 @@ and
 
 Phase 10 is the explicit legacy stop, observation, removal, and repository
 cleanup phase. Its credential-free tooling can evaluate immutable evidence,
-validate an exact cleanup manifest, and verify short-lived offline signatures;
+derive and independently replay an exact cleanup manifest, and verify
+short-lived offline signatures;
 it cannot stop services or delete anything. MT5 shutdown requires a signed
 `stop_and_observe` approval after stable native production and a final restored
 archive. Removal requires seven days disabled under the baseline policy plus a
@@ -51,6 +52,8 @@ separate signed `remove_and_clean` approval. See
 [`docs/migration/PHASE_10_LEGACY_RETIREMENT.md`](docs/migration/PHASE_10_LEGACY_RETIREMENT.md)
 and
 [`docs/migration/PHASE_10_DISABLED_OBSERVATION.md`](docs/migration/PHASE_10_DISABLED_OBSERVATION.md)
+and
+[`docs/migration/PHASE_10_CLEANUP_MANIFEST.md`](docs/migration/PHASE_10_CLEANUP_MANIFEST.md)
 and the
 [`legacy retirement runbook`](docs/operations/LEGACY_RETIREMENT_RUNBOOK.md).
 

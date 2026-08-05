@@ -188,6 +188,10 @@ shutdown or removal.
   root and external trust input before emitting a report.
 - A separate non-expired signed `remove_and_clean` approval binds the exact
   disabled report and canonical cleanup manifest.
+- The canonical cleanup manifest is schema v2, derived with
+  `assemble-cleanup-manifest`, and reproduced by an independent
+  `verify-cleanup-manifest` replay of the exact scope/state/ownership bundle;
+  schema-only validation is insufficient.
 - Cleanup targets contain no globs, traversal, unresolved variables, broad host
   roots, or unowned shared-package removals.
 - The removal PR is mechanical, completes ADR 0008, preserves evidence and Git
