@@ -66,6 +66,9 @@ Every phase requires:
   cancel outcomes, and daily/high-water equity baselines survive restart.
 - Exchange dead-man cancellation and local/operator kills are demonstrated.
 - No mainnet key is available to the testnet deployment.
+- The stopped evidence bundle has an exact declared inventory, complete
+  scenario-to-artifact lineage, valid execution/sentinel hash chains, a healthy
+  SQLite journal, and a reproducible canonical observation.
 
 ## Phase 5: Backtesting
 
@@ -126,6 +129,8 @@ retained evidence and human approval.
   exact commit, image, lock, dataset, model selection, feature schema, strategy,
   risk policy, and target behavior, and records that no mainnet credential was
   present.
+- A credential-free independent verification reproduces the observation from
+  the retained bundle before policy evaluation and reviewer sign-off.
 - Unsigned bundle preparation rejects any artifact/evidence mismatch and stops
   before signature or admission; a separate offline signature is mandatory.
 - Account, subaccount, API wallet, and instrument are verified independently.

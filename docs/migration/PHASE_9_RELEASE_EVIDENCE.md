@@ -36,6 +36,7 @@ frozen candidate + exact image digest
   -> render target behavior fingerprint
   -> run that exact image on testnet
   -> retain real venue, journal, metric, and drill evidence
+  -> deterministically assemble and verify the canonical observation
   -> evaluate the frozen 15-scenario testnet policy
   -> semantically verify every release artifact
   -> atomically prepare unsigned bundle
@@ -44,9 +45,12 @@ frozen candidate + exact image digest
   -> existing verify + explicit admit boundary
 ```
 
-The evaluator never collects or invents observations. An operator constructs
-the typed observation from retained exchange and system evidence. A scenario
-cannot pass because a unit test passed or because a field was omitted.
+The evaluator never collects or invents observations. `aqt-acceptance` now
+constructs the typed observation from a stopped, strict, hash-bound evidence
+directory. It derives journal facts, verifies the two operational hash chains,
+and rejects missing or extra evidence, but it does not query the venue or infer
+externally unobservable facts. A scenario cannot pass because a unit test passed
+or because a field was omitted.
 
 The bundle preparer emits:
 
@@ -99,6 +103,7 @@ output directory fails rather than overwriting reviewed evidence.
 | Separate target fingerprint from the disabled checked-in overlay | The exact enabled behavior must be rehearsed and signed without committing an enabled environment. | Committing a live overlay is simpler but creates accidental execution risk; hashing only the disabled file would attest to the wrong behavior. | Startup/release-only canonicalization; no hot-path cost. |
 | Typed no-model selection | A non-ML strategy still needs an explicit, hash-bound model decision. | An empty model file is ambiguous; requiring a trained model would misrepresent the scalper. | One small JSON parse during preparation. |
 | Frozen complete scenario matrix | Missing or selectively reported lifecycle tests must fail closed. | Free-form reports are flexible but cannot prove coverage. | Evidence evaluation is linear in 15 scenarios and negligible. |
+| Offline strict evidence assembly | Observation counts must be reproducible from retained bytes without giving the collector a wallet. | Direct live API collection is convenient but introduces credentials, mutable responses, and another principal. | Two bounded inventory scans and one read-only SQLite scan, all outside the hot path. |
 | Credential-free unsigned preparation | Production hosts and automation must not gain approval authority. | Online signing is convenient but turns host compromise into release authority. | Offline review adds operational latency, intentionally outside trading. |
 | Semantic checks in addition to SHA-256 | Correct hashes can still bind mutually incompatible artifacts. | Hash-only manifests are faster to implement but do not catch strategy/schema/model mismatch. | Bounded startup/release parsing; no order-path work. |
 | Atomic new-directory output | Reviewers must never observe or sign a partial or overwritten bundle. | In-place writes require recovery rules and permit mixed generations. | A small amount of fsync and one same-filesystem rename per release. |
@@ -123,3 +128,5 @@ restart the deployed MT5 demo runtime.
 See the [mainnet canary runbook](../operations/MAINNET_CANARY_RUNBOOK.md),
 [execution-risk runbook](../operations/EXECUTION_RISK_RUNBOOK.md), and
 [release-evidence diagram](../architecture/diagrams/phase-9-release-evidence.mmd).
+The exact evidence-directory contract is in
+[`PHASE_4_TESTNET_ACCEPTANCE_EVIDENCE.md`](PHASE_4_TESTNET_ACCEPTANCE_EVIDENCE.md).

@@ -57,6 +57,7 @@ def test_execution_and_control_wallets_are_process_isolated(project_root: Path) 
     assert "source: testnet_control_wallet" in sentinel
     assert "source: testnet_trading_wallet" not in sentinel
     assert "native-state:/var/lib/aiquanttrader/state:ro" in sentinel
+    assert "testnet-sentinel-evidence:/var/lib/aiquanttrader/sentinel-state" in sentinel
     assert "native-data:/var/lib/aiquanttrader/data" not in sentinel
     assert "mainnet" not in overlay
 
@@ -74,12 +75,15 @@ def test_mainnet_overlay_is_exact_image_admission_gated_and_wallet_isolated(
     assert "build:" not in overlay
     assert 'profiles: ["mainnet-admission"]' in controller
     assert "secrets:" not in controller
+    assert "operational-evidence-path" not in controller
     assert 'entrypoint: ["aqt-governance"]' in controller
     assert "source: mainnet_trading_wallet" in trading
     assert "source: mainnet_control_wallet" not in trading
     assert "source: mainnet_control_wallet" in sentinel
     assert "source: mainnet_trading_wallet" not in sentinel
     assert "mainnet-state:/var/lib/aiquanttrader/state:ro" in sentinel
+    assert "mainnet-sentinel-evidence:/var/lib/aiquanttrader/sentinel-state" in sentinel
+    assert "--operational-evidence-path" in sentinel
     assert "mainnet-data:/var/lib/aiquanttrader/data" not in sentinel
     assert "/run/approvals:ro" in controller
     assert "/run/approvals:ro" in trading
@@ -106,7 +110,7 @@ def test_release_rehearsal_is_exact_image_testnet_only_and_wallet_isolated(
     assert 'profiles: ["release-rehearsal"]' in trading
     assert 'profiles: ["release-rehearsal"]' in sentinel
     assert '"--environment", "testnet"' in trading
-    assert '"--environment", "testnet"' in sentinel
+    assert "- testnet" in sentinel
     assert "AQT_RELEASE_COMMIT_SHA" in overlay
     assert "AQT_RELEASE_BEHAVIOR_SHA256" in overlay
     assert "AQT_REHEARSAL_STRATEGY_CONFIG_FILE:?set exact release strategy artifact" in trading
@@ -116,6 +120,8 @@ def test_release_rehearsal_is_exact_image_testnet_only_and_wallet_isolated(
     assert "source: rehearsal_control_wallet" in sentinel
     assert "source: rehearsal_trading_wallet" not in sentinel
     assert "rehearsal-state:/var/lib/aiquanttrader/state:ro" in sentinel
+    assert "rehearsal-sentinel-evidence:/var/lib/aiquanttrader/sentinel-state" in sentinel
+    assert overlay.count("AQT_REHEARSAL_ID:?set unique rehearsal id") == 3
     assert "rehearsal-data:/var/lib/aiquanttrader/data" not in sentinel
     assert "mainnet" not in overlay.lower()
 
@@ -286,6 +292,7 @@ def test_rehearsal_compose_renders_exact_image_when_docker_is_available(
     environment = os.environ.copy()
     environment.update(
         {
+            "AQT_REHEARSAL_ID": "rehearsal-001",
             "AQT_REHEARSAL_IMAGE_REPOSITORY": "registry.invalid/aiquanttrader-native",
             "AQT_REHEARSAL_IMAGE_DIGEST": "sha256:" + "a" * 64,
             "AQT_REHEARSAL_COMMIT_SHA": "b" * 40,

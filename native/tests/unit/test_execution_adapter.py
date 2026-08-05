@@ -10,6 +10,8 @@ import pytest
 from nautilus_trader.adapters.hyperliquid import HYPERLIQUID
 from nautilus_trader.core.nautilus_pyo3 import HyperliquidEnvironment
 
+from aiquanttrader_native.acceptance.audit import OperationalEvidenceLog
+from aiquanttrader_native.acceptance.models import AcceptanceComponent
 from aiquanttrader_native.config import load_config
 from aiquanttrader_native.config.loader import ConfigBundle
 from aiquanttrader_native.config.models import ExchangeNetwork, ExecutionConfig, RiskLimits
@@ -491,6 +493,36 @@ def test_cancel_exception_becomes_unknown(tmp_path: Path, monkeypatch: pytest.Mo
         strategy.cancel("intent-1")
 
     assert journal.current("intent-1")["state"] == "unknown"  # type: ignore[index]
+
+
+def test_audit_failure_follows_cancel_and_unhealthy_heartbeat(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audit_path = (tmp_path / "execution-audit.jsonl").resolve()
+    audit = OperationalEvidenceLog(audit_path, component=AcceptanceComponent.EXECUTION)
+    audit_path.touch(mode=0o620)
+    audit_path.chmod(0o620)
+    heartbeat = Mock()
+    strategy = RiskManagedExecutionStrategy(
+        authority=Mock(),
+        journal=Mock(),
+        limits=RiskLimits(),
+        heartbeat=heartbeat,
+        operational_log=audit,
+    )
+    monkeypatch.setattr(strategy, "_open_orders", lambda: [object()])
+    cancel_all = Mock()
+    monkeypatch.setattr(strategy, "cancel_all", cancel_all)
+
+    with pytest.raises(ValueError, match="group/world writable"):
+        strategy._fail_closed_live_cycle()
+
+    cancel_all.assert_called_once()
+    heartbeat.set_health.assert_called_once_with(
+        execution_healthy=False,
+        reconciliation_complete=False,
+    )
 
 
 def test_gateway_replace_and_cancel_adapter_failures_are_fail_closed(

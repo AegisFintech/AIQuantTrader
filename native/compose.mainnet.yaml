@@ -126,9 +126,12 @@ services:
       - ${AQT_MAINNET_IMAGE_DIGEST:?set sha256 image digest}
       - --dependency-lock-path
       - /opt/aiquanttrader/release/uv.lock
+      - --operational-evidence-path
+      - /var/lib/aiquanttrader/sentinel-state/acceptance-events.jsonl
     environment: *mainnet-environment
     volumes:
       - mainnet-state:/var/lib/aiquanttrader/state:ro
+      - mainnet-sentinel-evidence:/var/lib/aiquanttrader/sentinel-state
       - ${AQT_APPROVAL_BUNDLE_DIR:?set approval bundle directory}:/run/approvals:ro
     secrets:
       - source: mainnet_control_wallet
@@ -158,3 +161,4 @@ secrets:
 volumes:
   mainnet-data:
   mainnet-state:
+  mainnet-sentinel-evidence:

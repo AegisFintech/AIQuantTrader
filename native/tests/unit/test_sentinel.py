@@ -7,6 +7,14 @@ from unittest.mock import Mock
 import pytest
 from prometheus_client import CollectorRegistry
 
+from aiquanttrader_native.acceptance.audit import (
+    OperationalEvidenceLog,
+    read_operational_events,
+)
+from aiquanttrader_native.acceptance.models import (
+    AcceptanceComponent,
+    OperationalEventKind,
+)
 from aiquanttrader_native.config import load_config
 from aiquanttrader_native.execution.heartbeat import HeartbeatPublisher
 from aiquanttrader_native.execution.secrets import PrivateKey
@@ -75,11 +83,16 @@ def test_sentinel_renews_only_for_exact_healthy_heartbeat(config_dir: Path, tmp_
     heartbeat = (tmp_path / "heartbeat.json").resolve()
     write_healthy_heartbeat(bundle, heartbeat, now)
     client = FakeControlClient()
+    audit_path = (tmp_path / "sentinel-events.jsonl").resolve()
     sentinel = SafetySentinel(
         bundle=bundle,
         heartbeat_path=heartbeat,
         client=client,
         metrics=SentinelMetrics(CollectorRegistry()),
+        operational_log=OperationalEvidenceLog(
+            audit_path,
+            component=AcceptanceComponent.SENTINEL,
+        ),
         clock_ns=lambda: clock[0],
     )
     assert sentinel.step()
@@ -95,6 +108,17 @@ def test_sentinel_renews_only_for_exact_healthy_heartbeat(config_dir: Path, tmp_
     clock[0] += 5_000_000_000
     assert not sentinel.step()
     assert client.cancel_calls == 2
+    events = read_operational_events(
+        audit_path,
+        expected_component=AcceptanceComponent.SENTINEL,
+    )
+    assert [event.kind for event in events] == [
+        OperationalEventKind.DEADMAN_SCHEDULE,
+        OperationalEventKind.HEARTBEAT_STATE,
+        OperationalEventKind.SENTINEL_EMERGENCY_CANCEL,
+        OperationalEventKind.HEARTBEAT_STATE,
+    ]
+    assert events[-2].order_count == 2
 
 
 def test_sentinel_recovers_and_rejects_stale_or_mismatched_state(
@@ -177,6 +201,46 @@ def test_sentinel_surfaces_exchange_failures(config_dir: Path, tmp_path: Path) -
     )
     with pytest.raises(RuntimeError, match="schedule failed"):
         sentinel.step()
+
+
+def test_audit_failure_cannot_prevent_primary_safety_action(
+    config_dir: Path,
+    tmp_path: Path,
+) -> None:
+    bundle = enabled_bundle(config_dir)
+    audit_path = (tmp_path / "unwritable-policy.jsonl").resolve()
+    audit = OperationalEvidenceLog(audit_path, component=AcceptanceComponent.SENTINEL)
+    audit_path.touch(mode=0o620)
+    audit_path.chmod(0o620)
+
+    client = FakeControlClient()
+    unhealthy = SafetySentinel(
+        bundle=bundle,
+        heartbeat_path=(tmp_path / "missing.json").resolve(),
+        client=client,
+        metrics=SentinelMetrics(CollectorRegistry()),
+        operational_log=audit,
+        clock_ns=lambda: 1,
+    )
+    with pytest.raises(ValueError, match="group/world writable"):
+        unhealthy.step()
+    assert client.cancel_calls == 1
+
+    now = 10_000_000_000
+    heartbeat = (tmp_path / "healthy-audit-failure.json").resolve()
+    write_healthy_heartbeat(bundle, heartbeat, now)
+    client = FakeControlClient()
+    healthy = SafetySentinel(
+        bundle=bundle,
+        heartbeat_path=heartbeat,
+        client=client,
+        metrics=SentinelMetrics(CollectorRegistry()),
+        operational_log=audit,
+        clock_ns=lambda: now,
+    )
+    with pytest.raises(ValueError, match="group/world writable"):
+        healthy.step()
+    assert client.deadlines == [30_000]
 
 
 def test_disabled_sentinel_is_rejected(config_dir: Path, tmp_path: Path) -> None:

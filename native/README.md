@@ -63,6 +63,8 @@ boundary:
 - a frozen complete final-testnet evaluator, exact target-behavior fingerprint,
   and atomic semantic preparation of unsigned release bundles for offline
   review and signing.
+- hash-linked execution/sentinel safety evidence plus a credential-free,
+  deterministic assembler for strict stopped final-testnet bundles.
 
 The Phase 6 strategy kernels are now wired into the sole Phase 4 exchange
 gateway, but the exchange order path remains disabled in every checked-in
@@ -229,7 +231,19 @@ uv run aqt-governance release-fingerprint --config-dir configs \
 ```
 
 Run that exact image with `compose.rehearsal.yaml`, retain real evidence for all
-15 lifecycle scenarios, and evaluate the typed observation with
+15 lifecycle scenarios, then assemble and reproduce the typed observation
+without either wallet:
+
+```bash
+uv run aqt-acceptance assemble \
+  --evidence-root /secure/release/testnet-rehearsal-<id> \
+  --output /secure/release/testnet-observation.json
+uv run aqt-acceptance verify \
+  --evidence-root /secure/release/testnet-rehearsal-<id> \
+  --observation /secure/release/testnet-observation.json
+```
+
+Evaluate that observation with
 `configs/production/testnet-dress-rehearsal-v1.toml`. A passing report stops at
 `awaiting_canary_approval`.
 
@@ -238,3 +252,5 @@ identity and atomically emits a mode-0600 unsigned bundle. It has no signing or
 admission capability. See
 [`PHASE_9_RELEASE_EVIDENCE.md`](../docs/migration/PHASE_9_RELEASE_EVIDENCE.md)
 and [`MAINNET_CANARY_RUNBOOK.md`](../docs/operations/MAINNET_CANARY_RUNBOOK.md).
+The exact evidence inventory and failure behavior are in
+[`PHASE_4_TESTNET_ACCEPTANCE_EVIDENCE.md`](../docs/migration/PHASE_4_TESTNET_ACCEPTANCE_EVIDENCE.md).

@@ -16,6 +16,8 @@ from nautilus_trader.model.objects import Price, Quantity
 from nautilus_trader.trading.config import StrategyConfig
 from nautilus_trader.trading.strategy import Strategy
 
+from aiquanttrader_native.acceptance.audit import OperationalEvidenceLog
+from aiquanttrader_native.acceptance.models import OperationalEventKind
 from aiquanttrader_native.config.models import RiskLimits
 from aiquanttrader_native.domain.execution import (
     ExecutionJournalEvent,
@@ -67,6 +69,7 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         connectivity_probe: Callable[[], bool] | None = None,
         estimated_taker_fee_bps: Decimal = Decimal("4.5"),
         estimated_slippage_bps: Decimal = Decimal("1"),
+        operational_log: OperationalEvidenceLog | None = None,
     ) -> None:
         super().__init__(
             StrategyConfig(
@@ -93,12 +96,14 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         self._connectivity_probe = connectivity_probe
         self._estimated_taker_fee_bps = estimated_taker_fee_bps
         self._estimated_slippage_bps = estimated_slippage_bps
+        self._operational_log = operational_log
         self._funding_rate = Decimal("0")
         self._mark_price: tuple[Decimal, int] | None = None
         self._startup_order_drain = False
         self._risk_cancel_pending = False
         self._pending_strategy_cancels: set[str] = set()
         self._reconciliation_complete = False
+        self._last_risk_state: RiskState | None = None
 
     def on_start(self) -> None:
         if self._live_pipeline is None:
@@ -108,10 +113,17 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
             # Nautilus invokes strategies only after execution reconciliation and
             # portfolio initialization complete successfully.
             self._reconciliation_complete = True
-            self._startup_order_drain = bool(self._open_orders())
+            startup_orders = self._open_orders()
+            self._startup_order_drain = bool(startup_orders)
             if self._startup_order_drain:
                 self.cancel_all()
                 self._risk_cancel_pending = True
+            self._record_operational(
+                kind=OperationalEventKind.RECONCILIATION,
+                success=True,
+                detail="Nautilus startup reconciliation and portfolio initialization completed",
+                order_count=len(startup_orders),
+            )
         self._heartbeat.set_health(
             execution_healthy=False,
             reconciliation_complete=self._reconciliation_complete,
@@ -127,6 +139,11 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         self._metrics.set_operational_state(
             reconciled=False,
             unresolved_commands=self._journal.unresolved_command_count(),
+        )
+        self._record_operational(
+            kind=OperationalEventKind.RECONCILIATION,
+            success=True,
+            detail="trading strategy stopped and reconciliation readiness was cleared",
         )
 
     def execute_intent(
@@ -322,16 +339,32 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         """Cancel all BTC orders through Nautilus; the sentinel remains the crash fallback."""
 
         self._consume_cancel_budget()
+        try:
+            order_count = len(self._open_orders())
+        except Exception:
+            order_count = None
         adapter_started = time.perf_counter()
         try:
             self._cancel_all_nautilus()
-        except Exception:
+        except Exception as exc:
             self._metrics.observe_adapter(
                 "cancel_all", "error", time.perf_counter() - adapter_started
+            )
+            self._record_operational(
+                kind=OperationalEventKind.EXECUTION_CANCEL_ALL,
+                success=False,
+                detail=f"Nautilus cancel-all raised {type(exc).__name__}",
+                order_count=order_count,
             )
             raise
         self._metrics.observe_adapter(
             "cancel_all", "success", time.perf_counter() - adapter_started
+        )
+        self._record_operational(
+            kind=OperationalEventKind.EXECUTION_CANCEL_ALL,
+            success=True,
+            detail="Nautilus accepted the BTC cancel-all command",
+            order_count=order_count,
         )
 
     def update_health(self, snapshot: RiskSnapshot, decision: RiskDecision) -> None:
@@ -514,8 +547,16 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         if pipeline is None:
             return
         snapshot = self._guarded_snapshot(self._live_risk_snapshot(market))
-        state, _ = self._authority.state(snapshot)
+        state, reasons = self._authority.state(snapshot)
         self.update_risk_health(snapshot, state)
+        if state is not self._last_risk_state:
+            self._record_operational(
+                kind=OperationalEventKind.RISK_STATE,
+                success=True,
+                detail=",".join(reason.value for reason in reasons) or "active",
+                risk_state=state,
+            )
+            self._last_risk_state = state
         if state is not RiskState.ACTIVE:
             if snapshot.open_order_count and not self._risk_cancel_pending:
                 self.cancel_all()
@@ -652,6 +693,31 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
                 self.cancel_all()
         except Exception:
             pass
+        self._record_operational(
+            kind=OperationalEventKind.LIVE_PIPELINE_FAULT,
+            success=False,
+            detail="live market normalization or decision processing failed closed",
+        )
+
+    def _record_operational(
+        self,
+        *,
+        kind: OperationalEventKind,
+        success: bool,
+        detail: str,
+        order_count: int | None = None,
+        risk_state: RiskState | None = None,
+    ) -> None:
+        if self._operational_log is None:
+            return
+        self._operational_log.append(
+            kind=kind,
+            event_ts_ns=time.time_ns(),
+            success=success,
+            detail=detail,
+            order_count=order_count,
+            risk_state=risk_state,
+        )
 
     def _submit_nautilus(self, order: Any) -> None:
         super().submit_order(order)

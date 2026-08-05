@@ -12,6 +12,8 @@ from hyperliquid.exchange import Exchange
 from hyperliquid.info import Info
 from hyperliquid.utils.signing import CancelRequest
 
+from aiquanttrader_native.acceptance.audit import OperationalEvidenceLog
+from aiquanttrader_native.acceptance.models import OperationalEventKind
 from aiquanttrader_native.config.loader import ConfigBundle
 from aiquanttrader_native.domain.execution import TradingHeartbeat
 from aiquanttrader_native.execution.heartbeat import read_heartbeat
@@ -92,6 +94,7 @@ class SafetySentinel:
         metrics: SentinelMetrics,
         admission: VerifiedDeploymentAdmission | None = None,
         admission_guard: AdmissionGuard | None = None,
+        operational_log: OperationalEvidenceLog | None = None,
         clock_ns: Callable[[], int] = time.time_ns,
     ) -> None:
         settings = bundle.settings
@@ -106,9 +109,13 @@ class SafetySentinel:
         self._metrics = metrics
         self._admission = admission
         self._admission_guard = admission_guard
+        self._operational_log = operational_log
         self._clock_ns = clock_ns
         self._last_renew_ns = 0
         self._last_emergency_cancel_ns: int | None = None
+        self._last_health: bool | None = None
+        self._last_deadman_schedule_success: bool | None = None
+        self._last_emergency_cancel_success: bool | None = None
 
     def step(self) -> bool:
         """Perform one monitoring iteration and return whether the node is healthy."""
@@ -127,33 +134,69 @@ class SafetySentinel:
                 or now_ns - self._last_emergency_cancel_ns >= repeat_ns
             ):
                 last_error: Exception | None = None
+                canceled_orders: int | None = None
                 for _attempt in range(self._settings.sentinel.cancel_retry_count):
                     try:
-                        self._client.cancel_all()
+                        canceled_orders = self._client.cancel_all()
                         last_error = None
                         break
                     except Exception as exc:
                         last_error = exc
                 if last_error is not None:
+                    if self._last_emergency_cancel_success is not False:
+                        self._record_operational(
+                            kind=OperationalEventKind.SENTINEL_EMERGENCY_CANCEL,
+                            success=False,
+                            detail=(
+                                "emergency cancel-all exhausted retries: "
+                                f"{type(last_error).__name__}"
+                            ),
+                        )
+                    self._last_emergency_cancel_success = False
                     self._metrics.emergency_cancels.labels(result="error").inc()
                     self._metrics.errors.labels(operation="cancel_all").inc()
                     raise last_error
                 self._metrics.emergency_cancels.labels(result="success").inc()
+                if self._last_emergency_cancel_success is not True:
+                    self._record_operational(
+                        kind=OperationalEventKind.SENTINEL_EMERGENCY_CANCEL,
+                        success=True,
+                        detail="control wallet confirmed emergency cancel-all",
+                        order_count=canceled_orders,
+                    )
+                self._last_emergency_cancel_success = True
                 self._last_emergency_cancel_ns = now_ns
+            self._record_health_transition(healthy=False)
             return False
 
         self._last_emergency_cancel_ns = None
+        self._last_emergency_cancel_success = None
         renew_interval_ns = self._settings.sentinel.deadman_renew_interval_ms * 1_000_000
         if now_ns - self._last_renew_ns >= renew_interval_ns:
             deadline_ms = (now_ns // 1_000_000) + self._settings.sentinel.deadman_timeout_ms
             try:
                 self._client.schedule_cancel(deadline_ms)
-            except Exception:
+            except Exception as exc:
+                if self._last_deadman_schedule_success is not False:
+                    self._record_operational(
+                        kind=OperationalEventKind.DEADMAN_SCHEDULE,
+                        success=False,
+                        detail=f"dead-man schedule failed: {type(exc).__name__}",
+                    )
+                self._last_deadman_schedule_success = False
                 self._metrics.errors.labels(operation="schedule_cancel").inc()
                 raise
+            if self._last_deadman_schedule_success is not True:
+                self._record_operational(
+                    kind=OperationalEventKind.DEADMAN_SCHEDULE,
+                    success=True,
+                    detail=f"exchange dead-man deadline scheduled for {deadline_ms}ms",
+                )
+            self._last_deadman_schedule_success = True
             self._last_renew_ns = now_ns
             self._metrics.deadman_deadline_seconds.set(deadline_ms / 1_000)
             self._metrics.deadman_renewals.inc()
+        self._record_health_transition(healthy=True)
         return True
 
     def _read_heartbeat(self) -> TradingHeartbeat | None:
@@ -188,3 +231,33 @@ class SafetySentinel:
             and not heartbeat.operator_kill
         )
         return healthy, age_ns
+
+    def _record_operational(
+        self,
+        *,
+        kind: OperationalEventKind,
+        success: bool,
+        detail: str,
+        order_count: int | None = None,
+    ) -> None:
+        if self._operational_log is None:
+            return
+        self._operational_log.append(
+            kind=kind,
+            event_ts_ns=self._clock_ns(),
+            success=success,
+            detail=detail,
+            order_count=order_count,
+        )
+
+    def _record_health_transition(self, *, healthy: bool) -> None:
+        if healthy is self._last_health:
+            return
+        self._record_operational(
+            kind=OperationalEventKind.HEARTBEAT_STATE,
+            success=healthy,
+            detail="trading heartbeat classified healthy"
+            if healthy
+            else "trading heartbeat classified unhealthy",
+        )
+        self._last_health = healthy

@@ -41,6 +41,7 @@ aqt-sentinel = "aiquanttrader_native.sentinel.cli:main"
 aqt-paper = "aiquanttrader_native.paper.cli:main"
 aqt-shadow = "aiquanttrader_native.shadow.cli:main"
 aqt-governance = "aiquanttrader_native.governance.cli:main"
+aqt-acceptance = "aiquanttrader_native.acceptance.cli:main"
 
 [dependency-groups]
 dev = [

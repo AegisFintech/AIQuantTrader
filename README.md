@@ -23,7 +23,12 @@ dead-man and emergency cancellation. See
 [`docs/migration/PHASE_4_EXECUTION_RISK.md`](docs/migration/PHASE_4_EXECUTION_RISK.md)
 and [`docs/operations/EXECUTION_RISK_RUNBOOK.md`](docs/operations/EXECUTION_RISK_RUNBOOK.md).
 All checked-in environments remain execution-disabled; credentialed testnet
-acceptance evidence is still required. Phase 9 adds cryptographically signed,
+acceptance evidence is still required. The credential-free acceptance assembler
+now derives a canonical observation from a stopped, strict, hash-bound evidence
+bundle and independently reproduces it; it cannot run drills, access wallets,
+evaluate policy, or promote a release. See
+[`docs/migration/PHASE_4_TESTNET_ACCEPTANCE_EVIDENCE.md`](docs/migration/PHASE_4_TESTNET_ACCEPTANCE_EVIDENCE.md).
+Phase 9 adds cryptographically signed,
 artifact-bound, explicit canary/production admission, durable anti-replay
 state, independent wallet-role verification, capital clamps, and an exact-image
 mainnet topology. The release-evidence increment adds an exact-image final

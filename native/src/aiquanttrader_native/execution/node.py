@@ -31,6 +31,7 @@ from nautilus_trader.core.nautilus_pyo3 import HyperliquidEnvironment
 from nautilus_trader.live.node import TradingNode
 from nautilus_trader.model.identifiers import TraderId
 
+from aiquanttrader_native.acceptance.audit import OperationalEvidenceLog
 from aiquanttrader_native.config.loader import ConfigBundle
 from aiquanttrader_native.config.models import ExchangeNetwork
 from aiquanttrader_native.domain.execution import ExecutionJournalEvent, ExecutionState
@@ -152,6 +153,7 @@ def build_trading_node(
     admission: VerifiedDeploymentAdmission | None = None,
     admission_guard: DeploymentAdmissionGuard | None = None,
     approved_strategy_path: Path | None = None,
+    operational_log: OperationalEvidenceLog | None = None,
 ) -> BuiltTradingNode:
     settings = bundle.settings
     if settings.exchange.network is ExchangeNetwork.MAINNET and approved_strategy_path is None:
@@ -193,6 +195,7 @@ def build_trading_node(
         connectivity_probe=connectivity_probe,
         estimated_taker_fee_bps=settings.live_strategy.estimated_taker_fee_bps,
         estimated_slippage_bps=settings.live_strategy.estimated_slippage_bps,
+        operational_log=operational_log,
     )
     node.trader.add_strategy(gateway)
     node.add_data_client_factory(HYPERLIQUID, HyperliquidLiveDataClientFactory)

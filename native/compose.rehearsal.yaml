@@ -74,10 +74,17 @@ services:
     <<: [*rehearsal-security, *rehearsal-image]
     profiles: ["release-rehearsal"]
     entrypoint: ["aqt-sentinel"]
-    command: ["--config-dir", "/etc/aiquanttrader-native", "--environment", "testnet"]
+    command:
+      - --config-dir
+      - /etc/aiquanttrader-native
+      - --environment
+      - testnet
+      - --operational-evidence-path
+      - /var/lib/aiquanttrader/sentinel-state/acceptance-events.jsonl
     environment: *rehearsal-environment
     volumes:
       - rehearsal-state:/var/lib/aiquanttrader/state:ro
+      - rehearsal-sentinel-evidence:/var/lib/aiquanttrader/sentinel-state
     secrets:
       - source: rehearsal_control_wallet
         target: testnet-control-wallet
@@ -105,4 +112,8 @@ secrets:
 
 volumes:
   rehearsal-data:
+    name: aiquanttrader-native-rehearsal-data-${AQT_REHEARSAL_ID:?set unique rehearsal id}
   rehearsal-state:
+    name: aiquanttrader-native-rehearsal-state-${AQT_REHEARSAL_ID:?set unique rehearsal id}
+  rehearsal-sentinel-evidence:
+    name: aiquanttrader-native-rehearsal-sentinel-${AQT_REHEARSAL_ID:?set unique rehearsal id}

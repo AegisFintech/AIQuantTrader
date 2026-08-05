@@ -9,6 +9,14 @@ from typing import Any
 
 from pydantic import TypeAdapter
 
+from aiquanttrader_native.acceptance.models import (
+    EvidenceArtifactBinding,
+    OperationalEvidenceEvent,
+    TestnetAcceptanceRunManifest,
+    TestnetFinalVenueState,
+    TestnetOperationalFacts,
+    TestnetScenarioEvidence,
+)
 from aiquanttrader_native.backtest.models import (
     BacktestDatasetManifest,
     ExecutionScenario,
@@ -109,6 +117,14 @@ def _model_schema(
 
 
 SCHEMAS: dict[str, SchemaFactory] = {
+    "acceptance.schema.json": lambda: TypeAdapter(
+        EvidenceArtifactBinding
+        | OperationalEvidenceEvent
+        | TestnetAcceptanceRunManifest
+        | TestnetFinalVenueState
+        | TestnetOperationalFacts
+        | TestnetScenarioEvidence
+    ).json_schema(),
     "backtest.schema.json": lambda: TypeAdapter(
         BacktestDatasetManifest
         | ExecutionScenario

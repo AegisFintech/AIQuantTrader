@@ -1,0 +1,578 @@
+{
+  "$defs": {
+    "AcceptanceComponent": {
+      "enum": [
+        "execution",
+        "sentinel"
+      ],
+      "title": "AcceptanceComponent",
+      "type": "string"
+    },
+    "EvidenceArtifactBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "byte_count": {
+          "exclusiveMinimum": 0,
+          "maximum": 67108864,
+          "title": "Byte Count",
+          "type": "integer"
+        },
+        "captured_end_ts_ns": {
+          "minimum": 0,
+          "title": "Captured End Ts Ns",
+          "type": "integer"
+        },
+        "captured_start_ts_ns": {
+          "minimum": 0,
+          "title": "Captured Start Ts Ns",
+          "type": "integer"
+        },
+        "category": {
+          "$ref": "#/$defs/EvidenceCategory"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "relative_path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Relative Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "relative_path",
+        "content_sha256",
+        "byte_count",
+        "captured_start_ts_ns",
+        "captured_end_ts_ns"
+      ],
+      "title": "EvidenceArtifactBinding",
+      "type": "object"
+    },
+    "EvidenceCategory": {
+      "enum": [
+        "execution_journal",
+        "execution_audit",
+        "sentinel_audit",
+        "execution_metrics",
+        "sentinel_metrics",
+        "venue_orders",
+        "venue_fills",
+        "venue_account",
+        "kill_switch_audit",
+        "process_events",
+        "config_inspection"
+      ],
+      "title": "EvidenceCategory",
+      "type": "string"
+    },
+    "OperationalEventKind": {
+      "enum": [
+        "reconciliation",
+        "risk_state",
+        "execution_cancel_all",
+        "live_pipeline_fault",
+        "heartbeat_state",
+        "deadman_schedule",
+        "sentinel_emergency_cancel"
+      ],
+      "title": "OperationalEventKind",
+      "type": "string"
+    },
+    "OperationalEvidenceEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "component": {
+          "$ref": "#/$defs/AcceptanceComponent"
+        },
+        "detail": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Detail",
+          "type": "string"
+        },
+        "event_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Event Id",
+          "type": "string"
+        },
+        "event_ts_ns": {
+          "minimum": 0,
+          "title": "Event Ts Ns",
+          "type": "integer"
+        },
+        "kind": {
+          "$ref": "#/$defs/OperationalEventKind"
+        },
+        "order_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Order Count"
+        },
+        "prior_event_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prior Event Sha256"
+        },
+        "risk_state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RiskState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sequence": {
+          "exclusiveMinimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "success": {
+          "title": "Success",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "event_id",
+        "sequence",
+        "component",
+        "kind",
+        "event_ts_ns",
+        "success",
+        "detail"
+      ],
+      "title": "OperationalEvidenceEvent",
+      "type": "object"
+    },
+    "RiskState": {
+      "enum": [
+        "active",
+        "reduce_only",
+        "cancel_only",
+        "halted",
+        "flattening"
+      ],
+      "title": "RiskState",
+      "type": "string"
+    },
+    "TestnetAcceptanceRunManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "account_address": {
+          "pattern": "^0x[0-9a-fA-F]{40}$",
+          "title": "Account Address",
+          "type": "string"
+        },
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/EvidenceArtifactBinding"
+          },
+          "maxItems": 11,
+          "minItems": 11,
+          "title": "Artifacts",
+          "type": "array"
+        },
+        "commit_sha": {
+          "pattern": "^[0-9a-f]{40}$",
+          "title": "Commit Sha",
+          "type": "string"
+        },
+        "control_wallet_address": {
+          "pattern": "^0x[0-9a-fA-F]{40}$",
+          "title": "Control Wallet Address",
+          "type": "string"
+        },
+        "dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dataset Sha256",
+          "type": "string"
+        },
+        "dependency_lock_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dependency Lock Sha256",
+          "type": "string"
+        },
+        "ended_ts_ns": {
+          "minimum": 0,
+          "title": "Ended Ts Ns",
+          "type": "integer"
+        },
+        "feature_schema_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Schema Sha256",
+          "type": "string"
+        },
+        "image_digest": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "title": "Image Digest",
+          "type": "string"
+        },
+        "model_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Model Sha256",
+          "type": "string"
+        },
+        "rehearsal_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Rehearsal Id",
+          "type": "string"
+        },
+        "risk_policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Risk Policy Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_ts_ns": {
+          "minimum": 0,
+          "title": "Started Ts Ns",
+          "type": "integer"
+        },
+        "strategy_config_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Strategy Config Sha256",
+          "type": "string"
+        },
+        "target_configuration_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Target Configuration Sha256",
+          "type": "string"
+        },
+        "trading_wallet_address": {
+          "pattern": "^0x[0-9a-fA-F]{40}$",
+          "title": "Trading Wallet Address",
+          "type": "string"
+        },
+        "vault_address": {
+          "anyOf": [
+            {
+              "pattern": "^0x[0-9a-fA-F]{40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vault Address"
+        }
+      },
+      "required": [
+        "rehearsal_id",
+        "started_ts_ns",
+        "ended_ts_ns",
+        "commit_sha",
+        "image_digest",
+        "dependency_lock_sha256",
+        "dataset_sha256",
+        "model_sha256",
+        "feature_schema_sha256",
+        "strategy_config_sha256",
+        "risk_policy_sha256",
+        "target_configuration_sha256",
+        "account_address",
+        "trading_wallet_address",
+        "control_wallet_address",
+        "artifacts"
+      ],
+      "title": "TestnetAcceptanceRunManifest",
+      "type": "object"
+    },
+    "TestnetFinalVenueState": {
+      "additionalProperties": false,
+      "properties": {
+        "account_address": {
+          "pattern": "^0x[0-9a-fA-F]{40}$",
+          "title": "Account Address",
+          "type": "string"
+        },
+        "captured_ts_ns": {
+          "minimum": 0,
+          "title": "Captured Ts Ns",
+          "type": "integer"
+        },
+        "instrument_id": {
+          "const": "BTC-USD-PERP.HYPERLIQUID",
+          "default": "BTC-USD-PERP.HYPERLIQUID",
+          "title": "Instrument Id",
+          "type": "string"
+        },
+        "network": {
+          "const": "testnet",
+          "default": "testnet",
+          "title": "Network",
+          "type": "string"
+        },
+        "open_order_ids": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Open Order Ids",
+          "type": "array"
+        },
+        "position_base": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Position Base"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "vault_address": {
+          "anyOf": [
+            {
+              "pattern": "^0x[0-9a-fA-F]{40}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Vault Address"
+        }
+      },
+      "required": [
+        "captured_ts_ns",
+        "account_address",
+        "position_base"
+      ],
+      "title": "TestnetFinalVenueState",
+      "type": "object"
+    },
+    "TestnetLifecycleScenario": {
+      "enum": [
+        "passive_post_only",
+        "crossing_post_only_reject",
+        "non_marketable_ioc",
+        "marketable_ioc",
+        "cancel_replace",
+        "partial_fill_cancel",
+        "reduce_only",
+        "duplicate_intent",
+        "unknown_outcome_reconciliation",
+        "node_restart_reconciliation",
+        "stale_data_kill",
+        "loss_drawdown_reduce_only",
+        "operator_kill",
+        "trading_node_death",
+        "sentinel_death"
+      ],
+      "title": "TestnetLifecycleScenario",
+      "type": "string"
+    },
+    "TestnetOperationalFacts": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_paths": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Artifact Paths",
+          "type": "array"
+        },
+        "deadman_cancellations": {
+          "minimum": 0,
+          "title": "Deadman Cancellations",
+          "type": "integer"
+        },
+        "mainnet_credentials_present": {
+          "const": false,
+          "default": false,
+          "title": "Mainnet Credentials Present",
+          "type": "boolean"
+        },
+        "reconciliation_failures": {
+          "minimum": 0,
+          "title": "Reconciliation Failures",
+          "type": "integer"
+        },
+        "risk_breaches": {
+          "minimum": 0,
+          "title": "Risk Breaches",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "reconciliation_failures",
+        "risk_breaches",
+        "deadman_cancellations",
+        "artifact_paths"
+      ],
+      "title": "TestnetOperationalFacts",
+      "type": "object"
+    },
+    "TestnetScenarioCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "actual": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Actual",
+          "type": "string"
+        },
+        "check_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+          "title": "Check Id",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "required": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Required",
+          "type": "string"
+        }
+      },
+      "required": [
+        "check_id",
+        "passed",
+        "actual",
+        "required"
+      ],
+      "title": "TestnetScenarioCheck",
+      "type": "object"
+    },
+    "TestnetScenarioEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_paths": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Artifact Paths",
+          "type": "array"
+        },
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/TestnetScenarioCheck"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Checks",
+          "type": "array"
+        },
+        "ended_ts_ns": {
+          "minimum": 0,
+          "title": "Ended Ts Ns",
+          "type": "integer"
+        },
+        "invalidating_events": {
+          "default": [],
+          "items": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+            "type": "string"
+          },
+          "title": "Invalidating Events",
+          "type": "array"
+        },
+        "scenario": {
+          "$ref": "#/$defs/TestnetLifecycleScenario"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "started_ts_ns": {
+          "minimum": 0,
+          "title": "Started Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "scenario",
+        "started_ts_ns",
+        "ended_ts_ns",
+        "checks",
+        "artifact_paths"
+      ],
+      "title": "TestnetScenarioEvidence",
+      "type": "object"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/EvidenceArtifactBinding"
+    },
+    {
+      "$ref": "#/$defs/OperationalEvidenceEvent"
+    },
+    {
+      "$ref": "#/$defs/TestnetAcceptanceRunManifest"
+    },
+    {
+      "$ref": "#/$defs/TestnetFinalVenueState"
+    },
+    {
+      "$ref": "#/$defs/TestnetOperationalFacts"
+    },
+    {
+      "$ref": "#/$defs/TestnetScenarioEvidence"
+    }
+  ]
+}
