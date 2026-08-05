@@ -28,6 +28,7 @@ from aiquanttrader.backtest.models import (
 from aiquanttrader.domain.data import (
     DatasetManifest,
     NormalizedSegmentManifest,
+    NormalizerState,
     RawSegmentManifest,
     RecorderState,
     TardisFileManifest,
@@ -152,6 +153,7 @@ def _model_schema(
         | DeploymentApproval
         | ExperimentManifest
         | FeatureSnapshot
+        | NormalizerState
         | NormalizedSegmentManifest
         | RawSegmentManifest
         | RecorderState
@@ -216,6 +218,7 @@ SCHEMAS: dict[str, SchemaFactory] = {
     "market-data.schema.json": lambda: TypeAdapter(MarketEvent).json_schema(),
     "dataset-manifest.schema.json": lambda: _model_schema(DatasetManifest),
     "normalized-segment-manifest.schema.json": lambda: _model_schema(NormalizedSegmentManifest),
+    "normalizer-state.schema.json": lambda: _model_schema(NormalizerState),
     "paper.schema.json": lambda: TypeAdapter(
         PaperOrder
         | PaperFill

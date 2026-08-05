@@ -8,11 +8,26 @@ enable exchange execution.
 ```bash
 
 docker compose --profile market-data build
+docker image inspect aiquanttrader-native-foundation:0.1.0
+docker builder prune --all --force
+df -h /
 docker compose --profile market-data up -d market-data-recorder market-data-normalizer
 docker compose ps
 docker compose logs --tail=100 market-data-recorder market-data-normalizer
 curl --fail http://127.0.0.1:9109/metrics
 ```
+
+Inspect the image before pruning so a failed build cannot destroy the last
+useful cache without producing a deployable artifact. Pruning removes builder
+cache only; it must not remove the runtime image or the named data/state
+volumes. Start the recorder only when free space exceeds both configured disk
+floors. Never lower a disk floor to force startup.
+
+Both services must become healthy. The recorder healthcheck requires a fresh
+connected public feed. The normalizer healthcheck requires a fresh typed
+`running` heartbeat at
+`/var/lib/aiquanttrader/state/market-data/normalizer-state.json`; it does not
+reuse the recorder or image-default HTTP healthcheck.
 
 The paper overlay enables public market data and keeps execution disabled.
 Readiness requires a connected recorder heartbeat no older than 30 seconds.
@@ -78,13 +93,17 @@ classified gaps over policy, and data-quality issues over policy.
 Run on the target Debian host:
 
 ```bash
-aqt-market-data record \
-  --config-dir /etc/aiquanttrader-native \
-  --environment paper \
-  --duration-seconds 21600
-aqt-market-data normalize-pending \
-  --data-root /var/lib/aiquanttrader/data \
-  --state-root /var/lib/aiquanttrader/state
+date --utc --iso-8601=seconds
+docker compose --profile market-data up -d --no-build \
+  market-data-recorder market-data-normalizer
+docker compose --profile market-data ps
+
+# After at least six continuous hours:
+date --utc --iso-8601=seconds
+docker compose --profile market-data ps
+docker compose --profile market-data logs --since=6h \
+  market-data-recorder market-data-normalizer
+curl --fail http://127.0.0.1:9109/metrics
 ```
 
 Retain:
@@ -92,6 +111,7 @@ Retain:
 - commit and image digest;
 - effective configuration fingerprint;
 - recorder state and Prometheus counter snapshot;
+- normalizer state and container health;
 - all raw and normalized manifests;
 - dataset admission result;
 - reconnect and gap classifications;

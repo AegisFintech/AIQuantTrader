@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from aiquanttrader.domain.data import (
+    NormalizerState,
     RecorderState,
     SegmentFinalizationReason,
     TardisFileManifest,
@@ -103,6 +104,96 @@ def test_recover_and_pending_normalization_commands(
     )
     batch = json.loads(capsys.readouterr().out)
     assert batch["normalized"] == 1
+    normalizer_state = NormalizerState.model_validate_json(
+        (tmp_path / "state" / "market-data" / "normalizer-state.json").read_bytes()
+    )
+    assert normalizer_state.status == "completed"
+    assert normalizer_state.normalized == 1
+
+
+def test_normalizer_healthcheck_requires_fresh_running_state(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    state_root = tmp_path / "state"
+    path = state_root / "market-data" / "normalizer-state.json"
+    path.parent.mkdir(parents=True)
+    running = NormalizerState(
+        status="running",
+        heartbeat_ts_ns=time.time_ns(),
+        discovered=2,
+        normalized=1,
+        already_complete=1,
+        quarantined=0,
+    )
+    path.write_bytes(running.canonical_bytes())
+
+    assert cli.main(["normalizer-healthcheck", "--state-root", str(state_root)]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "ready"
+
+    path.write_bytes(running.model_copy(update={"status": "failed"}).canonical_bytes())
+    assert cli.main(["normalizer-healthcheck", "--state-root", str(state_root)]) == 1
+    assert json.loads(capsys.readouterr().out)["status"] == "not_ready"
+
+    path.write_bytes(running.model_copy(update={"heartbeat_ts_ns": 0}).canonical_bytes())
+    assert (
+        cli.main(
+            [
+                "normalizer-healthcheck",
+                "--state-root",
+                str(state_root),
+                "--stale-after-seconds",
+                "1",
+            ]
+        )
+        == 1
+    )
+    assert json.loads(capsys.readouterr().out)["status"] == "not_ready"
+
+
+def test_pending_normalizer_persists_failed_state(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    class FakeCatalog:
+        def __init__(self, _path: Path) -> None:
+            pass
+
+        def __enter__(self) -> FakeCatalog:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+    class FailingWorker:
+        def __init__(self, _data_root: Path, _catalog: object) -> None:
+            pass
+
+        def run_once(self) -> object:
+            raise ValueError("bounded test failure")
+
+    monkeypatch.setattr(cli, "ManifestCatalog", FakeCatalog)
+    monkeypatch.setattr(cli, "NormalizationWorker", FailingWorker)
+    state_root = tmp_path / "state"
+
+    assert (
+        cli.main(
+            [
+                "normalize-pending",
+                "--data-root",
+                str(tmp_path / "data"),
+                "--state-root",
+                str(state_root),
+            ]
+        )
+        == 2
+    )
+    assert json.loads(capsys.readouterr().err)["status"] == "invalid"
+    state = NormalizerState.model_validate_json(
+        (state_root / "market-data" / "normalizer-state.json").read_bytes()
+    )
+    assert state.status == "failed"
+    assert state.last_error_code == "ValueError"
 
 
 def test_cli_validation_failures_return_two(

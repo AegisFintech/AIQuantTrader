@@ -64,6 +64,10 @@ def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path
     assert "python:3.12.13-slim-bookworm@sha256:" in dockerfile
     assert "UV_PROJECT_ENVIRONMENT=/opt/aiquanttrader/.venv" in dockerfile
     assert "/opt/aiquanttrader/.venv /opt/aiquanttrader/.venv" in dockerfile
+    assert "uv sync --frozen --no-dev --no-editable --no-install-project" in dockerfile
+    assert "FROM builder AS package-builder" in dockerfile
+    assert "uv build --wheel --out-dir /build/dist" in dockerfile
+    assert "--no-cache-dir --no-deps /tmp/aiquanttrader-0.1.0-py3-none-any.whl" in dockerfile
     assert "USER 65532:65532" in dockerfile
     assert "COPY ." not in dockerfile
     assert "FROM builder AS research-builder" in dockerfile
@@ -74,6 +78,9 @@ def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path
     assert 'user: "65532:65532"' in compose
     assert "no-new-privileges:true" in compose
     assert "cap_drop:" in compose and "- ALL" in compose
+    normalizer = compose.split("  market-data-normalizer:", 1)[1].split("  paper-trader:", 1)[0]
+    assert "normalizer-healthcheck" in normalizer
+    assert "/var/lib/aiquanttrader/state" in normalizer
 
 
 def test_execution_and_control_wallets_are_process_isolated(project_root: Path) -> None:

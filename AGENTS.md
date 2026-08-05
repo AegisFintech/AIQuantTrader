@@ -52,6 +52,10 @@ package-manager, credential-revocation, network, or trading capability.
   anti-replay admission, and unexpired renewals.
 - Research automation may reject or nominate a challenger; it may not approve
   production or increase capital.
+- Each long-running worker owns an atomic typed heartbeat and a service-specific
+  healthcheck; never reuse another service's readiness signal.
+- Verify post-build filesystem headroom before capture and never lower the
+  recorder's disk floors to force startup.
 - Never print, log, commit, or pass private keys on command lines. Runtime
   configuration accepts secret-file paths below `/run/secrets` only.
 

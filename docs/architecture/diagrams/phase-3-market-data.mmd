@@ -11,6 +11,8 @@ flowchart LR
     VERIFY -->|no| Q[(Quarantine)]
     PQ --> NM[Immutable normalized manifests]
     NM --> NC[(Normalized DuckDB catalog)]
+    N -->|atomic heartbeat + batch counters| NSTATE[Normalizer state]
+    NSTATE --> NHEALTH[Docker normalizer healthcheck]
 
     T[Tardis datasets] -->|HTTPS + gzip/CSV validation| HIST[(Immutable historical files)]
     HIST --> TC[(Tardis DuckDB catalog)]
