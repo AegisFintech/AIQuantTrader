@@ -284,7 +284,8 @@ Validate the credential-free paper config and render its isolated container:
 uv run aqt-native validate-config --config-dir configs --environment paper
 docker compose --profile paper config --quiet
 AQT_NATIVE_CODE_IDENTITY="$(git rev-parse HEAD)" \
-  docker compose --profile paper up --build paper-trader
+  docker compose --profile paper --profile monitoring up --build -d \
+  paper-trader prometheus grafana
 ```
 
 The paper service owns raw capture; do not start `market-data-recorder` against
@@ -295,6 +296,9 @@ scenarios. The checked-in scenarios are uncalibrated and therefore cannot pass
 [`PAPER_TRADING_RUNBOOK.md`](docs/operations/PAPER_TRADING_RUNBOOK.md).
 `aqt-paper replay` verifies finalized raw segments and runs required sensitivity
 scenarios through the same consumer path without network access.
+The read-only progress dashboard is bound to
+`http://127.0.0.1:3000/d/aqt-paper-trading/aiquanttrader-btc-paper-trading`;
+no Hyperliquid account or API key is required.
 
 ## Shadow deployment
 

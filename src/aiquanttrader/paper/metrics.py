@@ -33,6 +33,11 @@ class PaperMetrics:
             ("liquidity",),
             registry=registry,
         )
+        self.stale_trades_excluded = Counter(
+            "aqt_paper_stale_trades_excluded_total",
+            "Trades excluded before feature generation because their exchange time is stale",
+            registry=registry,
+        )
         self.markouts = Histogram(
             "aqt_paper_fill_markout_bps",
             "Signed post-fill markout in basis points",
@@ -63,6 +68,36 @@ class PaperMetrics:
         self.pnl = Gauge(
             "aqt_paper_pnl_usd",
             "Marked paper PnL from initial run equity",
+            registry=registry,
+        )
+        self.daily_pnl = Gauge(
+            "aqt_paper_daily_pnl_usd",
+            "Marked paper PnL from the current UTC day-start equity",
+            registry=registry,
+        )
+        self.realized_trading_pnl = Gauge(
+            "aqt_paper_realized_trading_pnl_usd",
+            "Gross realized paper trading PnL before fees and funding",
+            registry=registry,
+        )
+        self.fees = Gauge(
+            "aqt_paper_fees_usd",
+            "Cumulative paper execution fees",
+            registry=registry,
+        )
+        self.funding_pnl = Gauge(
+            "aqt_paper_funding_pnl_usd",
+            "Cumulative paper funding PnL",
+            registry=registry,
+        )
+        self.drawdown_fraction = Gauge(
+            "aqt_paper_drawdown_fraction",
+            "Current marked drawdown from the paper account high-water equity",
+            registry=registry,
+        )
+        self.daily_loss_fraction = Gauge(
+            "aqt_paper_daily_loss_fraction",
+            "Current non-negative marked loss from UTC day-start equity",
             registry=registry,
         )
         self.position = Gauge(
@@ -96,6 +131,12 @@ class PaperMetrics:
             registry=registry,
         )
 
+    def observe_stale_trade_exclusions(self, count: int) -> None:
+        if count < 0:
+            raise ValueError("paper stale-trade exclusion count cannot be negative")
+        if count:
+            self.stale_trades_excluded.inc(count)
+
     def observe_cycle(
         self,
         engine: PaperTradingEngine,
@@ -124,10 +165,19 @@ class PaperMetrics:
 
     def update_state(self, engine: PaperTradingEngine, *, initial_equity_usd: float) -> None:
         account = engine.simulator.account
+        equity = float(account.equity_usd)
+        day_start_equity = float(account.day_start_equity_usd)
+        high_water_equity = float(account.high_water_equity_usd)
         self.feed_connected.set(1 if engine.feed_connected else 0)
         self.feature_ready.set(1 if engine.feature_ready else 0)
-        self.equity.set(float(account.equity_usd))
-        self.pnl.set(float(account.equity_usd) - initial_equity_usd)
+        self.equity.set(equity)
+        self.pnl.set(equity - initial_equity_usd)
+        self.daily_pnl.set(equity - day_start_equity)
+        self.realized_trading_pnl.set(float(account.realized_trading_pnl_usd))
+        self.fees.set(float(account.fees_usd))
+        self.funding_pnl.set(float(account.funding_pnl_usd))
+        self.drawdown_fraction.set(max(0.0, (high_water_equity - equity) / high_water_equity))
+        self.daily_loss_fraction.set(max(0.0, (day_start_equity - equity) / day_start_equity))
         self.position.set(float(account.position_base))
         self.open_orders.set(len(engine.simulator.open_orders))
         self.operator_kill.set(1 if engine.kill_switch.read().active else 0)

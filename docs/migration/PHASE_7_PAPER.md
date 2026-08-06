@@ -51,8 +51,11 @@ docs/
 ## Live production-path parity
 
 `LiveMarketStateAssembler` buffers normalized trades until the next full L2
-snapshot and emits the same `KernelMarketState` consumed by HftBacktest and
-actual Nautilus objects in Phase 5/6 parity tests. `IncrementalFeatureEngine`,
+snapshot, excludes exchange-stale trades using the feature contract's maximum
+input age, and emits the same `KernelMarketState` consumed by HftBacktest and
+actual Nautilus objects in Phase 5/6 parity tests. Exclusions are counted in
+Prometheus; a stale L2 book, future timestamp, or non-monotonic receipt remains
+fatal. `IncrementalFeatureEngine`,
 `AvellanedaStoikovKernel` or `OrderFlowScalperKernel`, `OrderIntent`,
 `RiskSnapshot`, and `RiskAuthority` are imported directly. Phase 7 does not
 fork or approximate strategy and risk logic.

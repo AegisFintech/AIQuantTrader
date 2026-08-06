@@ -236,6 +236,16 @@ def _service(
     )
 
 
+def test_shadow_metrics_count_stale_trade_exclusions(tmp_path: Path) -> None:
+    metrics_path = (tmp_path / "shadow-metrics.prom").resolve()
+    metrics = ShadowMetrics(CollectorRegistry(), metrics_path)
+    with pytest.raises(ValueError, match="cannot be negative"):
+        metrics.observe_stale_trade_exclusions(-1)
+    metrics.observe_stale_trade_exclusions(2)
+    metrics.publish()
+    assert b"aqt_shadow_stale_trades_excluded_total 2.0" in metrics_path.read_bytes()
+
+
 def test_isolated_service_records_commands_and_replays_decisions_exactly(
     tmp_path: Path, config_dir: Path
 ) -> None:

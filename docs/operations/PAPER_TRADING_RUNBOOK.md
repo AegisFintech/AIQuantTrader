@@ -10,7 +10,7 @@ From the repository root:
 ```bash
 uv sync --frozen --extra research --group dev
 uv run aqt-native validate-config --config-dir configs --environment paper
-docker compose --profile paper config > /tmp/aqt-paper-compose.yaml
+docker compose --profile paper --profile monitoring config > /tmp/aqt-paper-compose.yaml
 ```
 
 Review the rendered `paper-trader` service. It must have no `secrets`,
@@ -28,7 +28,8 @@ Bind the run to an immutable commit or image digest:
 
 ```bash
 export AQT_NATIVE_CODE_IDENTITY="$(git rev-parse HEAD)"
-docker compose --profile paper up --build -d paper-trader
+docker compose --profile paper --profile monitoring up --build -d \
+  paper-trader prometheus grafana
 docker compose ps paper-trader
 docker compose logs --tail 100 paper-trader
 docker compose exec paper-trader \
@@ -51,6 +52,25 @@ and must make the promotion report fail.
 
 ## 3. Monitor
 
+Grafana is available only on the local loopback interface:
+
+```text
+http://127.0.0.1:3000/d/aqt-paper-trading/aiquanttrader-btc-paper-trading
+```
+
+It opens the provisioned BTC paper dashboard as an anonymous read-only viewer.
+Prometheus is available at `http://127.0.0.1:9090`. Neither endpoint is exposed
+to the LAN or internet. Do not publish or reverse-proxy Grafana without adding
+operator authentication and TLS.
+
+Verify the monitor and paper scrape before relying on the dashboard:
+
+```bash
+curl --fail --silent http://127.0.0.1:3000/api/health
+curl --fail --silent \
+  'http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22aiquanttrader-paper%22%7D'
+```
+
 Scrape `paper-trader:9112` through Prometheus and provision
 `paper-trading.json`. Alert on:
 
@@ -61,6 +81,14 @@ Scrape `paper-trader:9112` through Prometheus and provision
 - cycle p99, fill rate, maker ratio, PnL, adverse markouts, and drawdown;
 - drift readiness, maximum PSI, and standardized mean shift;
 - journal/state filesystem errors or a funding-gap event.
+
+The dashboard also reports cumulative stale-trade exclusions. Hyperliquid's
+initial trades subscription may contain a bounded historical snapshot, so a
+small startup increase is expected. The live assembler excludes those trades
+before feature generation using the configured maximum input age. Continued
+growth after startup indicates delayed exchange events or host/feed trouble and
+requires operator review; the service still fails closed for a stale book,
+future exchange timestamp, or non-monotonic L2 receipt.
 
 The service writes raw segments below the data volume and its WAL journal,
 kill audit, and atomic status below `state/paper/`. Back up SQLite with its
@@ -186,8 +214,8 @@ fills or residual exposure make the corresponding evidence gate fail.
 ## Incident response and rollback
 
 1. Activate the paper kill and confirm no open simulated orders.
-2. Stop `paper-trader`; preserve raw data, journal/WAL, status, kill audit, and
-   metrics snapshots.
+2. Stop `paper-trader`; Prometheus and Grafana may remain up while preserving
+   raw data, journal/WAL, status, kill audit, and metrics snapshots.
 3. Classify feed, clock, disk, simulator, accounting, drift, or configuration
    failure. Do not delete evidence or backfill unverifiable funding/fills.
 4. Restore the prior immutable native image/config and start a new run if any

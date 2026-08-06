@@ -12,11 +12,13 @@ from prometheus_client import CollectorRegistry, generate_latest
 
 from aiquanttrader.config import load_config
 from aiquanttrader.domain.market import (
+    AggressorSide,
     BookLevel,
     EventHeader,
     FundingEvent,
     L2BookSnapshot,
     MarkPriceEvent,
+    TradeEvent,
 )
 from aiquanttrader.market_data.protocol import ParsedFrame
 from aiquanttrader.paper.config import load_paper_artifacts
@@ -115,6 +117,55 @@ def test_live_service_creates_credential_free_manifest_status_and_metrics(
     )
     asyncio.run(service.consume_frame(context))
     asyncio.run(service.consume_frame(book))
+    trades = ParsedFrame(
+        channel="trades",
+        events=(
+            TradeEvent(
+                header=header.model_copy(
+                    update={
+                        "event_id": "stale-bootstrap-trade",
+                        "event_ts_ns": receive - 43_000_000_000,
+                        "receive_ts_ns": receive + 2,
+                    }
+                ),
+                trade_id="stale-bootstrap-trade",
+                price=Decimal("100"),
+                size=Decimal("0.2"),
+                aggressor=AggressorSide.BUYER,
+            ),
+            TradeEvent(
+                header=header.model_copy(
+                    update={
+                        "event_id": "fresh-trade",
+                        "event_ts_ns": receive + 2,
+                        "receive_ts_ns": receive + 2,
+                    }
+                ),
+                trade_id="fresh-trade",
+                price=Decimal("100"),
+                size=Decimal("0.1"),
+                aggressor=AggressorSide.SELLER,
+            ),
+        ),
+    )
+    next_book = ParsedFrame(
+        channel="l2Book",
+        events=(
+            book.events[0].model_copy(
+                update={
+                    "header": header.model_copy(
+                        update={
+                            "event_id": "book-next",
+                            "event_ts_ns": receive + 3,
+                            "receive_ts_ns": receive + 3,
+                        }
+                    )
+                }
+            ),
+        ),
+    )
+    asyncio.run(service.consume_frame(trades))
+    asyncio.run(service.consume_frame(next_book))
 
     manifest = journal.latest_manifest()
     assert manifest is not None
@@ -125,8 +176,11 @@ def test_live_service_creates_credential_free_manifest_status_and_metrics(
     assert status.feed_connected
     assert status.account is not None
     metrics = generate_latest(registry)
-    assert b"aqt_paper_market_states_total 1.0" in metrics
+    assert b"aqt_paper_market_states_total 2.0" in metrics
+    assert b"aqt_paper_stale_trades_excluded_total 1.0" in metrics
     assert b"aqt_paper_equity_usd 100000.0" in metrics
+    assert b"aqt_paper_drawdown_fraction 0.0" in metrics
+    assert b"aqt_paper_daily_loss_fraction 0.0" in metrics
     journal.close()
 
 

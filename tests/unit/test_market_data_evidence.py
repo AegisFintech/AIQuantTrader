@@ -174,8 +174,7 @@ def test_soak_evidence_retains_a_content_addressed_rejection(tmp_path: Path) -> 
     _state(state, NOW_NS + 21_000_000_000)
     metrics = _metrics(
         quality=(
-            'aqt_market_data_quality_issues_total{kind="schema_error",'
-            'code="unknown_channel"} 1'
+            'aqt_market_data_quality_issues_total{kind="schema_error",code="unknown_channel"} 1'
         )
     )
 
@@ -195,8 +194,7 @@ def test_soak_evidence_retains_a_content_addressed_rejection(tmp_path: Path) -> 
 def test_metrics_parser_rejects_ambiguous_and_invalid_samples() -> None:
     with pytest.raises(ValueError, match="one unlabeled sample"):
         parse_recorder_metrics(
-            _metrics()
-            + "\naqt_market_data_connected 1\n",
+            _metrics() + "\naqt_market_data_connected 1\n",
             captured_ts_ns=NOW_NS + 21_000_000_000,
         )
 
@@ -223,21 +221,19 @@ def test_metrics_parser_rejects_ambiguous_and_invalid_samples() -> None:
             "must be finite",
         ),
         (
-            _metrics().replace("aqt_market_data_frames_total{transport=\"binary\"} 3", ""),
+            _metrics().replace('aqt_market_data_frames_total{transport="binary"} 3', ""),
             "required metric is missing",
         ),
         (
             _metrics().replace(
                 "# TYPE aqt_market_data_reconnects_total counter",
-                '# TYPE aqt_market_data_reconnects_total counter\n'
+                "# TYPE aqt_market_data_reconnects_total counter\n"
                 'aqt_market_data_reconnects_total{unexpected="x"} 1',
             ),
             "unexpected labels",
         ),
         (
-            _metrics(
-                quality='aqt_market_data_quality_issues_total{kind="schema_error"} 1'
-            ),
+            _metrics(quality='aqt_market_data_quality_issues_total{kind="schema_error"} 1'),
             "quality issue metric has unexpected labels",
         ),
     ],
@@ -254,6 +250,7 @@ def test_evidence_inputs_reject_invalid_time_disk_and_restart_bounds(tmp_path: P
         _metrics(),
         captured_ts_ns=NOW_NS + 21_000_000_000,
     )
+
     def evaluate(started_ns: int, recorder_restarts: int) -> MarketDataSoakReport:
         return evaluate_market_data_soak(
             bundle=bundle,
