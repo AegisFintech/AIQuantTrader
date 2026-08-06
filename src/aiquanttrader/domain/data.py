@@ -260,9 +260,7 @@ class MarketDataSoakPolicy(DomainModel):
 
     @model_validator(mode="after")
     def validate_unique_reasons(self) -> Self:
-        if len(set(self.allowed_finalization_reasons)) != len(
-            self.allowed_finalization_reasons
-        ):
+        if len(set(self.allowed_finalization_reasons)) != len(self.allowed_finalization_reasons):
             raise ValueError("allowed finalization reasons must be unique")
         return self
 
@@ -297,9 +295,7 @@ class MarketDataRecorderMetricsSnapshot(DomainModel):
         issue_keys = {(item.kind, item.code) for item in self.quality_issues}
         if len(issue_keys) != len(self.quality_issues):
             raise ValueError("quality issue metric labels must be unique")
-        if len({item.name for item in self.finalized_segments}) != len(
-            self.finalized_segments
-        ):
+        if len({item.name for item in self.finalized_segments}) != len(self.finalized_segments):
             raise ValueError("finalization metric labels must be unique")
         if self.last_frame_ts_ns > self.captured_ts_ns:
             raise ValueError("last frame timestamp cannot follow metrics capture")
@@ -369,9 +365,7 @@ class MarketDataSoakReport(DomainModel):
             raise ValueError("admitted dataset cannot carry an admission error")
         if len(set(self.raw_manifest_sha256s)) != len(self.raw_manifest_sha256s):
             raise ValueError("raw manifest identities must be unique")
-        if len({item.name for item in self.finalization_reasons}) != len(
-            self.finalization_reasons
-        ):
+        if len({item.name for item in self.finalization_reasons}) != len(self.finalization_reasons):
             raise ValueError("finalization reason counts must be unique")
         if len({item.name for item in self.normalized_quality_issues}) != len(
             self.normalized_quality_issues

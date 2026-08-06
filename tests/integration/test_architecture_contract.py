@@ -182,6 +182,48 @@ def test_paper_service_has_no_wallet_secret_or_exchange_order_capability(
     assert offenders == []
 
 
+def test_paper_monitor_is_local_pinned_read_only_and_metric_complete(project_root: Path) -> None:
+    compose = (project_root / "compose.yaml").read_text(encoding="utf-8")
+    prometheus = compose.split("  prometheus:", 1)[1].split("  grafana:", 1)[0]
+    grafana = compose.split("  grafana:", 1)[1].split("\nvolumes:", 1)[0]
+
+    assert "prom/prometheus:v3.13.0-distroless@sha256:" in prometheus
+    assert "grafana/grafana:13.1.0@sha256:" in grafana
+    for service in (prometheus, grafana):
+        assert "read_only: true" in service
+        assert 'profiles: ["monitoring"]' in service
+        assert "no-new-privileges:true" in service
+        assert 'cap_drop: ["ALL"]' in service
+    assert '"127.0.0.1:9090:9090"' in prometheus
+    assert '"127.0.0.1:3000:3000"' in grafana
+    assert "GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer" in grafana
+    assert 'GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "true"' in grafana
+
+    prometheus_config = (project_root / "observability" / "prometheus.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "job_name: aiquanttrader-paper" in prometheus_config
+    assert 'targets: ["paper-trader:9112"]' in prometheus_config
+
+    dashboard = json.loads(
+        (project_root / "observability/grafana/dashboards/paper-trading.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    rendered = json.dumps(dashboard)
+    assert dashboard["uid"] == "aqt-paper-trading"
+    assert len(dashboard["panels"]) >= 15
+    for metric in (
+        "aqt_paper_market_states_total",
+        "aqt_paper_fills_total",
+        "aqt_paper_pnl_usd",
+        "aqt_paper_daily_loss_fraction",
+        "aqt_paper_drawdown_fraction",
+        "aqt_paper_stale_trades_excluded_total",
+    ):
+        assert metric in rendered
+
+
 def test_shadow_engine_has_no_network_secret_or_exchange_order_capability(
     project_root: Path,
 ) -> None:

@@ -68,12 +68,8 @@ def parse_recorder_metrics(
 
     frames = _sum_counter(samples, "aqt_market_data_frames_total")
     payload_bytes = _scalar_counter(samples, "aqt_market_data_bytes_total")
-    reconnects = _labeled_counts(
-        samples, "aqt_market_data_reconnects_total", label="reason"
-    )
-    finalized = _labeled_counts(
-        samples, "aqt_market_data_segments_finalized_total", label="reason"
-    )
+    reconnects = _labeled_counts(samples, "aqt_market_data_reconnects_total", label="reason")
+    finalized = _labeled_counts(samples, "aqt_market_data_segments_finalized_total", label="reason")
     for item in finalized:
         SegmentFinalizationReason(item.name)
 
@@ -145,9 +141,7 @@ def evaluate_market_data_soak(
     observation_started = (
         raw_manifests[0].started_at_ns if raw_manifests else requested_started_ts_ns
     )
-    observation_ended = (
-        raw_manifests[-1].ended_at_ns if raw_manifests else requested_started_ts_ns
-    )
+    observation_ended = raw_manifests[-1].ended_at_ns if raw_manifests else requested_started_ts_ns
     observation_ns = observation_ended - observation_started
     overlap_count = sum(
         current.started_at_ns < previous.ended_at_ns
@@ -558,7 +552,5 @@ def _labeled_counts(
     for labels, value in samples.get(name, []):
         if set(labels) != {label}:
             raise ValueError(f"metric {name} has unexpected labels")
-        result.append(
-            MarketDataNamedCount(name=labels[label], count=_counter_value(value, name))
-        )
+        result.append(MarketDataNamedCount(name=labels[label], count=_counter_value(value, name)))
     return tuple(sorted(result, key=lambda item: item.name))

@@ -84,8 +84,10 @@ class ShadowEngineService:
             else status_path.resolve()
         )
         self._assembler = LiveMarketStateAssembler(
-            depth_levels=artifacts.paper.feature_config.depth_levels
+            depth_levels=artifacts.paper.feature_config.depth_levels,
+            maximum_input_age_ns=artifacts.paper.feature_config.maximum_input_age_ns,
         )
+        self._observed_stale_trade_exclusions = 0
         self._engine: PaperTradingEngine | None = None
         self._sink = ShadowCommandSink()
         self._mark_price: Decimal | None = None
@@ -156,6 +158,11 @@ class ShadowEngineService:
                 self._funding_rate = event.funding_rate
                 self._next_funding_ts_ns = event.next_funding_ts_ns
             market = self._assembler.observe(event)
+            stale_trade_exclusions = self._assembler.stale_trade_exclusions
+            self.metrics.observe_stale_trade_exclusions(
+                stale_trade_exclusions - self._observed_stale_trade_exclusions
+            )
+            self._observed_stale_trade_exclusions = stale_trade_exclusions
             if market is None:
                 continue
             if self._engine is None:

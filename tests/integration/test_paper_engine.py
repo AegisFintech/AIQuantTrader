@@ -3,6 +3,7 @@ from __future__ import annotations
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
 from prometheus_client import CollectorRegistry, generate_latest
 
 from aiquanttrader.backtest.kernel import KernelBookLevel, KernelMarketState, KernelTrade
@@ -188,6 +189,8 @@ def test_live_feature_strategy_risk_simulation_and_restart_are_one_path(tmp_path
         latency_seconds=0.001,
         initial_equity_usd=1_000,
     )
+    with pytest.raises(ValueError, match="cannot be negative"):
+        metrics.observe_stale_trade_exclusions(-1)
     payload = generate_latest(registry)
     assert b'aqt_paper_risk_decisions_total{reason="approved",result="approved"}' in payload
     assert b'aqt_paper_fills_total{liquidity="taker"}' in payload

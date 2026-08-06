@@ -13,23 +13,40 @@ from aiquanttrader.domain.market import L2BookSnapshot, MarketEvent, TradeEvent
 class LiveMarketStateAssembler:
     """Buffer trades until the next full L2 snapshot without inventing timestamps."""
 
-    def __init__(self, *, depth_levels: int) -> None:
+    def __init__(self, *, depth_levels: int, maximum_input_age_ns: int) -> None:
         if not 1 <= depth_levels <= 10:
             raise ValueError("live paper depth must be in [1, 10]")
+        if maximum_input_age_ns <= 0:
+            raise ValueError("live paper maximum input age must be positive")
         self._depth_levels = depth_levels
+        self._maximum_input_age_ns = maximum_input_age_ns
         self._pending_trades: list[TradeEvent] = []
+        self._stale_trade_exclusions = 0
         self._sequence = 0
         self._last_observed_ts_ns: int | None = None
 
+    @property
+    def stale_trade_exclusions(self) -> int:
+        return self._stale_trade_exclusions
+
     def observe(self, event: MarketEvent) -> KernelMarketState | None:
         if isinstance(event, TradeEvent):
-            self._pending_trades.append(event)
+            observed = event.header.receive_ts_ns
+            if event.header.event_ts_ns > observed:
+                raise ValueError("live exchange timestamp follows local receipt; verify host clock")
+            self._expire_stale_trades(observed)
+            if observed - event.header.event_ts_ns > self._maximum_input_age_ns:
+                self._stale_trade_exclusions += 1
+            else:
+                self._pending_trades.append(event)
             return None
         if not isinstance(event, L2BookSnapshot):
             return None
         observed = event.header.receive_ts_ns
         if self._last_observed_ts_ns is not None and observed <= self._last_observed_ts_ns:
             raise ValueError("live L2 receive timestamps must be strictly increasing")
+        self._expire_stale_trades(observed)
+        fresh_trades = tuple(self._pending_trades)
         trades = tuple(
             KernelTrade(
                 exchange_ts_ns=trade.header.event_ts_ns,
@@ -38,7 +55,7 @@ class LiveMarketStateAssembler:
                 size=trade.size,
                 aggressor=trade.aggressor,
             )
-            for trade in self._pending_trades
+            for trade in fresh_trades
         )
         exchange_ts = max((event.header.event_ts_ns, *(trade.exchange_ts_ns for trade in trades)))
         if exchange_ts > observed:
@@ -62,3 +79,9 @@ class LiveMarketStateAssembler:
         self._sequence += 1
         self._last_observed_ts_ns = observed
         return state
+
+    def _expire_stale_trades(self, observed_ts_ns: int) -> None:
+        cutoff = observed_ts_ns - self._maximum_input_age_ns
+        fresh = [trade for trade in self._pending_trades if trade.header.event_ts_ns >= cutoff]
+        self._stale_trade_exclusions += len(self._pending_trades) - len(fresh)
+        self._pending_trades = fresh

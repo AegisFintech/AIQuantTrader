@@ -31,6 +31,11 @@ class ShadowMetrics:
             ("kind",),
             registry=registry,
         )
+        self.stale_trades_excluded = Counter(
+            "aqt_shadow_stale_trades_excluded_total",
+            "Trades excluded before feature generation because their exchange time is stale",
+            registry=registry,
+        )
         self.ingress_latency = Histogram(
             "aqt_shadow_ingress_latency_seconds",
             "Gateway receive to isolated-engine completion latency",
@@ -75,6 +80,12 @@ class ShadowMetrics:
             registry=registry,
         )
         self.network_egress_capability.set(0)
+
+    def observe_stale_trade_exclusions(self, count: int) -> None:
+        if count < 0:
+            raise ValueError("shadow stale-trade exclusion count cannot be negative")
+        if count:
+            self.stale_trades_excluded.inc(count)
 
     def observe_cycle(
         self,

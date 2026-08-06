@@ -65,8 +65,10 @@ class PaperLiveService:
         self.clock_ns = clock_ns
         self.status_path = settings.storage.state_root / "paper" / "status.json"
         self._assembler = LiveMarketStateAssembler(
-            depth_levels=artifacts.feature_config.depth_levels
+            depth_levels=artifacts.feature_config.depth_levels,
+            maximum_input_age_ns=artifacts.feature_config.maximum_input_age_ns,
         )
+        self._observed_stale_trade_exclusions = 0
         self._paper_metrics = PaperMetrics(registry)
         self._recorder_metrics = RecorderMetrics.create(registry)
         self._engine: PaperTradingEngine | None = None
@@ -98,6 +100,11 @@ class PaperLiveService:
                 self._funding_rate = event.funding_rate
                 self._next_funding_ts_ns = event.next_funding_ts_ns
             market = self._assembler.observe(event)
+            stale_trade_exclusions = self._assembler.stale_trade_exclusions
+            self._paper_metrics.observe_stale_trade_exclusions(
+                stale_trade_exclusions - self._observed_stale_trade_exclusions
+            )
+            self._observed_stale_trade_exclusions = stale_trade_exclusions
             if market is None:
                 continue
             if self._engine is None:

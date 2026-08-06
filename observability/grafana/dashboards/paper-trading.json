@@ -4,38 +4,84 @@
   "panels": [
     {
       "id": 1,
-      "title": "Paper feed / feature readiness",
+      "title": "Paper safety state",
       "type": "stat",
       "targets": [
-        {"expr": "aqt_paper_feed_connected", "legendFormat": "feed"},
-        {"expr": "aqt_paper_feature_ready", "legendFormat": "features"},
+        {"expr": "aqt_paper_feed_connected", "legendFormat": "feed connected"},
+        {"expr": "aqt_paper_feature_ready", "legendFormat": "features ready"},
         {"expr": "aqt_paper_operator_kill", "legendFormat": "operator kill"}
       ],
       "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0}
     },
     {
       "id": 2,
+      "title": "Marked PnL",
+      "type": "stat",
+      "targets": [{"expr": "aqt_paper_pnl_usd", "legendFormat": "USD"}],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 4, "x": 8, "y": 0}
+    },
+    {
+      "id": 3,
+      "title": "Market states",
+      "type": "stat",
+      "targets": [{"expr": "aqt_paper_market_states_total", "legendFormat": "processed"}],
+      "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
+      "gridPos": {"h": 6, "w": 4, "x": 12, "y": 0}
+    },
+    {
+      "id": 4,
+      "title": "Risk decisions",
+      "type": "stat",
+      "targets": [
+        {"expr": "sum(aqt_paper_risk_decisions_total) or vector(0)", "legendFormat": "total"}
+      ],
+      "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
+      "gridPos": {"h": 6, "w": 4, "x": 16, "y": 0}
+    },
+    {
+      "id": 5,
+      "title": "Paper fills",
+      "type": "stat",
+      "targets": [{"expr": "sum(aqt_paper_fills_total) or vector(0)", "legendFormat": "total"}],
+      "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
+      "gridPos": {"h": 6, "w": 4, "x": 20, "y": 0}
+    },
+    {
+      "id": 6,
       "title": "Marked equity and PnL",
       "type": "timeseries",
       "targets": [
         {"expr": "aqt_paper_equity_usd", "legendFormat": "equity"},
         {"expr": "aqt_paper_pnl_usd", "legendFormat": "PnL"}
       ],
-      "gridPos": {"h": 6, "w": 8, "x": 8, "y": 0}
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 6}
     },
     {
-      "id": 3,
+      "id": 7,
       "title": "Position and open orders",
       "type": "timeseries",
       "targets": [
-        {"expr": "aqt_paper_position_base", "legendFormat": "BTC"},
-        {"expr": "aqt_paper_open_orders", "legendFormat": "orders"}
+        {"expr": "aqt_paper_position_base", "legendFormat": "BTC position"},
+        {"expr": "aqt_paper_open_orders", "legendFormat": "open orders"}
       ],
-      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 0}
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 6}
     },
     {
-      "id": 4,
-      "title": "Risk decisions",
+      "id": 8,
+      "title": "Loss and drawdown budget",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "aqt_paper_daily_loss_fraction", "legendFormat": "daily loss (limit 0.5%)"},
+        {"expr": "aqt_paper_drawdown_fraction", "legendFormat": "drawdown (limit 1.0%)"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 6}
+    },
+    {
+      "id": 9,
+      "title": "Risk decision rate",
       "type": "timeseries",
       "targets": [
         {
@@ -43,11 +89,11 @@
           "legendFormat": "{{result}} {{reason}}"
         }
       ],
-      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 6}
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 13}
     },
     {
-      "id": 5,
-      "title": "Maker / taker fills",
+      "id": 10,
+      "title": "Maker / taker fill rate",
       "type": "timeseries",
       "targets": [
         {
@@ -55,10 +101,23 @@
           "legendFormat": "{{liquidity}}"
         }
       ],
-      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 6}
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 13}
     },
     {
-      "id": 6,
+      "id": 11,
+      "title": "PnL attribution",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "aqt_paper_realized_trading_pnl_usd", "legendFormat": "realized trading"},
+        {"expr": "-aqt_paper_fees_usd", "legendFormat": "fees"},
+        {"expr": "aqt_paper_funding_pnl_usd", "legendFormat": "funding"},
+        {"expr": "aqt_paper_daily_pnl_usd", "legendFormat": "daily marked"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 13}
+    },
+    {
+      "id": 12,
       "title": "Decision-to-journal latency",
       "type": "timeseries",
       "targets": [
@@ -67,10 +126,11 @@
           "legendFormat": "p99"
         }
       ],
-      "gridPos": {"h": 7, "w": 12, "x": 0, "y": 13}
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 20}
     },
     {
-      "id": 7,
+      "id": 13,
       "title": "Fill markout distribution",
       "type": "timeseries",
       "targets": [
@@ -79,10 +139,22 @@
           "legendFormat": "median"
         }
       ],
-      "gridPos": {"h": 7, "w": 12, "x": 12, "y": 13}
+      "fieldConfig": {"defaults": {"unit": "bps"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 20}
     },
     {
-      "id": 8,
+      "id": 14,
+      "title": "Stale trade exclusions",
+      "type": "timeseries",
+      "description": "Expected during the initial Hyperliquid trades snapshot; sustained growth requires review.",
+      "targets": [
+        {"expr": "aqt_paper_stale_trades_excluded_total", "legendFormat": "cumulative"}
+      ],
+      "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 20}
+    },
+    {
+      "id": 15,
       "title": "Feature drift",
       "type": "timeseries",
       "targets": [
@@ -93,9 +165,10 @@
           "legendFormat": "max mean shift"
         }
       ],
-      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 20}
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 27}
     }
   ],
+  "refresh": "5s",
   "schemaVersion": 39,
   "tags": ["aiquanttrader", "paper", "btc"],
   "templating": {"list": []},
@@ -103,5 +176,5 @@
   "timezone": "utc",
   "title": "AIQuantTrader BTC Paper Trading",
   "uid": "aqt-paper-trading",
-  "version": 1
+  "version": 2
 }
