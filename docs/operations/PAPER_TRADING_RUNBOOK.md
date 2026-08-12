@@ -13,10 +13,11 @@ uv run aqt-native validate-config --config-dir configs --environment paper
 docker compose --profile paper --profile monitoring config > /tmp/aqt-paper-compose.yaml
 ```
 
-Review the rendered `paper-trader` service. It must have no `secrets`,
-`/run/secrets`, account address, wallet path, execution client, or sentinel.
-`execution.enabled` must be false and `paper.enabled` true. Stop if any exchange
-identity or secret reference is present; paper configuration rejects it.
+Review the rendered `paper-trader` service. It must have no exchange account,
+wallet path, execution client, or sentinel. The only permitted secret mount is
+the optional read-only `/run/secrets/openai_api_key`; it is `/dev/null` while
+the observer is disabled. `execution.enabled` must be false and `paper.enabled`
+true. Stop if any exchange identity or wallet secret is present.
 
 Do not run `market-data-recorder` against the same state volume. `paper-trader`
 owns raw capture for this profile. The normalizer may run separately after raw
@@ -50,6 +51,11 @@ manifest, and `warming` or `ready`. L2 updates without fresh asset context must
 remain degraded. The checked-in scenario is `uncalibrated`; that is expected
 and must make the promotion report fail.
 
+`smart-money-scalper-v1` requires causal closed bars on 1m, 5m, and 15m, so a
+fresh run remains in structure warmup for roughly one hour. It allows only one
+position, reviews no-progress exposure at 90 seconds, and must issue a
+reduce-only exit by 300 seconds. A position age above 300 seconds is an incident.
+
 ## 3. Monitor
 
 Grafana is available only on the local loopback interface:
@@ -58,7 +64,10 @@ Grafana is available only on the local loopback interface:
 http://127.0.0.1:3000/d/aqt-paper-trading/aiquanttrader-btc-paper-trading
 ```
 
-It opens the provisioned BTC paper dashboard as an anonymous read-only viewer.
+It opens the provisioned BTC scalping command center as an anonymous read-only
+viewer. The top rows show the exact action and gate reason, BTC bid/ask/mid,
+expected-versus-required edge, SMC confluence, 15m/5m/1m direction,
+support/resistance, stop/target, order flow, and position age.
 Prometheus is available at `http://127.0.0.1:9090`. Neither endpoint is exposed
 to the LAN or internet. Do not publish or reverse-proxy Grafana without adding
 operator authentication and TLS.
@@ -80,6 +89,8 @@ Scrape `paper-trader:9112` through Prometheus and provision
 - risk denials, loss/drawdown state, inventory/open-order limits, and leverage;
 - cycle p99, fill rate, maker ratio, PnL, adverse markouts, and drawdown;
 - drift readiness, maximum PSI, and standardized mean shift;
+- position age below 300 seconds, structure readiness after warmup, and bounded
+  LLM observer errors if that optional observer is enabled;
 - journal/state filesystem errors or a funding-gap event.
 
 The dashboard also reports cumulative stale-trade exclusions. Hyperliquid's
@@ -93,6 +104,32 @@ future exchange timestamp, or non-monotonic L2 receipt.
 The service writes raw segments below the data volume and its WAL journal,
 kill audit, and atomic status below `state/paper/`. Back up SQLite with its
 online backup API or stop the service before copying the DB, WAL, and SHM.
+
+## 3.1 Optional OpenAI setup confirmation
+
+The LLM observer is not required for trading and is disabled by default. It is
+strictly shadow-only: a response cannot submit, cancel, resize, delay, or veto an
+order and cannot bypass risk. It runs asynchronously only for already-approved
+entry setups, no more frequently than once per minute.
+
+Provision an OpenAI project key through the host secret manager; never put the
+key in Git, TOML, an environment variable, a CLI argument, a log, or chat. Mount
+the resulting host file read-only for container UID `65532`, then enable the
+observer:
+
+```bash
+sudo install -d -o root -g root -m 0755 /etc/aiquanttrader
+sudo install -o 65532 -g 65532 -m 0400 /secure/secret-source/openai_api_key \
+  /etc/aiquanttrader/openai_api_key
+export AQT_OPENAI_API_KEY_FILE=/etc/aiquanttrader/openai_api_key
+export AQT_NATIVE__PAPER__LLM_CONFIRMATION__ENABLED=true
+docker compose --profile paper up --build -d paper-trader
+```
+
+The default model is `gpt-5.6-terra`. Confirm `llm_confirmation_enabled=true`
+in status and monitor confirmation verdicts, confidence, latency, and safe error
+codes. Provider failure is non-fatal to the deterministic paper path and never
+becomes implicit approval.
 
 ## 4. Operator kill drill
 

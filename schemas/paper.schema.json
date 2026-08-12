@@ -8,6 +8,609 @@
       "title": "CalibrationState",
       "type": "string"
     },
+    "CausalCandle": {
+      "additionalProperties": false,
+      "description": "A locally observed candle; only completed candles drive signals.",
+      "properties": {
+        "close": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Close"
+        },
+        "close_ts_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Close Ts Ns",
+          "type": "integer"
+        },
+        "high": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "High"
+        },
+        "low": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Low"
+        },
+        "observation_count": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Observation Count",
+          "type": "integer"
+        },
+        "open": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Open"
+        },
+        "open_ts_ns": {
+          "minimum": 0,
+          "title": "Open Ts Ns",
+          "type": "integer"
+        },
+        "signed_volume": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Signed Volume"
+        },
+        "timeframe_seconds": {
+          "enum": [
+            60,
+            300,
+            900
+          ],
+          "title": "Timeframe Seconds",
+          "type": "integer"
+        },
+        "volume": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Volume"
+        }
+      },
+      "required": [
+        "timeframe_seconds",
+        "open_ts_ns",
+        "close_ts_ns",
+        "open",
+        "high",
+        "low",
+        "close"
+      ],
+      "title": "CausalCandle",
+      "type": "object"
+    },
+    "CausalStructureState": {
+      "additionalProperties": false,
+      "properties": {
+        "last_observed_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Observed Ts Ns"
+        },
+        "revision": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "timeframes": {
+          "items": {
+            "$ref": "#/$defs/TimeframeBarState"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "title": "Timeframes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "timeframes"
+      ],
+      "title": "CausalStructureState",
+      "type": "object"
+    },
+    "DealingRangeZone": {
+      "enum": [
+        "premium",
+        "discount",
+        "equilibrium",
+        "unknown"
+      ],
+      "title": "DealingRangeZone",
+      "type": "string"
+    },
+    "KernelDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/StrategyAction",
+          "default": "hold"
+        },
+        "cancel_intent_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Cancel Intent Ids",
+          "type": "array"
+        },
+        "confluence_score": {
+          "default": 0,
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Confluence Score",
+          "type": "integer"
+        },
+        "expected_edge_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Expected Edge Bps"
+        },
+        "position_age_seconds": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Position Age Seconds"
+        },
+        "reason": {
+          "default": "no_action",
+          "title": "Reason",
+          "type": "string"
+        },
+        "reference_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reference Price"
+        },
+        "required_edge_bps": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Required Edge Bps"
+        },
+        "stop_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stop Price"
+        },
+        "submit": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/OrderIntent"
+          },
+          "title": "Submit",
+          "type": "array"
+        },
+        "target_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Price"
+        }
+      },
+      "title": "KernelDecision",
+      "type": "object"
+    },
+    "LlmAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Confidence"
+        },
+        "expected_horizon_seconds": {
+          "maximum": 300,
+          "minimum": 1,
+          "title": "Expected Horizon Seconds",
+          "type": "integer"
+        },
+        "invalidation_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Invalidation Price"
+        },
+        "rationale": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
+        "verdict": {
+          "$ref": "#/$defs/LlmVerdict"
+        }
+      },
+      "required": [
+        "verdict",
+        "confidence",
+        "rationale",
+        "expected_horizon_seconds"
+      ],
+      "title": "LlmAssessment",
+      "type": "object"
+    },
+    "LlmConfirmation": {
+      "additionalProperties": false,
+      "properties": {
+        "assessment": {
+          "$ref": "#/$defs/LlmAssessment"
+        },
+        "authority": {
+          "const": "shadow_only_no_execution",
+          "default": "shadow_only_no_execution",
+          "title": "Authority",
+          "type": "string"
+        },
+        "completed_ts_ns": {
+          "minimum": 0,
+          "title": "Completed Ts Ns",
+          "type": "integer"
+        },
+        "confirmation_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Confirmation Id",
+          "type": "string"
+        },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Latency Ms"
+        },
+        "model": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Model",
+          "type": "string"
+        },
+        "request_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "confirmation_id",
+        "request_id",
+        "run_id",
+        "completed_ts_ns",
+        "model",
+        "latency_ms",
+        "assessment"
+      ],
+      "title": "LlmConfirmation",
+      "type": "object"
+    },
+    "LlmConfirmationRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "book_imbalance": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": -1.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Book Imbalance"
+        },
+        "confluence_score": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Confluence Score",
+          "type": "integer"
+        },
+        "expected_edge_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Expected Edge Bps"
+        },
+        "feature_snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Snapshot Sha256",
+          "type": "string"
+        },
+        "market_price": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Market Price"
+        },
+        "observed_ts_ns": {
+          "minimum": 0,
+          "title": "Observed Ts Ns",
+          "type": "integer"
+        },
+        "request_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "required_edge_bps": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Required Edge Bps"
+        },
+        "run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "side": {
+          "enum": [
+            "long",
+            "short"
+          ],
+          "title": "Side",
+          "type": "string"
+        },
+        "spread_bps": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Spread Bps"
+        },
+        "strategy_decision_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Strategy Decision Sha256",
+          "type": "string"
+        },
+        "strategy_id": {
+          "const": "smart-money-scalper-v1",
+          "default": "smart-money-scalper-v1",
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "structure": {
+          "$ref": "#/$defs/SmartMoneySnapshot"
+        },
+        "trade_flow_imbalance": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": -1.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Trade Flow Imbalance"
+        },
+        "volatility_regime": {
+          "$ref": "#/$defs/VolatilityRegime"
+        }
+      },
+      "required": [
+        "request_id",
+        "run_id",
+        "observed_ts_ns",
+        "side",
+        "feature_snapshot_sha256",
+        "strategy_decision_sha256",
+        "market_price",
+        "spread_bps",
+        "book_imbalance",
+        "trade_flow_imbalance",
+        "volatility_regime",
+        "expected_edge_bps",
+        "required_edge_bps",
+        "confluence_score",
+        "structure"
+      ],
+      "title": "LlmConfirmationRequest",
+      "type": "object"
+    },
+    "LlmVerdict": {
+      "enum": [
+        "confirm",
+        "reject",
+        "uncertain"
+      ],
+      "title": "LlmVerdict",
+      "type": "string"
+    },
     "OrderIntent": {
       "additionalProperties": false,
       "properties": {
@@ -1547,6 +2150,46 @@
           "default": null,
           "title": "Last Public Data Ts Ns"
         },
+        "latest_llm_confirmation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LlmConfirmation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "llm_confirmation_enabled": {
+          "default": false,
+          "title": "Llm Confirmation Enabled",
+          "type": "boolean"
+        },
+        "llm_last_error_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Llm Last Error Code"
+        },
+        "market_structure": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SmartMoneySnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "open_orders": {
           "minimum": 0,
           "title": "Open Orders",
@@ -1588,6 +2231,17 @@
           ],
           "title": "Status",
           "type": "string"
+        },
+        "strategy_decision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/KernelDecision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "strategy_id": {
           "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
@@ -1739,6 +2393,109 @@
       "title": "RiskState",
       "type": "string"
     },
+    "SmartMoneySnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "fifteen_minute": {
+          "$ref": "#/$defs/TimeframeStructure"
+        },
+        "five_minute": {
+          "$ref": "#/$defs/TimeframeStructure"
+        },
+        "long_confluence": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Long Confluence",
+          "type": "integer"
+        },
+        "long_reasons": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Long Reasons",
+          "type": "array"
+        },
+        "observed_ts_ns": {
+          "minimum": 0,
+          "title": "Observed Ts Ns",
+          "type": "integer"
+        },
+        "one_minute": {
+          "$ref": "#/$defs/TimeframeStructure"
+        },
+        "ready": {
+          "title": "Ready",
+          "type": "boolean"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "short_confluence": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Short Confluence",
+          "type": "integer"
+        },
+        "short_reasons": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Short Reasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "observed_ts_ns",
+        "revision",
+        "ready",
+        "one_minute",
+        "five_minute",
+        "fifteen_minute",
+        "long_confluence",
+        "short_confluence"
+      ],
+      "title": "SmartMoneySnapshot",
+      "type": "object"
+    },
+    "StrategyAction": {
+      "enum": [
+        "warmup",
+        "hold",
+        "enter_long",
+        "enter_short",
+        "exit_take_profit",
+        "exit_stop_loss",
+        "exit_time_limit",
+        "exit_opposite_flow",
+        "blocked_cost",
+        "blocked_spread",
+        "blocked_confluence",
+        "blocked_cooldown",
+        "blocked_volatility",
+        "blocked_inventory"
+      ],
+      "title": "StrategyAction",
+      "type": "string"
+    },
+    "StructureDirection": {
+      "enum": [
+        "bullish",
+        "bearish",
+        "neutral"
+      ],
+      "title": "StructureDirection",
+      "type": "string"
+    },
     "TimeInForce": {
       "enum": [
         "gtc",
@@ -1746,6 +2503,326 @@
       ],
       "title": "TimeInForce",
       "type": "string"
+    },
+    "TimeframeBarState": {
+      "additionalProperties": false,
+      "properties": {
+        "closed": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CausalCandle"
+          },
+          "title": "Closed",
+          "type": "array"
+        },
+        "current": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CausalCandle"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "current_valid": {
+          "default": true,
+          "title": "Current Valid",
+          "type": "boolean"
+        },
+        "timeframe_seconds": {
+          "enum": [
+            60,
+            300,
+            900
+          ],
+          "title": "Timeframe Seconds",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "timeframe_seconds"
+      ],
+      "title": "TimeframeBarState",
+      "type": "object"
+    },
+    "TimeframeStructure": {
+      "additionalProperties": false,
+      "properties": {
+        "atr_bps": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Atr Bps"
+        },
+        "bearish_bos": {
+          "default": false,
+          "title": "Bearish Bos",
+          "type": "boolean"
+        },
+        "bearish_choch": {
+          "default": false,
+          "title": "Bearish Choch",
+          "type": "boolean"
+        },
+        "bearish_fvg_lower": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bearish Fvg Lower"
+        },
+        "bearish_fvg_upper": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bearish Fvg Upper"
+        },
+        "bearish_order_block_high": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bearish Order Block High"
+        },
+        "bearish_order_block_low": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bearish Order Block Low"
+        },
+        "bearish_sweep": {
+          "default": false,
+          "title": "Bearish Sweep",
+          "type": "boolean"
+        },
+        "bullish_bos": {
+          "default": false,
+          "title": "Bullish Bos",
+          "type": "boolean"
+        },
+        "bullish_choch": {
+          "default": false,
+          "title": "Bullish Choch",
+          "type": "boolean"
+        },
+        "bullish_fvg_lower": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bullish Fvg Lower"
+        },
+        "bullish_fvg_upper": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bullish Fvg Upper"
+        },
+        "bullish_order_block_high": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bullish Order Block High"
+        },
+        "bullish_order_block_low": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bullish Order Block Low"
+        },
+        "bullish_sweep": {
+          "default": false,
+          "title": "Bullish Sweep",
+          "type": "boolean"
+        },
+        "close": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Close"
+        },
+        "closed_bars": {
+          "minimum": 0,
+          "title": "Closed Bars",
+          "type": "integer"
+        },
+        "direction": {
+          "$ref": "#/$defs/StructureDirection",
+          "default": "neutral"
+        },
+        "last_closed_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Closed Ts Ns"
+        },
+        "resistance": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resistance"
+        },
+        "support": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Support"
+        },
+        "timeframe_seconds": {
+          "enum": [
+            60,
+            300,
+            900
+          ],
+          "title": "Timeframe Seconds",
+          "type": "integer"
+        },
+        "zone": {
+          "$ref": "#/$defs/DealingRangeZone",
+          "default": "unknown"
+        }
+      },
+      "required": [
+        "timeframe_seconds",
+        "closed_bars"
+      ],
+      "title": "TimeframeStructure",
+      "type": "object"
     },
     "VolatilityRegime": {
       "enum": [
@@ -1791,6 +2868,24 @@
     },
     {
       "$ref": "#/$defs/PaperExecutionCommand"
+    },
+    {
+      "$ref": "#/$defs/CausalCandle"
+    },
+    {
+      "$ref": "#/$defs/CausalStructureState"
+    },
+    {
+      "$ref": "#/$defs/SmartMoneySnapshot"
+    },
+    {
+      "$ref": "#/$defs/LlmAssessment"
+    },
+    {
+      "$ref": "#/$defs/LlmConfirmationRequest"
+    },
+    {
+      "$ref": "#/$defs/LlmConfirmation"
     }
   ]
 }

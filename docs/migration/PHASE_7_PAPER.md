@@ -16,7 +16,8 @@ The source diagram is
 
 ```text
 public WebSocket -> raw append/flush -> strict normalized event -> causal state
-  -> production feature -> production strategy -> hard risk -> paper simulator
+  -> microstructure + closed 15m/5m/1m structure -> production strategy
+  -> hard risk -> paper simulator
   -> atomic SQLite cycle + status + Prometheus
 
 operator kill / stale feed -----------------------> cancel-only + cancel-all
@@ -56,9 +57,15 @@ input age, and emits the same `KernelMarketState` consumed by HftBacktest and
 actual Nautilus objects in Phase 5/6 parity tests. Exclusions are counted in
 Prometheus; a stale L2 book, future timestamp, or non-monotonic receipt remains
 fatal. `IncrementalFeatureEngine`,
-`AvellanedaStoikovKernel` or `OrderFlowScalperKernel`, `OrderIntent`,
+`AvellanedaStoikovKernel`, `OrderFlowScalperKernel`, or the bounded
+`SmartMoneyScalperKernel`, `OrderIntent`,
 `RiskSnapshot`, and `RiskAuthority` are imported directly. Phase 7 does not
 fork or approximate strategy and risk logic.
+
+The optional OpenAI observer is outside that path. It receives only approved
+setup evidence asynchronously and journals a typed retrospective verdict. Its
+key is the sole permitted paper secret, and neither the verdict nor provider
+availability can affect strategy, risk, or simulator state.
 
 Nautilus remains the sole normal exchange-order owner in execution modes. Paper
 mode deliberately does not instantiate its live execution client because a

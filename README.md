@@ -291,7 +291,10 @@ AQT_NATIVE_CODE_IDENTITY="$(git rev-parse HEAD)" \
 The paper service owns raw capture; do not start `market-data-recorder` against
 the same state volume. It durably syncs each raw frame before the live consumer
 and accepts only conservative risk-adverse, zero-synthetic-feed-delay paper
-scenarios. The checked-in scenarios are uncalibrated and therefore cannot pass
+scenarios. The checked-in paper challenger is `smart-money-scalper-v1`: it uses
+closed 15-minute bias, 5-minute setup, 1-minute trigger, and L2/tape execution,
+with a 90-second no-progress exit and an unconditional 300-second position cap.
+The checked-in scenarios are uncalibrated and therefore cannot pass
 `aqt-paper evidence`. Procedures, drills, sensitivity rules, and rollback are in
 [`PAPER_TRADING_RUNBOOK.md`](docs/operations/PAPER_TRADING_RUNBOOK.md).
 `aqt-paper replay` verifies finalized raw segments and runs required sensitivity
@@ -299,6 +302,9 @@ scenarios through the same consumer path without network access.
 The read-only progress dashboard is bound to
 `http://127.0.0.1:3000/d/aqt-paper-trading/aiquanttrader-btc-paper-trading`;
 no Hyperliquid account or API key is required.
+An optional OpenAI Responses API observer can produce typed, shadow-only setup
+confirmations. It is disabled by default, reads its key only from
+`/run/secrets/openai_api_key`, and has no path to strategy, risk, or execution.
 
 ## Shadow deployment
 

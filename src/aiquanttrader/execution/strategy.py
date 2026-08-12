@@ -109,6 +109,7 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
         self._pending_strategy_cancels: set[str] = set()
         self._reconciliation_complete = False
         self._last_risk_state: RiskState | None = None
+        self._last_live_account_state: LiveAccountState | None = None
 
     def on_start(self) -> None:
         if self._live_pipeline is None:
@@ -597,6 +598,16 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
             funding_rate=self._funding_rate,
             estimated_taker_fee_bps=self._estimated_taker_fee_bps,
             estimated_slippage_bps=self._estimated_slippage_bps,
+            position_average_entry_price=(
+                None
+                if self._last_live_account_state is None
+                else self._last_live_account_state.average_entry_price
+            ),
+            position_opened_ts_ns=(
+                None
+                if self._last_live_account_state is None
+                else self._last_live_account_state.position_opened_ts_ns
+            ),
         )
         dispatched_cancels: set[str] = set()
         dispatched_intents: set[str] = set()
@@ -652,6 +663,7 @@ class RiskManagedExecutionStrategy(Strategy):  # type: ignore[misc]
             raise RuntimeError("live risk state dependencies are unavailable")
         now_ns = time.time_ns()
         account = self._live_account_state()
+        self._last_live_account_state = account
         baseline = self._equity_baselines.observe(account.equity_usd, now_ns=now_ns)
         mid = (market.bids[0].price + market.asks[0].price) / Decimal("2")
         mark = mid

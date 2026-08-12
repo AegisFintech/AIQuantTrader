@@ -118,7 +118,9 @@ class LiveStrategyConfig(FrozenModel):
     """Exact feature and alpha artifacts consumed by the live Nautilus node."""
 
     enabled: bool = False
-    strategy_id: Literal["avellaneda-stoikov-v1", "order-flow-scalper-v1"] = "order-flow-scalper-v1"
+    strategy_id: Literal[
+        "avellaneda-stoikov-v1", "order-flow-scalper-v1", "smart-money-scalper-v1"
+    ] = "order-flow-scalper-v1"
     feature_config_path: Path = Path("features/microstructure-v1.toml")
     strategy_config_path: Path = Path("strategies/order-flow-scalper-v1.toml")
     estimated_taker_fee_bps: Decimal = Field(default=Decimal("4.5"), ge=0, le=100)
@@ -193,9 +195,31 @@ def _validate_relative_config_reference(value: Path) -> Path:
     return value
 
 
+class LlmConfirmationConfig(FrozenModel):
+    """Non-authoritative OpenAI review of already-qualified paper setups."""
+
+    enabled: bool = False
+    mode: Literal["shadow_only"] = "shadow_only"
+    model: Identifier = "gpt-5.6-terra"
+    api_key_secret_path: Path = Path("/run/secrets/openai_api_key")
+    minimum_request_interval_seconds: int = Field(default=60, ge=15, le=3_600)
+    timeout_seconds: int = Field(default=10, ge=2, le=60)
+    maximum_output_tokens: int = Field(default=300, ge=100, le=1_000)
+    queue_capacity: int = Field(default=4, ge=1, le=32)
+
+    @model_validator(mode="after")
+    def validate_shadow_boundary(self) -> Self:
+        _validate_secret_reference(self.api_key_secret_path)
+        if self.mode != "shadow_only":  # pragma: no cover - Literal guards construction
+            raise ValueError("LLM confirmation must remain shadow-only")
+        return self
+
+
 class PaperConfig(FrozenModel):
     enabled: bool = False
-    strategy_id: Literal["avellaneda-stoikov-v1", "order-flow-scalper-v1"] = "order-flow-scalper-v1"
+    strategy_id: Literal[
+        "avellaneda-stoikov-v1", "order-flow-scalper-v1", "smart-money-scalper-v1"
+    ] = "order-flow-scalper-v1"
     scenario_path: Path = Path("paper/baseline-v1.toml")
     sensitivity_scenario_paths: tuple[Path, ...] = (Path("paper/pessimistic-v1.toml"),)
     feature_config_path: Path = Path("features/microstructure-v1.toml")
@@ -207,6 +231,7 @@ class PaperConfig(FrozenModel):
     markout_horizon_ms: int = Field(default=1_000, ge=100, le=60_000)
     metrics_host: str = "0.0.0.0"
     metrics_port: int = Field(default=9_112, ge=1_024, le=65_535)
+    llm_confirmation: LlmConfirmationConfig = Field(default_factory=lambda: LlmConfirmationConfig())
 
     @model_validator(mode="after")
     def validate_references(self) -> Self:
@@ -226,7 +251,9 @@ class PaperConfig(FrozenModel):
 
 class ShadowConfig(FrozenModel):
     enabled: bool = False
-    strategy_id: Literal["avellaneda-stoikov-v1", "order-flow-scalper-v1"] = "order-flow-scalper-v1"
+    strategy_id: Literal[
+        "avellaneda-stoikov-v1", "order-flow-scalper-v1", "smart-money-scalper-v1"
+    ] = "order-flow-scalper-v1"
     scenario_path: Path = Path("paper/baseline-v1.toml")
     sensitivity_scenario_paths: tuple[Path, ...] = (Path("paper/pessimistic-v1.toml"),)
     feature_config_path: Path = Path("features/microstructure-v1.toml")

@@ -12,6 +12,11 @@ from aiquanttrader.domain.market import OrderSide
 from aiquanttrader.features.models import VolatilityRegime
 from aiquanttrader.paper.evidence import evaluate_paper_evidence
 from aiquanttrader.paper.journal import PaperJournal, PaperJournalStatistics
+from aiquanttrader.paper.llm_models import (
+    LlmAssessment,
+    LlmConfirmation,
+    LlmVerdict,
+)
 from aiquanttrader.paper.models import (
     PaperAccountState,
     PaperEngineCheckpoint,
@@ -156,6 +161,21 @@ def test_paper_journal_restores_account_orders_and_strategy_checkpoint(tmp_path:
         strategy_memory_json='{"inventory_base":"0","order_revision":2}',
     )
     journal.record_checkpoint(checkpoint)
+    confirmation = LlmConfirmation(
+        confirmation_id="5" * 64,
+        request_id="6" * 64,
+        run_id="run-1",
+        completed_ts_ns=1_011,
+        model="gpt-5.6-terra",
+        latency_ms=Decimal("10"),
+        assessment=LlmAssessment(
+            verdict=LlmVerdict.UNCERTAIN,
+            confidence=Decimal("0.5"),
+            rationale="Conflicting short-horizon evidence.",
+            expected_horizon_seconds=30,
+        ),
+    )
+    journal.record_llm_confirmation(confirmation)
     journal.close()
 
     restored = PaperJournal((tmp_path / "paper.sqlite3").resolve())
@@ -163,6 +183,7 @@ def test_paper_journal_restores_account_orders_and_strategy_checkpoint(tmp_path:
     assert restored.latest_account("run-1") == account(1_010)
     assert restored.restore_open_orders("run-1") == (order,)
     assert restored.latest_checkpoint("run-1") == checkpoint
+    assert restored.latest_llm_confirmation("run-1") == confirmation
     with pytest.raises(ValueError, match="identity changed"):
         restored.begin_run(run.model_copy(update={"code_identity": "different"}), account(1_000))
     restored.close()

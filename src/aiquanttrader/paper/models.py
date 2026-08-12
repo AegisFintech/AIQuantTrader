@@ -8,11 +8,14 @@ from typing import Annotated, Literal, Self
 
 from pydantic import Field, StringConstraints, model_validator
 
+from aiquanttrader.backtest.kernel import KernelDecision
 from aiquanttrader.backtest.models import CalibrationState
 from aiquanttrader.domain.base import DomainModel, canonical_sha256
 from aiquanttrader.domain.execution import OrderIntent, RiskDecision
 from aiquanttrader.domain.market import OrderSide
+from aiquanttrader.features.market_structure import SmartMoneySnapshot
 from aiquanttrader.features.models import VolatilityRegime
+from aiquanttrader.paper.llm_models import LlmConfirmation
 
 Identifier = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")]
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
@@ -354,6 +357,11 @@ class PaperRuntimeStatus(DomainModel):
     open_orders: int = Field(ge=0)
     decisions: int = Field(ge=0)
     fills: int = Field(ge=0)
+    strategy_decision: KernelDecision | None = None
+    market_structure: SmartMoneySnapshot | None = None
+    llm_confirmation_enabled: bool = False
+    latest_llm_confirmation: LlmConfirmation | None = None
+    llm_last_error_code: Identifier | None = None
     last_error_code: Identifier | None = None
 
 

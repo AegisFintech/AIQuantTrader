@@ -43,13 +43,13 @@ the migration record; none of those systems has runtime authority.
 | `config/` | Immutable typed configuration, environment overlays, validation, and fingerprints. |
 | `domain/` | Versioned market, data, feature, execution, experiment, and governance contracts. |
 | `market_data/` | Raw-first WebSocket capture, integrity, normalization, health, cataloging, Tardis acquisition, and content-addressed host-soak evidence. |
-| `features/` | Incremental microstructure features and deterministic Parquet lineage. |
-| `strategies/` | Pure Avellaneda-Stoikov market-maker and order-flow scalper kernels. |
+| `features/` | Incremental microstructure plus causal 1m/5m/15m structure and deterministic Parquet lineage. |
+| `strategies/` | Pure Avellaneda-Stoikov, order-flow, and bounded smart-money scalper kernels. |
 | `execution/` | Nautilus execution gateway, strategy wiring, order journal, reconciliation, and metrics. |
 | `risk/` | Synchronous risk authority and durable operator kill switch. |
 | `sentinel/` | Separately credentialed dead-man renewal and emergency cancel-all. |
 | `research/` | CPU model adapters, bounded search, drift, registry, and champion-challenger evaluation. |
-| `paper/` | Public-feed market-by-price simulation, accounting, journals, evidence, and service lifecycle. |
+| `paper/` | Public-feed simulation, accounting, journals, evidence, and optional shadow-only LLM review. |
 | `shadow/` | Checksummed ingress, network-isolated counterfactual engine, observer, and evidence. |
 | `governance/` | Artifact bundles, offline approvals, admission ledger, renewals, and release evidence. |
 | `service/` | Common health/readiness service. |
@@ -84,6 +84,10 @@ All checked-in environments default to execution disabled. Private keys are
 mode-`0600` runtime files mounted below `/run/secrets`; their values are never
 valid configuration fields, environment variables, CLI arguments, logs, or
 repository artifacts.
+
+Paper never receives an exchange account or wallet. Its optional OpenAI key is
+mounted as a read-only file and is usable only by the asynchronous confirmation
+observer. LLM output is evidence, never order or risk authority.
 
 ## Storage
 

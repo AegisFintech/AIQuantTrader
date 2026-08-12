@@ -33,7 +33,8 @@ Hyperliquid/NautilusTrader platform.
 ## 4. Validate execution and risk
 
 - [ ] For paper/shadow, confirm account and wallet references are absent and the
-  container has no secret mount or exchange-order-capable client.
+  container has no exchange-order-capable client. Shadow has no secret mount;
+  paper may mount only the optional read-only OpenAI observer key.
 - [ ] Trading and sentinel API wallets are distinct and have the intended master
   or subaccount address.
 - [ ] Open orders, positions, margin, leverage, funding, and PnL reconcile with

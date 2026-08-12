@@ -16,8 +16,9 @@ from aiquanttrader.paper.models import PaperEvidencePolicy
 from aiquanttrader.paper.simulator import validate_paper_scenario
 from aiquanttrader.strategies.market_maker import AvellanedaStoikovConfig
 from aiquanttrader.strategies.scalper import OrderFlowScalperConfig
+from aiquanttrader.strategies.smart_money_scalper import SmartMoneyScalperConfig
 
-StrategyConfig = AvellanedaStoikovConfig | OrderFlowScalperConfig
+StrategyConfig = AvellanedaStoikovConfig | OrderFlowScalperConfig | SmartMoneyScalperConfig
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +48,8 @@ def load_paper_artifacts(config_dir: Path, bundle: ConfigBundle) -> PaperArtifac
     feature = FeatureEngineConfig.model_validate(feature_payload)
     if paper.strategy_id == "avellaneda-stoikov-v1":
         strategy: StrategyConfig = AvellanedaStoikovConfig.model_validate(strategy_payload)
+    elif paper.strategy_id == "smart-money-scalper-v1":
+        strategy = SmartMoneyScalperConfig.model_validate(strategy_payload)
     else:
         strategy = OrderFlowScalperConfig.model_validate(strategy_payload)
     if strategy.strategy_id != paper.strategy_id:

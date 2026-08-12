@@ -213,6 +213,42 @@ class PaperExchangeSimulator:
         self._mark(mark_price or self._mid(market), now)
         return SimulatorUpdate(tuple(changed.values()), tuple(fills), self._account)
 
+    def activate_pending(
+        self,
+        now_ts_ns: int,
+        market: KernelMarketState,
+        *,
+        mark_price: Decimal | None = None,
+    ) -> SimulatorUpdate:
+        """Apply entry latency against the latest still-fresh book without replaying trades."""
+
+        if now_ts_ns < market.observed_ts_ns:
+            raise ValueError("paper activation time cannot precede the observed book")
+        changed: dict[str, PaperOrder] = {}
+        fills: list[PaperFill] = []
+        self._mark(mark_price or self._mid(market), now_ts_ns)
+        for order in self.open_orders:
+            if (
+                order.state is PaperOrderState.PENDING_CANCEL
+                and order.cancel_effective_ts_ns is not None
+                and order.cancel_effective_ts_ns <= now_ts_ns
+            ):
+                canceled = order.model_copy(
+                    update={"state": PaperOrderState.CANCELED, "updated_ts_ns": now_ts_ns}
+                )
+                self._store(canceled, changed)
+        for order in self.open_orders:
+            if (
+                order.state is not PaperOrderState.PENDING_ACTIVATION
+                or order.effective_ts_ns > now_ts_ns
+            ):
+                continue
+            activated, new_fills = self._activate(order, market, now_ts_ns)
+            self._store(activated, changed)
+            fills.extend(new_fills)
+        self._mark(mark_price or self._mid(market), now_ts_ns)
+        return SimulatorUpdate(tuple(changed.values()), tuple(fills), self._account)
+
     def settle_funding(
         self,
         *,

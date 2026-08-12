@@ -11,6 +11,7 @@ from pydantic import Field
 
 from aiquanttrader.backtest.kernel import KernelDecision
 from aiquanttrader.domain.base import DomainModel
+from aiquanttrader.features.market_structure import SmartMoneySnapshot
 from aiquanttrader.features.models import MicrostructureSnapshot
 
 
@@ -24,6 +25,9 @@ class StrategyInput(DomainModel):
     estimated_taker_fee_bps: Annotated[Decimal, Field(ge=0)] = Decimal("4.5")
     estimated_slippage_bps: Annotated[Decimal, Field(ge=0)] = Decimal("1")
     model_artifact_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    market_structure: SmartMoneySnapshot | None = None
+    position_average_entry_price: Annotated[Decimal, Field(gt=0)] | None = None
+    position_opened_ts_ns: int | None = Field(default=None, ge=0)
 
 
 @dataclass(frozen=True, slots=True)

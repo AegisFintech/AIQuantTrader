@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
+from enum import StrEnum
 from itertools import groupby
 from typing import Annotated, Any, Literal, Protocol, Self, cast
 
@@ -74,9 +75,35 @@ class KernelMarketState(DomainModel):
         return self
 
 
+class StrategyAction(StrEnum):
+    WARMUP = "warmup"
+    HOLD = "hold"
+    ENTER_LONG = "enter_long"
+    ENTER_SHORT = "enter_short"
+    EXIT_TAKE_PROFIT = "exit_take_profit"
+    EXIT_STOP_LOSS = "exit_stop_loss"
+    EXIT_TIME_LIMIT = "exit_time_limit"
+    EXIT_OPPOSITE_FLOW = "exit_opposite_flow"
+    BLOCKED_COST = "blocked_cost"
+    BLOCKED_SPREAD = "blocked_spread"
+    BLOCKED_CONFLUENCE = "blocked_confluence"
+    BLOCKED_COOLDOWN = "blocked_cooldown"
+    BLOCKED_VOLATILITY = "blocked_volatility"
+    BLOCKED_INVENTORY = "blocked_inventory"
+
+
 class KernelDecision(DomainModel):
     submit: tuple[OrderIntent, ...] = ()
     cancel_intent_ids: tuple[str, ...] = ()
+    action: StrategyAction = StrategyAction.HOLD
+    reason: str = "no_action"
+    expected_edge_bps: Decimal = Decimal("0")
+    required_edge_bps: Annotated[Decimal, Field(ge=0)] = Decimal("0")
+    confluence_score: int = Field(default=0, ge=0, le=20)
+    reference_price: Decimal | None = Field(default=None, gt=0)
+    stop_price: Decimal | None = Field(default=None, gt=0)
+    target_price: Decimal | None = Field(default=None, gt=0)
+    position_age_seconds: Annotated[Decimal, Field(ge=0)] = Decimal("0")
 
 
 @dataclass(frozen=True, slots=True)

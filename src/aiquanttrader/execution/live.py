@@ -25,6 +25,10 @@ from aiquanttrader.domain.execution import RiskSnapshot
 from aiquanttrader.domain.market import AggressorSide, OrderSide
 from aiquanttrader.execution.artifacts import LiveStrategyArtifacts
 from aiquanttrader.features.engine import IncrementalFeatureEngine
+from aiquanttrader.features.market_structure import (
+    CausalMarketStructureEngine,
+    SmartMoneySnapshot,
+)
 from aiquanttrader.features.models import InventoryState, MicrostructureSnapshot
 from aiquanttrader.market_data.io import atomic_replace_bytes
 from aiquanttrader.strategies.common import StrategyInput, StrategyTransition
@@ -37,6 +41,11 @@ from aiquanttrader.strategies.scalper import (
     OrderFlowScalperConfig,
     OrderFlowScalperKernel,
     ScalperMemory,
+)
+from aiquanttrader.strategies.smart_money_scalper import (
+    SmartMoneyScalperConfig,
+    SmartMoneyScalperKernel,
+    SmartMoneyScalperMemory,
 )
 
 INSTRUMENT_ID = "BTC-USD-PERP.HYPERLIQUID"
@@ -115,13 +124,18 @@ class NautilusMarketStateAssembler:
         return tuple(sorted(normalized, key=lambda item: item.price, reverse=reverse))
 
 
-LiveMemory = MarketMakerMemory | ScalperMemory
-LiveTransition = StrategyTransition[MarketMakerMemory] | StrategyTransition[ScalperMemory]
+LiveMemory = MarketMakerMemory | ScalperMemory | SmartMoneyScalperMemory
+LiveTransition = (
+    StrategyTransition[MarketMakerMemory]
+    | StrategyTransition[ScalperMemory]
+    | StrategyTransition[SmartMoneyScalperMemory]
+)
 
 
 @dataclass(frozen=True, slots=True)
 class LiveStrategyCycle:
     features: MicrostructureSnapshot
+    market_structure: SmartMoneySnapshot
     transition: LiveTransition
 
 
@@ -134,14 +148,18 @@ class LiveDecisionPipeline:
             depth_levels=artifacts.feature_config.depth_levels
         )
         self._features = IncrementalFeatureEngine(artifacts.feature_config)
+        self._structure = CausalMarketStructureEngine()
         strategy = artifacts.strategy_config
-        self._kernel: AvellanedaStoikovKernel | OrderFlowScalperKernel
+        self._kernel: AvellanedaStoikovKernel | OrderFlowScalperKernel | SmartMoneyScalperKernel
         if isinstance(strategy, AvellanedaStoikovConfig):
             self._kernel = AvellanedaStoikovKernel(strategy)
             self._memory: LiveMemory = MarketMakerMemory()
         elif isinstance(strategy, OrderFlowScalperConfig):
             self._kernel = OrderFlowScalperKernel(strategy)
             self._memory = ScalperMemory()
+        elif isinstance(strategy, SmartMoneyScalperConfig):
+            self._kernel = SmartMoneyScalperKernel(strategy)
+            self._memory = SmartMoneyScalperMemory()
         else:  # pragma: no cover - guarded by the artifact union
             raise TypeError("unsupported live strategy configuration")
 
@@ -158,8 +176,17 @@ class LiveDecisionPipeline:
         funding_rate: Decimal,
         estimated_taker_fee_bps: Decimal,
         estimated_slippage_bps: Decimal,
+        position_average_entry_price: Decimal | None = None,
+        position_opened_ts_ns: int | None = None,
     ) -> LiveStrategyCycle:
-        memory = self._memory.with_inventory(position_base)
+        if isinstance(self._memory, SmartMoneyScalperMemory):
+            memory: LiveMemory = self._memory.synchronize_position(
+                position_base,
+                position_average_entry_price,
+                market.observed_ts_ns,
+            )
+        else:
+            memory = self._memory.with_inventory(position_base)
         features = self._features.update(
             market,
             inventory=InventoryState(
@@ -167,21 +194,35 @@ class LiveDecisionPipeline:
                 margin_utilization=max(Decimal("0"), min(Decimal("1"), margin_utilization)),
             ),
         )
+        structure = self._structure.update(market)
         strategy_input = StrategyInput(
             features=features,
             funding_rate=funding_rate,
             estimated_taker_fee_bps=estimated_taker_fee_bps,
             estimated_slippage_bps=estimated_slippage_bps,
+            market_structure=structure,
+            position_average_entry_price=position_average_entry_price,
+            position_opened_ts_ns=position_opened_ts_ns,
         )
         if isinstance(memory, MarketMakerMemory) and isinstance(
             self._kernel, AvellanedaStoikovKernel
         ):
             transition: LiveTransition = self._kernel.decide(strategy_input, memory)
-        elif isinstance(memory, ScalperMemory) and isinstance(self._kernel, OrderFlowScalperKernel):
+        elif isinstance(memory, ScalperMemory) and isinstance(  # noqa: SIM114
+            self._kernel, OrderFlowScalperKernel
+        ):
+            transition = self._kernel.decide(strategy_input, memory)
+        elif isinstance(memory, SmartMoneyScalperMemory) and isinstance(
+            self._kernel, SmartMoneyScalperKernel
+        ):
             transition = self._kernel.decide(strategy_input, memory)
         else:  # pragma: no cover - constructor fixes the pair
             raise TypeError("live strategy kernel and memory types diverged")
-        return LiveStrategyCycle(features=features, transition=transition)
+        return LiveStrategyCycle(
+            features=features,
+            market_structure=structure,
+            transition=transition,
+        )
 
     def commit(
         self,
@@ -192,19 +233,31 @@ class LiveDecisionPipeline:
     ) -> None:
         """Commit only commands durably handed to Nautilus; denied intents remain absent."""
 
-        prior = self._memory.with_inventory(cycle.transition.memory.inventory_base)
-        if isinstance(prior, ScalperMemory):
+        current_memory = self._memory
+        if isinstance(current_memory, SmartMoneyScalperMemory):
+            target = cycle.transition.memory
+            if not isinstance(target, SmartMoneyScalperMemory):
+                raise TypeError("smart-money transition returned incompatible memory")
+            prior_smart = current_memory.synchronize_position(
+                target.inventory_base,
+                target.average_entry_price,
+                cycle.features.receive_ts_ns,
+            )
+            self._memory = target if dispatched_intent_ids else prior_smart
+            return
+        prior_classic = current_memory.with_inventory(cycle.transition.memory.inventory_base)
+        if isinstance(prior_classic, ScalperMemory):
             target_memory = cycle.transition.memory
             if not isinstance(target_memory, ScalperMemory):
                 raise TypeError("scalper transition returned incompatible memory")
-            self._memory = target_memory if dispatched_intent_ids else prior
+            self._memory = target_memory if dispatched_intent_ids else prior_classic
             return
-        if not isinstance(prior, MarketMakerMemory):  # pragma: no cover
+        if not isinstance(prior_classic, MarketMakerMemory):  # pragma: no cover
             raise TypeError("unsupported live strategy memory")
-        bid_id = prior.active_bid_intent_id
-        bid_price = prior.active_bid_price
-        ask_id = prior.active_ask_intent_id
-        ask_price = prior.active_ask_price
+        bid_id = prior_classic.active_bid_intent_id
+        bid_price = prior_classic.active_bid_price
+        ask_id = prior_classic.active_ask_intent_id
+        ask_price = prior_classic.active_ask_price
         # A cancel dispatch is not a cancel outcome. Keep quote identity until the
         # authoritative terminal event invokes ``release_intent``.
         submitted = {
@@ -227,8 +280,10 @@ class LiveDecisionPipeline:
             active_bid_price=bid_price,
             active_ask_intent_id=ask_id,
             active_ask_price=ask_price,
-            last_quote_ts_ns=target.last_quote_ts_ns if changed else prior.last_quote_ts_ns,
-            quote_revision=target.quote_revision if changed else prior.quote_revision,
+            last_quote_ts_ns=(
+                target.last_quote_ts_ns if changed else prior_classic.last_quote_ts_ns
+            ),
+            quote_revision=target.quote_revision if changed else prior_classic.quote_revision,
         )
 
     def release_intent(self, intent_id: str) -> None:
@@ -319,6 +374,8 @@ class LiveAccountState:
     pending_buy_base: Decimal
     pending_sell_base: Decimal
     open_order_count: int
+    average_entry_price: Decimal | None = None
+    position_opened_ts_ns: int | None = None
 
 
 def read_live_account_state(portfolio: Any, cache: Any) -> LiveAccountState:
@@ -340,6 +397,23 @@ def read_live_account_state(portfolio: Any, cache: Any) -> LiveAccountState:
     equity = equity_money.as_decimal()
     positions = cache.positions_open(instrument_id=instrument_id)
     position = sum((item.signed_decimal_qty() for item in positions), Decimal("0"))
+    average_entry_price: Decimal | None = None
+    position_opened_ts_ns: int | None = None
+    if position != 0 and len(positions) == 1:
+        raw_average = getattr(positions[0], "avg_px_open", None)
+        if raw_average is not None:
+            average_entry_price = (
+                raw_average.as_decimal()
+                if hasattr(raw_average, "as_decimal")
+                else Decimal(str(raw_average))
+            )
+            if average_entry_price <= 0:
+                raise ValueError("live position average entry price must be positive")
+        raw_opened = getattr(positions[0], "ts_opened", None)
+        if raw_opened is not None:
+            position_opened_ts_ns = int(raw_opened)
+            if position_opened_ts_ns < 0:
+                raise ValueError("live position open timestamp cannot be negative")
     orders = list(cache.orders_open(instrument_id=instrument_id))
     pending_buy = sum(
         (order.leaves_qty.as_decimal() for order in orders if order.side is NautilusOrderSide.BUY),
@@ -355,6 +429,8 @@ def read_live_account_state(portfolio: Any, cache: Any) -> LiveAccountState:
         pending_buy_base=pending_buy,
         pending_sell_base=pending_sell,
         open_order_count=len(orders),
+        average_entry_price=average_entry_price,
+        position_opened_ts_ns=position_opened_ts_ns,
     )
 
 

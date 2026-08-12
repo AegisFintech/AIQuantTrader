@@ -3,6 +3,84 @@
   "editable": false,
   "panels": [
     {
+      "id": 16,
+      "title": "Live decision — action and exact gate",
+      "type": "stat",
+      "description": "The latest deterministic strategy action. LLM output cannot change this decision.",
+      "targets": [
+        {
+          "expr": "aqt_paper_strategy_decision_info",
+          "legendFormat": "{{action}} — {{reason}}"
+        }
+      ],
+      "options": {"textMode": "name", "colorMode": "background", "graphMode": "none"},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 0}
+    },
+    {
+      "id": 17,
+      "title": "BTC execution market",
+      "type": "stat",
+      "targets": [
+        {"expr": "aqt_paper_market_price_usd", "legendFormat": "mid"},
+        {"expr": "aqt_paper_best_bid_usd", "legendFormat": "best bid"},
+        {"expr": "aqt_paper_best_ask_usd", "legendFormat": "best ask"},
+        {"expr": "aqt_paper_spread_bps", "legendFormat": "spread bps"}
+      ],
+      "fieldConfig": {"defaults": {"decimals": 2}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 0}
+    },
+    {
+      "id": 18,
+      "title": "Entry economics and confluence",
+      "type": "stat",
+      "targets": [
+        {"expr": "aqt_paper_expected_edge_bps", "legendFormat": "expected / open move bps"},
+        {"expr": "aqt_paper_required_edge_bps", "legendFormat": "required cost edge bps"},
+        {"expr": "aqt_paper_smc_confluence_score{side=\"long\"}", "legendFormat": "long score"},
+        {"expr": "aqt_paper_smc_confluence_score{side=\"short\"}", "legendFormat": "short score"}
+      ],
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 0}
+    },
+    {
+      "id": 19,
+      "title": "Causal 15m / 5m / 1m bias",
+      "type": "stat",
+      "targets": [
+        {
+          "expr": "aqt_paper_structure_direction == 1",
+          "legendFormat": "{{timeframe}} {{direction}}"
+        }
+      ],
+      "options": {"textMode": "name", "graphMode": "none"},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 7}
+    },
+    {
+      "id": 20,
+      "title": "Price, support/resistance, stop and target",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "aqt_paper_market_price_usd", "legendFormat": "BTC mid"},
+        {
+          "expr": "aqt_paper_structure_level_usd{timeframe=~\"5m|15m\"}",
+          "legendFormat": "{{timeframe}} {{kind}}"
+        },
+        {"expr": "aqt_paper_exit_level_usd", "legendFormat": "{{kind}}"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 7}
+    },
+    {
+      "id": 21,
+      "title": "L2 book and aggressive tape pressure",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "aqt_paper_book_imbalance", "legendFormat": "book imbalance"},
+        {"expr": "aqt_paper_trade_flow_imbalance", "legendFormat": "trade-flow imbalance"}
+      ],
+      "fieldConfig": {"defaults": {"min": -1, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 7}
+    },
+    {
       "id": 1,
       "title": "Paper safety state",
       "type": "stat",
@@ -11,7 +89,7 @@
         {"expr": "aqt_paper_feature_ready", "legendFormat": "features ready"},
         {"expr": "aqt_paper_operator_kill", "legendFormat": "operator kill"}
       ],
-      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 0}
+      "gridPos": {"h": 6, "w": 8, "x": 0, "y": 14}
     },
     {
       "id": 2,
@@ -19,7 +97,7 @@
       "type": "stat",
       "targets": [{"expr": "aqt_paper_pnl_usd", "legendFormat": "USD"}],
       "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
-      "gridPos": {"h": 6, "w": 4, "x": 8, "y": 0}
+      "gridPos": {"h": 6, "w": 4, "x": 8, "y": 14}
     },
     {
       "id": 3,
@@ -27,7 +105,7 @@
       "type": "stat",
       "targets": [{"expr": "aqt_paper_market_states_total", "legendFormat": "processed"}],
       "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
-      "gridPos": {"h": 6, "w": 4, "x": 12, "y": 0}
+      "gridPos": {"h": 6, "w": 4, "x": 12, "y": 14}
     },
     {
       "id": 4,
@@ -37,7 +115,7 @@
         {"expr": "sum(aqt_paper_risk_decisions_total) or vector(0)", "legendFormat": "total"}
       ],
       "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
-      "gridPos": {"h": 6, "w": 4, "x": 16, "y": 0}
+      "gridPos": {"h": 6, "w": 4, "x": 16, "y": 14}
     },
     {
       "id": 5,
@@ -45,7 +123,7 @@
       "type": "stat",
       "targets": [{"expr": "sum(aqt_paper_fills_total) or vector(0)", "legendFormat": "total"}],
       "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
-      "gridPos": {"h": 6, "w": 4, "x": 20, "y": 0}
+      "gridPos": {"h": 6, "w": 4, "x": 20, "y": 14}
     },
     {
       "id": 6,
@@ -56,7 +134,7 @@
         {"expr": "aqt_paper_pnl_usd", "legendFormat": "PnL"}
       ],
       "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
-      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 6}
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 20}
     },
     {
       "id": 7,
@@ -66,7 +144,7 @@
         {"expr": "aqt_paper_position_base", "legendFormat": "BTC position"},
         {"expr": "aqt_paper_open_orders", "legendFormat": "open orders"}
       ],
-      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 6}
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 20}
     },
     {
       "id": 8,
@@ -77,7 +155,7 @@
         {"expr": "aqt_paper_drawdown_fraction", "legendFormat": "drawdown (limit 1.0%)"}
       ],
       "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0}, "overrides": []},
-      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 6}
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 20}
     },
     {
       "id": 9,
@@ -89,7 +167,7 @@
           "legendFormat": "{{result}} {{reason}}"
         }
       ],
-      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 13}
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 27}
     },
     {
       "id": 10,
@@ -101,7 +179,7 @@
           "legendFormat": "{{liquidity}}"
         }
       ],
-      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 13}
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 27}
     },
     {
       "id": 11,
@@ -114,7 +192,7 @@
         {"expr": "aqt_paper_daily_pnl_usd", "legendFormat": "daily marked"}
       ],
       "fieldConfig": {"defaults": {"unit": "currencyUSD"}, "overrides": []},
-      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 13}
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 27}
     },
     {
       "id": 12,
@@ -127,7 +205,7 @@
         }
       ],
       "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
-      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 20}
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 34}
     },
     {
       "id": 13,
@@ -140,7 +218,7 @@
         }
       ],
       "fieldConfig": {"defaults": {"unit": "bps"}, "overrides": []},
-      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 20}
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 34}
     },
     {
       "id": 14,
@@ -151,7 +229,7 @@
         {"expr": "aqt_paper_stale_trades_excluded_total", "legendFormat": "cumulative"}
       ],
       "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
-      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 20}
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 34}
     },
     {
       "id": 15,
@@ -165,16 +243,57 @@
           "legendFormat": "max mean shift"
         }
       ],
-      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 27}
+      "gridPos": {"h": 7, "w": 24, "x": 0, "y": 41}
+    },
+    {
+      "id": 22,
+      "title": "Scalp lifecycle — hard cap 300 seconds",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "aqt_paper_position_age_seconds", "legendFormat": "position age"},
+        {"expr": "vector(90)", "legendFormat": "no-progress review"},
+        {"expr": "vector(300)", "legendFormat": "mandatory exit"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 48}
+    },
+    {
+      "id": 23,
+      "title": "Why the strategy acted or stayed out",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "sum by (action, reason) (rate(aqt_paper_strategy_actions_total[5m]))",
+          "legendFormat": "{{action}} — {{reason}}"
+        }
+      ],
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 48}
+    },
+    {
+      "id": 24,
+      "title": "LLM shadow observer (never execution authority)",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "aqt_paper_llm_confidence", "legendFormat": "latest confidence"},
+        {
+          "expr": "sum by (verdict) (increase(aqt_paper_llm_confirmations_total[1h])) or vector(0)",
+          "legendFormat": "{{verdict}} confirmations"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(aqt_paper_llm_latency_seconds_bucket[1h])))",
+          "legendFormat": "p95 latency seconds"
+        }
+      ],
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 48}
     }
   ],
-  "refresh": "5s",
+  "refresh": "2s",
   "schemaVersion": 39,
   "tags": ["aiquanttrader", "paper", "btc"],
   "templating": {"list": []},
-  "time": {"from": "now-6h", "to": "now"},
+  "time": {"from": "now-1h", "to": "now"},
   "timezone": "utc",
-  "title": "AIQuantTrader BTC Paper Trading",
+  "title": "AIQuantTrader BTC Scalping Command Center",
   "uid": "aqt-paper-trading",
-  "version": 2
+  "version": 3
 }

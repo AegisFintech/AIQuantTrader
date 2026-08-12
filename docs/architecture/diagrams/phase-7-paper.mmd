@@ -6,9 +6,11 @@ flowchart LR
         PARSE[Strict BTC normalizer]
         STATE[Causal L2 and trade assembler]
         FEAT[Production feature engine]
-        STRAT[Production strategy kernel]
+        MTF[Closed-bar 15m / 5m / 1m structure]
+        STRAT[Bounded smart-money scalper]
         RISK[Synchronous hard risk authority]
         SIM[Deterministic MBP paper exchange]
+        LLM[Async shadow-only LLM observer]
         DRIFT[Run-frozen online drift monitor]
         WATCH[Stale and operator-kill watchdog]
     end
@@ -25,12 +27,16 @@ flowchart LR
     RAW --> PARSE
     PARSE --> STATE
     STATE --> FEAT
+    STATE --> MTF
     FEAT --> STRAT
+    MTF --> STRAT
     FEAT --> DRIFT
     STRAT --> RISK
     RISK -->|single-use approval| SIM
+    RISK -->|approved entry evidence only| LLM
     SIM --> JOURNAL
     DRIFT --> JOURNAL
+    LLM --> JOURNAL
     KILL --> RISK
     WATCH --> RISK
     WATCH --> SIM
@@ -41,9 +47,13 @@ flowchart LR
     RISK --> PROM
     SIM --> PROM
     DRIFT --> PROM
+    LLM --> PROM
 
     KEY[Exchange account or wallet]
     KEY -. forbidden by config, compose, and tests .-> PaperContainer
+
+    OPENAI[OpenAI key file]
+    OPENAI -->|read-only; no execution path| LLM
 
     classDef forbidden fill:#5b1a1a,color:#fff,stroke:#ff6b6b,stroke-width:2px;
     class KEY forbidden;

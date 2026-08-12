@@ -354,7 +354,11 @@ def test_live_account_view_uses_portfolio_equity_and_order_leaves() -> None:
     )
     cache = SimpleNamespace(
         positions_open=lambda **kwargs: [
-            SimpleNamespace(signed_decimal_qty=lambda: Decimal("-0.002"))
+            SimpleNamespace(
+                signed_decimal_qty=lambda: Decimal("-0.002"),
+                avg_px_open=Decimal("101000"),
+                ts_opened=1_800_000_000_000_000_000,
+            )
         ],
         orders_open=lambda **kwargs: [
             SimpleNamespace(
@@ -375,6 +379,8 @@ def test_live_account_view_uses_portfolio_equity_and_order_leaves() -> None:
     assert state.pending_buy_base == Decimal("0.003")
     assert state.pending_sell_base == Decimal("0.004")
     assert state.open_order_count == 2
+    assert state.average_entry_price == Decimal("101000")
+    assert state.position_opened_ts_ns == 1_800_000_000_000_000_000
 
     with pytest.raises(ValueError, match="account is unavailable"):
         read_live_account_state(SimpleNamespace(account=lambda venue: None), cache)

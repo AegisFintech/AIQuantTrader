@@ -7,11 +7,15 @@ from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any
 
-from aiquanttrader.backtest.kernel import KernelMarketState
+from aiquanttrader.backtest.kernel import KernelDecision, KernelMarketState
 from aiquanttrader.config.models import ExecutionConfig, RiskLimits
 from aiquanttrader.domain.execution import OrderIntent, RiskReason, RiskSnapshot, RiskState
 from aiquanttrader.domain.market import OrderSide
 from aiquanttrader.features.engine import IncrementalFeatureEngine
+from aiquanttrader.features.market_structure import (
+    CausalMarketStructureEngine,
+    SmartMoneySnapshot,
+)
 from aiquanttrader.features.models import InventoryState, MicrostructureSnapshot
 from aiquanttrader.paper.config import PaperArtifacts
 from aiquanttrader.paper.drift import PaperDriftMonitor
@@ -26,7 +30,7 @@ from aiquanttrader.paper.models import (
     PaperOrder,
     PaperRunManifest,
 )
-from aiquanttrader.paper.simulator import PaperExchangeSimulator
+from aiquanttrader.paper.simulator import PaperExchangeSimulator, SimulatorUpdate
 from aiquanttrader.research.models import DriftReport
 from aiquanttrader.risk.authority import RiskAuthority
 from aiquanttrader.risk.kill_switch import KillSwitchStore
@@ -41,6 +45,11 @@ from aiquanttrader.strategies.scalper import (
     OrderFlowScalperKernel,
     ScalperMemory,
 )
+from aiquanttrader.strategies.smart_money_scalper import (
+    SmartMoneyScalperConfig,
+    SmartMoneyScalperKernel,
+    SmartMoneyScalperMemory,
+)
 
 FUNDING_INTERVAL_NS = 3_600_000_000_000
 
@@ -48,6 +57,8 @@ FUNDING_INTERVAL_NS = 3_600_000_000_000
 @dataclass(frozen=True, slots=True)
 class PaperEngineCycle:
     features: MicrostructureSnapshot
+    market_structure: SmartMoneySnapshot | None
+    strategy_decision: KernelDecision
     decisions: tuple[PaperDecisionRecord, ...]
     orders: tuple[PaperOrder, ...]
     fills: tuple[PaperFill, ...]
@@ -56,6 +67,13 @@ class PaperEngineCycle:
     risk_state: RiskState
     risk_reasons: tuple[RiskReason, ...]
     commands: tuple[PaperExecutionCommand, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class PaperWatchdogUpdate:
+    orders: tuple[PaperOrder, ...] = ()
+    fills: tuple[PaperFill, ...] = ()
+    markouts: tuple[PaperMarkout, ...] = ()
 
 
 class PaperTradingEngine:
@@ -88,6 +106,14 @@ class PaperTradingEngine:
         restored_account = journal.latest_account(manifest.run_id)
         restored_orders = journal.restore_open_orders(manifest.run_id)
         checkpoint = journal.latest_checkpoint(manifest.run_id)
+        restored_structure = journal.latest_market_structure_state(manifest.run_id)
+        self._structure_engine = CausalMarketStructureEngine(restored_state=restored_structure)
+        self._persisted_structure_revision = (
+            -1 if restored_structure is None else restored_structure.revision
+        )
+        self._last_structure: SmartMoneySnapshot | None = None
+        self._last_strategy_decision = KernelDecision()
+        self._last_watchdog_update = PaperWatchdogUpdate()
         self.simulator = PaperExchangeSimulator(
             artifacts.scenario,
             initial_equity_usd=initial_equity_usd,
@@ -152,6 +178,8 @@ class PaperTradingEngine:
 
     @property
     def feature_ready(self) -> bool:
+        if isinstance(self.artifacts.strategy_config, SmartMoneyScalperConfig):
+            return self._feature_engine.ready and self._structure_engine.ready
         return self._feature_engine.ready
 
     @property
@@ -169,6 +197,18 @@ class PaperTradingEngine:
     @property
     def fill_count(self) -> int:
         return self._fill_count
+
+    @property
+    def last_market_structure(self) -> SmartMoneySnapshot | None:
+        return self._last_structure
+
+    @property
+    def last_strategy_decision(self) -> KernelDecision:
+        return self._last_strategy_decision
+
+    @property
+    def last_watchdog_update(self) -> PaperWatchdogUpdate:
+        return self._last_watchdog_update
 
     def update_context(
         self,
@@ -208,7 +248,7 @@ class PaperTradingEngine:
         simulation = self.simulator.advance(market, mark_price=mark_price)
         for fill in simulation.fills:
             self._pending_markouts[fill.fill_id] = fill
-        self._memory = self._memory.with_inventory(simulation.account.position_base)
+        self._synchronize_memory(market.observed_ts_ns)
         markouts = self._resolve_markouts(simulation.account.mark_price, market.observed_ts_ns)
 
         risk_snapshot = self._risk_snapshot()
@@ -227,6 +267,14 @@ class PaperTradingEngine:
 
         inventory = self._inventory_state(simulation.account.position_base)
         features = self._feature_engine.update(market, inventory=inventory)
+        market_structure = self._structure_engine.update(market)
+        self._last_structure = market_structure
+        if self._structure_engine.state.revision != self._persisted_structure_revision:
+            self.journal.record_market_structure_state(
+                self.manifest.run_id,
+                self._structure_engine.state,
+            )
+            self._persisted_structure_revision = self._structure_engine.state.revision
         drift_report = self._drift_monitor.update(features)
         transition = self._kernel.decide(
             StrategyInput(
@@ -234,10 +282,18 @@ class PaperTradingEngine:
                 funding_rate=self._funding_rate,
                 estimated_taker_fee_bps=max(Decimal("0"), self.artifacts.scenario.taker_fee_bps),
                 estimated_slippage_bps=self.artifacts.scenario.taker_slippage_bps,
+                market_structure=market_structure,
+                position_average_entry_price=simulation.account.average_entry_price,
+                position_opened_ts_ns=(
+                    self._memory.position_opened_ts_ns
+                    if isinstance(self._memory, SmartMoneyScalperMemory)
+                    else None
+                ),
             ),
             self._memory,
         )
         self._memory = transition.memory
+        self._last_strategy_decision = transition.decision
         for intent_id in transition.decision.cancel_intent_ids:
             canceled_order = self.simulator.request_cancel(
                 intent_id, requested_ts_ns=market.observed_ts_ns
@@ -303,6 +359,8 @@ class PaperTradingEngine:
         self._fill_count += len(simulation.fills)
         return PaperEngineCycle(
             features=features,
+            market_structure=market_structure,
+            strategy_decision=transition.decision,
             decisions=tuple(records),
             orders=tuple(changed_orders),
             fills=simulation.fills,
@@ -316,24 +374,40 @@ class PaperTradingEngine:
     def watchdog(self, now_ts_ns: int, *, recorder_connected: bool) -> tuple[RiskReason, ...]:
         self._now_ns = now_ts_ns
         self._feed_connected = recorder_connected
-        elapsed = self.simulator.elapse(now_ts_ns)
+        self._last_watchdog_update = PaperWatchdogUpdate()
         stale = (
             self._last_market is None
             or now_ts_ns - self._last_market.observed_ts_ns
             > self._risk_limits.public_data_stale_after_ms * 1_000_000
         )
         kill_active = self.kill_switch.read().active
+        activation = SimulatorUpdate((), (), self.simulator.account)
+        if not stale and recorder_connected and not kill_active and self._last_market is not None:
+            activation = self.simulator.activate_pending(now_ts_ns, self._last_market)
+            for fill in activation.fills:
+                self._pending_markouts[fill.fill_id] = fill
+            self._synchronize_memory(now_ts_ns)
+        elapsed = self.simulator.elapse(now_ts_ns)
         requested: tuple[PaperOrder, ...] = ()
         if stale or not recorder_connected or kill_active:
             requested = self.simulator.request_cancel_all(requested_ts_ns=now_ts_ns)
-        if elapsed or requested:
+        markouts: tuple[PaperMarkout, ...] = ()
+        changed = (*activation.orders, *elapsed, *requested)
+        if changed or activation.fills or markouts:
             commands = self._cancel_commands(requested, PaperCommandKind.CANCEL_ALL, now_ts_ns)
             self.journal.record_cycle(
                 self.manifest.run_id,
-                orders=(*elapsed, *requested),
-                fills=(),
+                orders=changed,
+                fills=activation.fills,
                 account=self.simulator.account,
                 commands=commands,
+            )
+            self.journal.record_checkpoint(self._checkpoint(now_ts_ns))
+            self._fill_count += len(activation.fills)
+            self._last_watchdog_update = PaperWatchdogUpdate(
+                orders=changed,
+                fills=activation.fills,
+                markouts=markouts,
             )
         if self._last_market is None:
             return ()
@@ -409,7 +483,7 @@ class PaperTradingEngine:
 
     def _build_strategy(
         self, checkpoint: PaperEngineCheckpoint | None
-    ) -> tuple[Any, MarketMakerMemory | ScalperMemory]:
+    ) -> tuple[Any, MarketMakerMemory | ScalperMemory | SmartMoneyScalperMemory]:
         config = self.artifacts.strategy_config
         if isinstance(config, AvellanedaStoikovConfig):
             memory = (
@@ -418,14 +492,21 @@ class PaperTradingEngine:
                 else MarketMakerMemory.model_validate_json(checkpoint.strategy_memory_json)
             )
             return AvellanedaStoikovKernel(config), memory
-        if not isinstance(config, OrderFlowScalperConfig):
-            raise TypeError("unsupported paper strategy configuration")
-        scalper_memory = (
-            ScalperMemory()
-            if checkpoint is None
-            else ScalperMemory.model_validate_json(checkpoint.strategy_memory_json)
-        )
-        return OrderFlowScalperKernel(config), scalper_memory
+        if isinstance(config, OrderFlowScalperConfig):
+            scalper_memory = (
+                ScalperMemory()
+                if checkpoint is None
+                else ScalperMemory.model_validate_json(checkpoint.strategy_memory_json)
+            )
+            return OrderFlowScalperKernel(config), scalper_memory
+        if isinstance(config, SmartMoneyScalperConfig):
+            smart_memory = (
+                SmartMoneyScalperMemory()
+                if checkpoint is None
+                else SmartMoneyScalperMemory.model_validate_json(checkpoint.strategy_memory_json)
+            )
+            return SmartMoneyScalperKernel(config), smart_memory
+        raise TypeError("unsupported paper strategy configuration")
 
     def _checkpoint(self, ts_ns: int) -> PaperEngineCheckpoint:
         return PaperEngineCheckpoint(
@@ -439,6 +520,17 @@ class PaperTradingEngine:
             next_funding_settlement_ns=self._next_funding_ns,
             source_sequence=self._source_sequence,
         )
+
+    def _synchronize_memory(self, observed_ts_ns: int) -> None:
+        account = self.simulator.account
+        if isinstance(self._memory, SmartMoneyScalperMemory):
+            self._memory = self._memory.synchronize_position(
+                account.position_base,
+                account.average_entry_price,
+                observed_ts_ns,
+            )
+        else:
+            self._memory = self._memory.with_inventory(account.position_base)
 
     def _submit_command(
         self,

@@ -161,6 +161,7 @@ services:
     volumes:
       - native-data:/var/lib/aiquanttrader/data
       - native-state:/var/lib/aiquanttrader/state
+      - ${AQT_OPENAI_API_KEY_FILE:-/dev/null}:/run/secrets/openai_api_key:ro
     ports:
       - "127.0.0.1:9112:9112"
     healthcheck:
@@ -173,7 +174,7 @@ services:
         - --stale-after-ms
         - "5000"
       interval: 5s
-      timeout: 3s
+      timeout: 5s
       retries: 3
       start_period: 30s
     logging:
