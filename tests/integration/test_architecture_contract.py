@@ -168,7 +168,10 @@ def test_paper_service_has_no_wallet_secret_or_exchange_order_capability(
     compose = (project_root / "compose.yaml").read_text(encoding="utf-8")
     service = compose.split("  paper-trader:", 1)[1].split("\nvolumes:", 1)[0]
     assert "secrets:" not in service
-    assert "/run/secrets" not in service
+    assert "trading_wallet" not in service
+    assert "control_wallet" not in service
+    assert "account_address" not in service
+    assert "${AQT_OPENAI_API_KEY_FILE:-/dev/null}:/run/secrets/openai_api_key:ro" in service
     assert "trading-wallet" not in service
     assert 'entrypoint: ["aqt-paper"]' in service
 

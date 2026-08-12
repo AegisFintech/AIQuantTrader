@@ -26,6 +26,12 @@ from aiquanttrader.market_data.recorder import (
 from aiquanttrader.paper.config import PaperArtifacts
 from aiquanttrader.paper.engine import PaperTradingEngine
 from aiquanttrader.paper.journal import PaperJournal
+from aiquanttrader.paper.llm import (
+    ConfirmationProvider,
+    LlmConfirmationWorker,
+    OpenAIConfirmationProvider,
+)
+from aiquanttrader.paper.llm_models import LlmConfirmation
 from aiquanttrader.paper.market import LiveMarketStateAssembler
 from aiquanttrader.paper.metrics import PaperMetrics
 from aiquanttrader.paper.models import PaperRunManifest, PaperRuntimeStatus
@@ -43,6 +49,7 @@ class PaperLiveService:
         code_identity: str,
         registry: CollectorRegistry,
         socket_factory: SocketFactory | None = None,
+        confirmation_provider: ConfirmationProvider | None = None,
         clock_ns: Callable[[], int] = time.time_ns,
     ) -> None:
         settings = bundle.settings
@@ -81,6 +88,22 @@ class PaperLiveService:
         self._last_error_code: str | None = None
         self._recorder_connected = False
         self._socket_factory = socket_factory
+        self._latest_llm_confirmation: LlmConfirmation | None = None
+        self._llm_last_error_code: str | None = None
+        self._llm_history_restored = False
+        llm_config = settings.paper.llm_confirmation
+        if llm_config.enabled:
+            provider = confirmation_provider or OpenAIConfirmationProvider(llm_config)
+            self._llm_worker: LlmConfirmationWorker | None = LlmConfirmationWorker(
+                llm_config,
+                provider,
+                on_confirmation=self._record_llm_confirmation,
+                on_error=self._record_llm_error,
+            )
+        elif confirmation_provider is not None:
+            raise ValueError("LLM provider cannot be supplied while confirmation is disabled")
+        else:
+            self._llm_worker = None
 
     @property
     def engine(self) -> PaperTradingEngine | None:
@@ -124,6 +147,11 @@ class PaperLiveService:
                     started_ts_ns=market.observed_ts_ns,
                     markout_horizon_ns=(self.bundle.settings.paper.markout_horizon_ms * 1_000_000),
                 )
+            if not self._llm_history_restored:
+                self._latest_llm_confirmation = self.journal.latest_llm_confirmation(
+                    self._engine.manifest.run_id
+                )
+                self._llm_history_restored = True
             self._engine.update_context(
                 funding_rate=self._funding_rate,
                 next_funding_ts_ns=self._next_funding_ts_ns,
@@ -145,6 +173,8 @@ class PaperLiveService:
                 latency_seconds=time.perf_counter() - started,
                 initial_equity_usd=float(self.bundle.settings.paper.initial_equity_usd),
             )
+            if self._llm_worker is not None:
+                self._llm_worker.offer(self._engine.manifest.run_id, cycle)
             self._write_status(
                 "degraded"
                 if not context_fresh
@@ -172,6 +202,11 @@ class PaperLiveService:
                 socket_factory=self._socket_factory or default_socket_factory,
             )
             watchdog = asyncio.create_task(self._watchdog(stop))
+            llm_task = (
+                None
+                if self._llm_worker is None
+                else asyncio.create_task(self._llm_worker.run(stop))
+            )
             try:
                 await recorder.run(stop)
             except Exception as exc:
@@ -191,6 +226,8 @@ class PaperLiveService:
                 watchdog.cancel()
                 with contextlib.suppress(asyncio.CancelledError):
                     await watchdog
+                if llm_task is not None:
+                    await llm_task
         self._recorder_connected = False
         self._write_status("stopped")
 
@@ -221,6 +258,7 @@ class PaperLiveService:
             self._recorder_connected = connected
             if self._engine is not None:
                 self._engine.watchdog(now, recorder_connected=connected)
+                self._paper_metrics.observe_watchdog(self._engine.last_watchdog_update)
                 if self._engine.resumed:
                     self._engine.confirm_restart_drill(now)
                 self._paper_metrics.update_state(
@@ -293,6 +331,29 @@ class PaperLiveService:
             open_orders=0 if engine is None else len(engine.simulator.open_orders),
             decisions=0 if engine is None else engine.decision_count,
             fills=0 if engine is None else engine.fill_count,
+            strategy_decision=None if engine is None else engine.last_strategy_decision,
+            market_structure=None if engine is None else engine.last_market_structure,
+            llm_confirmation_enabled=self._llm_worker is not None,
+            latest_llm_confirmation=self._latest_llm_confirmation,
+            llm_last_error_code=self._llm_last_error_code,
             last_error_code=self._last_error_code,
         )
         atomic_replace_bytes(self.status_path, payload.canonical_bytes() + b"\n")
+
+    def _record_llm_confirmation(self, confirmation: LlmConfirmation) -> None:
+        self.journal.record_llm_confirmation(confirmation)
+        self._latest_llm_confirmation = confirmation
+        self._llm_last_error_code = None
+        self._paper_metrics.observe_llm_confirmation(confirmation)
+
+    def _record_llm_error(self, code: str) -> None:
+        safe_code = code if code.replace("_", "").isalnum() else "provider_error"
+        self._llm_last_error_code = safe_code
+        self._paper_metrics.observe_llm_error(safe_code)
+        if self._engine is not None:
+            self.journal.record_event(
+                self._engine.manifest.run_id,
+                ts_ns=self.clock_ns(),
+                kind="llm_observer_error",
+                detail=safe_code,
+            )

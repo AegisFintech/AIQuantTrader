@@ -220,6 +220,21 @@ momentum, spread state, and volatility regime. It may submit a taker or passive
 entry only when expected post-fee edge exceeds modeled slippage and a configured
 safety margin. Exits can be reduce-only.
 
+### Causal smart-money scalper
+
+The paper challenger builds locally observed candles and uses only completed
+bars: 15-minute directional bias, 5-minute support/resistance and liquidity
+setup, then a 1-minute BOS/CHoCH, sweep, FVG, or momentum trigger. Confirmed
+pivots do not repaint. L2 imbalance and aggressive trade flow qualify execution
+only after modeled entry cost is cleared. It permits one position, never
+averages down, reviews no-progress exposure after 90 seconds, and emits a
+reduce-only exit no later than 300 seconds after confirmed entry.
+
+An optional OpenAI Responses API observer receives a bounded numeric snapshot
+only after the deterministic strategy and risk authority approve an entry. Its
+typed confirm/reject/uncertain response is journaled for retrospective research
+and cannot alter that order or any later strategy, risk, or execution state.
+
 ### Machine-learning forecasts
 
 Separate tabular models estimate next-mid movement, passive fill probability,

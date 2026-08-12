@@ -1077,7 +1077,8 @@
         "strategy_id": {
           "enum": [
             "avellaneda-stoikov-v1",
-            "order-flow-scalper-v1"
+            "order-flow-scalper-v1",
+            "smart-money-scalper-v1"
           ],
           "title": "Strategy Id",
           "type": "string"

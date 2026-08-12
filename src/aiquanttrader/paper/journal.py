@@ -11,7 +11,9 @@ from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 
+from aiquanttrader.features.market_structure import CausalStructureState
 from aiquanttrader.features.models import MicrostructureSnapshot, VolatilityRegime
+from aiquanttrader.paper.llm_models import LlmConfirmation
 from aiquanttrader.paper.models import (
     TERMINAL_PAPER_ORDER_STATES,
     PaperAccountState,
@@ -145,6 +147,21 @@ class PaperJournal:
                 run_id TEXT PRIMARY KEY REFERENCES runs(run_id),
                 checkpoint_ts_ns INTEGER NOT NULL,
                 checkpoint_json TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS market_structure_checkpoints (
+                run_id TEXT PRIMARY KEY REFERENCES runs(run_id),
+                revision INTEGER NOT NULL,
+                observed_ts_ns INTEGER NOT NULL,
+                state_json TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS llm_confirmations (
+                confirmation_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL REFERENCES runs(run_id),
+                request_id TEXT NOT NULL,
+                completed_ts_ns INTEGER NOT NULL,
+                verdict TEXT NOT NULL,
+                confirmation_json TEXT NOT NULL,
+                UNIQUE(run_id, request_id)
             );
             CREATE TABLE IF NOT EXISTS drift_reports (
                 sequence INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -501,6 +518,72 @@ class PaperJournal:
             None
             if row is None
             else PaperEngineCheckpoint.model_validate_json(row["checkpoint_json"])
+        )
+
+    def record_market_structure_state(
+        self,
+        run_id: str,
+        state: CausalStructureState,
+    ) -> None:
+        if state.last_observed_ts_ns is None:
+            return
+        with self._transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO market_structure_checkpoints(
+                    run_id, revision, observed_ts_ns, state_json
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT(run_id) DO UPDATE SET
+                    revision = excluded.revision,
+                    observed_ts_ns = excluded.observed_ts_ns,
+                    state_json = excluded.state_json
+                """,
+                (
+                    run_id,
+                    state.revision,
+                    state.last_observed_ts_ns,
+                    state.model_dump_json(),
+                ),
+            )
+
+    def latest_market_structure_state(self, run_id: str) -> CausalStructureState | None:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT state_json FROM market_structure_checkpoints WHERE run_id = ?",
+                (run_id,),
+            ).fetchone()
+        return None if row is None else CausalStructureState.model_validate_json(row["state_json"])
+
+    def record_llm_confirmation(self, confirmation: LlmConfirmation) -> None:
+        with self._transaction() as connection:
+            connection.execute(
+                """
+                INSERT INTO llm_confirmations(
+                    confirmation_id, run_id, request_id, completed_ts_ns,
+                    verdict, confirmation_json
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    confirmation.confirmation_id,
+                    confirmation.run_id,
+                    confirmation.request_id,
+                    confirmation.completed_ts_ns,
+                    confirmation.assessment.verdict.value,
+                    confirmation.model_dump_json(),
+                ),
+            )
+
+    def latest_llm_confirmation(self, run_id: str) -> LlmConfirmation | None:
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT confirmation_json FROM llm_confirmations
+                WHERE run_id = ? ORDER BY completed_ts_ns DESC LIMIT 1
+                """,
+                (run_id,),
+            ).fetchone()
+        return (
+            None if row is None else LlmConfirmation.model_validate_json(row["confirmation_json"])
         )
 
     def next_command_sequence(self, run_id: str) -> int:

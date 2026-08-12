@@ -9,6 +9,7 @@ from aiquanttrader.strategies.common import (
 from aiquanttrader.strategies.config import (
     load_market_maker_config,
     load_scalper_config,
+    load_smart_money_scalper_config,
 )
 from aiquanttrader.strategies.market_maker import (
     AvellanedaStoikovConfig,
@@ -20,6 +21,11 @@ from aiquanttrader.strategies.scalper import (
     OrderFlowScalperKernel,
     ScalperMemory,
 )
+from aiquanttrader.strategies.smart_money_scalper import (
+    SmartMoneyScalperConfig,
+    SmartMoneyScalperKernel,
+    SmartMoneyScalperMemory,
+)
 
 __all__ = [
     "AvellanedaStoikovConfig",
@@ -28,10 +34,14 @@ __all__ = [
     "OrderFlowScalperConfig",
     "OrderFlowScalperKernel",
     "ScalperMemory",
+    "SmartMoneyScalperConfig",
+    "SmartMoneyScalperKernel",
+    "SmartMoneyScalperMemory",
     "StrategyInput",
     "StrategyKernel",
     "StrategyTrace",
     "load_market_maker_config",
     "load_scalper_config",
+    "load_smart_money_scalper_config",
     "replay_strategy",
 ]

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from aiquanttrader.strategies.market_maker import AvellanedaStoikovConfig
 from aiquanttrader.strategies.scalper import OrderFlowScalperConfig
+from aiquanttrader.strategies.smart_money_scalper import SmartMoneyScalperConfig
 
 
 def load_market_maker_config(path: Path) -> AvellanedaStoikovConfig:
@@ -17,3 +18,8 @@ def load_market_maker_config(path: Path) -> AvellanedaStoikovConfig:
 def load_scalper_config(path: Path) -> OrderFlowScalperConfig:
     with path.open("rb") as handle:
         return OrderFlowScalperConfig.model_validate(tomllib.load(handle))
+
+
+def load_smart_money_scalper_config(path: Path) -> SmartMoneyScalperConfig:
+    with path.open("rb") as handle:
+        return SmartMoneyScalperConfig.model_validate(tomllib.load(handle))

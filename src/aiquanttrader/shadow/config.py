@@ -18,6 +18,7 @@ from aiquanttrader.paper.simulator import validate_paper_scenario
 from aiquanttrader.shadow.models import ShadowEvidencePolicy
 from aiquanttrader.strategies.market_maker import AvellanedaStoikovConfig
 from aiquanttrader.strategies.scalper import OrderFlowScalperConfig
+from aiquanttrader.strategies.smart_money_scalper import SmartMoneyScalperConfig
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +44,8 @@ def load_shadow_artifacts(config_dir: Path, bundle: ConfigBundle) -> ShadowArtif
     strategy: StrategyConfig
     if selection.strategy_id == "avellaneda-stoikov-v1":
         strategy = AvellanedaStoikovConfig.model_validate(strategy_payload)
+    elif selection.strategy_id == "smart-money-scalper-v1":
+        strategy = SmartMoneyScalperConfig.model_validate(strategy_payload)
     else:
         strategy = OrderFlowScalperConfig.model_validate(strategy_payload)
     if strategy.strategy_id != selection.strategy_id:

@@ -229,6 +229,25 @@ def test_stale_data_and_operator_kill_cancel_orders_and_create_drill_evidence(
     journal.close()
 
 
+def test_watchdog_fills_approved_market_order_before_stale_cancellation(tmp_path: Path) -> None:
+    journal = PaperJournal((tmp_path / "paper.sqlite3").resolve())
+    engine, _ = build_engine(tmp_path, journal)
+    engine.on_market(state(0))
+    signal_market = state(1, buyer_trade=True)
+    engine.on_market(signal_market)
+    assert engine.simulator.open_orders
+
+    reasons = engine.watchdog(
+        signal_market.observed_ts_ns + engine.artifacts.scenario.entry_latency_ns,
+        recorder_connected=True,
+    )
+    assert RiskReason.PUBLIC_DATA_STALE not in reasons
+    assert len(engine.last_watchdog_update.fills) == 1
+    assert not engine.simulator.open_orders
+    assert engine.simulator.account.position_base == Decimal("0.001")
+    journal.close()
+
+
 def test_live_feature_drift_windows_are_persisted_and_restartable(tmp_path: Path) -> None:
     journal = PaperJournal((tmp_path / "paper.sqlite3").resolve())
     engine, _ = build_engine(tmp_path, journal)

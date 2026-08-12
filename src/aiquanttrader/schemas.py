@@ -47,6 +47,11 @@ from aiquanttrader.domain.features import FeatureSnapshot
 from aiquanttrader.domain.governance import DeploymentApproval, ExperimentManifest
 from aiquanttrader.domain.market import DataCapabilities, MarketEvent
 from aiquanttrader.execution.live import EquityBaseline
+from aiquanttrader.features.market_structure import (
+    CausalCandle,
+    CausalStructureState,
+    SmartMoneySnapshot,
+)
 from aiquanttrader.features.models import (
     FeatureDatasetManifest,
     FeatureEngineConfig,
@@ -69,6 +74,11 @@ from aiquanttrader.governance.models import (
     TestnetDressRehearsalReport,
     VerifiedDeploymentAdmission,
     VerifiedDeploymentRenewal,
+)
+from aiquanttrader.paper.llm_models import (
+    LlmAssessment,
+    LlmConfirmation,
+    LlmConfirmationRequest,
 )
 from aiquanttrader.paper.models import (
     PaperAccountState,
@@ -237,6 +247,12 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | PaperRuntimeStatus
         | PaperMarkout
         | PaperExecutionCommand
+        | CausalCandle
+        | CausalStructureState
+        | SmartMoneySnapshot
+        | LlmAssessment
+        | LlmConfirmationRequest
+        | LlmConfirmation
     ).json_schema(),
     "raw-segment-manifest.schema.json": lambda: _model_schema(RawSegmentManifest),
     "recorder-state.schema.json": lambda: _model_schema(RecorderState),

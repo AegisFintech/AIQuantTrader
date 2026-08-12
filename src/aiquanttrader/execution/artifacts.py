@@ -12,8 +12,9 @@ from aiquanttrader.config.loader import ConfigBundle
 from aiquanttrader.features.models import FeatureEngineConfig
 from aiquanttrader.strategies.market_maker import AvellanedaStoikovConfig
 from aiquanttrader.strategies.scalper import OrderFlowScalperConfig
+from aiquanttrader.strategies.smart_money_scalper import SmartMoneyScalperConfig
 
-LiveKernelConfig = AvellanedaStoikovConfig | OrderFlowScalperConfig
+LiveKernelConfig = AvellanedaStoikovConfig | OrderFlowScalperConfig | SmartMoneyScalperConfig
 MAX_LIVE_ARTIFACT_BYTES = 1_048_576
 
 
@@ -51,13 +52,18 @@ def load_live_strategy_artifacts(
     strategy: LiveKernelConfig
     if live.strategy_id == "avellaneda-stoikov-v1":
         strategy = AvellanedaStoikovConfig.model_validate(strategy_payload)
+    elif live.strategy_id == "smart-money-scalper-v1":
+        strategy = SmartMoneyScalperConfig.model_validate(strategy_payload)
     else:
         strategy = OrderFlowScalperConfig.model_validate(strategy_payload)
     if strategy.strategy_id != live.strategy_id:
         raise ValueError("live strategy artifact does not match configured strategy_id")
     if strategy.order_quantity_base > settings.risk.max_order_size_base:
         raise ValueError("live strategy order quantity exceeds the hard order-size limit")
-    if strategy.max_abs_inventory_base > settings.risk.max_position_size_base:
+    if (
+        not isinstance(strategy, SmartMoneyScalperConfig)
+        and strategy.max_abs_inventory_base > settings.risk.max_position_size_base
+    ):
         raise ValueError("live strategy inventory bound exceeds the hard position limit")
     if isinstance(strategy, AvellanedaStoikovConfig) and settings.risk.max_open_orders < 2:
         raise ValueError("Avellaneda-Stoikov requires capacity for one bid and one ask")

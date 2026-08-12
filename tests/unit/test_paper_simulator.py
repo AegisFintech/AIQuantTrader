@@ -98,6 +98,29 @@ def test_market_order_has_latency_adverse_rounding_fees_and_reconciled_equity() 
     assert update.orders[0].state is PaperOrderState.FILLED
 
 
+def test_watchdog_activates_market_order_against_a_fresh_book() -> None:
+    simulator = PaperExchangeSimulator(
+        scenario(entry_latency_ns=50_000_000),
+        initial_equity_usd=Decimal("1000"),
+        initial_mark_price=Decimal("100.5"),
+        started_ts_ns=1_000,
+    )
+    simulator.submit(
+        intent(
+            "watchdog-market-buy",
+            kind=OrderKind.MARKET,
+            limit_price=None,
+            post_only=False,
+        ),
+        accepted_ts_ns=1_000,
+    )
+    fresh_book = market(0)
+    update = simulator.activate_pending(50_001_000, fresh_book)
+    assert len(update.fills) == 1
+    assert update.orders[0].state is PaperOrderState.FILLED
+    assert update.account.position_base == Decimal("0.001")
+
+
 def test_resting_order_waits_behind_public_queue_then_partially_fills() -> None:
     simulator = PaperExchangeSimulator(
         scenario(),

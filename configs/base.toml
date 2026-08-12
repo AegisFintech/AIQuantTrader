@@ -74,6 +74,16 @@ markout_horizon_ms = 1000
 metrics_host = "0.0.0.0"
 metrics_port = 9112
 
+[paper.llm_confirmation]
+enabled = false
+mode = "shadow_only"
+model = "gpt-5.6-terra"
+api_key_secret_path = "/run/secrets/openai_api_key"
+minimum_request_interval_seconds = 60
+timeout_seconds = 10
+maximum_output_tokens = 300
+queue_capacity = 4
+
 [shadow]
 enabled = false
 strategy_id = "order-flow-scalper-v1"
