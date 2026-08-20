@@ -10,6 +10,7 @@ from aiquanttrader.features.models import (
     MODEL_FEATURE_SCHEMA,
     FeatureDefinition,
     FeatureSchema,
+    VolatilityRegime,
 )
 from aiquanttrader.research.artifacts import load_model_artifact, save_model_artifact
 from aiquanttrader.research.model_adapters import adapter_for
@@ -30,6 +31,14 @@ def matrix(rows: int = 48) -> CausalTrainingMatrix:
         labels=labels,
         sample_ts_ns=timestamps,
         label_end_ts_ns=timestamps + 100,
+        volatility_regimes=np.asarray(
+            [
+                (VolatilityRegime.LOW, VolatilityRegime.NORMAL, VolatilityRegime.HIGH)[
+                    index % 3
+                ].value
+                for index in range(rows)
+            ]
+        ),
         feature_schema=MODEL_FEATURE_SCHEMA,
         source_dataset_sha256="a" * 64,
     )
@@ -47,6 +56,7 @@ def classification_matrix(target: ForecastTarget, rows: int = 48) -> CausalTrain
         labels=labels,
         sample_ts_ns=source.sample_ts_ns,
         label_end_ts_ns=source.label_end_ts_ns,
+        volatility_regimes=source.volatility_regimes,
         feature_schema=source.feature_schema,
         source_dataset_sha256=source.source_dataset_sha256,
     )

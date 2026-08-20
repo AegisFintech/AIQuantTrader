@@ -12,6 +12,7 @@ from aiquanttrader.research.cli import main
 from aiquanttrader.research.governance import evaluate_challenger
 from aiquanttrader.research.models import (
     ChampionChallengerReport,
+    ForecastEconomicPolicy,
     ForecastRegimePolicy,
     NegativeControlReport,
     PromotionMetrics,
@@ -46,6 +47,7 @@ def controls() -> NegativeControlReport:
         policy_id="registry-test-controls",
         randomized_label=RandomizedLabelControlPolicy(base_seed=3),
         forecast_regime=ForecastRegimePolicy(),
+        forecast_economic=ForecastEconomicPolicy(),
     )
     return NegativeControlReport(
         policy=control_policy,
@@ -59,6 +61,9 @@ def controls() -> NegativeControlReport:
         no_signal_report_sha256="f" * 64,
         forecast_robustness_report_sha256="e" * 64,
         forecast_robustness_passed=True,
+        forecast_economic_report_sha256="c" * 64,
+        forecast_economic_performance_passed=True,
+        forecast_economic_passed=True,
     )
 
 

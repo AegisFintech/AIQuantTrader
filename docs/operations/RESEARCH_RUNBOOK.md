@@ -72,7 +72,7 @@ uv run aqt-research build-matrix \
   --features data/research/features/2026-08-01/btc-microstructure-v1.parquet \
   --feature-manifest data/research/features/2026-08-01/btc-microstructure-v1.parquet.manifest.json \
   --output-root data/research \
-  --relative-path matrices/next-mid-return-30s-v1.npz \
+  --relative-path matrices/next-mid-return-30s-v2.npz \
   --target next_mid_return_bps \
   --horizon-ns 30000000000 \
   --sample-interval-ns 1000000000 \
@@ -94,14 +94,19 @@ The deterministic NumPy NPZ contains exactly these arrays:
 - `sample_ts_ns`: strictly increasing observation receipt time;
 - `label_end_ts_ns`: time at which each label becomes fully known and strictly
   later than its sample time;
+- `volatility_regimes`: causal low/normal/high semantic regime captured from
+  the same feature observation as each sample;
 - `feature_schema_sha256`: scalar string equal to the checked-in schema hash;
 - `source_dataset_sha256`: scalar lowercase SHA-256 bound by the validation
   plan.
 
 NumPy pickle loading is disabled. The companion manifest binds the source
 feature dataset and raw dataset, target, schema, horizon, sample interval,
-maximum label delay, candidate accounting, semantic matrix hash, NPZ hash,
-rows, and causal time window. `run-search` requires and revalidates it.
+maximum label delay, candidate and regime accounting, semantic matrix hash,
+NPZ hash, rows, and causal time window. `run-search` requires and revalidates
+schema v2. Retain schema-v1 artifacts as historical evidence, but rebuild them
+under a new path before current research; never overwrite or manually upgrade
+an old matrix.
 The frozen validation-plan schema v2 independently carries the expected label
 horizon; a horizon mismatch fails before a search policy or model adapter is
 loaded.
@@ -137,8 +142,8 @@ extension:
 
 ```bash
 uv run aqt-research run-search \
-  --matrix data/research/matrices/next-mid-return-v1.npz \
-  --matrix-manifest data/research/matrices/next-mid-return-v1.npz.manifest.json \
+  --matrix data/research/matrices/next-mid-return-v2.npz \
+  --matrix-manifest data/research/matrices/next-mid-return-v2.npz.manifest.json \
   --validation-plan data/research/plans/walk-forward-v1.json \
   --fold 0 \
   --policy configs/research/search-lightgbm-v1.json \
@@ -148,7 +153,7 @@ uv run aqt-research run-search \
   --artifact-path challenger-20260804/fold-0.txt \
   --dependency-lock uv.lock \
   --created-at 2026-08-04T00:00:00+00:00 \
-  --control-policy configs/research/controls-v1.json \
+  --control-policy configs/research/controls-v2.json \
   --no-signal-report state/research/challenger-20260804/no-signal.json \
   --no-signal-feature-manifest data/research/features/BTC.parquet.manifest.json \
   --no-signal-strategy-config configs/strategies/order-flow-scalper-v1.toml \
@@ -169,17 +174,28 @@ comparisons are relative rather than an absolute MSE floor: the shuffled median
 must be at least `1.02x` the selected-model validation MSE, and the lowest
 shuffled score must be at least `0.95x` the training-mean validation MSE. Do not
 change these thresholds after viewing a result. Each seed and score is retained
-in the v2 negative-control report.
+in the v3 negative-control report.
 
-The same policy freezes low/high volatility thresholds from training-window
-`realized_volatility` quantiles. The untouched walk-forward test is then scored
-as aggregate, low, normal, and high slices. All four need at least 100 rows and
-must have strictly lower MSE than both zero and training-mean predictions. The
-v1 fractional margin is zero, but equality does not pass. A failed or absent
-slice sets both
+The same policy uses the causal `volatility_regime` retained in matrix schema
+v2. It does not calculate fold-specific quantiles. The untouched walk-forward
+test is scored as aggregate, low, normal, and high slices. All four need at
+least 100 rows and must have strictly lower MSE than both zero and training-mean
+predictions. The v2 fractional margin is zero, but equality does not pass. A
+failed or absent slice sets both
 `forecast_robustness_passed` and `negative_controls_passed` false. The command
 still retains the valid failing model and receipt for audit; it does not open
 the final holdout or advance a governance stage.
+
+The command also runs a non-overlapping directional cost screen against the
+exact `--no-signal-scenario`. Absolute forecast edge must clear non-negative
+round-trip taker fees, round-trip taker slippage, and the frozen 0.5 bps margin.
+The checked policy requires at least 100 aggregate trades and 20 per semantic
+regime, positive net and average return, profit factor at least 1.05, and a
+calibrated scenario. `baseline.toml` is intentionally uncalibrated, so it can
+produce diagnostic performance but must report `forecast_economic_passed=false`.
+This is an early forecast-value screen, not fill evidence: retain baseline and
+pessimistic HftBacktest results for queue, latency, funding, fill, inventory,
+and execution-policy effects.
 
 Revalidate retained artifacts before scoring or deployment review:
 
@@ -199,7 +215,8 @@ inputs; do not repair the manifest manually.
 Every challenger must retain:
 
 - every seeded randomized-label result and its policy-relative comparisons;
-- the aggregate and train-defined volatility-slice robustness report;
+- the aggregate and causal semantic volatility-regime robustness report;
+- the scenario-bound non-overlapping forecast-economic report;
 - a no-signal replay with zero decisions;
 - baseline and pessimistic Phase 5 scenario reports;
 - fold-level post-cost metrics and an untouched walk-forward test result;
@@ -218,10 +235,11 @@ and observed decision count. `run-search` re-hashes the supplied feature
 manifest, strategy config, and scenario before loading a model engine, then
 hashes the report into its negative-control result. Legacy or hand-authored v1
 reports are rejected; the workflow never invents a passing zero.
-The resulting `NegativeControlReport` is also schema v2 and embeds the complete
+The resulting `NegativeControlReport` is schema v3 and embeds the complete
 research-control policy, fold-derived seeds, raw shuffled scores, validation
-baselines, and forecast-robustness hash/outcome. Legacy absolute-threshold
-reports are rejected. Experiment registration also rejects a v2 control report
+baselines, forecast-robustness hash/outcome, and forecast-economic
+hash/performance/calibration outcome. Legacy absolute-threshold reports are
+rejected. Experiment registration also rejects a v3 control report
 bound to any search receipt other than the experiment's declared receipt.
 
 ## 5. Evaluate champion-challenger gates

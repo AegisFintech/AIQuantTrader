@@ -8,6 +8,7 @@ from aiquanttrader.research.drift import calculate_drift
 from aiquanttrader.research.governance import evaluate_challenger
 from aiquanttrader.research.metrics import ResearchMetrics
 from aiquanttrader.research.models import (
+    ForecastEconomicPolicy,
     ForecastRegimePolicy,
     NegativeControlReport,
     PromotionMetrics,
@@ -57,6 +58,7 @@ def controls(*, no_signal_decision_count: int = 0) -> NegativeControlReport:
         policy_id="governance-test-controls",
         randomized_label=RandomizedLabelControlPolicy(base_seed=7),
         forecast_regime=ForecastRegimePolicy(),
+        forecast_economic=ForecastEconomicPolicy(),
     )
     return NegativeControlReport(
         policy=control_policy,
@@ -70,6 +72,9 @@ def controls(*, no_signal_decision_count: int = 0) -> NegativeControlReport:
         no_signal_report_sha256="f" * 64,
         forecast_robustness_report_sha256="e" * 64,
         forecast_robustness_passed=True,
+        forecast_economic_report_sha256="c" * 64,
+        forecast_economic_performance_passed=True,
+        forecast_economic_passed=True,
     )
 
 

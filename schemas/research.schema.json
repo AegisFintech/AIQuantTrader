@@ -1,5 +1,13 @@
 {
   "$defs": {
+    "CalibrationState": {
+      "enum": [
+        "uncalibrated",
+        "calibrated"
+      ],
+      "title": "CalibrationState",
+      "type": "string"
+    },
     "ChampionChallengerReport": {
       "additionalProperties": false,
       "properties": {
@@ -183,6 +191,235 @@
       "title": "FeatureDrift",
       "type": "object"
     },
+    "ForecastEconomicPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "execution_style": {
+          "const": "taker_round_trip",
+          "default": "taker_round_trip",
+          "title": "Execution Style",
+          "type": "string"
+        },
+        "minimum_average_net_return_bps": {
+          "default": 0.0,
+          "title": "Minimum Average Net Return Bps",
+          "type": "number"
+        },
+        "minimum_expected_edge_bps": {
+          "default": 0.5,
+          "minimum": 0,
+          "title": "Minimum Expected Edge Bps",
+          "type": "number"
+        },
+        "minimum_net_return_bps": {
+          "default": 0.0,
+          "title": "Minimum Net Return Bps",
+          "type": "number"
+        },
+        "minimum_profit_factor": {
+          "default": 1.05,
+          "exclusiveMinimum": 1,
+          "maximum": 100,
+          "title": "Minimum Profit Factor",
+          "type": "number"
+        },
+        "minimum_trades": {
+          "default": 100,
+          "minimum": 1,
+          "title": "Minimum Trades",
+          "type": "integer"
+        },
+        "minimum_trades_per_regime": {
+          "default": 20,
+          "minimum": 1,
+          "title": "Minimum Trades Per Regime",
+          "type": "integer"
+        },
+        "require_calibrated_scenario": {
+          "default": true,
+          "title": "Require Calibrated Scenario",
+          "type": "boolean"
+        }
+      },
+      "title": "ForecastEconomicPolicy",
+      "type": "object"
+    },
+    "ForecastEconomicReport": {
+      "additionalProperties": false,
+      "properties": {
+        "below_threshold_count": {
+          "minimum": 0,
+          "title": "Below Threshold Count",
+          "type": "integer"
+        },
+        "calibration_state": {
+          "$ref": "#/$defs/CalibrationState"
+        },
+        "fold_index": {
+          "minimum": 0,
+          "title": "Fold Index",
+          "type": "integer"
+        },
+        "observation_count": {
+          "exclusiveMinimum": 0,
+          "title": "Observation Count",
+          "type": "integer"
+        },
+        "overlapping_signal_count": {
+          "minimum": 0,
+          "title": "Overlapping Signal Count",
+          "type": "integer"
+        },
+        "policy": {
+          "$ref": "#/$defs/ResearchControlPolicy"
+        },
+        "round_trip_cost_bps": {
+          "minimum": 0,
+          "title": "Round Trip Cost Bps",
+          "type": "number"
+        },
+        "scenario_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "scenario_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "search_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Search Receipt Sha256",
+          "type": "string"
+        },
+        "signal_threshold_bps": {
+          "minimum": 0,
+          "title": "Signal Threshold Bps",
+          "type": "number"
+        },
+        "slices": {
+          "items": {
+            "$ref": "#/$defs/ForecastEconomicSliceMetrics"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Slices",
+          "type": "array"
+        },
+        "test_dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Test Dataset Sha256",
+          "type": "string"
+        },
+        "test_window_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Test Window Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "policy",
+        "fold_index",
+        "search_receipt_sha256",
+        "test_window_sha256",
+        "test_dataset_sha256",
+        "scenario_id",
+        "scenario_sha256",
+        "calibration_state",
+        "round_trip_cost_bps",
+        "signal_threshold_bps",
+        "observation_count",
+        "below_threshold_count",
+        "overlapping_signal_count",
+        "slices"
+      ],
+      "title": "ForecastEconomicReport",
+      "type": "object"
+    },
+    "ForecastEconomicSliceMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "average_net_return_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Average Net Return Bps"
+        },
+        "gross_directional_return_bps": {
+          "title": "Gross Directional Return Bps",
+          "type": "number"
+        },
+        "losing_trade_count": {
+          "minimum": 0,
+          "title": "Losing Trade Count",
+          "type": "integer"
+        },
+        "maximum_drawdown_bps": {
+          "minimum": 0,
+          "title": "Maximum Drawdown Bps",
+          "type": "number"
+        },
+        "net_loss_bps": {
+          "minimum": 0,
+          "title": "Net Loss Bps",
+          "type": "number"
+        },
+        "net_profit_bps": {
+          "minimum": 0,
+          "title": "Net Profit Bps",
+          "type": "number"
+        },
+        "net_return_bps": {
+          "title": "Net Return Bps",
+          "type": "number"
+        },
+        "slice": {
+          "$ref": "#/$defs/ForecastSlice"
+        },
+        "trade_count": {
+          "minimum": 0,
+          "title": "Trade Count",
+          "type": "integer"
+        },
+        "transaction_cost_bps": {
+          "minimum": 0,
+          "title": "Transaction Cost Bps",
+          "type": "number"
+        },
+        "winning_trade_count": {
+          "minimum": 0,
+          "title": "Winning Trade Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "slice",
+        "trade_count",
+        "winning_trade_count",
+        "losing_trade_count",
+        "gross_directional_return_bps",
+        "transaction_cost_bps",
+        "net_return_bps",
+        "net_profit_bps",
+        "net_loss_bps",
+        "maximum_drawdown_bps"
+      ],
+      "title": "ForecastEconomicSliceMetrics",
+      "type": "object"
+    },
     "ForecastMatrixManifest": {
       "additionalProperties": false,
       "description": "Immutable lineage for a leakage-safe supervised forecast matrix.",
@@ -227,6 +464,11 @@
           "title": "First Sample Ts Ns",
           "type": "integer"
         },
+        "high_volatility_row_count": {
+          "minimum": 0,
+          "title": "High Volatility Row Count",
+          "type": "integer"
+        },
         "horizon_ns": {
           "exclusiveMinimum": 0,
           "title": "Horizon Ns",
@@ -242,6 +484,11 @@
           "title": "Last Sample Ts Ns",
           "type": "integer"
         },
+        "low_volatility_row_count": {
+          "minimum": 0,
+          "title": "Low Volatility Row Count",
+          "type": "integer"
+        },
         "matrix_id": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Matrix Id",
@@ -250,6 +497,11 @@
         "maximum_label_delay_ns": {
           "minimum": 0,
           "title": "Maximum Label Delay Ns",
+          "type": "integer"
+        },
+        "normal_volatility_row_count": {
+          "minimum": 0,
+          "title": "Normal Volatility Row Count",
           "type": "integer"
         },
         "ready_row_count": {
@@ -268,8 +520,8 @@
           "type": "integer"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -309,6 +561,9 @@
         "ready_row_count",
         "candidate_row_count",
         "row_count",
+        "low_volatility_row_count",
+        "normal_volatility_row_count",
+        "high_volatility_row_count",
         "dropped_label_gap_count",
         "dropped_tail_count",
         "first_sample_ts_ns",
@@ -322,20 +577,6 @@
     "ForecastRegimePolicy": {
       "additionalProperties": false,
       "properties": {
-        "high_quantile": {
-          "default": 0.6666666666666666,
-          "exclusiveMaximum": 1,
-          "exclusiveMinimum": 0,
-          "title": "High Quantile",
-          "type": "number"
-        },
-        "low_quantile": {
-          "default": 0.3333333333333333,
-          "exclusiveMaximum": 1,
-          "exclusiveMinimum": 0,
-          "title": "Low Quantile",
-          "type": "number"
-        },
         "minimum_improvement_fraction_vs_training_mean": {
           "default": 0.0,
           "exclusiveMaximum": 1,
@@ -355,12 +596,6 @@
           "minimum": 2,
           "title": "Minimum Rows Per Slice",
           "type": "integer"
-        },
-        "volatility_feature_name": {
-          "const": "realized_volatility",
-          "default": "realized_volatility",
-          "title": "Volatility Feature Name",
-          "type": "string"
         }
       },
       "title": "ForecastRegimePolicy",
@@ -382,9 +617,15 @@
         "policy": {
           "$ref": "#/$defs/ResearchControlPolicy"
         },
+        "regime_source": {
+          "const": "causal_feature_snapshot",
+          "default": "causal_feature_snapshot",
+          "title": "Regime Source",
+          "type": "string"
+        },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -402,18 +643,15 @@
           "title": "Slices",
           "type": "array"
         },
+        "test_dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Test Dataset Sha256",
+          "type": "string"
+        },
         "test_window_sha256": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Test Window Sha256",
           "type": "string"
-        },
-        "training_high_volatility_threshold": {
-          "title": "Training High Volatility Threshold",
-          "type": "number"
-        },
-        "training_low_volatility_threshold": {
-          "title": "Training Low Volatility Threshold",
-          "type": "number"
         },
         "training_mean_label": {
           "title": "Training Mean Label",
@@ -432,9 +670,8 @@
         "feature_schema_sha256",
         "training_window_sha256",
         "test_window_sha256",
+        "test_dataset_sha256",
         "training_mean_label",
-        "training_low_volatility_threshold",
-        "training_high_volatility_threshold",
         "slices"
       ],
       "title": "ForecastRobustnessReport",
@@ -681,6 +918,19 @@
           "title": "Fold Index",
           "type": "integer"
         },
+        "forecast_economic_passed": {
+          "title": "Forecast Economic Passed",
+          "type": "boolean"
+        },
+        "forecast_economic_performance_passed": {
+          "title": "Forecast Economic Performance Passed",
+          "type": "boolean"
+        },
+        "forecast_economic_report_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Forecast Economic Report Sha256",
+          "type": "string"
+        },
         "forecast_robustness_passed": {
           "title": "Forecast Robustness Passed",
           "type": "boolean"
@@ -723,8 +973,8 @@
           "type": "array"
         },
         "schema_version": {
-          "const": 2,
-          "default": 2,
+          "const": 3,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -755,7 +1005,10 @@
         "no_signal_decision_count",
         "no_signal_report_sha256",
         "forecast_robustness_report_sha256",
-        "forecast_robustness_passed"
+        "forecast_robustness_passed",
+        "forecast_economic_report_sha256",
+        "forecast_economic_performance_passed",
+        "forecast_economic_passed"
       ],
       "title": "NegativeControlReport",
       "type": "object"
@@ -1067,6 +1320,9 @@
     "ResearchControlPolicy": {
       "additionalProperties": false,
       "properties": {
+        "forecast_economic": {
+          "$ref": "#/$defs/ForecastEconomicPolicy"
+        },
         "forecast_regime": {
           "$ref": "#/$defs/ForecastRegimePolicy"
         },
@@ -1079,8 +1335,8 @@
           "$ref": "#/$defs/RandomizedLabelControlPolicy"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         }
@@ -1088,7 +1344,8 @@
       "required": [
         "policy_id",
         "randomized_label",
-        "forecast_regime"
+        "forecast_regime",
+        "forecast_economic"
       ],
       "title": "ResearchControlPolicy",
       "type": "object"
@@ -1393,6 +1650,9 @@
     },
     {
       "$ref": "#/$defs/ForecastRobustnessReport"
+    },
+    {
+      "$ref": "#/$defs/ForecastEconomicReport"
     },
     {
       "$ref": "#/$defs/NegativeControlReport"
