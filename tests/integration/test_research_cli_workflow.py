@@ -14,7 +14,13 @@ from aiquanttrader.backtest.models import (
     WalkForwardFold,
     WindowRole,
 )
-from aiquanttrader.features.models import MODEL_FEATURE_SCHEMA, FeatureEngineConfig
+from aiquanttrader.backtest.scenarios import load_scenario
+from aiquanttrader.domain.base import canonical_sha256
+from aiquanttrader.features.models import (
+    MODEL_FEATURE_SCHEMA,
+    FeatureDatasetManifest,
+    FeatureEngineConfig,
+)
 from aiquanttrader.features.storage import write_feature_dataset
 from aiquanttrader.market_data.io import sha256_file
 from aiquanttrader.research.cli import main
@@ -26,6 +32,7 @@ from aiquanttrader.research.models import (
     SearchPolicy,
     SearchTrial,
 )
+from aiquanttrader.strategies.config import load_scalper_config
 
 SOURCE_DATASET_SHA256 = "a" * 64
 SECOND_NS = 1_000_000_000
@@ -58,7 +65,12 @@ def validation_plan() -> ValidationPlan:
     )
 
 
-def write_matrix(path: Path, *, schema_hash: str | None = None) -> Path:
+def write_matrix(
+    path: Path,
+    *,
+    schema_hash: str | None = None,
+    source_feature_dataset_sha256: str = "b" * 64,
+) -> Path:
     rows = 60
     features = np.zeros((rows, len(MODEL_FEATURE_SCHEMA.features)), dtype=np.float64)
     features[:, 0] = np.arange(rows, dtype=np.float64) / 10
@@ -86,7 +98,7 @@ def write_matrix(path: Path, *, schema_hash: str | None = None) -> Path:
         horizon_ns=5,
         sample_interval_ns=10,
         maximum_label_delay_ns=0,
-        source_feature_dataset_sha256="b" * 64,
+        source_feature_dataset_sha256=source_feature_dataset_sha256,
         source_dataset_sha256=SOURCE_DATASET_SHA256,
         feature_schema_sha256=schema_hash or MODEL_FEATURE_SCHEMA.sha256(),
         causal_matrix_sha256=matrix.sha256(),
@@ -107,8 +119,30 @@ def write_matrix(path: Path, *, schema_hash: str | None = None) -> Path:
     return manifest_path
 
 
+def write_feature_manifest(path: Path) -> FeatureDatasetManifest:
+    identity = {
+        "source_dataset_sha256": SOURCE_DATASET_SHA256,
+        "feature_schema_sha256": MODEL_FEATURE_SCHEMA.sha256(),
+        "feature_config_sha256": "c" * 64,
+        "relative_path": "features/BTC.parquet",
+        "file_sha256": "d" * 64,
+        "row_count": 1_000,
+        "stale_trade_exclusion_count": 0,
+        "stale_book_exclusion_count": 0,
+        "first_receive_ts_ns": 1,
+        "last_receive_ts_ns": 2,
+    }
+    manifest = FeatureDatasetManifest.model_validate(
+        {"feature_dataset_id": canonical_sha256(identity), **identity}
+    )
+    path.write_bytes(manifest.canonical_bytes() + b"\n")
+    return manifest
+
+
 def test_build_matrix_cli_binds_immutable_features_and_explicit_label_policy(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    tmp_path: Path,
+    project_root: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     states = tuple(
         KernelMarketState(
@@ -169,6 +203,55 @@ def test_build_matrix_cli_binds_immutable_features_and_explicit_label_policy(
     assert (tmp_path / "matrices/next-mid.npz").is_file()
     assert Path(result["manifest"]).is_file()
 
+    no_signal_path = tmp_path / "controls/no-signal.json"
+    assert (
+        main(
+            [
+                "run-no-signal-control",
+                "--features",
+                str(tmp_path / feature_manifest.relative_path),
+                "--feature-manifest",
+                str(feature_manifest_path),
+                "--strategy-config",
+                str(project_root / "configs/strategies/order-flow-scalper-v1.toml"),
+                "--scenario",
+                str(project_root / "configs/backtest/baseline.toml"),
+                "--output",
+                str(no_signal_path),
+            ]
+        )
+        == 0
+    )
+    control_output = json.loads(capsys.readouterr().out)
+    report = NoSignalControlReport.model_validate_json(no_signal_path.read_bytes())
+    assert control_output["passed"] is True
+    assert report.feature_dataset_sha256 == feature_manifest.feature_dataset_id
+    assert report.observation_count == len(states)
+    assert 0 < report.ready_observation_count <= report.observation_count
+    assert report.decision_count == 0
+
+    feature_path = tmp_path / feature_manifest.relative_path
+    feature_path.write_bytes(feature_path.read_bytes() + b"tamper")
+    assert (
+        main(
+            [
+                "run-no-signal-control",
+                "--features",
+                str(feature_path),
+                "--feature-manifest",
+                str(feature_manifest_path),
+                "--strategy-config",
+                str(project_root / "configs/strategies/order-flow-scalper-v1.toml"),
+                "--scenario",
+                str(project_root / "configs/backtest/baseline.toml"),
+                "--output",
+                str(tmp_path / "controls/rejected-no-signal.json"),
+            ]
+        )
+        == 2
+    )
+    assert "immutable manifest" in capsys.readouterr().err
+
 
 def test_run_search_writes_reproducible_native_artifact_and_validates_it(
     tmp_path: Path,
@@ -181,7 +264,14 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
     receipt_path = tmp_path / "search-receipt.json"
     no_signal_path = tmp_path / "no-signal.json"
     artifacts = tmp_path / "artifacts"
-    matrix_manifest_path = write_matrix(matrix_path)
+    feature_manifest_path = tmp_path / "feature.manifest.json"
+    feature_manifest = write_feature_manifest(feature_manifest_path)
+    matrix_manifest_path = write_matrix(
+        matrix_path,
+        source_feature_dataset_sha256=feature_manifest.feature_dataset_id,
+    )
+    strategy_path = project_root / "configs/strategies/order-flow-scalper-v1.toml"
+    scenario_path = project_root / "configs/backtest/baseline.toml"
     plan_path.write_text(validation_plan().model_dump_json(), encoding="utf-8")
     policy_path.write_text(
         SearchPolicy(
@@ -201,58 +291,82 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
     )
     no_signal_path.write_text(
         NoSignalControlReport(
-            feature_dataset_sha256="c" * 64,
-            strategy_configuration_sha256="d" * 64,
-            scenario_sha256="e" * 64,
+            control_id="neutral-alpha-order-flow-v1",
+            feature_dataset_sha256=feature_manifest.feature_dataset_id,
+            feature_file_sha256=feature_manifest.file_sha256,
+            feature_schema_sha256=MODEL_FEATURE_SCHEMA.sha256(),
+            strategy_configuration_sha256=load_scalper_config(strategy_path).sha256(),
+            scenario_sha256=load_scenario(scenario_path).sha256(),
             observation_count=1_000,
+            ready_observation_count=999,
             decision_count=0,
+            first_receive_ts_ns=1,
+            last_receive_ts_ns=2,
         ).model_dump_json(),
         encoding="utf-8",
     )
 
-    result = main(
-        [
-            "run-search",
-            "--matrix",
-            str(matrix_path),
-            "--matrix-manifest",
-            str(matrix_manifest_path),
-            "--validation-plan",
-            str(plan_path),
-            "--fold",
-            "0",
-            "--policy",
-            str(policy_path),
-            "--engine",
-            "lightgbm",
-            "--target",
-            "next_mid_return_bps",
-            "--artifact-root",
-            str(artifacts),
-            "--artifact-path",
-            "models/challenger.txt",
-            "--dependency-lock",
-            str(project_root / "uv.lock"),
-            "--created-at",
-            "2026-08-04T00:00:00+00:00",
-            "--randomized-label-minimum-mse",
-            "0",
-            "--randomized-seed",
-            "11",
-            "--no-signal-report",
-            str(no_signal_path),
-            "--output",
-            str(receipt_path),
-        ]
-    )
+    search_args = [
+        "run-search",
+        "--matrix",
+        str(matrix_path),
+        "--matrix-manifest",
+        str(matrix_manifest_path),
+        "--validation-plan",
+        str(plan_path),
+        "--fold",
+        "0",
+        "--policy",
+        str(policy_path),
+        "--engine",
+        "lightgbm",
+        "--target",
+        "next_mid_return_bps",
+        "--artifact-root",
+        str(artifacts),
+        "--artifact-path",
+        "models/challenger.txt",
+        "--dependency-lock",
+        str(project_root / "uv.lock"),
+        "--created-at",
+        "2026-08-04T00:00:00+00:00",
+        "--randomized-label-minimum-mse",
+        "0",
+        "--randomized-seed",
+        "11",
+        "--no-signal-report",
+        str(no_signal_path),
+        "--no-signal-feature-manifest",
+        str(feature_manifest_path),
+        "--no-signal-strategy-config",
+        str(strategy_path),
+        "--no-signal-scenario",
+        str(scenario_path),
+        "--output",
+        str(receipt_path),
+    ]
+    result = main(search_args)
     assert result == 0
     assert capsys.readouterr().out == ""
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     assert receipt["test_rows"] == 10
+    assert receipt["walk_forward_test_mse"] < receipt["zero_prediction_test_mse"]
+    assert receipt["walk_forward_test_mse"] < receipt["training_mean_test_mse"]
     assert receipt["negative_controls_passed"] is True
     manifest_path = Path(receipt["model_manifest"])
     assert manifest_path.is_file()
     assert (artifacts / "models" / "challenger.txt").is_file()
+
+    mismatched_report = no_signal_path.with_name("mismatched-no-signal.json")
+    report = NoSignalControlReport.model_validate_json(no_signal_path.read_bytes())
+    mismatched_report.write_text(
+        report.model_copy(update={"feature_dataset_sha256": "f" * 64}).model_dump_json(),
+        encoding="utf-8",
+    )
+    mismatched_args = list(search_args)
+    mismatched_args[mismatched_args.index(str(no_signal_path))] = str(mismatched_report)
+    assert main(mismatched_args) == 2
+    assert "feature dataset does not match" in capsys.readouterr().err
 
     assert (
         main(
@@ -308,6 +422,12 @@ def test_research_cli_rejects_schema_mismatch_and_partial_champion(
                 "0",
                 "--no-signal-report",
                 str(tmp_path / "missing-no-signal.json"),
+                "--no-signal-feature-manifest",
+                str(tmp_path / "missing-feature-manifest.json"),
+                "--no-signal-strategy-config",
+                str(tmp_path / "missing-strategy.toml"),
+                "--no-signal-scenario",
+                str(tmp_path / "missing-scenario.toml"),
             ]
         )
         == 2
@@ -376,6 +496,12 @@ def test_run_search_rejects_matrix_horizon_outside_frozen_validation_plan(
                 "0",
                 "--no-signal-report",
                 str(tmp_path / "unused-no-signal.json"),
+                "--no-signal-feature-manifest",
+                str(tmp_path / "unused-feature-manifest.json"),
+                "--no-signal-strategy-config",
+                str(tmp_path / "unused-strategy.toml"),
+                "--no-signal-scenario",
+                str(tmp_path / "unused-scenario.toml"),
             ]
         )
         == 2

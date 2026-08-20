@@ -30,6 +30,8 @@ class SearchRun:
 class FoldResearchResult:
     search: SearchRun
     walk_forward_test_mse: float
+    zero_prediction_test_mse: float
+    training_mean_test_mse: float
     test_rows: int
 
 
@@ -103,8 +105,17 @@ def run_fold_retraining(
         test.labels,
         adapter.predict(search.selected_model, test.features),
     )
+    zero_prediction_score = mean_squared_error(test.labels, np.zeros_like(test.labels))
+    training_mean_score = mean_squared_error(
+        test.labels,
+        np.full_like(test.labels, float(np.mean(training.labels))),
+    )
     return FoldResearchResult(
-        search=search, walk_forward_test_mse=score, test_rows=len(test.labels)
+        search=search,
+        walk_forward_test_mse=score,
+        zero_prediction_test_mse=zero_prediction_score,
+        training_mean_test_mse=training_mean_score,
+        test_rows=len(test.labels),
     )
 
 

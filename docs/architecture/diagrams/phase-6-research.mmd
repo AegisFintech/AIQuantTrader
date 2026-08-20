@@ -13,6 +13,7 @@ flowchart LR
     FEATURES --> SCALPER[Order-flow scalper kernel]
     FEATURES --> PARQUET[Immutable feature Parquet plus manifest]
     PARQUET --> MATRIX[Hash-bound causal forecast matrix]
+    PARQUET --> NOSIGNAL[Bounded neutral-alpha kernel replay]
 
     DATA --> REPLAY[Offline tick replay]
     REPLAY --> KERNEL
@@ -24,7 +25,8 @@ flowchart LR
     LGB --> NATIVE[Native-format artifact plus schema and lineage hashes]
     XGB --> NATIVE
     CAT --> NATIVE
-    NATIVE --> CONTROL[Randomized-label and no-signal controls]
+    NATIVE --> CONTROL[Randomized-label control]
+    NOSIGNAL --> CONTROL
     POLICY --> CONTROL
     CONTROL --> GATES[Champion-challenger gates]
     MM --> GATES

@@ -110,8 +110,30 @@ pre-normalize against validation, test, final holdout, or future rows.
 
 ## 3. Run bounded fold research
 
-The checked-in LightGBM policy is a bounded seed, not evidence that its ranges
-are optimal. Run each fold separately and use a model-native extension:
+First generate the no-signal control from immutable feature evidence. Do not
+hand-author a zero count:
+
+```bash
+uv run aqt-research run-no-signal-control \
+  --features data/research/features/BTC.parquet \
+  --feature-manifest data/research/features/BTC.parquet.manifest.json \
+  --strategy-config configs/strategies/order-flow-scalper-v1.toml \
+  --scenario configs/backtest/baseline.toml \
+  --output state/research/challenger-20260804/no-signal.json
+```
+
+The control streams every Parquet row through the real order-flow kernel after
+neutralizing only `book_imbalance`, `trade_flow_imbalance`, and
+`mid_return_bps`; movement forecast is zero. Spread, volatility, readiness,
+market prices, timestamps, and scenario-derived costs remain unchanged. Any
+non-HOLD action, order intent, or cancel is counted as a decision. Exit `0`
+means zero decisions, exit `3` means a valid failing report, and exit `2` means
+invalid input or an operational failure.
+
+The checked-in LightGBM, XGBoost, and CatBoost policies are bounded seeds, not
+evidence that their ranges are optimal. Freeze the engine set and policies
+before inspecting results. Run each fold separately and use a model-native
+extension:
 
 ```bash
 uv run aqt-research run-search \
@@ -129,12 +151,19 @@ uv run aqt-research run-search \
   --randomized-label-minimum-mse 1.0 \
   --randomized-seed 20260804 \
   --no-signal-report state/research/challenger-20260804/no-signal.json \
+  --no-signal-feature-manifest data/research/features/BTC.parquet.manifest.json \
+  --no-signal-strategy-config configs/strategies/order-flow-scalper-v1.toml \
+  --no-signal-scenario configs/backtest/baseline.toml \
   --output state/research/challenger-20260804/fold-0.json
 ```
 
 Use `.json` for XGBoost and `.cbm` for CatBoost. Do not use pickle, joblib, or
 an arbitrary callback/object parameter. A trial policy can declare at most 64
 trials, and adapters reject parameters outside their fixed allowlists/bounds.
+Every fold receipt reports the selected model's untouched walk-forward test
+MSE beside a zero-prediction baseline and a train-window-mean baseline. A model
+that does not improve on both baselines has not demonstrated forecast value,
+regardless of its rank among candidates.
 
 Revalidate retained artifacts before scoring or deployment review:
 
@@ -165,10 +194,13 @@ A failed control is a failed challenger. Do not weaken a control after seeing
 its result. Final holdout authorization remains under the Phase 5 frozen
 selection receipt and is not performed by `run-search`.
 
-The no-signal JSON must validate as `NoSignalControlReport`: it binds feature
-dataset, strategy configuration, and scenario hashes plus a positive
-observation count and the observed decision count. `run-search` hashes that
-report into its negative-control result; it does not invent a passing zero.
+The no-signal JSON must validate as `NoSignalControlReport` schema v2. It binds
+the feature dataset, Parquet file, feature schema, strategy configuration, and
+scenario hashes plus total/ready observation counts, the observation window,
+and observed decision count. `run-search` re-hashes the supplied feature
+manifest, strategy config, and scenario before loading a model engine, then
+hashes the report into its negative-control result. Legacy or hand-authored v1
+reports are rejected; the workflow never invents a passing zero.
 
 ## 5. Evaluate champion-challenger gates
 

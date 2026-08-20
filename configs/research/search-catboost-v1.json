@@ -1,0 +1,35 @@
+{
+  "metric": "mean_squared_error",
+  "policy_id": "catboost-bounded-v1",
+  "schema_version": 1,
+  "seed": 0,
+  "trials": [
+    {
+      "parameters": {
+        "depth": 4,
+        "iterations": 100,
+        "l2_leaf_reg": 5.0,
+        "learning_rate": 0.03
+      },
+      "trial_id": "cat-conservative"
+    },
+    {
+      "parameters": {
+        "depth": 6,
+        "iterations": 150,
+        "l2_leaf_reg": 3.0,
+        "learning_rate": 0.05
+      },
+      "trial_id": "cat-reference"
+    },
+    {
+      "parameters": {
+        "depth": 8,
+        "iterations": 200,
+        "l2_leaf_reg": 10.0,
+        "learning_rate": 0.03
+      },
+      "trial_id": "cat-wide"
+    }
+  ]
+}

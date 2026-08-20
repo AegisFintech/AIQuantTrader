@@ -1,0 +1,38 @@
+{
+  "metric": "mean_squared_error",
+  "policy_id": "xgboost-bounded-v1",
+  "schema_version": 1,
+  "seed": 0,
+  "trials": [
+    {
+      "parameters": {
+        "learning_rate": 0.03,
+        "max_depth": 3,
+        "min_child_weight": 10.0,
+        "num_boost_round": 100,
+        "subsample": 1.0
+      },
+      "trial_id": "xgb-conservative"
+    },
+    {
+      "parameters": {
+        "learning_rate": 0.05,
+        "max_depth": 5,
+        "min_child_weight": 5.0,
+        "num_boost_round": 150,
+        "subsample": 0.9
+      },
+      "trial_id": "xgb-reference"
+    },
+    {
+      "parameters": {
+        "learning_rate": 0.03,
+        "max_depth": 7,
+        "min_child_weight": 20.0,
+        "num_boost_round": 200,
+        "subsample": 0.8
+      },
+      "trial_id": "xgb-wide"
+    }
+  ]
+}

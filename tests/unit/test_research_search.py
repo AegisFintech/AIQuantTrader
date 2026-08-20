@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from numpy.typing import NDArray
+from pydantic import ValidationError
 
 from aiquanttrader.backtest.models import TimeWindow, WalkForwardFold, WindowRole
 from aiquanttrader.features.models import MODEL_FEATURE_SCHEMA, FeatureSchema
@@ -14,6 +15,7 @@ from aiquanttrader.research.models import (
     CausalTrainingMatrix,
     ForecastTarget,
     ModelEngine,
+    NoSignalControlReport,
     SearchPolicy,
     SearchTrial,
 )
@@ -112,6 +114,8 @@ def test_search_uses_validation_only_and_test_labels_cannot_change_selection() -
     assert first.search.receipt.selected_trial_id == "correct"
     assert altered.search.receipt.selected_trial_id == "correct"
     assert first.walk_forward_test_mse != altered.walk_forward_test_mse
+    assert first.walk_forward_test_mse < first.zero_prediction_test_mse
+    assert first.walk_forward_test_mse < first.training_mean_test_mse
 
 
 def test_causal_windows_exclude_labels_crossing_the_boundary() -> None:
@@ -176,3 +180,28 @@ def test_training_matrix_and_metric_reject_invalid_inputs() -> None:
         )
     with pytest.raises(ValueError, match="aligned"):
         mean_squared_error(np.asarray([1.0]), np.asarray([1.0, 2.0]))
+
+
+def test_no_signal_report_rejects_impossible_counts_and_windows() -> None:
+    values = {
+        "control_id": "neutral-alpha-order-flow-v1",
+        "feature_dataset_sha256": "a" * 64,
+        "feature_file_sha256": "b" * 64,
+        "feature_schema_sha256": "c" * 64,
+        "strategy_configuration_sha256": "d" * 64,
+        "scenario_sha256": "e" * 64,
+        "observation_count": 10,
+        "ready_observation_count": 9,
+        "decision_count": 0,
+        "first_receive_ts_ns": 1,
+        "last_receive_ts_ns": 2,
+    }
+    assert NoSignalControlReport.model_validate(values).schema_version == 2
+    with pytest.raises(ValidationError, match="ready observations"):
+        NoSignalControlReport.model_validate({**values, "ready_observation_count": 11})
+    with pytest.raises(ValidationError, match="decisions"):
+        NoSignalControlReport.model_validate({**values, "decision_count": 10})
+    with pytest.raises(ValidationError, match="window is reversed"):
+        NoSignalControlReport.model_validate(
+            {**values, "first_receive_ts_ns": 3, "last_receive_ts_ns": 2}
+        )
