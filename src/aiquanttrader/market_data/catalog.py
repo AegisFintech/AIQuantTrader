@@ -122,6 +122,14 @@ class ManifestCatalog:
                 f"catalog identity collision for normalized segment {manifest.source_segment_id}"
             )
 
+    def normalized_segment_ids(self) -> frozenset[str]:
+        """Return immutable segment identities already verified and cataloged."""
+
+        rows = self.connection.execute(
+            "SELECT source_segment_id FROM normalized_segments"
+        ).fetchall()
+        return frozenset(str(row[0]) for row in rows)
+
     def register_tardis(self, manifest: TardisFileManifest) -> None:
         payload = manifest.canonical_bytes().decode("utf-8")
         key = [manifest.exchange, manifest.data_type, manifest.symbol, manifest.date]

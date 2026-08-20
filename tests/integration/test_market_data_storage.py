@@ -223,11 +223,17 @@ def test_dataset_rejects_quality_issue_over_policy(tmp_path: Path) -> None:
         )
 
 
-def test_independent_worker_normalizes_pending_segments_idempotently(tmp_path: Path) -> None:
+def test_independent_worker_normalizes_pending_segments_idempotently(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     make_segment(tmp_path / "data")
     with ManifestCatalog(tmp_path / "state" / "normalized.duckdb") as catalog:
         worker = NormalizationWorker(tmp_path / "data", catalog)
         first = worker.run_once()
+        monkeypatch.setattr(
+            "aiquanttrader.market_data.normalizer.load_segment_manifest",
+            lambda _: pytest.fail("cataloged immutable segments must not be reloaded"),
+        )
         second = worker.run_once()
         count = catalog.connection.execute("SELECT count(*) FROM normalized_segments").fetchone()
 

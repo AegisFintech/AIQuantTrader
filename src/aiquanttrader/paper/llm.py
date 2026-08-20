@@ -168,6 +168,16 @@ def confirmation_request(run_id: str, cycle: PaperEngineCycle) -> LlmConfirmatio
     if structure is None or not structure.ready:
         raise ValueError("LLM confirmation requires ready causal market structure")
     decision = cycle.strategy_decision
+    if not decision.submit:
+        raise ValueError("LLM confirmation requires a submitted entry intent")
+    submitted_strategy_id = decision.submit[0].strategy_id
+    strategy_id: Literal["smart-money-scalper-v1", "smart-money-scalper-v2"]
+    if submitted_strategy_id == "smart-money-scalper-v1":
+        strategy_id = "smart-money-scalper-v1"
+    elif submitted_strategy_id == "smart-money-scalper-v2":
+        strategy_id = "smart-money-scalper-v2"
+    else:
+        raise ValueError("LLM confirmation does not support the submitted strategy")
     side: Literal["long", "short"] = (
         "long" if decision.action is StrategyAction.ENTER_LONG else "short"
     )
@@ -176,12 +186,14 @@ def confirmation_request(run_id: str, cycle: PaperEngineCycle) -> LlmConfirmatio
         "observed_ts_ns": cycle.features.receive_ts_ns,
         "feature_snapshot_sha256": cycle.features.sha256(),
         "strategy_decision_sha256": decision.sha256(),
+        "strategy_id": strategy_id,
         "side": side,
     }
     return LlmConfirmationRequest(
         request_id=canonical_sha256(identity),
         run_id=run_id,
         observed_ts_ns=cycle.features.receive_ts_ns,
+        strategy_id=strategy_id,
         side=side,
         feature_snapshot_sha256=cycle.features.sha256(),
         strategy_decision_sha256=decision.sha256(),

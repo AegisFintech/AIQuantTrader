@@ -32,7 +32,9 @@ class LlmConfirmationRequest(DomainModel):
     request_id: str = Field(pattern=r"^[0-9a-f]{64}$")
     run_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")
     observed_ts_ns: int = Field(ge=0)
-    strategy_id: Literal["smart-money-scalper-v1"] = "smart-money-scalper-v1"
+    strategy_id: Literal["smart-money-scalper-v1", "smart-money-scalper-v2"] = (
+        "smart-money-scalper-v1"
+    )
     side: Literal["long", "short"]
     feature_snapshot_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     strategy_decision_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")

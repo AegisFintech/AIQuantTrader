@@ -11,6 +11,7 @@ from aiquanttrader.paper.engine import (
     PaperWatchdogUpdate,
 )
 from aiquanttrader.paper.llm_models import LlmConfirmation
+from aiquanttrader.strategies.adaptive_scalper import AdaptiveScalperConfig
 
 
 class PaperMetrics:
@@ -213,6 +214,31 @@ class PaperMetrics:
             "Latest cost-aware minimum edge",
             registry=registry,
         )
+        self.forecast_ready = Gauge(
+            "aqt_paper_adaptive_forecast_ready",
+            "Whether the causal online forecast has enough recent resolved labels",
+            registry=registry,
+        )
+        self.forecast_samples = Gauge(
+            "aqt_paper_adaptive_forecast_training_samples",
+            "Causally resolved labels consumed by the paper-only adaptive forecast",
+            registry=registry,
+        )
+        self.forecast_prediction = Gauge(
+            "aqt_paper_adaptive_forecast_bps",
+            "Latest bounded 30-second BTC return forecast",
+            registry=registry,
+        )
+        self.forecast_directional_accuracy = Gauge(
+            "aqt_paper_adaptive_forecast_directional_accuracy",
+            "Recent directional accuracy of causally resolved online forecasts",
+            registry=registry,
+        )
+        self.forecast_mae = Gauge(
+            "aqt_paper_adaptive_forecast_mae_bps",
+            "Recent mean absolute error of causally resolved online forecasts",
+            registry=registry,
+        )
         self.position_age = Gauge(
             "aqt_paper_position_age_seconds",
             "Age of the current bounded scalping position",
@@ -296,6 +322,20 @@ class PaperMetrics:
         self.trade_flow_imbalance.set(float(cycle.features.trade_flow_imbalance))
         self.expected_edge.set(float(decision.expected_edge_bps))
         self.required_edge.set(float(decision.required_edge_bps))
+        forecast = engine.adaptive_forecast
+        config = engine.artifacts.strategy_config
+        if forecast is not None and isinstance(config, AdaptiveScalperConfig):
+            self.forecast_ready.set(1 if forecast.ready(config) else 0)
+            self.forecast_samples.set(forecast.training_samples)
+            self.forecast_prediction.set(float(forecast.latest_prediction_bps))
+            self.forecast_directional_accuracy.set(float(forecast.directional_accuracy))
+            self.forecast_mae.set(float(forecast.mean_absolute_error_bps))
+        else:
+            self.forecast_ready.set(0)
+            self.forecast_samples.set(0)
+            self.forecast_prediction.set(0)
+            self.forecast_directional_accuracy.set(0)
+            self.forecast_mae.set(0)
         self.position_age.set(float(decision.position_age_seconds))
         if decision.stop_price is not None:
             self.exit_level.labels(kind="stop").set(float(decision.stop_price))

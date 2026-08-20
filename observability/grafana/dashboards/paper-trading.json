@@ -87,6 +87,7 @@
       "targets": [
         {"expr": "aqt_paper_feed_connected", "legendFormat": "feed connected"},
         {"expr": "aqt_paper_feature_ready", "legendFormat": "features ready"},
+        {"expr": "aqt_paper_adaptive_forecast_ready", "legendFormat": "forecast ready"},
         {"expr": "aqt_paper_operator_kill", "legendFormat": "operator kill"}
       ],
       "gridPos": {"h": 6, "w": 8, "x": 0, "y": 14}
@@ -247,12 +248,12 @@
     },
     {
       "id": 22,
-      "title": "Scalp lifecycle — hard cap 300 seconds",
+      "title": "Scalp lifecycle — hard cap 180 seconds",
       "type": "timeseries",
       "targets": [
         {"expr": "aqt_paper_position_age_seconds", "legendFormat": "position age"},
-        {"expr": "vector(90)", "legendFormat": "no-progress review"},
-        {"expr": "vector(300)", "legendFormat": "mandatory exit"}
+        {"expr": "vector(60)", "legendFormat": "no-progress review"},
+        {"expr": "vector(180)", "legendFormat": "mandatory exit"}
       ],
       "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
       "gridPos": {"h": 7, "w": 8, "x": 0, "y": 48}
@@ -285,6 +286,44 @@
         }
       ],
       "gridPos": {"h": 7, "w": 8, "x": 16, "y": 48}
+    },
+    {
+      "id": 25,
+      "title": "Self-learning forecast state",
+      "type": "stat",
+      "description": "Paper-only causal learner. Production can consume only a frozen, separately approved artifact.",
+      "targets": [
+        {"expr": "aqt_paper_adaptive_forecast_ready", "legendFormat": "ready"},
+        {"expr": "aqt_paper_adaptive_forecast_training_samples", "legendFormat": "resolved labels"},
+        {"expr": "aqt_paper_adaptive_forecast_bps", "legendFormat": "30s forecast bps"}
+      ],
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 55}
+    },
+    {
+      "id": 26,
+      "title": "Forecast quality gate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "expr": "aqt_paper_adaptive_forecast_directional_accuracy",
+          "legendFormat": "directional accuracy"
+        },
+        {"expr": "vector(0.54)", "legendFormat": "minimum accuracy"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 55}
+    },
+    {
+      "id": 27,
+      "title": "Forecast error and economic hurdle",
+      "type": "timeseries",
+      "targets": [
+        {"expr": "aqt_paper_adaptive_forecast_mae_bps", "legendFormat": "forecast MAE"},
+        {"expr": "abs(aqt_paper_adaptive_forecast_bps)", "legendFormat": "absolute forecast"},
+        {"expr": "aqt_paper_required_edge_bps", "legendFormat": "entry hurdle"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "bps", "min": 0}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 55}
     }
   ],
   "refresh": "2s",
@@ -295,5 +334,5 @@
   "timezone": "utc",
   "title": "AIQuantTrader BTC Scalping Command Center",
   "uid": "aqt-paper-trading",
-  "version": 3
+  "version": 4
 }

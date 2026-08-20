@@ -34,6 +34,12 @@ from aiquanttrader.paper.simulator import PaperExchangeSimulator, SimulatorUpdat
 from aiquanttrader.research.models import DriftReport
 from aiquanttrader.risk.authority import RiskAuthority
 from aiquanttrader.risk.kill_switch import KillSwitchStore
+from aiquanttrader.strategies.adaptive_scalper import (
+    AdaptiveForecastState,
+    AdaptiveScalperConfig,
+    AdaptiveScalperKernel,
+    AdaptiveScalperMemory,
+)
 from aiquanttrader.strategies.common import StrategyInput
 from aiquanttrader.strategies.market_maker import (
     AvellanedaStoikovConfig,
@@ -178,9 +184,18 @@ class PaperTradingEngine:
 
     @property
     def feature_ready(self) -> bool:
-        if isinstance(self.artifacts.strategy_config, SmartMoneyScalperConfig):
+        if isinstance(
+            self.artifacts.strategy_config,
+            (SmartMoneyScalperConfig, AdaptiveScalperConfig),
+        ):
             return self._feature_engine.ready and self._structure_engine.ready
         return self._feature_engine.ready
+
+    @property
+    def adaptive_forecast(self) -> AdaptiveForecastState | None:
+        if isinstance(self._memory, AdaptiveScalperMemory):
+            return self._memory.forecast
+        return None
 
     @property
     def feed_connected(self) -> bool:
@@ -280,13 +295,17 @@ class PaperTradingEngine:
             StrategyInput(
                 features=features,
                 funding_rate=self._funding_rate,
+                estimated_maker_fee_bps=max(Decimal("0"), self.artifacts.scenario.maker_fee_bps),
                 estimated_taker_fee_bps=max(Decimal("0"), self.artifacts.scenario.taker_fee_bps),
                 estimated_slippage_bps=self.artifacts.scenario.taker_slippage_bps,
                 market_structure=market_structure,
                 position_average_entry_price=simulation.account.average_entry_price,
                 position_opened_ts_ns=(
                     self._memory.position_opened_ts_ns
-                    if isinstance(self._memory, SmartMoneyScalperMemory)
+                    if isinstance(
+                        self._memory,
+                        (SmartMoneyScalperMemory, AdaptiveScalperMemory),
+                    )
                     else None
                 ),
             ),
@@ -483,7 +502,10 @@ class PaperTradingEngine:
 
     def _build_strategy(
         self, checkpoint: PaperEngineCheckpoint | None
-    ) -> tuple[Any, MarketMakerMemory | ScalperMemory | SmartMoneyScalperMemory]:
+    ) -> tuple[
+        Any,
+        MarketMakerMemory | ScalperMemory | SmartMoneyScalperMemory | AdaptiveScalperMemory,
+    ]:
         config = self.artifacts.strategy_config
         if isinstance(config, AvellanedaStoikovConfig):
             memory = (
@@ -506,6 +528,13 @@ class PaperTradingEngine:
                 else SmartMoneyScalperMemory.model_validate_json(checkpoint.strategy_memory_json)
             )
             return SmartMoneyScalperKernel(config), smart_memory
+        if isinstance(config, AdaptiveScalperConfig):
+            adaptive_memory = (
+                AdaptiveScalperMemory()
+                if checkpoint is None
+                else AdaptiveScalperMemory.model_validate_json(checkpoint.strategy_memory_json)
+            )
+            return AdaptiveScalperKernel(config), adaptive_memory
         raise TypeError("unsupported paper strategy configuration")
 
     def _checkpoint(self, ts_ns: int) -> PaperEngineCheckpoint:
@@ -523,7 +552,7 @@ class PaperTradingEngine:
 
     def _synchronize_memory(self, observed_ts_ns: int) -> None:
         account = self.simulator.account
-        if isinstance(self._memory, SmartMoneyScalperMemory):
+        if isinstance(self._memory, (SmartMoneyScalperMemory, AdaptiveScalperMemory)):
             self._memory = self._memory.synchronize_position(
                 account.position_base,
                 account.average_entry_price,

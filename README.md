@@ -285,15 +285,18 @@ uv run aqt-native validate-config --config-dir configs --environment paper
 docker compose --profile paper config --quiet
 AQT_NATIVE_CODE_IDENTITY="$(git rev-parse HEAD)" \
   docker compose --profile paper --profile monitoring up --build -d \
-  paper-trader prometheus grafana
+  paper-trader node-exporter prometheus grafana
 ```
 
 The paper service owns raw capture; do not start `market-data-recorder` against
 the same state volume. It durably syncs each raw frame before the live consumer
 and accepts only conservative risk-adverse, zero-synthetic-feed-delay paper
-scenarios. The checked-in paper challenger is `smart-money-scalper-v1`: it uses
-closed 15-minute bias, 5-minute setup, 1-minute trigger, and L2/tape execution,
-with a 90-second no-progress exit and an unconditional 300-second position cap.
+scenarios. The checked-in paper challenger is `smart-money-scalper-v2`: it uses
+closed 15-minute bias, 5-minute alignment, a 1-minute BOS/CHoCH/sweep trigger,
+L2/tape confirmation, and a causal 30-second online forecast. Entries are
+post-only with a three-second TTL; risk exits are reduce-only, with a 60-second
+no-progress review and an unconditional 180-second position cap. The model is
+paper/replay-only and cannot approve production promotion.
 The checked-in scenarios are uncalibrated and therefore cannot pass
 `aqt-paper evidence`. Procedures, drills, sensitivity rules, and rollback are in
 [`PAPER_TRADING_RUNBOOK.md`](docs/operations/PAPER_TRADING_RUNBOOK.md).
@@ -301,10 +304,14 @@ The checked-in scenarios are uncalibrated and therefore cannot pass
 scenarios through the same consumer path without network access.
 The read-only progress dashboard is bound to
 `http://127.0.0.1:3000/d/aqt-paper-trading/aiquanttrader-btc-paper-trading`;
+host and service health is at
+`http://127.0.0.1:3000/d/aqt-platform-health/aiquanttrader-server-live-status`;
 no Hyperliquid account or API key is required.
 An optional OpenAI Responses API observer can produce typed, shadow-only setup
 confirmations. It is disabled by default, reads its key only from
 `/run/secrets/openai_api_key`, and has no path to strategy, risk, or execution.
+The rationale and evidence gates for v2 are in
+[`SCALPER_V2_OVERHAUL.md`](docs/migration/SCALPER_V2_OVERHAUL.md).
 
 ## Shadow deployment
 

@@ -1,5 +1,11 @@
 """Pure production strategy kernels shared by research and live adapters."""
 
+from aiquanttrader.strategies.adaptive_scalper import (
+    AdaptiveForecastState,
+    AdaptiveScalperConfig,
+    AdaptiveScalperKernel,
+    AdaptiveScalperMemory,
+)
 from aiquanttrader.strategies.common import (
     StrategyInput,
     StrategyKernel,
@@ -28,6 +34,10 @@ from aiquanttrader.strategies.smart_money_scalper import (
 )
 
 __all__ = [
+    "AdaptiveForecastState",
+    "AdaptiveScalperConfig",
+    "AdaptiveScalperKernel",
+    "AdaptiveScalperMemory",
     "AvellanedaStoikovConfig",
     "AvellanedaStoikovKernel",
     "MarketMakerMemory",

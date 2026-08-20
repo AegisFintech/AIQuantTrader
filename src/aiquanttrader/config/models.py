@@ -119,7 +119,9 @@ class LiveStrategyConfig(FrozenModel):
 
     enabled: bool = False
     strategy_id: Literal[
-        "avellaneda-stoikov-v1", "order-flow-scalper-v1", "smart-money-scalper-v1"
+        "avellaneda-stoikov-v1",
+        "order-flow-scalper-v1",
+        "smart-money-scalper-v1",
     ] = "order-flow-scalper-v1"
     feature_config_path: Path = Path("features/microstructure-v1.toml")
     strategy_config_path: Path = Path("strategies/order-flow-scalper-v1.toml")
@@ -218,7 +220,10 @@ class LlmConfirmationConfig(FrozenModel):
 class PaperConfig(FrozenModel):
     enabled: bool = False
     strategy_id: Literal[
-        "avellaneda-stoikov-v1", "order-flow-scalper-v1", "smart-money-scalper-v1"
+        "avellaneda-stoikov-v1",
+        "order-flow-scalper-v1",
+        "smart-money-scalper-v1",
+        "smart-money-scalper-v2",
     ] = "order-flow-scalper-v1"
     scenario_path: Path = Path("paper/baseline-v1.toml")
     sensitivity_scenario_paths: tuple[Path, ...] = (Path("paper/pessimistic-v1.toml"),)

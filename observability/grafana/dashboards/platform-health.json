@@ -1,0 +1,154 @@
+{
+  "annotations": {"list": []},
+  "editable": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"color": "red", "text": "DOWN"}, "1": {"color": "green", "text": "LIVE"}}, "type": "value"}
+          ],
+          "min": 0,
+          "max": 1,
+          "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]},
+          "unit": "none"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "targets": [
+        {"expr": "up{job=~\"prometheus|grafana|aiquanttrader-node|aiquanttrader-paper\"}", "legendFormat": "{{job}}", "refId": "A"}
+      ],
+      "title": "Platform services — live now",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 4, "x": 8, "y": 0},
+      "id": 2,
+      "targets": [{"expr": "100 * (1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))", "legendFormat": "CPU used", "refId": "A"}],
+      "title": "Host CPU",
+      "type": "gauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 4, "x": 12, "y": 0},
+      "id": 3,
+      "targets": [{"expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)", "legendFormat": "memory used", "refId": "A"}],
+      "title": "Host memory",
+      "type": "gauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"max": 100, "min": 0, "unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 4, "x": 16, "y": 0},
+      "id": 4,
+      "targets": [{"expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})", "legendFormat": "disk used", "refId": "A"}],
+      "title": "Root disk usage",
+      "type": "gauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 4, "x": 20, "y": 0},
+      "id": 5,
+      "targets": [
+        {"expr": "node_memory_MemAvailable_bytes", "legendFormat": "available memory", "refId": "A"},
+        {"expr": "node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"}", "legendFormat": "available disk", "refId": "B"}
+      ],
+      "title": "Capacity available",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 5},
+      "id": 6,
+      "targets": [
+        {"expr": "100 * (1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[1m])))", "legendFormat": "CPU used", "refId": "A"},
+        {"expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)", "legendFormat": "memory used", "refId": "B"},
+        {"expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})", "legendFormat": "disk used", "refId": "C"}
+      ],
+      "title": "CPU, memory, and root disk",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 5},
+      "id": 7,
+      "targets": [
+        {"expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|veth.*|docker.*|br-.*\"}[1m]))", "legendFormat": "inbound", "refId": "A"},
+        {"expr": "sum(rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|docker.*|br-.*\"}[1m]))", "legendFormat": "outbound", "refId": "B"}
+      ],
+      "title": "Host network in / out",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 5},
+      "id": 8,
+      "targets": [
+        {"expr": "sum(rate(node_disk_read_bytes_total[1m]))", "legendFormat": "disk read", "refId": "A"},
+        {"expr": "sum(rate(node_disk_written_bytes_total[1m]))", "legendFormat": "disk write", "refId": "B"}
+      ],
+      "title": "Host disk I/O",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 0, "y": 13},
+      "id": 9,
+      "targets": [{"expr": "time() - node_boot_time_seconds", "legendFormat": "uptime", "refId": "A"}],
+      "title": "Host uptime",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 8, "y": 13},
+      "id": 10,
+      "targets": [
+        {"expr": "node_load1", "legendFormat": "1m", "refId": "A"},
+        {"expr": "node_load5", "legendFormat": "5m", "refId": "B"},
+        {"expr": "node_load15", "legendFormat": "15m", "refId": "C"}
+      ],
+      "title": "Host load average",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 8, "x": 16, "y": 13},
+      "id": 11,
+      "targets": [{"expr": "time() - aqt_market_data_last_frame_timestamp_seconds", "legendFormat": "public-feed age", "refId": "A"}],
+      "title": "Trading feed freshness",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "5s",
+  "schemaVersion": 41,
+  "tags": ["aiquanttrader", "platform", "host"],
+  "templating": {
+    "list": [
+      {
+        "current": {"text": "Prometheus", "value": "Prometheus"},
+        "label": "Prometheus",
+        "name": "DS_PROMETHEUS",
+        "query": "prometheus",
+        "type": "datasource"
+      }
+    ]
+  },
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "AIQuantTrader Server & Live Status",
+  "uid": "aqt-platform-health",
+  "version": 1
+}

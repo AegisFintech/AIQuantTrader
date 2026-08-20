@@ -22,6 +22,7 @@ class StrategyInput(DomainModel):
     fill_forecast_bid: Annotated[Decimal, Field(ge=0, le=1)] | None = None
     fill_forecast_ask: Annotated[Decimal, Field(ge=0, le=1)] | None = None
     spread_expansion_forecast_bps: Annotated[Decimal, Field(ge=0)] = Decimal("0")
+    estimated_maker_fee_bps: Annotated[Decimal, Field(ge=0)] = Decimal("1.5")
     estimated_taker_fee_bps: Annotated[Decimal, Field(ge=0)] = Decimal("4.5")
     estimated_slippage_bps: Annotated[Decimal, Field(ge=0)] = Decimal("1")
     model_artifact_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")

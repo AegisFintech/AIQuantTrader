@@ -90,6 +90,7 @@ class StrategyAction(StrEnum):
     BLOCKED_COOLDOWN = "blocked_cooldown"
     BLOCKED_VOLATILITY = "blocked_volatility"
     BLOCKED_INVENTORY = "blocked_inventory"
+    BLOCKED_MODEL = "blocked_model"
 
 
 class KernelDecision(DomainModel):
