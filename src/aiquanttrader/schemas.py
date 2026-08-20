@@ -112,6 +112,7 @@ from aiquanttrader.research.models import (
     ResearchExperimentManifest,
     SearchPolicy,
     SearchReceipt,
+    TargetFeasibilityReport,
 )
 from aiquanttrader.retirement.models import (
     CleanupActionPlan,
@@ -276,6 +277,7 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | ResearchControlPolicy
         | ForecastRobustnessReport
         | ForecastEconomicReport
+        | TargetFeasibilityReport
         | NegativeControlReport
         | NoSignalControlReport
         | PromotionMetrics

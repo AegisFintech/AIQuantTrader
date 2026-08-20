@@ -17,7 +17,9 @@ flowchart LR
 
     DATA --> REPLAY[Offline tick replay]
     REPLAY --> KERNEL
-    MATRIX --> SEARCH[Bounded validation-only search]
+    MATRIX --> FEAS[Training-only optimistic target-feasibility ceiling]
+    FEAS --> SEARCH[Bounded validation-only search]
+    POLICY --> FEAS
     SEARCH --> LGB[LightGBM reference]
     SEARCH --> XGB[XGBoost CPU challenger]
     SEARCH --> CAT[CatBoost challenger]

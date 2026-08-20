@@ -120,6 +120,52 @@ loaded.
 Normalization or calibration must be fit inside each train fold; do not
 pre-normalize against validation, test, final holdout, or future rows.
 
+### Reject an economically infeasible target before model fitting
+
+Audit the sealed matrix against the exact control policy and execution
+scenario before running a model adapter:
+
+```bash
+uv run aqt-research audit-target-feasibility \
+  --matrix data/research/matrices/next-mid-return-v3-development.npz \
+  --matrix-manifest data/research/matrices/next-mid-return-v3-development.npz.manifest.json \
+  --validation-plan data/research/plans/walk-forward-v1.json \
+  --control-policy configs/research/controls-v2.json \
+  --scenario configs/backtest/baseline.toml \
+  --output state/research/challenger-20260804/target-feasibility.json
+```
+
+The schema-v1 report opens only each fold's training window. For aggregate,
+low, normal, and high volatility it computes the maximum non-overlapping
+observation count, counts labels with positive perfect-direction return after
+round-trip taker cost, and computes maximum-net and maximum-single-trade
+ceilings. The count, total-return, and average-return bounds are evaluated
+separately, making them optimistic necessary conditions rather than a claimed
+achievable portfolio. They ignore model error, latency, impact, adverse
+selection, fills, funding, and inventory. A failure proves the target/scenario
+lacks enough opportunity for the declared gate; a pass only permits model
+research and is not performance evidence.
+
+Exit `0` means the opportunity ceilings and required calibration passed. Exit
+`3` is a valid failing report; `opportunity_sufficient=true` with `passed=false`
+means diagnostic model research may proceed but the scenario is not calibrated
+for promotion. Exit `2` means invalid input or an operational failure.
+`run-search` recomputes the report from the sealed matrix and refuses an
+inexact report or insufficient opportunity ceiling before loading an engine.
+The checked baseline is intentionally uncalibrated, and the retained
+30-second development target currently fails the opportunity ceiling as well.
+
+The retained 2026-08-20 audit used a 10.0 bps round-trip cost; the separate
+forecast signal threshold is 10.5 bps after the frozen edge margin. Training
+folds 0 and 1 had no positive-net perfect-direction labels. Fold 2 had only
+three maximum non-overlapping positive-net labels. High volatility was absent from
+the first three training folds, so their maximum possible high-regime trade
+count was zero against the required 20. Do not run another engine or widen a
+search policy on this 30-second taker target. Gather broader regime evidence
+and calibrate costs, or predeclare and seal a different horizon or
+passive-maker target under a new validation plan. Do not change thresholds
+after this result, and do not open the final holdout.
+
 ## 3. Run bounded fold research
 
 First generate the no-signal control from immutable feature evidence. Do not
@@ -161,6 +207,7 @@ uv run aqt-research run-search \
   --dependency-lock uv.lock \
   --created-at 2026-08-04T00:00:00+00:00 \
   --control-policy configs/research/controls-v2.json \
+  --target-feasibility-report state/research/challenger-20260804/target-feasibility.json \
   --no-signal-report state/research/challenger-20260804/no-signal.json \
   --no-signal-feature-manifest data/research/features/BTC.parquet.manifest.json \
   --no-signal-strategy-config configs/strategies/order-flow-scalper-v1.toml \
@@ -187,7 +234,7 @@ comparisons are relative rather than an absolute MSE floor: the shuffled median
 must be at least `1.02x` the selected-model validation MSE, and the lowest
 shuffled score must be at least `0.95x` the training-mean validation MSE. Do not
 change these thresholds after viewing a result. Each seed and score is retained
-in the v3 negative-control report.
+in the v4 negative-control report.
 
 The same policy uses the causal `volatility_regime` retained in matrix schema
 v2. It does not calculate fold-specific quantiles. The untouched walk-forward
@@ -227,6 +274,7 @@ inputs; do not repair the manifest manually.
 
 Every challenger must retain:
 
+- the recomputed training-only target-feasibility report and outcome;
 - every seeded randomized-label result and its policy-relative comparisons;
 - the aggregate and causal semantic volatility-regime robustness report;
 - the scenario-bound non-overlapping forecast-economic report;
@@ -248,11 +296,12 @@ and observed decision count. `run-search` re-hashes the supplied feature
 manifest, strategy config, and scenario before loading a model engine, then
 hashes the report into its negative-control result. Legacy or hand-authored v1
 reports are rejected; the workflow never invents a passing zero.
-The resulting `NegativeControlReport` is schema v3 and embeds the complete
-research-control policy, fold-derived seeds, raw shuffled scores, validation
-baselines, forecast-robustness hash/outcome, and forecast-economic
-hash/performance/calibration outcome. Legacy absolute-threshold reports are
-rejected. Experiment registration also rejects a v3 control report
+The resulting `NegativeControlReport` is schema v4 and embeds the complete
+research-control policy, target-feasibility hash/outcome, fold-derived seeds,
+raw shuffled scores, validation baselines, forecast-robustness hash/outcome,
+and forecast-economic hash/performance/calibration outcome. Legacy
+absolute-threshold or pre-feasibility reports are rejected. Experiment
+registration also rejects a v4 control report
 bound to any search receipt other than the experiment's declared receipt.
 
 ## 5. Evaluate champion-challenger gates

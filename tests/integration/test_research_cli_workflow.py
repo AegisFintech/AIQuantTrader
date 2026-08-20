@@ -36,6 +36,7 @@ from aiquanttrader.research.models import (
     ResearchControlPolicy,
     SearchPolicy,
     SearchTrial,
+    TargetFeasibilityReport,
 )
 from aiquanttrader.strategies.config import load_scalper_config
 
@@ -423,6 +424,28 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
         ).model_dump_json(),
         encoding="utf-8",
     )
+    feasibility_path = tmp_path / "target-feasibility.json"
+    assert (
+        main(
+            [
+                "audit-target-feasibility",
+                "--matrix",
+                str(matrix_path),
+                "--matrix-manifest",
+                str(matrix_manifest_path),
+                "--validation-plan",
+                str(plan_path),
+                "--control-policy",
+                str(control_policy_path),
+                "--scenario",
+                str(scenario_path),
+                "--output",
+                str(feasibility_path),
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
 
     search_args = [
         "run-search",
@@ -450,6 +473,8 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
         "2026-08-04T00:00:00+00:00",
         "--control-policy",
         str(control_policy_path),
+        "--target-feasibility-report",
+        str(feasibility_path),
         "--no-signal-report",
         str(no_signal_path),
         "--no-signal-feature-manifest",
@@ -472,7 +497,12 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
     assert receipt["forecast_robustness"]["policy"] == control_policy.model_dump(mode="json")
     assert receipt["forecast_economic_performance_passed"] is True
     assert receipt["forecast_economic_passed"] is True
+    feasibility = TargetFeasibilityReport.model_validate_json(feasibility_path.read_bytes())
+    assert receipt["target_feasibility_report_sha256"] == feasibility.sha256()
+    assert receipt["target_feasibility_passed"] is True
     assert receipt["negative_controls_passed"] is True
+    assert receipt["negative_controls"]["schema_version"] == 4
+    assert receipt["negative_controls"]["target_feasibility_report_sha256"] == feasibility.sha256()
     assert receipt["negative_controls"]["randomized_seeds"] == [11, 12, 13]
     manifest_path = Path(receipt["model_manifest"])
     assert manifest_path.is_file()
@@ -518,6 +548,62 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
     assert validation["engine"] == "lightgbm"
 
 
+def test_target_feasibility_cli_writes_valid_failing_and_passing_evidence(
+    tmp_path: Path,
+    project_root: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    matrix_path = tmp_path / "matrix.npz"
+    matrix_manifest_path = write_matrix(matrix_path)
+    plan_path = tmp_path / "validation-plan.json"
+    plan_path.write_text(validation_plan().model_dump_json(), encoding="utf-8")
+    policy_path = tmp_path / "control-policy.json"
+    write_control_policy(policy_path)
+    scenario_path = tmp_path / "zero-cost-scenario.toml"
+    write_zero_cost_scenario(scenario_path)
+    report_path = tmp_path / "target-feasibility.json"
+
+    arguments = [
+        "audit-target-feasibility",
+        "--matrix",
+        str(matrix_path),
+        "--matrix-manifest",
+        str(matrix_manifest_path),
+        "--validation-plan",
+        str(plan_path),
+        "--control-policy",
+        str(policy_path),
+        "--scenario",
+        str(scenario_path),
+        "--output",
+        str(report_path),
+    ]
+    assert main(arguments) == 0
+    summary = json.loads(capsys.readouterr().out)
+    report = TargetFeasibilityReport.model_validate_json(report_path.read_bytes())
+    assert summary["selection_role"] == "training_windows_only"
+    assert summary["opportunity_sufficient"] is True
+    assert summary["passed"] is True
+    assert report.folds[0].slices[0].observation_count == 20
+    assert report.passed
+
+    failing_path = tmp_path / "target-feasibility-failing.json"
+    failing_arguments = list(arguments)
+    failing_arguments[failing_arguments.index(str(policy_path))] = str(
+        project_root / "configs/research/controls-v2.json"
+    )
+    failing_arguments[failing_arguments.index(str(scenario_path))] = str(
+        project_root / "configs/backtest/baseline.toml"
+    )
+    failing_arguments[failing_arguments.index(str(report_path))] = str(failing_path)
+    assert main(failing_arguments) == 3
+    failing_summary = json.loads(capsys.readouterr().out)
+    failing = TargetFeasibilityReport.model_validate_json(failing_path.read_bytes())
+    assert failing_summary["opportunity_sufficient"] is False
+    assert failing_summary["passed"] is False
+    assert not failing.passed
+
+
 def test_research_cli_rejects_schema_mismatch_and_partial_champion(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -551,6 +637,8 @@ def test_research_cli_rejects_schema_mismatch_and_partial_champion(
                 "2026-08-04T00:00:00+00:00",
                 "--control-policy",
                 str(tmp_path / "missing-control-policy.json"),
+                "--target-feasibility-report",
+                str(tmp_path / "missing-target-feasibility.json"),
                 "--no-signal-report",
                 str(tmp_path / "missing-no-signal.json"),
                 "--no-signal-feature-manifest",
@@ -625,6 +713,8 @@ def test_run_search_rejects_matrix_horizon_outside_frozen_validation_plan(
                 "2026-08-20T00:00:00+00:00",
                 "--control-policy",
                 str(tmp_path / "unused-control-policy.json"),
+                "--target-feasibility-report",
+                str(tmp_path / "unused-target-feasibility.json"),
                 "--no-signal-report",
                 str(tmp_path / "unused-no-signal.json"),
                 "--no-signal-feature-manifest",

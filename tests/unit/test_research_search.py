@@ -14,14 +14,22 @@ from aiquanttrader.backtest.models import (
     ExecutionScenario,
     QueueModel,
     TimeWindow,
+    ValidationPlan,
     WalkForwardFold,
     WindowRole,
 )
 from aiquanttrader.features.models import MODEL_FEATURE_SCHEMA, FeatureSchema, VolatilityRegime
+from aiquanttrader.research.feasibility import (
+    _maximum_non_overlapping_count,
+    _maximum_non_overlapping_net,
+    audit_target_feasibility,
+    require_viable_target_feasibility,
+)
 from aiquanttrader.research.model_adapters import TrainedModel
 from aiquanttrader.research.models import (
     CausalTrainingMatrix,
     ForecastEconomicPolicy,
+    ForecastMatrixManifest,
     ForecastRegimePolicy,
     ForecastSlice,
     ForecastSliceMetrics,
@@ -110,6 +118,52 @@ def fold() -> WalkForwardFold:
     )
 
 
+def validation_plan() -> ValidationPlan:
+    return ValidationPlan(
+        policy_sha256="b" * 64,
+        dataset_sha256="a" * 64,
+        label_horizon_ns=5,
+        folds=(fold(),),
+        final_holdout=TimeWindow(
+            role=WindowRole.FINAL_HOLDOUT,
+            start_ts_ns=600,
+            end_ts_ns=700,
+        ),
+    )
+
+
+def matrix_manifest(source: CausalTrainingMatrix) -> ForecastMatrixManifest:
+    regimes = source.volatility_regimes
+    return ForecastMatrixManifest.create(
+        partition_role="development",
+        validation_plan_sha256=validation_plan().sha256(),
+        development_cutoff_ts_ns=validation_plan().final_holdout.start_ts_ns,
+        target=ForecastTarget.NEXT_MID_RETURN_BPS,
+        horizon_ns=5,
+        sample_interval_ns=10,
+        maximum_label_delay_ns=0,
+        source_feature_dataset_sha256="c" * 64,
+        source_dataset_sha256=source.source_dataset_sha256,
+        feature_schema_sha256=source.feature_schema.sha256(),
+        causal_matrix_sha256=source.sha256(),
+        file_sha256="d" * 64,
+        source_row_count=len(source.labels),
+        ready_row_count=len(source.labels),
+        candidate_row_count=len(source.labels),
+        row_count=len(source.labels),
+        low_volatility_row_count=int(np.sum(regimes == VolatilityRegime.LOW.value)),
+        normal_volatility_row_count=int(np.sum(regimes == VolatilityRegime.NORMAL.value)),
+        high_volatility_row_count=int(np.sum(regimes == VolatilityRegime.HIGH.value)),
+        dropped_label_gap_count=0,
+        dropped_tail_count=0,
+        excluded_holdout_candidate_count=0,
+        first_sample_ts_ns=int(source.sample_ts_ns[0]),
+        last_sample_ts_ns=int(source.sample_ts_ns[-1]),
+        first_label_end_ts_ns=int(source.label_end_ts_ns[0]),
+        last_label_end_ts_ns=int(source.label_end_ts_ns[-1]),
+    )
+
+
 def policy() -> SearchPolicy:
     return SearchPolicy(
         policy_id="bounded-test",
@@ -186,6 +240,102 @@ def test_search_uses_validation_only_and_test_labels_cannot_change_selection() -
     assert not altered.forecast_economic.passed
 
 
+def test_target_feasibility_uses_training_only_and_exposes_optimistic_ceilings() -> None:
+    source = matrix()
+    report = audit_target_feasibility(
+        matrix=source,
+        matrix_manifest=matrix_manifest(source),
+        validation_plan=validation_plan(),
+        policy=control_policy(),
+        scenario=scenario(),
+    )
+    altered_source = matrix(alter_test=True)
+    altered = audit_target_feasibility(
+        matrix=altered_source,
+        matrix_manifest=matrix_manifest(altered_source),
+        validation_plan=validation_plan(),
+        policy=control_policy(),
+        scenario=scenario(),
+    )
+
+    aggregate = report.folds[0].slices[0]
+    assert report.folds == altered.folds
+    assert aggregate.observation_count == 20
+    assert aggregate.positive_net_label_count == 19
+    assert aggregate.maximum_non_overlapping_observation_count == 20
+    assert aggregate.maximum_non_overlapping_positive_net_count == 19
+    assert aggregate.maximum_non_overlapping_net_return_bps == pytest.approx(38.0)
+    assert aggregate.maximum_single_trade_net_return_bps == pytest.approx(3.8)
+    assert report.opportunity_sufficient
+    assert report.passed
+
+    calibrated_gate = control_policy().model_copy(
+        update={
+            "forecast_economic": control_policy().forecast_economic.model_copy(
+                update={"require_calibrated_scenario": True}
+            )
+        }
+    )
+    uncalibrated = audit_target_feasibility(
+        matrix=source,
+        matrix_manifest=matrix_manifest(source),
+        validation_plan=validation_plan(),
+        policy=calibrated_gate,
+        scenario=scenario(),
+    )
+    assert uncalibrated.opportunity_sufficient
+    assert not uncalibrated.passed
+    require_viable_target_feasibility(
+        report=uncalibrated,
+        matrix=source,
+        matrix_manifest=matrix_manifest(source),
+        validation_plan=validation_plan(),
+        policy=calibrated_gate,
+        scenario=scenario(),
+    )
+    with pytest.raises(ValueError, match="does not match bound"):
+        require_viable_target_feasibility(
+            report=uncalibrated.model_copy(update={"scenario_id": "tampered"}),
+            matrix=source,
+            matrix_manifest=matrix_manifest(source),
+            validation_plan=validation_plan(),
+            policy=calibrated_gate,
+            scenario=scenario(),
+        )
+
+    costly_scenario = scenario().model_copy(update={"taker_fee_bps": Decimal("100")})
+    infeasible = audit_target_feasibility(
+        matrix=source,
+        matrix_manifest=matrix_manifest(source),
+        validation_plan=validation_plan(),
+        policy=control_policy(),
+        scenario=costly_scenario,
+    )
+    assert not infeasible.opportunity_sufficient
+    with pytest.raises(ValueError, match="opportunity ceiling"):
+        require_viable_target_feasibility(
+            report=infeasible,
+            matrix=source,
+            matrix_manifest=matrix_manifest(source),
+            validation_plan=validation_plan(),
+            policy=control_policy(),
+            scenario=costly_scenario,
+        )
+
+
+def test_target_feasibility_interval_ceilings_are_deterministic() -> None:
+    starts = np.asarray([0, 10, 20], dtype=np.int64)
+    ends = np.asarray([20, 30, 40], dtype=np.int64)
+    returns = np.asarray([5.0, 9.0, 5.0], dtype=np.float64)
+
+    assert _maximum_non_overlapping_count(starts, ends) == 2
+    assert _maximum_non_overlapping_net(starts, ends, returns) == 10.0
+    with pytest.raises(ValueError, match="aligned vectors"):
+        _maximum_non_overlapping_count(starts, ends[:-1])
+    with pytest.raises(ValueError, match="must align"):
+        _maximum_non_overlapping_net(starts, ends, returns[:-1])
+
+
 def test_causal_windows_exclude_labels_crossing_the_boundary() -> None:
     source = matrix()
     training = source.window(fold().train)
@@ -227,6 +377,8 @@ def test_randomized_label_control_is_seeded_and_no_signal_is_mandatory() -> None
         fold_index=0,
         no_signal_decision_count=0,
         no_signal_report_sha256="f" * 64,
+        target_feasibility_report_sha256="e" * 64,
+        target_feasibility_passed=True,
         forecast_robustness=result.forecast_robustness,
         forecast_economic=result.forecast_economic,
     )
@@ -241,6 +393,8 @@ def test_randomized_label_control_is_seeded_and_no_signal_is_mandatory() -> None
         fold_index=0,
         no_signal_decision_count=0,
         no_signal_report_sha256="f" * 64,
+        target_feasibility_report_sha256="e" * 64,
+        target_feasibility_passed=True,
         forecast_robustness=result.forecast_robustness,
         forecast_economic=result.forecast_economic,
     )
@@ -259,6 +413,8 @@ def test_randomized_label_control_is_seeded_and_no_signal_is_mandatory() -> None
             fold_index=1,
             no_signal_decision_count=0,
             no_signal_report_sha256="f" * 64,
+            target_feasibility_report_sha256="e" * 64,
+            target_feasibility_passed=True,
             forecast_robustness=result.forecast_robustness,
             forecast_economic=result.forecast_economic,
         )
@@ -277,6 +433,8 @@ def test_randomized_label_control_is_seeded_and_no_signal_is_mandatory() -> None
             fold_index=0,
             no_signal_decision_count=0,
             no_signal_report_sha256="f" * 64,
+            target_feasibility_report_sha256="e" * 64,
+            target_feasibility_passed=True,
             forecast_robustness=mismatched_receipt_report,
             forecast_economic=result.forecast_economic,
         )
@@ -292,6 +450,8 @@ def test_randomized_label_control_is_seeded_and_no_signal_is_mandatory() -> None
             fold_index=0,
             no_signal_decision_count=0,
             no_signal_report_sha256="f" * 64,
+            target_feasibility_report_sha256="e" * 64,
+            target_feasibility_passed=True,
             forecast_robustness=result.forecast_robustness,
             forecast_economic=result.forecast_economic,
         )
@@ -303,6 +463,7 @@ def test_randomized_label_control_is_seeded_and_no_signal_is_mandatory() -> None
     )
     assert passing.passed
     assert not passing.model_copy(update={"no_signal_decision_count": 1}).passed
+    assert not passing.model_copy(update={"target_feasibility_passed": False}).passed
     with pytest.raises(ValidationError, match="seeds do not match"):
         NegativeControlReport.model_validate(
             {**first.model_dump(mode="python"), "randomized_seeds": (1, 2, 3)}

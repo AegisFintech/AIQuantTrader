@@ -24,6 +24,10 @@ from aiquanttrader.features.storage import write_feature_dataset
 from aiquanttrader.market_data.io import atomic_write_bytes, sha256_file
 from aiquanttrader.research.artifacts import load_model_artifact, save_model_artifact
 from aiquanttrader.research.controls import NO_SIGNAL_CONTROL_ID, run_no_signal_control
+from aiquanttrader.research.feasibility import (
+    audit_target_feasibility,
+    require_viable_target_feasibility,
+)
 from aiquanttrader.research.governance import evaluate_challenger
 from aiquanttrader.research.matrix import (
     build_forecast_matrix,
@@ -41,6 +45,7 @@ from aiquanttrader.research.models import (
     ResearchControlPolicy,
     ResearchExperimentManifest,
     SearchPolicy,
+    TargetFeasibilityReport,
 )
 from aiquanttrader.research.registry import ResearchRegistry
 from aiquanttrader.research.search import randomized_label_control, run_fold_retraining
@@ -73,6 +78,14 @@ def _parser() -> argparse.ArgumentParser:
     matrix.add_argument("--maximum-label-delay-ns", type=int, required=True)
     matrix.add_argument("--validation-plan", type=Path, required=True)
 
+    feasibility = commands.add_parser("audit-target-feasibility")
+    feasibility.add_argument("--matrix", type=Path, required=True)
+    feasibility.add_argument("--matrix-manifest", type=Path, required=True)
+    feasibility.add_argument("--validation-plan", type=Path, required=True)
+    feasibility.add_argument("--control-policy", type=Path, required=True)
+    feasibility.add_argument("--scenario", type=Path, required=True)
+    feasibility.add_argument("--output", type=Path, required=True)
+
     no_signal = commands.add_parser("run-no-signal-control")
     no_signal.add_argument("--features", type=Path, required=True)
     no_signal.add_argument("--feature-manifest", type=Path, required=True)
@@ -93,6 +106,7 @@ def _parser() -> argparse.ArgumentParser:
     search.add_argument("--dependency-lock", type=Path, required=True)
     search.add_argument("--created-at", required=True)
     search.add_argument("--control-policy", type=Path, required=True)
+    search.add_argument("--target-feasibility-report", type=Path, required=True)
     search.add_argument("--no-signal-report", type=Path, required=True)
     search.add_argument("--no-signal-feature-manifest", type=Path, required=True)
     search.add_argument("--no-signal-strategy-config", type=Path, required=True)
@@ -202,6 +216,47 @@ def main(argv: Sequence[str] | None = None) -> int:
                 },
             )
             return 0
+        if args.command == "audit-target-feasibility":
+            matrix, matrix_manifest = load_forecast_matrix(args.matrix, args.matrix_manifest)
+            report = audit_target_feasibility(
+                matrix=matrix,
+                matrix_manifest=matrix_manifest,
+                validation_plan=ValidationPlan.model_validate_json(
+                    args.validation_plan.read_bytes()
+                ),
+                policy=ResearchControlPolicy.model_validate_json(args.control_policy.read_bytes()),
+                scenario=load_scenario(args.scenario),
+            )
+            atomic_write_bytes(args.output, report.canonical_bytes() + b"\n")
+            _write_output(
+                None,
+                {
+                    "report": str(args.output),
+                    "report_sha256": report.sha256(),
+                    "selection_role": report.selection_role,
+                    "opportunity_sufficient": report.opportunity_sufficient,
+                    "calibration_state": report.calibration_state.value,
+                    "passed": report.passed,
+                    "folds": [
+                        {
+                            "fold": fold.fold_index,
+                            "observations": fold.slices[0].observation_count,
+                            "positive_net_labels": (fold.slices[0].positive_net_label_count),
+                            "maximum_non_overlapping_observations": (
+                                fold.slices[0].maximum_non_overlapping_observation_count
+                            ),
+                            "maximum_non_overlapping_positive_net_labels": (
+                                fold.slices[0].maximum_non_overlapping_positive_net_count
+                            ),
+                            "necessary_conditions_possible": (
+                                fold.necessary_conditions_possible(report.policy.forecast_economic)
+                            ),
+                        }
+                        for fold in report.folds
+                    ],
+                },
+            )
+            return 0 if report.passed else 3
         if args.command == "run-no-signal-control":
             no_signal_report = run_no_signal_control(
                 feature_path=args.features,
@@ -244,6 +299,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             no_signal_strategy = load_scalper_config(args.no_signal_strategy_config)
             no_signal_scenario = load_scenario(args.no_signal_scenario)
+            target_feasibility = TargetFeasibilityReport.model_validate_json(
+                args.target_feasibility_report.read_bytes()
+            )
+            require_viable_target_feasibility(
+                report=target_feasibility,
+                matrix=matrix,
+                matrix_manifest=matrix_manifest,
+                validation_plan=plan,
+                policy=control_policy,
+                scenario=no_signal_scenario,
+            )
             if no_signal.control_id != NO_SIGNAL_CONTROL_ID:
                 raise ValueError("no-signal control implementation is not supported")
             if (
@@ -289,6 +355,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fold_index=args.fold,
                 no_signal_decision_count=no_signal.decision_count,
                 no_signal_report_sha256=no_signal.sha256(),
+                target_feasibility_report_sha256=target_feasibility.sha256(),
+                target_feasibility_passed=target_feasibility.passed,
                 forecast_robustness=result.forecast_robustness,
                 forecast_economic=result.forecast_economic,
             )
@@ -304,6 +372,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload: dict[str, object] = {
                 "model_manifest": str(manifest_path),
                 "model_id": model_manifest.model_id,
+                "target_feasibility_report": str(args.target_feasibility_report),
+                "target_feasibility_report_sha256": target_feasibility.sha256(),
+                "target_feasibility_passed": target_feasibility.passed,
                 "search_receipt": result.search.receipt.model_dump(mode="json"),
                 "walk_forward_test_mse": result.walk_forward_test_mse,
                 "zero_prediction_test_mse": result.zero_prediction_test_mse,

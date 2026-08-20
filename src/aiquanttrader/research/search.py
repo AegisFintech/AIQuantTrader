@@ -340,6 +340,8 @@ def randomized_label_control(
     fold_index: int,
     no_signal_decision_count: int,
     no_signal_report_sha256: str,
+    target_feasibility_report_sha256: str,
+    target_feasibility_passed: bool,
     forecast_robustness: ForecastRobustnessReport,
     forecast_economic: ForecastEconomicReport,
 ) -> NegativeControlReport:
@@ -393,6 +395,8 @@ def randomized_label_control(
         randomized_seeds=seeds,
         no_signal_decision_count=no_signal_decision_count,
         no_signal_report_sha256=no_signal_report_sha256,
+        target_feasibility_report_sha256=target_feasibility_report_sha256,
+        target_feasibility_passed=target_feasibility_passed,
         forecast_robustness_report_sha256=forecast_robustness.sha256(),
         forecast_robustness_passed=forecast_robustness.passed,
         forecast_economic_report_sha256=forecast_economic.sha256(),

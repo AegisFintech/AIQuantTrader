@@ -997,8 +997,8 @@
           "type": "array"
         },
         "schema_version": {
-          "const": 3,
-          "default": 3,
+          "const": 4,
+          "default": 4,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -1011,6 +1011,15 @@
           "minimum": 0,
           "title": "Selected Model Validation Mse",
           "type": "number"
+        },
+        "target_feasibility_passed": {
+          "title": "Target Feasibility Passed",
+          "type": "boolean"
+        },
+        "target_feasibility_report_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Target Feasibility Report Sha256",
+          "type": "string"
         },
         "training_mean_validation_mse": {
           "minimum": 0,
@@ -1028,6 +1037,8 @@
         "randomized_seeds",
         "no_signal_decision_count",
         "no_signal_report_sha256",
+        "target_feasibility_report_sha256",
+        "target_feasibility_passed",
         "forecast_robustness_report_sha256",
         "forecast_robustness_passed",
         "forecast_economic_report_sha256",
@@ -1628,6 +1639,220 @@
       "title": "SearchTrial",
       "type": "object"
     },
+    "TargetFeasibilityFoldReport": {
+      "additionalProperties": false,
+      "properties": {
+        "fold_index": {
+          "minimum": 0,
+          "title": "Fold Index",
+          "type": "integer"
+        },
+        "slices": {
+          "items": {
+            "$ref": "#/$defs/TargetFeasibilitySliceMetrics"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Slices",
+          "type": "array"
+        },
+        "training_dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Training Dataset Sha256",
+          "type": "string"
+        },
+        "training_end_ts_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Training End Ts Ns",
+          "type": "integer"
+        },
+        "training_start_ts_ns": {
+          "minimum": 0,
+          "title": "Training Start Ts Ns",
+          "type": "integer"
+        },
+        "training_window_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Training Window Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "fold_index",
+        "training_window_sha256",
+        "training_dataset_sha256",
+        "training_start_ts_ns",
+        "training_end_ts_ns",
+        "slices"
+      ],
+      "title": "TargetFeasibilityFoldReport",
+      "type": "object"
+    },
+    "TargetFeasibilityReport": {
+      "additionalProperties": false,
+      "properties": {
+        "calibration_state": {
+          "$ref": "#/$defs/CalibrationState"
+        },
+        "causal_matrix_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Causal Matrix Sha256",
+          "type": "string"
+        },
+        "feature_schema_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Schema Sha256",
+          "type": "string"
+        },
+        "folds": {
+          "items": {
+            "$ref": "#/$defs/TargetFeasibilityFoldReport"
+          },
+          "minItems": 1,
+          "title": "Folds",
+          "type": "array"
+        },
+        "horizon_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Horizon Ns",
+          "type": "integer"
+        },
+        "matrix_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Matrix Id",
+          "type": "string"
+        },
+        "oracle_kind": {
+          "const": "optimistic_non_overlapping_label_ceiling",
+          "default": "optimistic_non_overlapping_label_ceiling",
+          "title": "Oracle Kind",
+          "type": "string"
+        },
+        "policy": {
+          "$ref": "#/$defs/ResearchControlPolicy"
+        },
+        "round_trip_cost_bps": {
+          "minimum": 0,
+          "title": "Round Trip Cost Bps",
+          "type": "number"
+        },
+        "sample_interval_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Sample Interval Ns",
+          "type": "integer"
+        },
+        "scenario_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "scenario_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scenario Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "selection_role": {
+          "const": "training_windows_only",
+          "default": "training_windows_only",
+          "title": "Selection Role",
+          "type": "string"
+        },
+        "signal_threshold_bps": {
+          "minimum": 0,
+          "title": "Signal Threshold Bps",
+          "type": "number"
+        },
+        "target": {
+          "$ref": "#/$defs/ForecastTarget"
+        },
+        "validation_plan_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Validation Plan Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "matrix_id",
+        "causal_matrix_sha256",
+        "feature_schema_sha256",
+        "validation_plan_sha256",
+        "horizon_ns",
+        "sample_interval_ns",
+        "policy",
+        "scenario_id",
+        "scenario_sha256",
+        "calibration_state",
+        "round_trip_cost_bps",
+        "signal_threshold_bps",
+        "folds"
+      ],
+      "title": "TargetFeasibilityReport",
+      "type": "object"
+    },
+    "TargetFeasibilitySliceMetrics": {
+      "additionalProperties": false,
+      "description": "Optimistic label-derived ceilings; never tradable performance evidence.",
+      "properties": {
+        "maximum_non_overlapping_net_return_bps": {
+          "minimum": 0,
+          "title": "Maximum Non Overlapping Net Return Bps",
+          "type": "number"
+        },
+        "maximum_non_overlapping_observation_count": {
+          "minimum": 0,
+          "title": "Maximum Non Overlapping Observation Count",
+          "type": "integer"
+        },
+        "maximum_non_overlapping_positive_net_count": {
+          "minimum": 0,
+          "title": "Maximum Non Overlapping Positive Net Count",
+          "type": "integer"
+        },
+        "maximum_single_trade_net_return_bps": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum Single Trade Net Return Bps"
+        },
+        "observation_count": {
+          "minimum": 0,
+          "title": "Observation Count",
+          "type": "integer"
+        },
+        "positive_net_label_count": {
+          "minimum": 0,
+          "title": "Positive Net Label Count",
+          "type": "integer"
+        },
+        "slice": {
+          "$ref": "#/$defs/ForecastSlice"
+        }
+      },
+      "required": [
+        "slice",
+        "observation_count",
+        "positive_net_label_count",
+        "maximum_non_overlapping_observation_count",
+        "maximum_non_overlapping_positive_net_count",
+        "maximum_non_overlapping_net_return_bps"
+      ],
+      "title": "TargetFeasibilitySliceMetrics",
+      "type": "object"
+    },
     "TrialResult": {
       "additionalProperties": false,
       "properties": {
@@ -1677,6 +1902,9 @@
     },
     {
       "$ref": "#/$defs/ForecastEconomicReport"
+    },
+    {
+      "$ref": "#/$defs/TargetFeasibilityReport"
     },
     {
       "$ref": "#/$defs/NegativeControlReport"
