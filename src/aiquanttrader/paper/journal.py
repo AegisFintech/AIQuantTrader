@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 
+from aiquanttrader.backtest.kernel import StrategyAction
 from aiquanttrader.features.market_structure import CausalStructureState
 from aiquanttrader.features.models import MicrostructureSnapshot, VolatilityRegime
 from aiquanttrader.paper.llm_models import LlmConfirmation
@@ -24,6 +25,9 @@ from aiquanttrader.paper.models import (
     PaperMarkout,
     PaperOrder,
     PaperRunManifest,
+    PaperStrategyActionCount,
+    PaperStrategyEvaluation,
+    PaperStrategyEvaluationSummary,
 )
 from aiquanttrader.research.models import DriftReport
 
@@ -108,6 +112,19 @@ class PaperJournal:
                 independent INTEGER NOT NULL,
                 record_json TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS strategy_evaluations (
+                evaluation_id TEXT PRIMARY KEY,
+                run_id TEXT NOT NULL REFERENCES runs(run_id),
+                sequence INTEGER NOT NULL,
+                evaluated_ts_ns INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                reason TEXT NOT NULL,
+                feature_ready INTEGER NOT NULL,
+                structure_ready INTEGER NOT NULL,
+                feed_connected INTEGER NOT NULL,
+                evaluation_json TEXT NOT NULL,
+                UNIQUE(run_id, sequence)
+            );
             CREATE TABLE IF NOT EXISTS commands (
                 command_id TEXT PRIMARY KEY,
                 run_id TEXT NOT NULL REFERENCES runs(run_id),
@@ -185,6 +202,10 @@ class PaperJournal:
             );
             CREATE INDEX IF NOT EXISTS idx_orders_run_state ON orders(run_id, state);
             CREATE INDEX IF NOT EXISTS idx_decisions_run_ts ON decisions(run_id, decision_ts_ns);
+            CREATE INDEX IF NOT EXISTS idx_strategy_evaluations_run_ts
+                ON strategy_evaluations(run_id, evaluated_ts_ns);
+            CREATE INDEX IF NOT EXISTS idx_strategy_evaluations_run_gate
+                ON strategy_evaluations(run_id, action, reason);
             CREATE INDEX IF NOT EXISTS idx_commands_run_ts ON commands(run_id, command_ts_ns);
             CREATE INDEX IF NOT EXISTS idx_accounts_run_ts
                 ON account_snapshots(run_id, snapshot_ts_ns);
@@ -312,6 +333,7 @@ class PaperJournal:
         markouts: Sequence[PaperMarkout],
         checkpoint: PaperEngineCheckpoint,
         drift_report: DriftReport | None,
+        strategy_evaluation: PaperStrategyEvaluation,
         commands: Sequence[PaperExecutionCommand] = (),
     ) -> None:
         """Commit one causal market-state transition as a single durability unit."""
@@ -359,6 +381,26 @@ class PaperJournal:
                         record.model_dump_json(),
                     ),
                 )
+            connection.execute(
+                """
+                INSERT INTO strategy_evaluations(
+                    evaluation_id, run_id, sequence, evaluated_ts_ns, action, reason,
+                    feature_ready, structure_ready, feed_connected, evaluation_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    strategy_evaluation.evaluation_id,
+                    run_id,
+                    strategy_evaluation.sequence,
+                    strategy_evaluation.evaluated_ts_ns,
+                    strategy_evaluation.decision.action.value,
+                    strategy_evaluation.decision.reason,
+                    int(strategy_evaluation.feature_ready),
+                    int(strategy_evaluation.structure_ready),
+                    int(strategy_evaluation.feed_connected),
+                    strategy_evaluation.model_dump_json(),
+                ),
+            )
             connection.execute(
                 """
                 INSERT INTO features(
@@ -609,6 +651,91 @@ class PaperJournal:
                 (run_id,),
             ).fetchall()
         return tuple(PaperDecisionRecord.model_validate_json(row["record_json"]) for row in rows)
+
+    def next_strategy_evaluation_sequence(self, run_id: str) -> int:
+        with self._lock:
+            row = self._connection.execute(
+                """
+                SELECT COALESCE(MAX(sequence), -1) + 1 AS next
+                FROM strategy_evaluations WHERE run_id = ?
+                """,
+                (run_id,),
+            ).fetchone()
+        return int(row["next"])
+
+    def strategy_evaluations(self, run_id: str) -> tuple[PaperStrategyEvaluation, ...]:
+        with self._lock:
+            rows = self._connection.execute(
+                """
+                SELECT evaluation_json FROM strategy_evaluations
+                WHERE run_id = ? ORDER BY sequence
+                """,
+                (run_id,),
+            ).fetchall()
+        return tuple(
+            PaperStrategyEvaluation.model_validate_json(row["evaluation_json"]) for row in rows
+        )
+
+    def strategy_evaluation_summary(self, run_id: str) -> PaperStrategyEvaluationSummary:
+        with self._lock:
+            if (
+                self._connection.execute(
+                    "SELECT 1 FROM runs WHERE run_id = ?", (run_id,)
+                ).fetchone()
+                is None
+            ):
+                raise ValueError(f"unknown paper run: {run_id}")
+            totals = self._connection.execute(
+                """
+                SELECT COUNT(*) AS evaluations,
+                    COALESCE(SUM(feature_ready), 0) AS feature_ready,
+                    COALESCE(SUM(structure_ready), 0) AS structure_ready,
+                    COALESCE(SUM(feed_connected), 0) AS feed_connected,
+                    MIN(evaluated_ts_ns) AS first_ts,
+                    MAX(evaluated_ts_ns) AS last_ts
+                FROM strategy_evaluations WHERE run_id = ?
+                """,
+                (run_id,),
+            ).fetchone()
+            gates = self._connection.execute(
+                """
+                SELECT action, reason, COUNT(*) AS count
+                FROM strategy_evaluations WHERE run_id = ?
+                GROUP BY action, reason
+                ORDER BY count DESC, action, reason
+                """,
+                (run_id,),
+            ).fetchall()
+            latest = self._connection.execute(
+                """
+                SELECT evaluation_json FROM strategy_evaluations
+                WHERE run_id = ? ORDER BY sequence DESC LIMIT 1
+                """,
+                (run_id,),
+            ).fetchone()
+        latest_evaluation = (
+            None
+            if latest is None
+            else PaperStrategyEvaluation.model_validate_json(latest["evaluation_json"])
+        )
+        return PaperStrategyEvaluationSummary(
+            run_id=run_id,
+            evaluations=int(totals["evaluations"]),
+            feature_ready_evaluations=int(totals["feature_ready"]),
+            structure_ready_evaluations=int(totals["structure_ready"]),
+            feed_connected_evaluations=int(totals["feed_connected"]),
+            first_evaluated_ts_ns=(None if totals["first_ts"] is None else int(totals["first_ts"])),
+            last_evaluated_ts_ns=(None if totals["last_ts"] is None else int(totals["last_ts"])),
+            action_counts=tuple(
+                PaperStrategyActionCount(
+                    action=StrategyAction(str(row["action"])),
+                    reason=str(row["reason"]),
+                    count=int(row["count"]),
+                )
+                for row in gates
+            ),
+            latest_forecast=(None if latest_evaluation is None else latest_evaluation.forecast),
+        )
 
     def pending_markout_fills(self, run_id: str, horizon_ns: int) -> tuple[PaperFill, ...]:
         with self._lock:

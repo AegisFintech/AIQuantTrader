@@ -1765,6 +1765,75 @@
       "title": "PaperFill",
       "type": "object"
     },
+    "PaperForecastDiagnostics": {
+      "additionalProperties": false,
+      "description": "Bounded adaptive-model diagnostics captured at one causal decision.",
+      "properties": {
+        "directional_accuracy": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Directional Accuracy"
+        },
+        "latest_prediction_bps": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Latest Prediction Bps"
+        },
+        "mean_absolute_error_bps": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Mean Absolute Error Bps"
+        },
+        "ready": {
+          "title": "Ready",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "training_samples": {
+          "minimum": 0,
+          "title": "Training Samples",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "training_samples",
+        "ready",
+        "directional_accuracy",
+        "mean_absolute_error_bps",
+        "latest_prediction_bps"
+      ],
+      "title": "PaperForecastDiagnostics",
+      "type": "object"
+    },
     "PaperGateResult": {
       "additionalProperties": false,
       "properties": {
@@ -2270,6 +2339,217 @@
         "fills"
       ],
       "title": "PaperRuntimeStatus",
+      "type": "object"
+    },
+    "PaperStrategyActionCount": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/StrategyAction"
+        },
+        "count": {
+          "exclusiveMinimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "reason": {
+          "maxLength": 256,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "reason",
+        "count"
+      ],
+      "title": "PaperStrategyActionCount",
+      "type": "object"
+    },
+    "PaperStrategyEvaluation": {
+      "additionalProperties": false,
+      "description": "One strategy outcome, including blocked actions that emitted no intent.",
+      "properties": {
+        "decision": {
+          "$ref": "#/$defs/KernelDecision"
+        },
+        "evaluated_ts_ns": {
+          "minimum": 0,
+          "title": "Evaluated Ts Ns",
+          "type": "integer"
+        },
+        "evaluation_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Evaluation Id",
+          "type": "string"
+        },
+        "feature_ready": {
+          "title": "Feature Ready",
+          "type": "boolean"
+        },
+        "feature_snapshot_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Snapshot Sha256",
+          "type": "string"
+        },
+        "feed_connected": {
+          "title": "Feed Connected",
+          "type": "boolean"
+        },
+        "forecast": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaperForecastDiagnostics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "risk_reasons": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RiskReason"
+          },
+          "title": "Risk Reasons",
+          "type": "array"
+        },
+        "risk_state": {
+          "$ref": "#/$defs/RiskState"
+        },
+        "run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sequence": {
+          "minimum": 0,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "strategy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Strategy Id",
+          "type": "string"
+        },
+        "structure_ready": {
+          "title": "Structure Ready",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "evaluation_id",
+        "run_id",
+        "sequence",
+        "evaluated_ts_ns",
+        "feature_snapshot_sha256",
+        "strategy_id",
+        "feature_ready",
+        "structure_ready",
+        "feed_connected",
+        "risk_state",
+        "decision"
+      ],
+      "title": "PaperStrategyEvaluation",
+      "type": "object"
+    },
+    "PaperStrategyEvaluationSummary": {
+      "additionalProperties": false,
+      "description": "Compact gate distribution and terminal model state for one paper run.",
+      "properties": {
+        "action_counts": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PaperStrategyActionCount"
+          },
+          "title": "Action Counts",
+          "type": "array"
+        },
+        "evaluations": {
+          "minimum": 0,
+          "title": "Evaluations",
+          "type": "integer"
+        },
+        "feature_ready_evaluations": {
+          "minimum": 0,
+          "title": "Feature Ready Evaluations",
+          "type": "integer"
+        },
+        "feed_connected_evaluations": {
+          "minimum": 0,
+          "title": "Feed Connected Evaluations",
+          "type": "integer"
+        },
+        "first_evaluated_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "First Evaluated Ts Ns"
+        },
+        "last_evaluated_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Evaluated Ts Ns"
+        },
+        "latest_forecast": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PaperForecastDiagnostics"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "structure_ready_evaluations": {
+          "minimum": 0,
+          "title": "Structure Ready Evaluations",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "run_id",
+        "evaluations",
+        "feature_ready_evaluations",
+        "structure_ready_evaluations",
+        "feed_connected_evaluations"
+      ],
+      "title": "PaperStrategyEvaluationSummary",
       "type": "object"
     },
     "RiskDecision": {
@@ -2866,6 +3146,18 @@
     },
     {
       "$ref": "#/$defs/PaperRuntimeStatus"
+    },
+    {
+      "$ref": "#/$defs/PaperForecastDiagnostics"
+    },
+    {
+      "$ref": "#/$defs/PaperStrategyEvaluation"
+    },
+    {
+      "$ref": "#/$defs/PaperStrategyActionCount"
+    },
+    {
+      "$ref": "#/$defs/PaperStrategyEvaluationSummary"
     },
     {
       "$ref": "#/$defs/PaperMarkout"

@@ -49,7 +49,7 @@ the migration record; none of those systems has runtime authority.
 | `risk/` | Synchronous risk authority and durable operator kill switch. |
 | `sentinel/` | Separately credentialed dead-man renewal and emergency cancel-all. |
 | `research/` | CPU model adapters, bounded search, drift, registry, and champion-challenger evaluation. |
-| `paper/` | Public-feed simulation, accounting, journals, evidence, and optional shadow-only LLM review. |
+| `paper/` | Public-feed simulation, accounting, per-cycle strategy gate diagnostics, journals, evidence, and optional shadow-only LLM review. |
 | `shadow/` | Checksummed ingress, network-isolated counterfactual engine, observer, and evidence. |
 | `governance/` | Artifact bundles, offline approvals, admission ledger, renewals, and release evidence. |
 | `service/` | Common health/readiness service. |
@@ -103,6 +103,9 @@ observer. LLM output is evidence, never order or risk authority.
   layer.
 - SQLite journals own restart continuity for live, paper, shadow, admission,
   and evidence state where transactional semantics are required.
+- Paper journals retain every strategy action and gate reason atomically with
+  its feature/account/checkpoint cycle, including outcomes that emit no order
+  intent; `aqt-paper diagnostics` summarizes that evidence without changing it.
 - `data/`, `state/`, models, databases, logs, credentials, and runtime files are
   gitignored.
 

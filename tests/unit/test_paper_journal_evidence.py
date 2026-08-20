@@ -6,8 +6,15 @@ from pathlib import Path
 
 import pytest
 
+from aiquanttrader.backtest.kernel import KernelDecision, StrategyAction
 from aiquanttrader.backtest.models import CalibrationState, ExecutionScenario, QueueModel
-from aiquanttrader.domain.execution import OrderIntent, OrderKind, TimeInForce
+from aiquanttrader.domain.execution import (
+    OrderIntent,
+    OrderKind,
+    RiskReason,
+    RiskState,
+    TimeInForce,
+)
 from aiquanttrader.domain.market import OrderSide
 from aiquanttrader.features.models import VolatilityRegime
 from aiquanttrader.paper.evidence import evaluate_paper_evidence
@@ -24,6 +31,9 @@ from aiquanttrader.paper.models import (
     PaperOrder,
     PaperOrderState,
     PaperRunManifest,
+    PaperStrategyActionCount,
+    PaperStrategyEvaluation,
+    PaperStrategyEvaluationSummary,
 )
 
 HASH = "a" * 64
@@ -187,6 +197,45 @@ def test_paper_journal_restores_account_orders_and_strategy_checkpoint(tmp_path:
     with pytest.raises(ValueError, match="identity changed"):
         restored.begin_run(run.model_copy(update={"code_identity": "different"}), account(1_000))
     restored.close()
+
+
+def test_strategy_evaluation_contract_rejects_corrupt_gate_evidence() -> None:
+    with pytest.raises(ValueError, match="risk reasons must be unique"):
+        PaperStrategyEvaluation(
+            evaluation_id="5" * 64,
+            run_id="run-1",
+            sequence=0,
+            evaluated_ts_ns=1_000,
+            feature_snapshot_sha256="6" * 64,
+            strategy_id="smart-money-scalper-v2",
+            feature_ready=True,
+            structure_ready=True,
+            feed_connected=True,
+            risk_state=RiskState.ACTIVE,
+            risk_reasons=(RiskReason.APPROVED, RiskReason.APPROVED),
+            decision=KernelDecision(
+                action=StrategyAction.BLOCKED_MODEL,
+                reason="forecast_directional_accuracy_below_gate",
+            ),
+        )
+
+    with pytest.raises(ValueError, match="action counts do not match"):
+        PaperStrategyEvaluationSummary(
+            run_id="run-1",
+            evaluations=2,
+            feature_ready_evaluations=2,
+            structure_ready_evaluations=2,
+            feed_connected_evaluations=2,
+            first_evaluated_ts_ns=1_000,
+            last_evaluated_ts_ns=2_000,
+            action_counts=(
+                PaperStrategyActionCount(
+                    action=StrategyAction.BLOCKED_MODEL,
+                    reason="forecast_directional_accuracy_below_gate",
+                    count=1,
+                ),
+            ),
+        )
 
 
 def test_evidence_requires_calibration_sensitivity_samples_regimes_and_drills() -> None:

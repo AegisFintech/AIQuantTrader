@@ -88,10 +88,14 @@ from aiquanttrader.paper.models import (
     PaperEvidenceReport,
     PaperExecutionCommand,
     PaperFill,
+    PaperForecastDiagnostics,
     PaperMarkout,
     PaperOrder,
     PaperRunManifest,
     PaperRuntimeStatus,
+    PaperStrategyActionCount,
+    PaperStrategyEvaluation,
+    PaperStrategyEvaluationSummary,
 )
 from aiquanttrader.research.models import (
     ChampionChallengerReport,
@@ -245,6 +249,10 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | PaperEvidencePolicy
         | PaperEvidenceReport
         | PaperRuntimeStatus
+        | PaperForecastDiagnostics
+        | PaperStrategyEvaluation
+        | PaperStrategyActionCount
+        | PaperStrategyEvaluationSummary
         | PaperMarkout
         | PaperExecutionCommand
         | CausalCandle
