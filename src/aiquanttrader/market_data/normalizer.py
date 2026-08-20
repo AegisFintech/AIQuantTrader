@@ -27,6 +27,7 @@ class NormalizationWorker:
     def __init__(self, data_root: Path, catalog: ManifestCatalog) -> None:
         self.data_root = data_root.resolve()
         self.catalog = catalog
+        self._cataloged_segment_ids = set(catalog.normalized_segment_ids())
 
     def run_once(self) -> NormalizationBatch:
         normalized_count = 0
@@ -34,6 +35,10 @@ class NormalizationWorker:
         quarantined_count = 0
         manifests = sorted((self.data_root / "raw").rglob("*.manifest.json"))
         for manifest_path in manifests:
+            segment_id = manifest_path.name.removesuffix(".manifest.json")
+            if segment_id in self._cataloged_segment_ids:
+                complete_count += 1
+                continue
             raw = load_segment_manifest(manifest_path)
             normalized_path = (
                 self.data_root
@@ -49,6 +54,7 @@ class NormalizationWorker:
                     )
                 validate_normalized_files(normalized, self.data_root)
                 self.catalog.register_normalized(normalized)
+                self._cataloged_segment_ids.add(raw.segment_id)
                 complete_count += 1
                 continue
             segment_path = self.data_root / raw.relative_path
@@ -62,6 +68,7 @@ class NormalizationWorker:
                 quarantined_count += 1
                 continue
             self.catalog.register_normalized(result.manifest)
+            self._cataloged_segment_ids.add(raw.segment_id)
             normalized_count += 1
         return NormalizationBatch(
             discovered=len(manifests),

@@ -15,5 +15,5 @@ sync_every_records = 1
 
 [paper]
 enabled = true
-strategy_id = "smart-money-scalper-v1"
-strategy_config_path = "strategies/smart-money-scalper-v1.toml"
+strategy_id = "smart-money-scalper-v2"
+strategy_config_path = "strategies/smart-money-scalper-v2.toml"

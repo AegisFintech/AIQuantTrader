@@ -556,8 +556,11 @@
           "type": "string"
         },
         "strategy_id": {
-          "const": "smart-money-scalper-v1",
           "default": "smart-money-scalper-v1",
+          "enum": [
+            "smart-money-scalper-v1",
+            "smart-money-scalper-v2"
+          ],
           "title": "Strategy Id",
           "type": "string"
         },
@@ -2482,7 +2485,8 @@
         "blocked_confluence",
         "blocked_cooldown",
         "blocked_volatility",
-        "blocked_inventory"
+        "blocked_inventory",
+        "blocked_model"
       ],
       "title": "StrategyAction",
       "type": "string"

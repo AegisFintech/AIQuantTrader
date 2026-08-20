@@ -44,7 +44,7 @@ the migration record; none of those systems has runtime authority.
 | `domain/` | Versioned market, data, feature, execution, experiment, and governance contracts. |
 | `market_data/` | Raw-first WebSocket capture, integrity, normalization, health, cataloging, Tardis acquisition, and content-addressed host-soak evidence. |
 | `features/` | Incremental microstructure plus causal 1m/5m/15m structure and deterministic Parquet lineage. |
-| `strategies/` | Pure Avellaneda-Stoikov, order-flow, and bounded smart-money scalper kernels. |
+| `strategies/` | Pure Avellaneda-Stoikov, order-flow, bounded smart-money, and paper-only adaptive scalper kernels. |
 | `execution/` | Nautilus execution gateway, strategy wiring, order journal, reconciliation, and metrics. |
 | `risk/` | Synchronous risk authority and durable operator kill switch. |
 | `sentinel/` | Separately credentialed dead-man renewal and emergency cancel-all. |
@@ -125,7 +125,8 @@ risk limits, account/vault, wallet roles, capital, expiry, and rollback target.
 Metrics cover market-data integrity and freshness, feature readiness, decision
 and execution latency, risk denials, inventory, order/fill quality, markouts,
 PnL attribution, drift, admission, renewal, sentinel continuity, and kill
-state. Grafana dashboards are provisioned from
+state. Node Exporter supplies host CPU, memory, disk, network, uptime, and load.
+Grafana dashboards are provisioned from
 `observability/grafana/dashboards/`.
 
 ## Operational entry points

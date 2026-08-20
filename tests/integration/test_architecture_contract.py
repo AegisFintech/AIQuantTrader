@@ -188,11 +188,13 @@ def test_paper_service_has_no_wallet_secret_or_exchange_order_capability(
 def test_paper_monitor_is_local_pinned_read_only_and_metric_complete(project_root: Path) -> None:
     compose = (project_root / "compose.yaml").read_text(encoding="utf-8")
     prometheus = compose.split("  prometheus:", 1)[1].split("  grafana:", 1)[0]
-    grafana = compose.split("  grafana:", 1)[1].split("\nvolumes:", 1)[0]
+    grafana = compose.split("  grafana:", 1)[1].split("  node-exporter:", 1)[0]
+    node_exporter = compose.split("  node-exporter:", 1)[1].split("\nvolumes:", 1)[0]
 
     assert "prom/prometheus:v3.13.0-distroless@sha256:" in prometheus
     assert "grafana/grafana:13.1.0@sha256:" in grafana
-    for service in (prometheus, grafana):
+    assert "prom/node-exporter:v1.12.1@sha256:" in node_exporter
+    for service in (prometheus, grafana, node_exporter):
         assert "read_only: true" in service
         assert 'profiles: ["monitoring"]' in service
         assert "no-new-privileges:true" in service
@@ -201,12 +203,16 @@ def test_paper_monitor_is_local_pinned_read_only_and_metric_complete(project_roo
     assert '"127.0.0.1:3000:3000"' in grafana
     assert "GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer" in grafana
     assert 'GF_SECURITY_DISABLE_INITIAL_ADMIN_CREATION: "true"' in grafana
+    assert "--path.rootfs=/host" in node_exporter
+    assert "/:/host/root:ro,rslave" in node_exporter
 
     prometheus_config = (project_root / "observability" / "prometheus.yml").read_text(
         encoding="utf-8"
     )
     assert "job_name: aiquanttrader-paper" in prometheus_config
     assert 'targets: ["paper-trader:9112"]' in prometheus_config
+    assert "job_name: aiquanttrader-node" in prometheus_config
+    assert 'targets: ["node-exporter:9100"]' in prometheus_config
 
     dashboard = json.loads(
         (project_root / "observability/grafana/dashboards/paper-trading.json").read_text(
@@ -223,8 +229,27 @@ def test_paper_monitor_is_local_pinned_read_only_and_metric_complete(project_roo
         "aqt_paper_daily_loss_fraction",
         "aqt_paper_drawdown_fraction",
         "aqt_paper_stale_trades_excluded_total",
+        "aqt_paper_adaptive_forecast_ready",
+        "aqt_paper_adaptive_forecast_directional_accuracy",
     ):
         assert metric in rendered
+
+    platform_dashboard = json.loads(
+        (project_root / "observability/grafana/dashboards/platform-health.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    platform_rendered = json.dumps(platform_dashboard)
+    assert platform_dashboard["uid"] == "aqt-platform-health"
+    for metric in (
+        "node_cpu_seconds_total",
+        "node_memory_MemAvailable_bytes",
+        "node_filesystem_avail_bytes",
+        "node_network_receive_bytes_total",
+        "node_network_transmit_bytes_total",
+        "aiquanttrader-paper",
+    ):
+        assert metric in platform_rendered
 
 
 def test_shadow_engine_has_no_network_secret_or_exchange_order_capability(

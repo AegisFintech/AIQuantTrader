@@ -628,9 +628,28 @@ def test_confirmation_request_requires_ready_structure() -> None:
     cycle = entry_cycle()
     request = confirmation_request("paper-test", cycle)
     assert request.side == "long"
+    assert request.strategy_id == "smart-money-scalper-v1"
     assert request.request_id == confirmation_request("paper-test", cycle).request_id
+    v2_intent = cycle.strategy_decision.submit[0].model_copy(
+        update={"strategy_id": "smart-money-scalper-v2"}
+    )
+    v2_cycle = replace(
+        cycle,
+        strategy_decision=cycle.strategy_decision.model_copy(update={"submit": (v2_intent,)}),
+    )
+    v2_request = confirmation_request("paper-test", v2_cycle)
+    assert v2_request.strategy_id == "smart-money-scalper-v2"
+    assert v2_request.request_id != request.request_id
     with pytest.raises(ValueError, match="ready causal market structure"):
         confirmation_request("paper-test", replace(cycle, market_structure=None))
+    with pytest.raises(ValueError, match="submitted entry intent"):
+        confirmation_request(
+            "paper-test",
+            replace(
+                cycle,
+                strategy_decision=cycle.strategy_decision.model_copy(update={"submit": ()}),
+            ),
+        )
 
 
 def test_openai_provider_validates_secret_and_parses_structured_output(
@@ -652,7 +671,7 @@ def test_openai_provider_validates_secret_and_parses_structured_output(
     monkeypatch.setattr(
         Path,
         "open",
-        lambda self, *args, **kwargs: StringIO("sk-test-abcdefghijklmnopqrstuvwxyz\n"),
+        lambda self, *args, **kwargs: StringIO("test-provider-secret-abcdefghijklmnopqrstuvwxyz\n"),
     )
 
     assessment = LlmAssessment(

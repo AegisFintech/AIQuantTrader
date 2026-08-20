@@ -30,7 +30,7 @@ Bind the run to an immutable commit or image digest:
 ```bash
 export AQT_NATIVE_CODE_IDENTITY="$(git rev-parse HEAD)"
 docker compose --profile paper --profile monitoring up --build -d \
-  paper-trader prometheus grafana
+  paper-trader node-exporter prometheus grafana
 docker compose ps paper-trader
 docker compose logs --tail 100 paper-trader
 docker compose exec paper-trader \
@@ -51,10 +51,11 @@ manifest, and `warming` or `ready`. L2 updates without fresh asset context must
 remain degraded. The checked-in scenario is `uncalibrated`; that is expected
 and must make the promotion report fail.
 
-`smart-money-scalper-v1` requires causal closed bars on 1m, 5m, and 15m, so a
-fresh run remains in structure warmup for roughly one hour. It allows only one
-position, reviews no-progress exposure at 90 seconds, and must issue a
-reduce-only exit by 300 seconds. A position age above 300 seconds is an incident.
+`smart-money-scalper-v2` requires causal closed bars on 1m, 5m, and 15m, so a
+fresh run remains in structure warmup for roughly one hour. Its causal forecast
+also needs at least 500 resolved 1 Hz samples with 30-second labels. It allows
+only one position, reviews no-progress exposure at 60 seconds, and must issue a
+reduce-only exit by 180 seconds. A position age above 180 seconds is an incident.
 
 ## 3. Monitor
 
@@ -62,12 +63,17 @@ Grafana is available only on the local loopback interface:
 
 ```text
 http://127.0.0.1:3000/d/aqt-paper-trading/aiquanttrader-btc-paper-trading
+http://127.0.0.1:3000/d/aqt-platform-health/aiquanttrader-server-live-status
 ```
 
 It opens the provisioned BTC scalping command center as an anonymous read-only
 viewer. The top rows show the exact action and gate reason, BTC bid/ask/mid,
 expected-versus-required edge, SMC confluence, 15m/5m/1m direction,
 support/resistance, stop/target, order flow, and position age.
+It also shows online forecast readiness, resolved labels, forecast bps,
+directional accuracy, MAE, and the cost hurdle. The platform dashboard shows
+service live state, CPU, memory, root-disk capacity/use, disk I/O, network
+in/out, uptime, load, and paper-feed freshness.
 Prometheus is available at `http://127.0.0.1:9090`. Neither endpoint is exposed
 to the LAN or internet. Do not publish or reverse-proxy Grafana without adding
 operator authentication and TLS.
@@ -78,6 +84,8 @@ Verify the monitor and paper scrape before relying on the dashboard:
 curl --fail --silent http://127.0.0.1:3000/api/health
 curl --fail --silent \
   'http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22aiquanttrader-paper%22%7D'
+curl --fail --silent \
+  'http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22aiquanttrader-node%22%7D'
 ```
 
 Scrape `paper-trader:9112` through Prometheus and provision
@@ -89,7 +97,8 @@ Scrape `paper-trader:9112` through Prometheus and provision
 - risk denials, loss/drawdown state, inventory/open-order limits, and leverage;
 - cycle p99, fill rate, maker ratio, PnL, adverse markouts, and drawdown;
 - drift readiness, maximum PSI, and standardized mean shift;
-- position age below 300 seconds, structure readiness after warmup, and bounded
+- position age below 180 seconds, structure and adaptive-forecast readiness
+  after warmup, forecast accuracy/MAE, and bounded
   LLM observer errors if that optional observer is enabled;
 - journal/state filesystem errors or a funding-gap event.
 
@@ -175,7 +184,7 @@ Elapsed time without these state transitions is not drill evidence.
 
 ## 6. Calibration and sensitivity
 
-The paper v1 baseline and pessimistic scenarios are intentionally uncalibrated,
+The paper baseline and pessimistic scenarios are intentionally uncalibrated,
 use the conservative risk-adverse queue, and do not claim synthetic live feed
 delay. Probability-queue or nonzero feed-offset sensitivity belongs in retained
 Phase 5 replay; the live paper process rejects those unsupported semantics.
