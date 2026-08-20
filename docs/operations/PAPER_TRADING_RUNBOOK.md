@@ -109,13 +109,15 @@ Scrape `paper-trader:9112` through Prometheus and provision
   LLM observer errors if that optional observer is enabled;
 - journal/state filesystem errors or a funding-gap event.
 
-The dashboard also reports cumulative stale-trade exclusions. Hyperliquid's
-initial trades subscription may contain a bounded historical snapshot, so a
-small startup increase is expected. The live assembler excludes those trades
-before feature generation using the configured maximum input age. Continued
-growth after startup indicates delayed exchange events or host/feed trouble and
-requires operator review; the service still fails closed for a stale book,
-future exchange timestamp, or non-monotonic L2 receipt.
+The dashboard also reports cumulative stale-trade and stale-book exclusions.
+Hyperliquid's initial subscriptions may contain bounded historical events, so a
+small startup increase is expected. The live assembler archives but excludes
+those inputs before feature generation using the configured maximum input age.
+Continued growth after startup indicates delayed exchange events or host/feed
+trouble and requires operator review. Excluded L2 data cannot refresh the
+watchdog's market heartbeat, so sustained stale books degrade the service and
+cancel through the normal risk path. Future exchange timestamps and
+non-monotonic L2 receipt remain fatal integrity failures.
 
 The service writes raw segments below the data volume and its WAL journal,
 kill audit, and atomic status below `state/paper/`. Back up SQLite with its

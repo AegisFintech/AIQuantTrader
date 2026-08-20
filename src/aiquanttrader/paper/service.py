@@ -76,6 +76,7 @@ class PaperLiveService:
             maximum_input_age_ns=artifacts.feature_config.maximum_input_age_ns,
         )
         self._observed_stale_trade_exclusions = 0
+        self._observed_stale_book_exclusions = 0
         self._paper_metrics = PaperMetrics(registry)
         self._recorder_metrics = RecorderMetrics.create(registry)
         self._engine: PaperTradingEngine | None = None
@@ -85,6 +86,7 @@ class PaperLiveService:
         self._last_context_receive_ns: int | None = None
         self._last_context_wall_ns: int | None = None
         self._last_frame_wall_ns: int | None = None
+        self._last_market_wall_ns: int | None = None
         self._last_error_code: str | None = None
         self._recorder_connected = False
         self._socket_factory = socket_factory
@@ -128,8 +130,14 @@ class PaperLiveService:
                 stale_trade_exclusions - self._observed_stale_trade_exclusions
             )
             self._observed_stale_trade_exclusions = stale_trade_exclusions
+            stale_book_exclusions = self._assembler.stale_book_exclusions
+            self._paper_metrics.observe_stale_book_exclusions(
+                stale_book_exclusions - self._observed_stale_book_exclusions
+            )
+            self._observed_stale_book_exclusions = stale_book_exclusions
             if market is None:
                 continue
+            self._last_market_wall_ns = self._last_frame_wall_ns
             if self._engine is None:
                 initial_mark = self._mark_price or (
                     market.bids[0].price + market.asks[0].price
@@ -254,7 +262,13 @@ class PaperLiveService:
                 self._last_context_wall_ns is not None
                 and now - self._last_context_wall_ns <= freshness_ns
             )
-            connected = self._recorder_connected and recent_frame and recent_context
+            recent_market = (
+                self._last_market_wall_ns is not None
+                and now - self._last_market_wall_ns <= freshness_ns
+            )
+            connected = (
+                self._recorder_connected and recent_frame and recent_context and recent_market
+            )
             self._recorder_connected = connected
             if self._engine is not None:
                 self._engine.watchdog(now, recorder_connected=connected)

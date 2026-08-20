@@ -223,11 +223,12 @@
     },
     {
       "id": 14,
-      "title": "Stale trade exclusions",
+      "title": "Stale input exclusions",
       "type": "timeseries",
-      "description": "Expected during the initial Hyperliquid trades snapshot; sustained growth requires review.",
+      "description": "Stale trades or L2 books are archived but excluded before features. Sustained growth requires review.",
       "targets": [
-        {"expr": "aqt_paper_stale_trades_excluded_total", "legendFormat": "cumulative"}
+        {"expr": "aqt_paper_stale_trades_excluded_total", "legendFormat": "trades"},
+        {"expr": "aqt_paper_stale_books_excluded_total", "legendFormat": "L2 books"}
       ],
       "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
       "gridPos": {"h": 7, "w": 8, "x": 16, "y": 34}
