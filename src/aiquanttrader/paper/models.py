@@ -8,10 +8,15 @@ from typing import Annotated, Literal, Self
 
 from pydantic import Field, StringConstraints, model_validator
 
-from aiquanttrader.backtest.kernel import KernelDecision
+from aiquanttrader.backtest.kernel import KernelDecision, StrategyAction
 from aiquanttrader.backtest.models import CalibrationState
 from aiquanttrader.domain.base import DomainModel, canonical_sha256
-from aiquanttrader.domain.execution import OrderIntent, RiskDecision
+from aiquanttrader.domain.execution import (
+    OrderIntent,
+    RiskDecision,
+    RiskReason,
+    RiskState,
+)
 from aiquanttrader.domain.market import OrderSide
 from aiquanttrader.features.market_structure import SmartMoneySnapshot
 from aiquanttrader.features.models import VolatilityRegime
@@ -135,6 +140,83 @@ class PaperDecisionRecord(DomainModel):
     intent: OrderIntent
     risk_decision: RiskDecision
     independent: bool
+
+
+class PaperForecastDiagnostics(DomainModel):
+    """Bounded adaptive-model diagnostics captured at one causal decision."""
+
+    schema_version: Literal[1] = 1
+    training_samples: int = Field(ge=0)
+    ready: bool
+    directional_accuracy: Annotated[Decimal, Field(ge=0, le=1)]
+    mean_absolute_error_bps: NonNegativeDecimal
+    latest_prediction_bps: Decimal
+
+
+class PaperStrategyEvaluation(DomainModel):
+    """One strategy outcome, including blocked actions that emitted no intent."""
+
+    schema_version: Literal[1] = 1
+    evaluation_id: Sha256
+    run_id: Identifier
+    sequence: int = Field(ge=0)
+    evaluated_ts_ns: int = Field(ge=0)
+    feature_snapshot_sha256: Sha256
+    strategy_id: Identifier
+    feature_ready: bool
+    structure_ready: bool
+    feed_connected: bool
+    risk_state: RiskState
+    risk_reasons: tuple[RiskReason, ...] = ()
+    decision: KernelDecision
+    forecast: PaperForecastDiagnostics | None = None
+
+    @model_validator(mode="after")
+    def validate_risk_reasons(self) -> Self:
+        if len(set(self.risk_reasons)) != len(self.risk_reasons):
+            raise ValueError("paper strategy evaluation risk reasons must be unique")
+        return self
+
+
+class PaperStrategyActionCount(DomainModel):
+    action: StrategyAction
+    reason: Annotated[str, Field(min_length=1, max_length=256)]
+    count: int = Field(gt=0)
+
+
+class PaperStrategyEvaluationSummary(DomainModel):
+    """Compact gate distribution and terminal model state for one paper run."""
+
+    schema_version: Literal[1] = 1
+    run_id: Identifier
+    evaluations: int = Field(ge=0)
+    feature_ready_evaluations: int = Field(ge=0)
+    structure_ready_evaluations: int = Field(ge=0)
+    feed_connected_evaluations: int = Field(ge=0)
+    first_evaluated_ts_ns: int | None = Field(default=None, ge=0)
+    last_evaluated_ts_ns: int | None = Field(default=None, ge=0)
+    action_counts: tuple[PaperStrategyActionCount, ...] = ()
+    latest_forecast: PaperForecastDiagnostics | None = None
+
+    @model_validator(mode="after")
+    def validate_counts_and_window(self) -> Self:
+        bounded = (
+            self.feature_ready_evaluations,
+            self.structure_ready_evaluations,
+            self.feed_connected_evaluations,
+        )
+        if any(value > self.evaluations for value in bounded):
+            raise ValueError("paper strategy readiness count exceeds total evaluations")
+        if sum(item.count for item in self.action_counts) != self.evaluations:
+            raise ValueError("paper strategy action counts do not match total evaluations")
+        if self.evaluations == 0:
+            if self.first_evaluated_ts_ns is not None or self.last_evaluated_ts_ns is not None:
+                raise ValueError("empty paper strategy summary cannot claim a time window")
+        elif self.first_evaluated_ts_ns is None or self.last_evaluated_ts_ns is None:
+            raise ValueError("non-empty paper strategy summary requires a time window")
+        elif self.last_evaluated_ts_ns < self.first_evaluated_ts_ns:
+            raise ValueError("paper strategy summary time window is reversed")
+        return self
 
 
 class PaperCommandKind(StrEnum):

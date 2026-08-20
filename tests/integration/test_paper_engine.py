@@ -163,6 +163,9 @@ def test_live_feature_strategy_risk_simulation_and_restart_are_one_path(tmp_path
     warmup = engine.on_market(state(0))
     assert not warmup.features.ready
     assert warmup.decisions == ()
+    first_evaluation = journal.strategy_evaluations(engine.manifest.run_id)[0]
+    assert first_evaluation.sequence == 0
+    assert first_evaluation.decision.reason == "no_action"
     signal = engine.on_market(state(1, buyer_trade=True))
     assert signal.features.ready
     assert len(signal.decisions) == 1
@@ -175,6 +178,12 @@ def test_live_feature_strategy_risk_simulation_and_restart_are_one_path(tmp_path
     assert engine.decision_count >= 2
     marked = engine.on_market(state(3))
     assert marked.markouts
+    evaluations = journal.strategy_evaluations(engine.manifest.run_id)
+    assert len(evaluations) == 4
+    summary = journal.strategy_evaluation_summary(engine.manifest.run_id)
+    assert summary.evaluations == 4
+    assert sum(item.count for item in summary.action_counts) == 4
+    assert summary.latest_forecast is None
     registry = CollectorRegistry()
     metrics = PaperMetrics(registry)
     metrics.observe_cycle(
@@ -204,6 +213,8 @@ def test_live_feature_strategy_risk_simulation_and_restart_are_one_path(tmp_path
     assert restored.resumed
     assert restored.simulator.account == account_before_restart
     assert restored.decision_count == engine.decision_count
+    restored.on_market(state(4))
+    assert restored_journal.strategy_evaluations(engine.manifest.run_id)[-1].sequence == 4
     restored_journal.close()
 
 

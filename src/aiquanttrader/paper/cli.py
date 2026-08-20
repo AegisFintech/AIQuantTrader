@@ -57,6 +57,12 @@ def _parser() -> argparse.ArgumentParser:
     status = commands.add_parser("status", help="print the current paper state")
     status.add_argument("--state-root", type=Path, required=True)
 
+    diagnostics = commands.add_parser(
+        "diagnostics", help="summarize persisted strategy actions and gate reasons"
+    )
+    diagnostics.add_argument("--state-root", type=Path, required=True)
+    diagnostics.add_argument("--run-id")
+
     kill = commands.add_parser("kill", help="activate or clear the paper operator kill")
     kill.add_argument("action", choices=("activate", "clear"))
     kill.add_argument("--state-root", type=Path, required=True)
@@ -156,6 +162,7 @@ async def _replay(args: argparse.Namespace) -> int:
                 detail=f"excluded {excluded} malformed or invalid raw frames",
             )
         service.mark_stopped()
+        strategy_summary = journal.strategy_evaluation_summary(service.engine.manifest.run_id)
         print(
             json.dumps(
                 {
@@ -166,6 +173,7 @@ async def _replay(args: argparse.Namespace) -> int:
                     "excluded_frames": excluded,
                     "decisions": service.engine.decision_count,
                     "fills": service.engine.fill_count,
+                    "strategy": strategy_summary.model_dump(mode="json"),
                 },
                 sort_keys=True,
             )
@@ -223,6 +231,20 @@ def _status(state_root: Path) -> int:
         (state_root.resolve() / "paper" / "status.json").read_bytes()
     )
     print(status.model_dump_json(indent=2))
+    return 0
+
+
+def _diagnostics(state_root: Path, run_id: str | None) -> int:
+    journal = PaperJournal((state_root.resolve() / "paper" / "paper-journal.sqlite3").resolve())
+    try:
+        manifest = journal.latest_manifest()
+        if manifest is None:
+            raise ValueError("paper journal contains no run")
+        selected_run_id = manifest.run_id if run_id is None else run_id
+        summary = journal.strategy_evaluation_summary(selected_run_id)
+    finally:
+        journal.close()
+    print(summary.model_dump_json(indent=2))
     return 0
 
 
@@ -293,6 +315,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         if args.command == "status":
             return _status(args.state_root)
+        if args.command == "diagnostics":
+            return _diagnostics(args.state_root, args.run_id)
         if args.command == "kill":
             return _kill(args)
         if args.command == "evidence":

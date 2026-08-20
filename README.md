@@ -303,7 +303,17 @@ The checked-in scenarios are uncalibrated and therefore cannot pass
 `aqt-paper evidence`. Procedures, drills, sensitivity rules, and rollback are in
 [`PAPER_TRADING_RUNBOOK.md`](docs/operations/PAPER_TRADING_RUNBOOK.md).
 `aqt-paper replay` verifies finalized raw segments and runs required sensitivity
-scenarios through the same consumer path without network access.
+scenarios through the same consumer path without network access. Every causal
+strategy evaluation—including warmup and blocked outcomes that emit no
+intent—is committed with its gate reason and bounded model diagnostics. Inspect
+the retained gate distribution with:
+
+```bash
+uv run aqt-paper diagnostics --state-root state
+```
+
+Replay completion JSON includes the same typed strategy summary so a zero-trade
+run still identifies the dominant blocking gates instead of appearing empty.
 The read-only progress dashboard is bound to
 `http://127.0.0.1:3000/d/aqt-paper-trading/aiquanttrader-btc-paper-trading`;
 host and service health is at

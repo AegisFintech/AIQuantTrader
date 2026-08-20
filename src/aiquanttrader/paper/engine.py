@@ -26,9 +26,11 @@ from aiquanttrader.paper.models import (
     PaperEngineCheckpoint,
     PaperExecutionCommand,
     PaperFill,
+    PaperForecastDiagnostics,
     PaperMarkout,
     PaperOrder,
     PaperRunManifest,
+    PaperStrategyEvaluation,
 )
 from aiquanttrader.paper.simulator import PaperExchangeSimulator, SimulatorUpdate
 from aiquanttrader.research.models import DriftReport
@@ -132,6 +134,7 @@ class PaperTradingEngine:
         resumed = journal.begin_run(manifest, self.simulator.account)
         self.resumed = resumed
         self._command_sequence = journal.next_command_sequence(manifest.run_id)
+        self._evaluation_sequence = journal.next_strategy_evaluation_sequence(manifest.run_id)
         policy = artifacts.evidence_policy
         self._drift_monitor = PaperDriftMonitor(
             policy,
@@ -313,6 +316,29 @@ class PaperTradingEngine:
         )
         self._memory = transition.memory
         self._last_strategy_decision = transition.decision
+        feature_snapshot_sha256 = features.sha256()
+        evaluation_identity = hashlib.sha256(
+            (
+                f"{manifest_identity(self.manifest)}:{self._evaluation_sequence}:"
+                f"{market.observed_ts_ns}:{feature_snapshot_sha256}:"
+                f"{transition.decision.sha256()}"
+            ).encode()
+        ).hexdigest()
+        strategy_evaluation = PaperStrategyEvaluation(
+            evaluation_id=evaluation_identity,
+            run_id=self.manifest.run_id,
+            sequence=self._evaluation_sequence,
+            evaluated_ts_ns=market.observed_ts_ns,
+            feature_snapshot_sha256=feature_snapshot_sha256,
+            strategy_id=self.artifacts.strategy_config.strategy_id,
+            feature_ready=features.ready,
+            structure_ready=market_structure.ready,
+            feed_connected=self._feed_connected,
+            risk_state=risk_state,
+            risk_reasons=risk_reasons,
+            decision=transition.decision,
+            forecast=self._forecast_diagnostics(),
+        )
         for intent_id in transition.decision.cancel_intent_ids:
             canceled_order = self.simulator.request_cancel(
                 intent_id, requested_ts_ns=market.observed_ts_ns
@@ -372,8 +398,10 @@ class PaperTradingEngine:
             markouts=markouts,
             checkpoint=checkpoint,
             drift_report=drift_report,
+            strategy_evaluation=strategy_evaluation,
             commands=commands,
         )
+        self._evaluation_sequence += 1
         self._decision_count += len(records)
         self._fill_count += len(simulation.fills)
         return PaperEngineCycle(
@@ -388,6 +416,19 @@ class PaperTradingEngine:
             risk_state=risk_state,
             risk_reasons=risk_reasons,
             commands=tuple(commands),
+        )
+
+    def _forecast_diagnostics(self) -> PaperForecastDiagnostics | None:
+        forecast = self.adaptive_forecast
+        config = self.artifacts.strategy_config
+        if forecast is None or not isinstance(config, AdaptiveScalperConfig):
+            return None
+        return PaperForecastDiagnostics(
+            training_samples=forecast.training_samples,
+            ready=forecast.ready(config),
+            directional_accuracy=forecast.directional_accuracy,
+            mean_absolute_error_bps=forecast.mean_absolute_error_bps,
+            latest_prediction_bps=forecast.latest_prediction_bps,
         )
 
     def watchdog(self, now_ts_ns: int, *, recorder_connected: bool) -> tuple[RiskReason, ...]:

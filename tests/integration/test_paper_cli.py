@@ -102,6 +102,7 @@ def test_paper_cli_health_status_kill_and_nonpromotable_evidence(
         == 0
     )
     assert cli.main(["status", "--state-root", str(state_root)]) == 0
+    assert cli.main(["diagnostics", "--state-root", str(state_root)]) == 0
     assert (
         cli.main(
             [
@@ -289,9 +290,14 @@ def test_paper_cli_replays_verified_raw_segment_without_network(
     manifest = journal.latest_manifest()
     assert manifest is not None
     assert manifest.code_identity == "b" * 40
+    summary = journal.strategy_evaluation_summary(manifest.run_id)
+    assert summary.evaluations == 1
+    assert summary.action_counts[0].action.value == "warmup"
     journal.close()
     status = PaperRuntimeStatus.model_validate_json(
         (state_root / "paper" / "status.json").read_bytes()
     )
     assert status.status == "stopped"
-    assert '"consumed_frames": 1' in capsys.readouterr().out
+    output = capsys.readouterr().out
+    assert '"consumed_frames": 1' in output
+    assert '"evaluations": 1' in output

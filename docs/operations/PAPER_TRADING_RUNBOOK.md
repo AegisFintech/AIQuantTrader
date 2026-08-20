@@ -95,6 +95,19 @@ curl --fail --silent \
   'http://127.0.0.1:9090/api/v1/query?query=up%7Bjob%3D%22aiquanttrader-node%22%7D'
 ```
 
+Inspect the durable strategy gate distribution independently of Prometheus:
+
+```bash
+docker compose exec paper-trader \
+  aqt-paper diagnostics --state-root /var/lib/aiquanttrader/state
+```
+
+The summary counts every causal strategy evaluation, including warmup,
+model-quality, spread, cost, volatility, confluence, cooldown, and inventory
+blocks that produced no order intent. It also reports feature/structure/feed
+readiness and the latest bounded adaptive-forecast sample count, accuracy, MAE,
+and prediction. Counts are evidence, not permission to relax a gate.
+
 Scrape `paper-trader:9112` through Prometheus and provision
 `paper-trading.json`. Alert on:
 
@@ -228,6 +241,11 @@ simulator, journal, and status contracts without opening a socket. A sensitivity
 report is admissible only when its exact start/end window and every
 non-recursive gate match the baseline requirements. Never run two paper
 services against one SQLite or raw-catalog state volume.
+
+Replay completion JSON includes a `strategy` object with the same persisted
+gate distribution returned by `aqt-paper diagnostics`. Review it before
+changing a strategy threshold; zero intents or fills without the dominant gate
+counts are insufficient evidence for a parameter change.
 
 ## 7. Generate immutable evidence
 

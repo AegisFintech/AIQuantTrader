@@ -102,8 +102,11 @@ retained testnet or later shadow observations.
 
 ## Restart and failure semantics
 
-One SQLite transaction commits each feature, decisions, order changes, fills,
-account snapshot, markouts, drift report, and strategy checkpoint. On restart,
+One SQLite transaction commits each feature, strategy evaluation and exact gate
+reason, risk decisions, order changes, fills, account snapshot, markouts, drift
+report, and strategy checkpoint. Strategy evaluations include warmup and blocked
+outcomes that emit no intent, plus bounded adaptive-forecast diagnostics, so a
+zero-trade replay remains explainable. On restart,
 the service resumes only when code, effective config, feature config, strategy
 config, scenario, and evidence-policy identities match. It restores account,
 orders, strategy memory, funding state, independent-decision clock, pending
@@ -185,6 +188,8 @@ Automated now:
 - durable raw archive before live consumer callback and fatal consumer isolation;
 - causal event assembly, production feature/strategy/risk wiring, single-use
   approvals, deterministic fills/accounting/funding, and queue limitations;
+- atomic per-cycle strategy gate evidence plus deterministic live/replay
+  diagnostics, including non-order outcomes;
 - restart recovery, cancel-on-resume, stale and kill drills, immutable evidence,
   hash/window/economic sensitivity binding, online drift, schemas, metrics,
   and dashboards;
