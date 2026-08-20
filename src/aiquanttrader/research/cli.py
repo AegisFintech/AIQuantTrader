@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from aiquanttrader.backtest.conversion import load_event_file
-from aiquanttrader.backtest.kernel import hft_market_states
+from aiquanttrader.backtest.kernel import iter_hft_market_states
 from aiquanttrader.backtest.models import BacktestDatasetManifest, ValidationPlan
 from aiquanttrader.domain.governance import ActorKind, PromotionStage
 from aiquanttrader.features.models import MODEL_FEATURE_SCHEMA, FeatureEngineConfig
@@ -134,9 +134,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             if sha256_file(args.events) != dataset.event_file_sha256:
                 raise ValueError("event file does not match dataset manifest")
-            states = hft_market_states(load_event_file(args.events))
             manifest_path, feature_manifest = write_feature_dataset(
-                states,
+                iter_hft_market_states(load_event_file(args.events)),
                 config=_feature_config(args.config),
                 source_dataset_sha256=dataset.dataset_id,
                 output_root=args.output_root,
@@ -148,6 +147,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "manifest": str(manifest_path),
                     "feature_dataset_id": feature_manifest.feature_dataset_id,
                     "rows": feature_manifest.row_count,
+                    "stale_trade_exclusions": (feature_manifest.stale_trade_exclusion_count),
+                    "stale_book_exclusions": feature_manifest.stale_book_exclusion_count,
                 },
             )
             return 0
@@ -178,6 +179,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             plan = ValidationPlan.model_validate_json(args.validation_plan.read_bytes())
             if plan.dataset_sha256 != matrix.source_dataset_sha256:
                 raise ValueError("training matrix source does not match validation plan")
+            if plan.label_horizon_ns != matrix_manifest.horizon_ns:
+                raise ValueError("forecast matrix horizon does not match validation plan")
             if not 0 <= args.fold < len(plan.folds):
                 raise ValueError("fold index is outside validation plan")
             policy = SearchPolicy.model_validate_json(args.policy.read_bytes())

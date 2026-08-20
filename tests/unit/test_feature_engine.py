@@ -5,12 +5,15 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 import pytest
+from pydantic import ValidationError
 
 from aiquanttrader.backtest.kernel import KernelBookLevel, KernelMarketState, KernelTrade
+from aiquanttrader.domain.base import canonical_sha256
 from aiquanttrader.domain.market import AggressorSide
 from aiquanttrader.features.engine import IncrementalFeatureEngine, replay_features
 from aiquanttrader.features.models import (
     MODEL_FEATURE_SCHEMA,
+    FeatureDatasetManifest,
     FeatureEngineConfig,
     InventoryState,
     VolatilityRegime,
@@ -145,14 +148,14 @@ def test_feature_engine_rejects_stale_non_monotonic_and_noncausal_computation() 
 
 def test_feature_dataset_is_deterministic_and_manifest_bound(tmp_path: Path) -> None:
     first_path, first = write_feature_dataset(
-        states(),
+        iter(states()),
         config=config(),
         source_dataset_sha256="a" * 64,
         output_root=tmp_path,
         relative_path="features/BTC.parquet",
     )
     second_path, second = write_feature_dataset(
-        states(),
+        (state for state in states()),
         config=config(),
         source_dataset_sha256="a" * 64,
         output_root=tmp_path,
@@ -162,6 +165,9 @@ def test_feature_dataset_is_deterministic_and_manifest_bound(tmp_path: Path) -> 
     assert first_path == second_path
     assert pq.read_table(tmp_path / first.relative_path).num_rows == len(states())
     assert first.feature_schema_sha256 == MODEL_FEATURE_SCHEMA.sha256()
+    assert first.schema_version == 2
+    assert first.stale_trade_exclusion_count == 0
+    assert first.stale_book_exclusion_count == 0
 
     with pytest.raises(ValueError, match=r"\.parquet"):
         write_feature_dataset(
@@ -171,3 +177,90 @@ def test_feature_dataset_is_deterministic_and_manifest_bound(tmp_path: Path) -> 
             output_root=tmp_path,
             relative_path="features/BTC.csv",
         )
+
+
+def test_feature_dataset_records_live_parity_stale_input_exclusions(tmp_path: Path) -> None:
+    stale_trade = KernelTrade(
+        exchange_ts_ns=100,
+        observed_ts_ns=100,
+        price=Decimal("100"),
+        size=Decimal("1"),
+        aggressor=AggressorSide.SELLER,
+    )
+    stale_book = market_state(
+        0,
+        bid="100",
+        ask="101",
+        bid_size="1",
+        ask_size="1",
+        trades=(stale_trade,),
+        delay_ns=1_000,
+    )
+    fresh_with_stale_trade = market_state(
+        1,
+        bid="100",
+        ask="101",
+        bid_size="1",
+        ask_size="1",
+        trades=(stale_trade,),
+    )
+
+    _, manifest = write_feature_dataset(
+        (stale_book, fresh_with_stale_trade),
+        config=config(maximum_input_age_ns=500),
+        source_dataset_sha256="a" * 64,
+        output_root=tmp_path,
+        relative_path="features/stale-inputs.parquet",
+    )
+
+    assert manifest.row_count == 1
+    assert manifest.stale_book_exclusion_count == 1
+    assert manifest.stale_trade_exclusion_count == 2
+
+
+def test_feature_dataset_rejects_empty_and_immutable_rewrites(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="no snapshots"):
+        write_feature_dataset(
+            (),
+            config=config(),
+            source_dataset_sha256="a" * 64,
+            output_root=tmp_path,
+            relative_path="features/empty.parquet",
+        )
+    assert not tuple((tmp_path / "features").glob("*.partial"))
+
+    write_feature_dataset(
+        states(),
+        config=config(),
+        source_dataset_sha256="a" * 64,
+        output_root=tmp_path,
+        relative_path="features/immutable.parquet",
+    )
+    with pytest.raises(FileExistsError, match="immutable feature dataset differs"):
+        write_feature_dataset(
+            states()[:-1],
+            config=config(),
+            source_dataset_sha256="a" * 64,
+            output_root=tmp_path,
+            relative_path="features/immutable.parquet",
+        )
+
+
+def test_feature_manifest_v1_remains_readable_but_cannot_claim_v2_exclusions() -> None:
+    identity = {
+        "source_dataset_sha256": "a" * 64,
+        "feature_schema_sha256": "b" * 64,
+        "feature_config_sha256": "c" * 64,
+        "relative_path": "features/legacy.parquet",
+        "file_sha256": "d" * 64,
+        "row_count": 1,
+        "first_receive_ts_ns": 1,
+        "last_receive_ts_ns": 1,
+    }
+    values = {"schema_version": 1, "feature_dataset_id": canonical_sha256(identity), **identity}
+
+    legacy = FeatureDatasetManifest.model_validate(values)
+
+    assert legacy.schema_version == 1
+    with pytest.raises(ValidationError, match="cannot declare stale-input exclusions"):
+        FeatureDatasetManifest.model_validate({**values, "stale_trade_exclusion_count": 1})

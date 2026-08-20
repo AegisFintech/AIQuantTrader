@@ -5,7 +5,8 @@ from __future__ import annotations
 import os
 import secrets
 import zipfile
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
+from heapq import merge
 from pathlib import Path
 from typing import Any, Literal, cast
 
@@ -13,7 +14,9 @@ import numpy as np
 import pyarrow.parquet as pq
 from hftbacktest import (
     BUY_EVENT,
-    DEPTH_EVENT,
+    DEPTH_BBO_EVENT,
+    DEPTH_CLEAR_EVENT,
+    DEPTH_SNAPSHOT_EVENT,
     EXCH_EVENT,
     LOCAL_EVENT,
     SELL_EVENT,
@@ -33,7 +36,7 @@ from aiquanttrader.domain.data import (
 from aiquanttrader.market_data.io import atomic_write_bytes, fsync_directory, sha256_file
 from aiquanttrader.market_data.storage import validate_normalized_files
 
-CONVERTER_VERSION = "hft-events-v1"
+CONVERTER_VERSION: Literal["hft-events-v2"] = "hft-events-v2"
 
 
 def _resolved_child(root: Path, path: Path) -> tuple[Path, str]:
@@ -140,6 +143,7 @@ def _manifest_for_events(
     }
     return BacktestDatasetManifest(
         dataset_id=canonical_sha256(identity),
+        converter_version=CONVERTER_VERSION,
         source_kind=source_kind,
         sources=sources,
         event_file=event_relative,
@@ -217,15 +221,45 @@ def convert_tardis_day(
     return _write_manifest(resolved_output, output_manifest), output_manifest
 
 
+def _normalized_rows(
+    path: Path,
+    *,
+    event_type: str,
+    segment_index: int,
+) -> Iterator[tuple[int, int, int, int, str, dict[str, Any]]]:
+    """Yield one sorted Parquet stream while retaining only one Arrow batch."""
+
+    priority = 0 if event_type == "trade" else 1
+    previous_key: tuple[int, int, int, int] | None = None
+    parquet = pq.ParquetFile(path)
+    for batch in parquet.iter_batches(batch_size=4_096):
+        names = batch.schema.names
+        columns = tuple(batch.column(index) for index in range(batch.num_columns))
+        for row_index in range(batch.num_rows):
+            row = {
+                name: column[row_index].as_py() for name, column in zip(names, columns, strict=True)
+            }
+            key = (
+                int(row["event_ts_ns"]),
+                int(row["receive_ts_ns"]),
+                priority,
+                segment_index * 10**12 + int(row["event_order"]),
+            )
+            if previous_key is not None and key < previous_key:
+                raise ValueError(f"normalized Parquet rows are not ordered: {path}")
+            previous_key = key
+            yield (*key, event_type, row)
+
+
 def _raw_normalized_events(
     manifests: tuple[NormalizedSegmentManifest, ...], data_root: Path
 ) -> tuple[np.ndarray[Any, np.dtype[Any]], tuple[SourceArtifact, ...]]:
-    rows: list[tuple[int, int, int, int, str, dict[str, Any]]] = []
+    streams: list[Iterator[tuple[int, int, int, int, str, dict[str, Any]]]] = []
     sources: list[SourceArtifact] = []
     for segment_index, manifest in enumerate(manifests):
         validate_normalized_files(manifest, data_root)
         for file in manifest.files:
-            if file.event_type not in {"l2_book", "trade"}:
+            if file.event_type not in {"bbo", "l2_book", "trade"}:
                 continue
             path = data_root / file.relative_path
             sources.append(
@@ -235,22 +269,15 @@ def _raw_normalized_events(
                     row_count=file.row_count,
                 )
             )
-            for row in pq.read_table(path).to_pylist():
-                priority = 0 if file.event_type == "trade" else 1
-                rows.append(
-                    (
-                        int(row["event_ts_ns"]),
-                        int(row["receive_ts_ns"]),
-                        priority,
-                        segment_index * 10**12 + int(row["event_order"]),
-                        file.event_type,
-                        row,
-                    )
+            streams.append(
+                _normalized_rows(
+                    path,
+                    event_type=file.event_type,
+                    segment_index=segment_index,
                 )
-    rows.sort(key=lambda item: item[:4])
-    previous_bids: dict[float, float] = {}
-    previous_asks: dict[float, float] = {}
+            )
     output: list[tuple[int, int, int, float, float, int, int, float]] = []
+    rows = merge(*streams, key=lambda item: item[:4])
     for exchange_ts, local_ts, _, _, event_type, row in rows:
         if local_ts < exchange_ts:
             raise ValueError(
@@ -274,24 +301,58 @@ def _raw_normalized_events(
                 )
             )
             continue
-        current_bids = {float(level["price"]): float(level["size"]) for level in row["bids"]}
-        current_asks = {float(level["price"]): float(level["size"]) for level in row["asks"]}
-        for side, current, previous in (
-            (BUY_EVENT, current_bids, previous_bids),
-            (SELL_EVENT, current_asks, previous_asks),
+        if event_type == "bbo":
+            output.extend(
+                (
+                    (
+                        DEPTH_BBO_EVENT | BUY_EVENT,
+                        exchange_ts,
+                        local_ts,
+                        float(row["bid_price"]),
+                        float(row["bid_size"]),
+                        0,
+                        0,
+                        0.0,
+                    ),
+                    (
+                        DEPTH_BBO_EVENT | SELL_EVENT,
+                        exchange_ts,
+                        local_ts,
+                        float(row["ask_price"]),
+                        float(row["ask_size"]),
+                        0,
+                        0,
+                        0.0,
+                    ),
+                )
+            )
+            continue
+        bids = tuple((float(level["price"]), float(level["size"])) for level in row["bids"])
+        asks = tuple((float(level["price"]), float(level["size"])) for level in row["asks"])
+        for side, levels, clear_price in (
+            (BUY_EVENT, bids, min(price for price, _ in bids)),
+            (SELL_EVENT, asks, max(price for price, _ in asks)),
         ):
-            for price, quantity in sorted(current.items()):
-                if previous.get(price) != quantity:
-                    output.append(
-                        (DEPTH_EVENT | side, exchange_ts, local_ts, price, quantity, 0, 0, 0.0)
-                    )
-            for price in sorted(previous.keys() - current.keys()):
-                output.append((DEPTH_EVENT | side, exchange_ts, local_ts, price, 0.0, 0, 0, 0.0))
-        previous_bids = current_bids
-        previous_asks = current_asks
+            output.append(
+                (DEPTH_CLEAR_EVENT | side, exchange_ts, local_ts, clear_price, 0.0, 0, 0, 0.0)
+            )
+            output.extend(
+                (
+                    DEPTH_SNAPSHOT_EVENT | side,
+                    exchange_ts,
+                    local_ts,
+                    price,
+                    quantity,
+                    0,
+                    0,
+                    0.0,
+                )
+                for price, quantity in levels
+            )
     if not output:
-        raise ValueError("normalized dataset has no L2 book or trade events")
+        raise ValueError("normalized dataset has no BBO, L2 book, or trade events")
     raw = np.asarray(output, dtype=event_dtype)
+    output.clear()
     corrected = correct_event_order(
         raw,
         np.argsort(raw["exch_ts"], kind="mergesort"),

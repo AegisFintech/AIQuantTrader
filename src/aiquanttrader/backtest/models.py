@@ -80,9 +80,9 @@ class SourceArtifact(DomainModel):
 
 
 class BacktestDatasetManifest(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 2
     dataset_id: Sha256
-    converter_version: Literal["hft-events-v1"] = "hft-events-v1"
+    converter_version: Literal["hft-events-v1", "hft-events-v2"] = "hft-events-v2"
     instrument_id: Literal["BTC-USD-PERP.HYPERLIQUID"] = "BTC-USD-PERP.HYPERLIQUID"
     source_kind: Literal["tardis", "normalized_parquet"]
     sources: tuple[SourceArtifact, ...] = Field(min_length=1)
@@ -96,6 +96,9 @@ class BacktestDatasetManifest(DomainModel):
 
     @model_validator(mode="after")
     def validate_ranges_and_identity(self) -> Self:
+        expected_schema = 1 if self.converter_version == "hft-events-v1" else 2
+        if self.schema_version != expected_schema:
+            raise ValueError("backtest schema and converter versions are incompatible")
         if self.last_exchange_ts_ns < self.first_exchange_ts_ns:
             raise ValueError("exchange timestamp range is reversed")
         if self.last_local_ts_ns < self.first_local_ts_ns:
@@ -192,9 +195,10 @@ class ValidationPolicy(DomainModel):
 
 
 class ValidationPlan(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     policy_sha256: Sha256
     dataset_sha256: Sha256
+    label_horizon_ns: int = Field(gt=0)
     folds: tuple[WalkForwardFold, ...] = Field(min_length=1)
     final_holdout: TimeWindow
 
@@ -202,6 +206,11 @@ class ValidationPlan(DomainModel):
     def holdout_is_untouched_by_folds(self) -> Self:
         if self.final_holdout.role is not WindowRole.FINAL_HOLDOUT:
             raise ValueError("final window must have final_holdout role")
+        if any(
+            fold.purge.end_ts_ns - fold.purge.start_ts_ns < self.label_horizon_ns
+            for fold in self.folds
+        ):
+            raise ValueError("every purge window must cover the complete label horizon")
         if any(fold.test.end_ts_ns > self.final_holdout.start_ts_ns for fold in self.folds):
             raise ValueError("walk-forward folds overlap the final holdout")
         return self

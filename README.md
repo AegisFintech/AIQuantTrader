@@ -34,16 +34,19 @@ and the completed Phase 10 evidence-verification boundary:
   account state, cancel-confirm quote replacement, and durable equity baselines;
 - a separately credentialed SDK sentinel for exchange dead-man renewal and
   emergency cancel-all.
-- deterministic Tardis and admitted-Parquet conversion into HftBacktest events
-  with immutable lineage manifests;
+- bounded-memory admitted-Parquet conversion into native HftBacktest
+  snapshot/BBO/trade events, plus deterministic Tardis conversion and immutable
+  lineage manifests;
 - versioned queue, latency, fee, liquidity, slippage, partial-fill, and funding
   scenarios with an explicit calibration gate;
 - a pure strategy-kernel boundary shared by Hft local-arrival replay and actual
   Nautilus market-data objects;
-- purged walk-forward planning, validation-only selection receipts, untouched
-  holdout authorization, block bootstrap, and multiple-selection penalties.
+- horizon-bound purged walk-forward planning, validation-only selection
+  receipts, untouched holdout authorization, block bootstrap, and
+  multiple-selection penalties.
 - bounded causal order-book, flow, volatility, inventory, fill, and
-  adverse-selection features with deterministic Parquet lineage;
+  adverse-selection features with streaming deterministic Parquet lineage and
+  explicit stale-input exclusion counts;
 - pure Avellaneda-Stoikov market-making and cost-aware order-flow scalping
   kernels with HftBacktest/Nautilus representation parity;
 - CPU-only LightGBM, XGBoost, and CatBoost adapters using native model formats,

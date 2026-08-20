@@ -50,6 +50,8 @@ def test_walk_forward_plan_is_disjoint_and_holdout_is_guarded() -> None:
     )
 
     assert len(plan.folds) == 5
+    assert plan.schema_version == 2
+    assert plan.label_horizon_ns == policy().label_horizon_ns
     assert plan.final_holdout.start_ts_ns == 250
     assert plan.final_holdout.role is WindowRole.FINAL_HOLDOUT
     assert all(
@@ -114,6 +116,15 @@ def test_validation_policy_rejects_leakage_and_insufficient_history() -> None:
         )
     with pytest.raises(ValidationError, match="window end"):
         TimeWindow(role=WindowRole.TRAIN, start_ts_ns=10, end_ts_ns=10)
+
+    plan = plan_walk_forward(
+        dataset_sha256="a" * 64,
+        start_ts_ns=0,
+        end_ts_ns=300,
+        policy=policy(),
+    )
+    with pytest.raises(ValidationError, match="purge window"):
+        type(plan).model_validate({**plan.model_dump(), "label_horizon_ns": 11})
 
 
 def test_checked_scenarios_are_strict_versioned_and_not_yet_promotable(

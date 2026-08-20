@@ -65,6 +65,7 @@ def plan_walk_forward(
     return ValidationPlan(
         policy_sha256=policy.sha256(),
         dataset_sha256=dataset_sha256,
+        label_horizon_ns=policy.label_horizon_ns,
         folds=tuple(folds),
         final_holdout=TimeWindow(
             role=WindowRole.FINAL_HOLDOUT,

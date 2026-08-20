@@ -43,7 +43,7 @@ the migration record; none of those systems has runtime authority.
 | `config/` | Immutable typed configuration, environment overlays, validation, and fingerprints. |
 | `domain/` | Versioned market, data, feature, execution, experiment, and governance contracts. |
 | `market_data/` | Raw-first WebSocket capture, integrity, normalization, health, cataloging, Tardis acquisition, and content-addressed host-soak evidence. |
-| `features/` | Incremental microstructure plus causal 1m/5m/15m structure and deterministic Parquet lineage. |
+| `features/` | Incremental microstructure plus causal 1m/5m/15m structure and bounded-memory deterministic Parquet lineage. |
 | `strategies/` | Pure Avellaneda-Stoikov, order-flow, bounded smart-money, and paper-only adaptive scalper kernels. |
 | `execution/` | Nautilus execution gateway, strategy wiring, order journal, reconciliation, and metrics. |
 | `risk/` | Synchronous risk authority and durable operator kill switch. |
@@ -106,6 +106,8 @@ observer. LLM output is evidence, never order or risk authority.
 - Research forecast matrices are deterministic NPZ artifacts whose manifests
   bind the immutable feature dataset, raw dataset, schema, target horizon,
   sampling cadence, label-gap policy, semantic matrix hash, and file hash.
+- Validation-plan schema v2 independently binds that target horizon so model
+  search cannot pair a matrix with incompatible purge assumptions.
 - Paper journals retain every strategy action and gate reason atomically with
   its feature/account/checkpoint cycle, including outcomes that emit no order
   intent; `aqt-paper diagnostics` summarizes that evidence without changing it.

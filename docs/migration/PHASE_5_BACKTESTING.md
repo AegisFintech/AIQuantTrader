@@ -60,6 +60,10 @@ docs/
 - Phase 3 Parquet conversion requires every normalized segment named by the
   admitted quality manifest and rejects extra or missing segments. Every input
   Parquet hash becomes part of the backtest identity.
+- Local converter v2 performs a bounded k-way merge of admitted BBO, full L2
+  snapshot, and trade streams. Full books use HftBacktest clear/snapshot events
+  and BBO uses its native event type, so a delayed snapshot resets both the
+  exchange and causal local book without leaving crossed afterimages.
 - Tardis conversion requires one checksummed `trades` file and one checksummed
   `incremental_book_L2` file for the same UTC day. Trades are passed first so a
   trade and its subsequent depth reduction do not consume queue twice.
@@ -147,10 +151,11 @@ future profitability.
 
 - Tardis conversion uses the pinned library converter and preallocates no more
   than twice the source rows plus bounded snapshot overhead for one day.
-- Normalized Parquet conversion currently materializes the selected segment set
-  to establish deterministic cross-channel ordering. Research jobs should use
-  hour/day batches; a streaming external sort requires benchmark evidence
-  before replacing this simpler path.
+- Normalized Parquet conversion retains one compact Arrow batch per input
+  stream during its deterministic k-way merge, then materializes the final
+  HftBacktest event array for validation and deterministic compressed-NPZ
+  output. Peak input-row memory therefore does not grow with capture duration;
+  the final event array remains the principal memory bound.
 - Scenario stress copies the event array once so the admitted artifact remains
   immutable. The matching loop itself runs in HftBacktest's Rust core.
 - Kernel parity groups local events and retains only bounded L2 depth. It is a
@@ -181,6 +186,8 @@ runtime as part of a Phase 5 rollback.
 Automated now:
 
 - deterministic Tardis and admitted-Parquet conversion with exact hashes;
+- native BBO and full-snapshot replay, including delayed-snapshot local-book
+  reset without a crossed afterimage;
 - timestamp/order validation and an exchange-before-local no-lookahead test;
 - synthetic queue, latency, passive fill, fee, slippage, and funding outcomes;
 - deterministic replay and pessimistic fill sensitivity;

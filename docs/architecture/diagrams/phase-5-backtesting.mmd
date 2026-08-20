@@ -1,8 +1,9 @@
 flowchart LR
     TD[Tardis UTC-day files] --> ADMIT[Manifest and quality admission]
-    LP[Phase 3 normalized Parquet] --> ADMIT
+    LP[Phase 3 BBO L2 trade Parquet] --> ADMIT
     ADMIT --> CONVERT[Causal Hft event conversion]
-    CONVERT --> NPZ[Deterministic NPZ plus SHA-256 manifest]
+    CONVERT --> TYPES[Native BBO clear snapshot trade events]
+    TYPES --> NPZ[Deterministic NPZ plus SHA-256 manifest]
 
     NPZ --> HFT[HftBacktest Rust replay]
     BASE[Baseline scenario] --> HFT
@@ -15,7 +16,7 @@ flowchart LR
     NA --> KERNEL
     KERNEL --> PARITY[Exact decision-trace parity]
 
-    NPZ --> WF[Purged walk-forward planner]
+    NPZ --> WF[Horizon-bound purged walk-forward planner]
     WF --> SELECT[Validation-only selection]
     SELECT --> RECEIPT[Immutable selection receipt]
     RECEIPT --> HOLDOUT[Final holdout access]

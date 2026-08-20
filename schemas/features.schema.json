@@ -44,8 +44,11 @@
           "type": "integer"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "default": 2,
+          "enum": [
+            1,
+            2
+          ],
           "title": "Schema Version",
           "type": "integer"
         },
@@ -53,6 +56,18 @@
           "pattern": "^[0-9a-f]{64}$",
           "title": "Source Dataset Sha256",
           "type": "string"
+        },
+        "stale_book_exclusion_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Stale Book Exclusion Count",
+          "type": "integer"
+        },
+        "stale_trade_exclusion_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Stale Trade Exclusion Count",
+          "type": "integer"
         }
       },
       "required": [

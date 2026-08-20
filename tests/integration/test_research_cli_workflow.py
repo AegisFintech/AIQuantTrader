@@ -35,6 +35,7 @@ def validation_plan() -> ValidationPlan:
     return ValidationPlan(
         policy_sha256="b" * 64,
         dataset_sha256=SOURCE_DATASET_SHA256,
+        label_horizon_ns=5,
         folds=(
             WalkForwardFold(
                 fold=0,
@@ -332,3 +333,51 @@ def test_research_cli_rejects_schema_mismatch_and_partial_champion(
         == 2
     )
     assert "supplied together" in capsys.readouterr().err
+
+
+def test_run_search_rejects_matrix_horizon_outside_frozen_validation_plan(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    matrix_path = tmp_path / "matrix.npz"
+    matrix_manifest_path = write_matrix(matrix_path)
+    plan_path = tmp_path / "validation-plan.json"
+    plan_path.write_text(
+        validation_plan().model_copy(update={"label_horizon_ns": 6}).model_dump_json(),
+        encoding="utf-8",
+    )
+
+    assert (
+        main(
+            [
+                "run-search",
+                "--matrix",
+                str(matrix_path),
+                "--matrix-manifest",
+                str(matrix_manifest_path),
+                "--validation-plan",
+                str(plan_path),
+                "--fold",
+                "0",
+                "--policy",
+                str(tmp_path / "unused-policy.json"),
+                "--engine",
+                "lightgbm",
+                "--target",
+                "next_mid_return_bps",
+                "--artifact-root",
+                str(tmp_path),
+                "--artifact-path",
+                "unused.txt",
+                "--dependency-lock",
+                str(tmp_path / "unused.lock"),
+                "--created-at",
+                "2026-08-20T00:00:00+00:00",
+                "--randomized-label-minimum-mse",
+                "0",
+                "--no-signal-report",
+                str(tmp_path / "unused-no-signal.json"),
+            ]
+        )
+        == 2
+    )
+    assert "horizon does not match" in capsys.readouterr().err
