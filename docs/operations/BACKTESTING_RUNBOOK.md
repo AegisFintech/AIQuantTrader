@@ -68,6 +68,10 @@ lengths, candidates, or metrics after observing validation or test results.
 Validation-plan schema v2 also carries the policy's label horizon. Research
 training rejects a forecast matrix whose manifest declares a different
 horizon, even when its source dataset hash matches the plan.
+Matrix schema v3 also binds the entire validation-plan hash and holdout start.
+Seal the development artifact in a privileged preprocessing job, then remove
+the source feature Parquet and any holdout material from ordinary research
+worker mounts. A runtime window mask over a full-span matrix is not acceptable.
 
 ## 5. Run replay and parity
 

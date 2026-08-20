@@ -17,8 +17,10 @@ flowchart LR
     KERNEL --> PARITY[Exact decision-trace parity]
 
     NPZ --> WF[Horizon-bound purged walk-forward planner]
-    WF --> SELECT[Validation-only selection]
+    WF --> SEAL[Privileged development-matrix sealer]
+    SEAL --> DEV[Plan-bound matrix without holdout rows]
+    DEV --> SELECT[Validation-only selection]
     SELECT --> RECEIPT[Immutable selection receipt]
-    RECEIPT --> HOLDOUT[Final holdout access]
+    RECEIPT --> HOLDOUT[Separately authorized final holdout access]
     EXEC --> REPORT[Bootstrap and selection-deflated report]
     HOLDOUT --> REPORT

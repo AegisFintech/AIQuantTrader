@@ -76,7 +76,8 @@ def write_matrix(
     schema_hash: str | None = None,
     source_feature_dataset_sha256: str = "b" * 64,
 ) -> Path:
-    rows = 60
+    source_rows = 60
+    rows = 44
     features = np.zeros((rows, len(MODEL_FEATURE_SCHEMA.features)), dtype=np.float64)
     features[:, 0] = np.arange(rows, dtype=np.float64) / 10
     features[:, MODEL_FEATURE_SCHEMA.names.index("realized_volatility")] = np.arange(rows) % 3
@@ -108,6 +109,9 @@ def write_matrix(
         source_dataset_sha256=SOURCE_DATASET_SHA256,
     )
     manifest = ForecastMatrixManifest.create(
+        partition_role="development",
+        validation_plan_sha256=validation_plan().sha256(),
+        development_cutoff_ts_ns=validation_plan().final_holdout.start_ts_ns,
         target=ForecastTarget.NEXT_MID_RETURN_BPS,
         horizon_ns=5,
         sample_interval_ns=10,
@@ -117,15 +121,18 @@ def write_matrix(
         feature_schema_sha256=schema_hash or MODEL_FEATURE_SCHEMA.sha256(),
         causal_matrix_sha256=matrix.sha256(),
         file_sha256=sha256_file(path),
-        source_row_count=rows,
-        ready_row_count=rows,
-        candidate_row_count=rows,
+        source_row_count=source_rows,
+        ready_row_count=source_rows,
+        candidate_row_count=source_rows,
         row_count=rows,
-        low_volatility_row_count=20,
-        normal_volatility_row_count=20,
-        high_volatility_row_count=20,
+        low_volatility_row_count=int(np.sum(volatility_regimes == VolatilityRegime.LOW.value)),
+        normal_volatility_row_count=int(
+            np.sum(volatility_regimes == VolatilityRegime.NORMAL.value)
+        ),
+        high_volatility_row_count=int(np.sum(volatility_regimes == VolatilityRegime.HIGH.value)),
         dropped_label_gap_count=0,
         dropped_tail_count=0,
+        excluded_holdout_candidate_count=source_rows - rows,
         first_sample_ts_ns=int(timestamps[0]),
         last_sample_ts_ns=int(timestamps[-1]),
         first_label_end_ts_ns=int(timestamps[0] + 5),
@@ -218,6 +225,48 @@ def test_build_matrix_cli_binds_immutable_features_and_explicit_label_policy(
         )
         for sequence in range(7)
     )
+    plan = ValidationPlan(
+        policy_sha256="e" * 64,
+        dataset_sha256=SOURCE_DATASET_SHA256,
+        label_horizon_ns=2 * SECOND_NS,
+        folds=(
+            WalkForwardFold(
+                fold=0,
+                train=TimeWindow(
+                    role=WindowRole.TRAIN,
+                    start_ts_ns=0,
+                    end_ts_ns=3 * SECOND_NS,
+                ),
+                purge=TimeWindow(
+                    role=WindowRole.PURGE,
+                    start_ts_ns=3 * SECOND_NS,
+                    end_ts_ns=5 * SECOND_NS,
+                ),
+                validation=TimeWindow(
+                    role=WindowRole.VALIDATION,
+                    start_ts_ns=5 * SECOND_NS,
+                    end_ts_ns=5 * SECOND_NS + 25,
+                ),
+                embargo=TimeWindow(
+                    role=WindowRole.EMBARGO,
+                    start_ts_ns=5 * SECOND_NS + 25,
+                    end_ts_ns=5 * SECOND_NS + 50,
+                ),
+                test=TimeWindow(
+                    role=WindowRole.WALK_FORWARD_TEST,
+                    start_ts_ns=5 * SECOND_NS + 50,
+                    end_ts_ns=7 * SECOND_NS + 100,
+                ),
+            ),
+        ),
+        final_holdout=TimeWindow(
+            role=WindowRole.FINAL_HOLDOUT,
+            start_ts_ns=7 * SECOND_NS + 100,
+            end_ts_ns=8 * SECOND_NS,
+        ),
+    )
+    plan_path = tmp_path / "validation-plan.json"
+    plan_path.write_text(plan.model_dump_json(), encoding="utf-8")
     feature_manifest_path, feature_manifest = write_feature_dataset(
         states,
         config=FeatureEngineConfig(
@@ -256,13 +305,16 @@ def test_build_matrix_cli_binds_immutable_features_and_explicit_label_policy(
                 str(SECOND_NS),
                 "--maximum-label-delay-ns",
                 "0",
+                "--validation-plan",
+                str(plan_path),
             ]
         )
         == 0
     )
     result = json.loads(capsys.readouterr().out)
-    assert result["rows"] == 4
-    assert result["dropped_tail"] == 2
+    assert result["rows"] == 3
+    assert result["dropped_tail"] == 1
+    assert result["excluded_holdout_candidates"] == 2
     assert (tmp_path / "matrices/next-mid.npz").is_file()
     assert Path(result["manifest"]).is_file()
 
@@ -425,6 +477,16 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
     manifest_path = Path(receipt["model_manifest"])
     assert manifest_path.is_file()
     assert (artifacts / "models" / "challenger.txt").is_file()
+
+    mismatched_plan_path = tmp_path / "mismatched-validation-plan.json"
+    mismatched_plan_path.write_text(
+        validation_plan().model_copy(update={"policy_sha256": "c" * 64}).model_dump_json(),
+        encoding="utf-8",
+    )
+    mismatched_plan_args = list(search_args)
+    mismatched_plan_args[mismatched_plan_args.index(str(plan_path))] = str(mismatched_plan_path)
+    assert main(mismatched_plan_args) == 2
+    assert "does not bind" in capsys.readouterr().err
 
     mismatched_report = no_signal_path.with_name("mismatched-no-signal.json")
     report = NoSignalControlReport.model_validate_json(no_signal_path.read_bytes())

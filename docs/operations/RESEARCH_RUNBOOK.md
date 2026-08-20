@@ -72,11 +72,12 @@ uv run aqt-research build-matrix \
   --features data/research/features/2026-08-01/btc-microstructure-v1.parquet \
   --feature-manifest data/research/features/2026-08-01/btc-microstructure-v1.parquet.manifest.json \
   --output-root data/research \
-  --relative-path matrices/next-mid-return-30s-v2.npz \
+  --relative-path matrices/next-mid-return-30s-v3-development.npz \
   --target next_mid_return_bps \
   --horizon-ns 30000000000 \
   --sample-interval-ns 1000000000 \
-  --maximum-label-delay-ns 2000000000
+  --maximum-label-delay-ns 2000000000 \
+  --validation-plan data/research/plans/walk-forward-v1.json
 ```
 
 The builder verifies the feature file hash, manifest row count, feature schema,
@@ -85,6 +86,11 @@ first ready observation at or after the horizon and rejects that candidate if
 the observation arrives beyond `maximum-label-delay-ns`; it never interpolates
 prices or backfills across a data gap. Warmup rows and unlabeled tail rows are
 excluded and counted in the matrix manifest.
+Candidates whose sample or resolved label reaches the final-holdout start are
+separately counted and omitted. This command is the privileged sealing step;
+after it succeeds, ordinary model workers should mount only the development
+NPZ, its manifest, the validation plan, and other public control inputs—not the
+source feature Parquet or holdout data.
 
 The deterministic NumPy NPZ contains exactly these arrays:
 
@@ -103,10 +109,11 @@ The deterministic NumPy NPZ contains exactly these arrays:
 NumPy pickle loading is disabled. The companion manifest binds the source
 feature dataset and raw dataset, target, schema, horizon, sample interval,
 maximum label delay, candidate and regime accounting, semantic matrix hash,
-NPZ hash, rows, and causal time window. `run-search` requires and revalidates
-schema v2. Retain schema-v1 artifacts as historical evidence, but rebuild them
-under a new path before current research; never overwrite or manually upgrade
-an old matrix.
+NPZ hash, rows, causal time window, complete validation-plan hash, development
+cutoff, and excluded holdout candidates. `run-search` requires and revalidates
+schema v3 before loading an engine. Retain schema-v1/v2 artifacts as historical
+evidence, but rebuild them under a new path before current research; never
+overwrite or manually upgrade an old matrix.
 The frozen validation-plan schema v2 independently carries the expected label
 horizon; a horizon mismatch fails before a search policy or model adapter is
 loaded.
@@ -142,8 +149,8 @@ extension:
 
 ```bash
 uv run aqt-research run-search \
-  --matrix data/research/matrices/next-mid-return-v2.npz \
-  --matrix-manifest data/research/matrices/next-mid-return-v2.npz.manifest.json \
+  --matrix data/research/matrices/next-mid-return-v3-development.npz \
+  --matrix-manifest data/research/matrices/next-mid-return-v3-development.npz.manifest.json \
   --validation-plan data/research/plans/walk-forward-v1.json \
   --fold 0 \
   --policy configs/research/search-lightgbm-v1.json \

@@ -19,7 +19,8 @@ Hft local-arrival events ----> shared pure kernel ----> decision trace
 Nautilus market-data objects -> shared pure kernel ----> decision trace
 
 dataset -> purged walk-forward -> validation-only selection receipt
-  -> one selected candidate may access the untouched final holdout
+  -> plan-bound development artifact excludes final holdout rows
+  -> one selected candidate may separately access the untouched final holdout
 ```
 
 HftBacktest `2.4.4` is now a core native dependency because simulator adapters
@@ -131,6 +132,15 @@ also provide seeded moving-block bootstrap intervals and a one-sided
 Bonferroni selection-family lower bound; neither is presented as a guarantee of
 future profitability.
 
+Forecast research additionally seals a schema-v3 development NPZ before model
+workers run. Its manifest binds the complete validation-plan hash and holdout
+start, accounts for every excluded candidate, and rejects any sample or label
+timestamp at or after that boundary. `run-search` accepts only this exact
+partition. The privileged sealer may read the source feature Parquet; ordinary
+workers should receive only the sealed NPZ and public manifests. Authorized
+final-holdout construction/evaluation is deliberately absent from the research
+CLI and remains a separate post-selection workflow.
+
 ## Alternatives and tradeoffs
 
 - A bespoke matching simulator was rejected. HftBacktest already provides a
@@ -142,6 +152,10 @@ future profitability.
   baseline and pessimistic results under the same dataset and kernel identity.
 - Random train/test splitting was rejected because labels, book state, and
   parameter selection are time-dependent.
+- A full-span matrix plus an in-process window mask was rejected because the
+  model worker could still read and hash holdout labels. Physical development
+  partitioning costs one extra immutable artifact and privileged preprocessing
+  step but removes those rows from the worker's addressable input.
 - Compressed NPZ reduces retained artifact size and is accepted directly by
   HftBacktest, but it cannot be memory-mapped. Conversion and replay are split
   by UTC day to bound peak memory; large studies pass multiple day artifacts to
@@ -192,8 +206,9 @@ Automated now:
 - synthetic queue, latency, passive fill, fee, slippage, and funding outcomes;
 - deterministic replay and pessimistic fill sensitivity;
 - exact shared-kernel decisions from Hft events and real Nautilus objects;
-- purged/embargoed disjoint windows, validation-only selection, guarded final
-  holdout, bootstrap uncertainty, and selection-family penalties;
+- purged/embargoed disjoint windows, plan-bound physical development
+  partitioning, validation-only selection, guarded final holdout, bootstrap
+  uncertainty, and selection-family penalties;
 - schema export, strict typing, pinned dependencies, and over 90% native test
   coverage.
 
