@@ -277,12 +277,28 @@ class SearchReceipt(DomainModel):
 
 
 class NoSignalControlReport(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
+    control_id: Literal["neutral-alpha-order-flow-v1"]
     feature_dataset_sha256: Sha256
+    feature_file_sha256: Sha256
+    feature_schema_sha256: Sha256
     strategy_configuration_sha256: Sha256
     scenario_sha256: Sha256
     observation_count: int = Field(gt=0)
+    ready_observation_count: int = Field(ge=0)
     decision_count: int = Field(ge=0)
+    first_receive_ts_ns: int = Field(ge=0)
+    last_receive_ts_ns: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_control_counts_and_window(self) -> Self:
+        if self.ready_observation_count > self.observation_count:
+            raise ValueError("ready observations cannot exceed total observations")
+        if self.decision_count > self.ready_observation_count:
+            raise ValueError("no-signal decisions cannot exceed ready observations")
+        if self.last_receive_ts_ns < self.first_receive_ts_ns:
+            raise ValueError("no-signal observation window is reversed")
+        return self
 
 
 class NegativeControlReport(DomainModel):

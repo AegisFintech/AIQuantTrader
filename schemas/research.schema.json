@@ -526,6 +526,11 @@
     "NoSignalControlReport": {
       "additionalProperties": false,
       "properties": {
+        "control_id": {
+          "const": "neutral-alpha-order-flow-v1",
+          "title": "Control Id",
+          "type": "string"
+        },
         "decision_count": {
           "minimum": 0,
           "title": "Decision Count",
@@ -536,9 +541,34 @@
           "title": "Feature Dataset Sha256",
           "type": "string"
         },
+        "feature_file_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature File Sha256",
+          "type": "string"
+        },
+        "feature_schema_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Schema Sha256",
+          "type": "string"
+        },
+        "first_receive_ts_ns": {
+          "minimum": 0,
+          "title": "First Receive Ts Ns",
+          "type": "integer"
+        },
+        "last_receive_ts_ns": {
+          "minimum": 0,
+          "title": "Last Receive Ts Ns",
+          "type": "integer"
+        },
         "observation_count": {
           "exclusiveMinimum": 0,
           "title": "Observation Count",
+          "type": "integer"
+        },
+        "ready_observation_count": {
+          "minimum": 0,
+          "title": "Ready Observation Count",
           "type": "integer"
         },
         "scenario_sha256": {
@@ -547,8 +577,8 @@
           "type": "string"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -559,11 +589,17 @@
         }
       },
       "required": [
+        "control_id",
         "feature_dataset_sha256",
+        "feature_file_sha256",
+        "feature_schema_sha256",
         "strategy_configuration_sha256",
         "scenario_sha256",
         "observation_count",
-        "decision_count"
+        "ready_observation_count",
+        "decision_count",
+        "first_receive_ts_ns",
+        "last_receive_ts_ns"
       ],
       "title": "NoSignalControlReport",
       "type": "object"

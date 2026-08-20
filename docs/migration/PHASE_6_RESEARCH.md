@@ -37,12 +37,12 @@ native/
 |- Dockerfile (separate dependency-complete, non-root `research` target)
 |- configs/features/microstructure-v1.toml
 |- configs/strategies/{avellaneda-stoikov,order-flow-scalper}-v1.toml
-|- configs/research/{search-lightgbm,promotion}-v1.json
+|- configs/research/{search-lightgbm,search-xgboost,search-catboost,promotion}-v1.json
 |- schemas/{features,research}.schema.json
 |- src/aiquanttrader_native/features/{models,engine,storage}.py
 |- src/aiquanttrader_native/strategies/{common,config,market_maker,scalper}.py
 |- src/aiquanttrader_native/research/
-|  |- {models,model_adapters,artifacts,search}.py
+|  |- {models,model_adapters,artifacts,search,controls}.py
 |  `- {drift,governance,registry,metrics,cli}.py
 |- observability/grafana/dashboards/research.json
 `- tests/{unit,integration}/test_{feature,research,strategy,model}*.py
@@ -132,6 +132,17 @@ test labels cannot alter the selected trial. Purge and embargo windows come
 from the Phase 5 frozen validation plan. Search is bounded to at most 64
 declared trials; it is not an open-ended optimizer. Search refuses an unbound
 NPZ and revalidates the matrix manifest before loading any training rows.
+Each fold also reports zero-prediction and train-window-mean test MSE; ranking
+first among candidate models is insufficient when the winner cannot improve
+on both non-leaking baselines.
+
+The v2 no-signal control streams immutable feature Parquet and replays the real
+order-flow kernel with only its three alpha inputs neutralized and forecast set
+to zero. Market prices, spread, volatility, readiness, timestamps, and
+scenario-derived costs remain intact. The report records total/ready rows and
+every non-HOLD action, intent, or cancel, and binds feature file/schema,
+strategy, and scenario identities. Model search revalidates all of that
+lineage before training; a supplied zero is not trusted.
 
 ## Governance and registry
 
@@ -194,9 +205,10 @@ parallel workers must hand immutable results to that owner.
 - Model training is CPU-only and single-threaded for deterministic, bounded
   research. Parallelism belongs across isolated experiments, not inside one
   registry writer.
-- Feature Parquet construction materializes the selected replay in memory.
-  Partition production studies by admitted UTC hour/day artifacts until a
-  benchmark supports a streaming writer.
+- Feature Parquet construction and no-signal replay stream deterministic Arrow
+  batches. Feature construction retains one output row group plus bounded
+  feature windows; no-signal replay retains one input batch and strategy
+  memory.
 - Matrix construction vectorizes feature columns and label lookup, then writes
   a compressed deterministic NPZ. Memory is linear in source rows; partition
   long captures before concatenating fold inputs.
@@ -218,6 +230,8 @@ Automated now:
 - validation-only selection, causal label-boundary tests, test-label isolation,
   deterministic manifest-bound matrix construction, gap/tail accounting, test-
   label isolation, and seeded randomized-label controls;
+- generated neutral-alpha no-signal reports with immutable feature, strategy,
+  and scenario lineage plus fail-before-training mismatch tests;
 - complete promotion gates, stable/shifted drift tests, immutable registry,
   single-writer/thread ownership, monotonic stage history, and the human
   approval ceiling;

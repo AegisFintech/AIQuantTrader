@@ -267,6 +267,7 @@ promotion commands:
 ```bash
 uv run aqt-research feature-replay --help
 uv run aqt-research build-matrix --help
+uv run aqt-research run-no-signal-control --help
 uv run aqt-research run-search --help
 uv run aqt-research validate-model --help
 uv run aqt-research registry-register-experiment --help
@@ -281,6 +282,10 @@ samples from an immutable feature Parquet and emits a hash-bound manifest;
 `run-search` requires that manifest and revalidates it before training. See
 [`PHASE_6_RESEARCH.md`](docs/migration/PHASE_6_RESEARCH.md) and
 [`RESEARCH_RUNBOOK.md`](docs/operations/RESEARCH_RUNBOOK.md).
+`run-no-signal-control` neutralizes only the order-flow kernel's alpha inputs,
+replays every immutable feature row, and writes a v2 report bound to the exact
+feature file/schema, strategy configuration, and execution scenario. Model
+search rejects a report whose retained lineage does not match its matrix.
 
 ## Paper trading
 

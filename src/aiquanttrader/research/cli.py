@@ -13,11 +13,17 @@ from pathlib import Path
 from aiquanttrader.backtest.conversion import load_event_file
 from aiquanttrader.backtest.kernel import iter_hft_market_states
 from aiquanttrader.backtest.models import BacktestDatasetManifest, ValidationPlan
+from aiquanttrader.backtest.scenarios import load_scenario
 from aiquanttrader.domain.governance import ActorKind, PromotionStage
-from aiquanttrader.features.models import MODEL_FEATURE_SCHEMA, FeatureEngineConfig
+from aiquanttrader.features.models import (
+    MODEL_FEATURE_SCHEMA,
+    FeatureDatasetManifest,
+    FeatureEngineConfig,
+)
 from aiquanttrader.features.storage import write_feature_dataset
 from aiquanttrader.market_data.io import atomic_write_bytes, sha256_file
 from aiquanttrader.research.artifacts import load_model_artifact, save_model_artifact
+from aiquanttrader.research.controls import NO_SIGNAL_CONTROL_ID, run_no_signal_control
 from aiquanttrader.research.governance import evaluate_challenger
 from aiquanttrader.research.matrix import build_forecast_matrix, load_forecast_matrix
 from aiquanttrader.research.model_adapters import adapter_for
@@ -33,6 +39,7 @@ from aiquanttrader.research.models import (
 )
 from aiquanttrader.research.registry import ResearchRegistry
 from aiquanttrader.research.search import randomized_label_control, run_fold_retraining
+from aiquanttrader.strategies.config import load_scalper_config
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -60,6 +67,13 @@ def _parser() -> argparse.ArgumentParser:
     matrix.add_argument("--sample-interval-ns", type=int, required=True)
     matrix.add_argument("--maximum-label-delay-ns", type=int, required=True)
 
+    no_signal = commands.add_parser("run-no-signal-control")
+    no_signal.add_argument("--features", type=Path, required=True)
+    no_signal.add_argument("--feature-manifest", type=Path, required=True)
+    no_signal.add_argument("--strategy-config", type=Path, required=True)
+    no_signal.add_argument("--scenario", type=Path, required=True)
+    no_signal.add_argument("--output", type=Path, required=True)
+
     search = commands.add_parser("run-search")
     search.add_argument("--matrix", type=Path, required=True)
     search.add_argument("--matrix-manifest", type=Path, required=True)
@@ -75,6 +89,9 @@ def _parser() -> argparse.ArgumentParser:
     search.add_argument("--randomized-label-minimum-mse", type=float, required=True)
     search.add_argument("--randomized-seed", type=int, default=0)
     search.add_argument("--no-signal-report", type=Path, required=True)
+    search.add_argument("--no-signal-feature-manifest", type=Path, required=True)
+    search.add_argument("--no-signal-strategy-config", type=Path, required=True)
+    search.add_argument("--no-signal-scenario", type=Path, required=True)
     search.add_argument("--output", type=Path)
 
     validate = commands.add_parser("validate-model")
@@ -174,6 +191,26 @@ def main(argv: Sequence[str] | None = None) -> int:
                 },
             )
             return 0
+        if args.command == "run-no-signal-control":
+            no_signal_report = run_no_signal_control(
+                feature_path=args.features,
+                feature_manifest_path=args.feature_manifest,
+                strategy=load_scalper_config(args.strategy_config),
+                scenario=load_scenario(args.scenario),
+            )
+            atomic_write_bytes(args.output, no_signal_report.canonical_bytes() + b"\n")
+            _write_output(
+                None,
+                {
+                    "report": str(args.output),
+                    "report_sha256": no_signal_report.sha256(),
+                    "observations": no_signal_report.observation_count,
+                    "ready_observations": no_signal_report.ready_observation_count,
+                    "decisions": no_signal_report.decision_count,
+                    "passed": no_signal_report.decision_count == 0,
+                },
+            )
+            return 0 if no_signal_report.decision_count == 0 else 3
         if args.command == "run-search":
             matrix, matrix_manifest = load_forecast_matrix(args.matrix, args.matrix_manifest)
             plan = ValidationPlan.model_validate_json(args.validation_plan.read_bytes())
@@ -188,6 +225,33 @@ def main(argv: Sequence[str] | None = None) -> int:
             target = ForecastTarget(args.target)
             if matrix_manifest.target is not target:
                 raise ValueError("forecast matrix target does not match requested research target")
+            no_signal = NoSignalControlReport.model_validate_json(
+                args.no_signal_report.read_bytes()
+            )
+            no_signal_features = FeatureDatasetManifest.model_validate_json(
+                args.no_signal_feature_manifest.read_bytes()
+            )
+            no_signal_strategy = load_scalper_config(args.no_signal_strategy_config)
+            no_signal_scenario = load_scenario(args.no_signal_scenario)
+            if no_signal.control_id != NO_SIGNAL_CONTROL_ID:
+                raise ValueError("no-signal control implementation is not supported")
+            if (
+                no_signal_features.feature_dataset_id
+                != matrix_manifest.source_feature_dataset_sha256
+            ):
+                raise ValueError(
+                    "no-signal feature manifest does not match forecast matrix lineage"
+                )
+            if no_signal.feature_dataset_sha256 != no_signal_features.feature_dataset_id:
+                raise ValueError("no-signal feature dataset does not match its report")
+            if no_signal.feature_file_sha256 != no_signal_features.file_sha256:
+                raise ValueError("no-signal feature file does not match its report")
+            if no_signal.feature_schema_sha256 != matrix_manifest.feature_schema_sha256:
+                raise ValueError("no-signal feature schema does not match forecast matrix")
+            if no_signal.strategy_configuration_sha256 != no_signal_strategy.sha256():
+                raise ValueError("no-signal strategy configuration does not match report")
+            if no_signal.scenario_sha256 != no_signal_scenario.sha256():
+                raise ValueError("no-signal execution scenario does not match report")
             adapter = adapter_for(engine)
             result = run_fold_retraining(
                 adapter=adapter,
@@ -200,9 +264,6 @@ def main(argv: Sequence[str] | None = None) -> int:
                 trial
                 for trial in policy.trials
                 if trial.trial_id == result.search.receipt.selected_trial_id
-            )
-            no_signal = NoSignalControlReport.model_validate_json(
-                args.no_signal_report.read_bytes()
             )
             controls = randomized_label_control(
                 adapter=adapter,
@@ -229,6 +290,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "model_id": model_manifest.model_id,
                 "search_receipt": result.search.receipt.model_dump(mode="json"),
                 "walk_forward_test_mse": result.walk_forward_test_mse,
+                "zero_prediction_test_mse": result.zero_prediction_test_mse,
+                "training_mean_test_mse": result.training_mean_test_mse,
                 "test_rows": result.test_rows,
                 "negative_controls": controls.model_dump(mode="json"),
                 "negative_controls_passed": controls.passed,
@@ -286,7 +349,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "evaluate":
             if (args.champion_id is None) != (args.champion_metrics is None):
                 raise ValueError("champion ID and metrics must be supplied together")
-            report = evaluate_challenger(
+            promotion_report = evaluate_challenger(
                 challenger_experiment_id=args.challenger_id,
                 challenger=PromotionMetrics.model_validate_json(
                     args.challenger_metrics.read_bytes()
@@ -302,8 +365,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                     args.negative_controls.read_bytes()
                 ),
             )
-            print(report.model_dump_json(indent=2))
-            return 0 if report.passed else 3
+            print(promotion_report.model_dump_json(indent=2))
+            return 0 if promotion_report.passed else 3
         raise RuntimeError(f"unhandled command: {args.command}")
     except (KeyError, OSError, RuntimeError, StopIteration, ValueError) as exc:
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
