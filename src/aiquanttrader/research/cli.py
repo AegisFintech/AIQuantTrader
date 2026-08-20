@@ -34,6 +34,7 @@ from aiquanttrader.research.models import (
     NoSignalControlReport,
     PromotionMetrics,
     PromotionPolicy,
+    ResearchControlPolicy,
     ResearchExperimentManifest,
     SearchPolicy,
 )
@@ -86,8 +87,7 @@ def _parser() -> argparse.ArgumentParser:
     search.add_argument("--artifact-path", required=True)
     search.add_argument("--dependency-lock", type=Path, required=True)
     search.add_argument("--created-at", required=True)
-    search.add_argument("--randomized-label-minimum-mse", type=float, required=True)
-    search.add_argument("--randomized-seed", type=int, default=0)
+    search.add_argument("--control-policy", type=Path, required=True)
     search.add_argument("--no-signal-report", type=Path, required=True)
     search.add_argument("--no-signal-feature-manifest", type=Path, required=True)
     search.add_argument("--no-signal-strategy-config", type=Path, required=True)
@@ -221,6 +221,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not 0 <= args.fold < len(plan.folds):
                 raise ValueError("fold index is outside validation plan")
             policy = SearchPolicy.model_validate_json(args.policy.read_bytes())
+            control_policy = ResearchControlPolicy.model_validate_json(
+                args.control_policy.read_bytes()
+            )
             engine = ModelEngine(args.engine)
             target = ForecastTarget(args.target)
             if matrix_manifest.target is not target:
@@ -259,6 +262,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fold=plan.folds[args.fold],
                 target=target,
                 policy=policy,
+                control_policy=control_policy,
             )
             selected_trial = next(
                 trial
@@ -271,10 +275,12 @@ def main(argv: Sequence[str] | None = None) -> int:
                 validation=matrix.window(plan.folds[args.fold].validation),
                 target=target,
                 selected_parameters=selected_trial.parameters,
-                minimum_mse=args.randomized_label_minimum_mse,
+                search_receipt=result.search.receipt,
+                policy=control_policy,
+                fold_index=args.fold,
                 no_signal_decision_count=no_signal.decision_count,
                 no_signal_report_sha256=no_signal.sha256(),
-                seed=args.randomized_seed,
+                forecast_robustness=result.forecast_robustness,
             )
             manifest_path, model_manifest = save_model_artifact(
                 result.search.selected_model,
@@ -293,6 +299,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "zero_prediction_test_mse": result.zero_prediction_test_mse,
                 "training_mean_test_mse": result.training_mean_test_mse,
                 "test_rows": result.test_rows,
+                "forecast_robustness": result.forecast_robustness.model_dump(mode="json"),
+                "forecast_robustness_passed": result.forecast_robustness.passed,
                 "negative_controls": controls.model_dump(mode="json"),
                 "negative_controls_passed": controls.passed,
             }

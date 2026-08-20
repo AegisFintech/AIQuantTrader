@@ -25,8 +25,10 @@ flowchart LR
     LGB --> NATIVE[Native-format artifact plus schema and lineage hashes]
     XGB --> NATIVE
     CAT --> NATIVE
-    NATIVE --> CONTROL[Randomized-label control]
+    NATIVE --> CONTROL[Repeated relative randomized-label control]
+    NATIVE --> REGIME[Train-defined volatility-slice report]
     NOSIGNAL --> CONTROL
+    REGIME --> CONTROL
     POLICY --> CONTROL
     CONTROL --> GATES[Champion-challenger gates]
     MM --> GATES

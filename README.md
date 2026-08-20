@@ -286,6 +286,11 @@ samples from an immutable feature Parquet and emits a hash-bound manifest;
 replays every immutable feature row, and writes a v2 report bound to the exact
 feature file/schema, strategy configuration, and execution scenario. Model
 search rejects a report whose retained lineage does not match its matrix.
+`run-search` also requires `configs/research/controls-v1.json`: it runs three
+fold-derived shuffled-label fits with scale-free comparisons and reports
+aggregate plus train-defined low/normal/high-volatility test metrics. A missing
+regime, a regime that loses to either non-leaking baseline, or a failed control
+keeps the candidate ineligible for promotion.
 
 ## Paper trading
 
