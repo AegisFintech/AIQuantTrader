@@ -12,7 +12,7 @@ flowchart LR
     FEATURES --> MM[Avellaneda-Stoikov kernel]
     FEATURES --> SCALPER[Order-flow scalper kernel]
     FEATURES --> PARQUET[Immutable feature Parquet plus manifest]
-    PARQUET --> MATRIX[Hash-bound causal forecast matrix]
+    PARQUET --> MATRIX[Plan-bound development matrix without holdout rows]
     PARQUET --> NOSIGNAL[Bounded neutral-alpha kernel replay]
 
     DATA --> REPLAY[Offline tick replay]

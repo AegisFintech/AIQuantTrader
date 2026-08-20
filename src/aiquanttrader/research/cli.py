@@ -25,7 +25,11 @@ from aiquanttrader.market_data.io import atomic_write_bytes, sha256_file
 from aiquanttrader.research.artifacts import load_model_artifact, save_model_artifact
 from aiquanttrader.research.controls import NO_SIGNAL_CONTROL_ID, run_no_signal_control
 from aiquanttrader.research.governance import evaluate_challenger
-from aiquanttrader.research.matrix import build_forecast_matrix, load_forecast_matrix
+from aiquanttrader.research.matrix import (
+    build_forecast_matrix,
+    load_forecast_matrix,
+    require_development_matrix_plan,
+)
 from aiquanttrader.research.model_adapters import adapter_for
 from aiquanttrader.research.models import (
     ForecastTarget,
@@ -67,6 +71,7 @@ def _parser() -> argparse.ArgumentParser:
     matrix.add_argument("--horizon-ns", type=int, required=True)
     matrix.add_argument("--sample-interval-ns", type=int, required=True)
     matrix.add_argument("--maximum-label-delay-ns", type=int, required=True)
+    matrix.add_argument("--validation-plan", type=Path, required=True)
 
     no_signal = commands.add_parser("run-no-signal-control")
     no_signal.add_argument("--features", type=Path, required=True)
@@ -179,6 +184,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 horizon_ns=args.horizon_ns,
                 sample_interval_ns=args.sample_interval_ns,
                 maximum_label_delay_ns=args.maximum_label_delay_ns,
+                validation_plan=ValidationPlan.model_validate_json(
+                    args.validation_plan.read_bytes()
+                ),
             )
             _write_output(
                 None,
@@ -188,6 +196,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "rows": forecast_manifest.row_count,
                     "dropped_label_gaps": forecast_manifest.dropped_label_gap_count,
                     "dropped_tail": forecast_manifest.dropped_tail_count,
+                    "excluded_holdout_candidates": (
+                        forecast_manifest.excluded_holdout_candidate_count
+                    ),
                 },
             )
             return 0
@@ -214,10 +225,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.command == "run-search":
             matrix, matrix_manifest = load_forecast_matrix(args.matrix, args.matrix_manifest)
             plan = ValidationPlan.model_validate_json(args.validation_plan.read_bytes())
-            if plan.dataset_sha256 != matrix.source_dataset_sha256:
-                raise ValueError("training matrix source does not match validation plan")
-            if plan.label_horizon_ns != matrix_manifest.horizon_ns:
-                raise ValueError("forecast matrix horizon does not match validation plan")
+            require_development_matrix_plan(matrix_manifest, plan)
             if not 0 <= args.fold < len(plan.folds):
                 raise ValueError("fold index is outside validation plan")
             policy = SearchPolicy.model_validate_json(args.policy.read_bytes())

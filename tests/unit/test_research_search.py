@@ -428,6 +428,16 @@ def test_training_matrix_and_metric_reject_invalid_inputs() -> None:
             feature_schema=source.feature_schema,
             source_dataset_sha256=source.source_dataset_sha256,
         )
+    with pytest.raises(ValueError, match="non-decreasing"):
+        CausalTrainingMatrix(
+            features=source.features,
+            labels=source.labels,
+            sample_ts_ns=source.sample_ts_ns,
+            label_end_ts_ns=source.label_end_ts_ns[::-1],
+            volatility_regimes=source.volatility_regimes,
+            feature_schema=source.feature_schema,
+            source_dataset_sha256=source.source_dataset_sha256,
+        )
     with pytest.raises(ValueError, match="aligned"):
         mean_squared_error(np.asarray([1.0]), np.asarray([1.0, 2.0]))
     with pytest.raises(ValueError, match="finite"):

@@ -158,6 +158,8 @@ class CausalTrainingMatrix:
             raise ValueError("training matrix must contain only finite values")
         if not np.all(np.diff(self.sample_ts_ns) > 0):
             raise ValueError("sample timestamps must be strictly increasing")
+        if np.any(np.diff(self.label_end_ts_ns) < 0):
+            raise ValueError("label end timestamps must be non-decreasing")
         if np.any(self.label_end_ts_ns <= self.sample_ts_ns):
             raise ValueError("every label must end after its feature observation")
 
@@ -198,8 +200,11 @@ class CausalTrainingMatrix:
 class ForecastMatrixManifest(DomainModel):
     """Immutable lineage for a leakage-safe supervised forecast matrix."""
 
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     matrix_id: Sha256
+    partition_role: Literal["development"]
+    validation_plan_sha256: Sha256
+    development_cutoff_ts_ns: int = Field(gt=0)
     target: Literal[ForecastTarget.NEXT_MID_RETURN_BPS]
     horizon_ns: int = Field(gt=0)
     sample_interval_ns: int = Field(gt=0)
@@ -218,6 +223,7 @@ class ForecastMatrixManifest(DomainModel):
     high_volatility_row_count: int = Field(ge=0)
     dropped_label_gap_count: int = Field(ge=0)
     dropped_tail_count: int = Field(ge=0)
+    excluded_holdout_candidate_count: int = Field(ge=0)
     first_sample_ts_ns: int = Field(ge=0)
     last_sample_ts_ns: int = Field(ge=0)
     first_label_end_ts_ns: int = Field(ge=0)
@@ -237,7 +243,12 @@ class ForecastMatrixManifest(DomainModel):
             raise ValueError("forecast matrix ready rows exceed source rows")
         if self.candidate_row_count > self.ready_row_count:
             raise ValueError("forecast matrix candidates exceed ready rows")
-        accounted = self.row_count + self.dropped_label_gap_count + self.dropped_tail_count
+        accounted = (
+            self.row_count
+            + self.dropped_label_gap_count
+            + self.dropped_tail_count
+            + self.excluded_holdout_candidate_count
+        )
         if accounted != self.candidate_row_count:
             raise ValueError("forecast matrix candidate accounting does not balance")
         regime_rows = (
@@ -255,6 +266,10 @@ class ForecastMatrixManifest(DomainModel):
             raise ValueError("forecast matrix last label is not causal")
         if self.last_label_end_ts_ns < self.first_label_end_ts_ns:
             raise ValueError("forecast matrix label window is reversed")
+        if self.last_sample_ts_ns >= self.development_cutoff_ts_ns:
+            raise ValueError("forecast matrix samples reach the final holdout")
+        if self.last_label_end_ts_ns >= self.development_cutoff_ts_ns:
+            raise ValueError("forecast matrix labels reach the final holdout")
         return self
 
 

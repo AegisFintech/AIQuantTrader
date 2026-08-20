@@ -42,7 +42,8 @@ and the completed Phase 10 evidence-verification boundary:
 - a pure strategy-kernel boundary shared by Hft local-arrival replay and actual
   Nautilus market-data objects;
 - horizon-bound purged walk-forward planning, validation-only selection
-  receipts, untouched holdout authorization, block bootstrap, and
+  receipts, physically sealed development matrices, holdout authorization,
+  block bootstrap, and
   multiple-selection penalties.
 - bounded causal order-book, flow, volatility, inventory, fill, and
   adverse-selection features with streaming deterministic Parquet lineage and
@@ -278,8 +279,10 @@ The market-maker seed requires calibrated fill evidence and therefore fails
 closed with the checked-in uncalibrated feature configuration. Research may
 advance a passing challenger only to `AWAITING_APPROVAL`; the CLI has no human
 approval actor. `build-matrix` derives deterministic, future-labeled forecast
-samples from an immutable feature Parquet and emits a hash-bound manifest;
-`run-search` requires that manifest and revalidates it before training. See
+samples from an immutable feature Parquet, excludes every sample or label that
+reaches the validation plan's final holdout, and emits a plan-bound schema-v3
+manifest. `run-search` rejects any legacy, full-span, or differently bound
+matrix before loading an engine. See
 [`PHASE_6_RESEARCH.md`](docs/migration/PHASE_6_RESEARCH.md) and
 [`RESEARCH_RUNBOOK.md`](docs/operations/RESEARCH_RUNBOOK.md).
 `run-no-signal-control` neutralizes only the order-flow kernel's alpha inputs,
@@ -288,7 +291,7 @@ feature file/schema, strategy configuration, and execution scenario. Model
 search rejects a report whose retained lineage does not match its matrix.
 `run-search` also requires `configs/research/controls-v2.json`: it runs three
 fold-derived shuffled-label fits with scale-free comparisons, scores the exact
-causal low/normal/high regime captured in matrix schema v2, and performs a
+causal low/normal/high regime captured in matrix schema v3, and performs a
 scenario-bound, non-overlapping post-cost directional replay. A missing regime,
 a regime that loses to either non-leaking baseline, insufficient post-cost
 evidence, an uncalibrated scenario, or any failed control keeps the candidate

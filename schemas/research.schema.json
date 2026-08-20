@@ -434,6 +434,11 @@
           "title": "Causal Matrix Sha256",
           "type": "string"
         },
+        "development_cutoff_ts_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Development Cutoff Ts Ns",
+          "type": "integer"
+        },
         "dropped_label_gap_count": {
           "minimum": 0,
           "title": "Dropped Label Gap Count",
@@ -442,6 +447,11 @@
         "dropped_tail_count": {
           "minimum": 0,
           "title": "Dropped Tail Count",
+          "type": "integer"
+        },
+        "excluded_holdout_candidate_count": {
+          "minimum": 0,
+          "title": "Excluded Holdout Candidate Count",
           "type": "integer"
         },
         "feature_schema_sha256": {
@@ -504,6 +514,11 @@
           "title": "Normal Volatility Row Count",
           "type": "integer"
         },
+        "partition_role": {
+          "const": "development",
+          "title": "Partition Role",
+          "type": "string"
+        },
         "ready_row_count": {
           "exclusiveMinimum": 0,
           "title": "Ready Row Count",
@@ -520,8 +535,8 @@
           "type": "integer"
         },
         "schema_version": {
-          "const": 2,
-          "default": 2,
+          "const": 3,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -544,10 +559,18 @@
           "const": "next_mid_return_bps",
           "title": "Target",
           "type": "string"
+        },
+        "validation_plan_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Validation Plan Sha256",
+          "type": "string"
         }
       },
       "required": [
         "matrix_id",
+        "partition_role",
+        "validation_plan_sha256",
+        "development_cutoff_ts_ns",
         "target",
         "horizon_ns",
         "sample_interval_ns",
@@ -566,6 +589,7 @@
         "high_volatility_row_count",
         "dropped_label_gap_count",
         "dropped_tail_count",
+        "excluded_holdout_candidate_count",
         "first_sample_ts_ns",
         "last_sample_ts_ns",
         "first_label_end_ts_ns",

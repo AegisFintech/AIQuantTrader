@@ -13,6 +13,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from numpy.typing import NDArray
 
+from aiquanttrader.backtest.models import ValidationPlan
 from aiquanttrader.features.models import (
     MODEL_FEATURE_SCHEMA,
     FeatureDatasetManifest,
@@ -34,6 +35,21 @@ _ARCHIVE_ARRAYS = {
     "feature_schema_sha256",
     "source_dataset_sha256",
 }
+
+
+def require_development_matrix_plan(
+    manifest: ForecastMatrixManifest, validation_plan: ValidationPlan
+) -> None:
+    """Reject a matrix that is not the exact sealed partition for a plan."""
+
+    if validation_plan.dataset_sha256 != manifest.source_dataset_sha256:
+        raise ValueError("development matrix source does not match validation plan")
+    if validation_plan.label_horizon_ns != manifest.horizon_ns:
+        raise ValueError("forecast matrix horizon does not match validation plan")
+    if manifest.validation_plan_sha256 != validation_plan.sha256():
+        raise ValueError("development matrix does not bind this validation plan")
+    if manifest.development_cutoff_ts_ns != validation_plan.final_holdout.start_ts_ns:
+        raise ValueError("development matrix cutoff does not match final holdout")
 
 
 def _safe_output(root: Path, relative_path: str) -> Path:
@@ -110,8 +126,9 @@ def build_forecast_matrix(
     horizon_ns: int,
     sample_interval_ns: int,
     maximum_label_delay_ns: int,
+    validation_plan: ValidationPlan,
 ) -> tuple[Path, ForecastMatrixManifest]:
-    """Build future-mid labels without interpolation, normalization, or future features."""
+    """Seal a plan-bound development matrix without final-holdout-derived rows."""
 
     if target is not ForecastTarget.NEXT_MID_RETURN_BPS:
         raise ValueError("forecast matrix builder currently supports next mid return only")
@@ -124,6 +141,10 @@ def build_forecast_matrix(
         raise ValueError("feature dataset does not match its immutable manifest")
     if feature_manifest.feature_schema_sha256 != MODEL_FEATURE_SCHEMA.sha256():
         raise ValueError("feature dataset schema is not supported by forecast research")
+    if validation_plan.dataset_sha256 != feature_manifest.source_dataset_sha256:
+        raise ValueError("validation plan does not match the feature source dataset")
+    if validation_plan.label_horizon_ns != horizon_ns:
+        raise ValueError("validation plan horizon does not match forecast matrix horizon")
 
     table = pq.read_table(feature_path)
     if table.num_rows != feature_manifest.row_count:
@@ -139,6 +160,9 @@ def build_forecast_matrix(
         or int(timestamps[-1]) != feature_manifest.last_receive_ts_ns
     ):
         raise ValueError("feature dataset time window does not match its manifest")
+    development_cutoff = validation_plan.final_holdout.start_ts_ns
+    if not int(timestamps[0]) < development_cutoff <= int(timestamps[-1]):
+        raise ValueError("validation-plan holdout boundary is outside the feature dataset")
     ready = _column(table, "ready", np.dtype(np.bool_))
     midprices = _column(table, "midprice", np.dtype(np.float64))
     if not np.all(np.isfinite(midprices)) or np.any(midprices <= 0):
@@ -173,11 +197,18 @@ def build_forecast_matrix(
     label_positions: list[int] = []
     dropped_gap = 0
     dropped_tail = 0
+    excluded_holdout = 0
     for position in candidate_positions:
+        if int(ready_timestamps[position]) >= development_cutoff:
+            excluded_holdout += 1
+            continue
         target_ts = int(ready_timestamps[position]) + horizon_ns
         label_position = int(np.searchsorted(ready_timestamps, target_ts, side="left"))
         if label_position >= len(ready_timestamps):
             dropped_tail += 1
+            continue
+        if int(ready_timestamps[label_position]) >= development_cutoff:
+            excluded_holdout += 1
             continue
         if int(ready_timestamps[label_position]) - target_ts > maximum_label_delay_ns:
             dropped_gap += 1
@@ -221,6 +252,9 @@ def build_forecast_matrix(
         for regime in (VolatilityRegime.LOW, VolatilityRegime.NORMAL, VolatilityRegime.HIGH)
     }
     manifest = ForecastMatrixManifest.create(
+        partition_role="development",
+        validation_plan_sha256=validation_plan.sha256(),
+        development_cutoff_ts_ns=development_cutoff,
         target=target,
         horizon_ns=horizon_ns,
         sample_interval_ns=sample_interval_ns,
@@ -239,6 +273,7 @@ def build_forecast_matrix(
         high_volatility_row_count=regime_counts[VolatilityRegime.HIGH],
         dropped_label_gap_count=dropped_gap,
         dropped_tail_count=dropped_tail,
+        excluded_holdout_candidate_count=excluded_holdout,
         first_sample_ts_ns=int(matrix.sample_ts_ns[0]),
         last_sample_ts_ns=int(matrix.sample_ts_ns[-1]),
         first_label_end_ts_ns=int(matrix.label_end_ts_ns[0]),
@@ -285,6 +320,10 @@ def load_forecast_matrix(
         raise ValueError("forecast matrix semantic hash does not match its manifest")
     if manifest.row_count != len(matrix.labels):
         raise ValueError("forecast matrix row count does not match its manifest")
+    if np.any(matrix.sample_ts_ns >= manifest.development_cutoff_ts_ns) or np.any(
+        matrix.label_end_ts_ns >= manifest.development_cutoff_ts_ns
+    ):
+        raise ValueError("forecast matrix archive reaches the final holdout")
     observed_regime_counts = (
         int(np.sum(matrix.volatility_regimes == VolatilityRegime.LOW.value)),
         int(np.sum(matrix.volatility_regimes == VolatilityRegime.NORMAL.value)),

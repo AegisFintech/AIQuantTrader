@@ -83,9 +83,11 @@ The research matrix builder verifies that lineage and constructs 30-second or
 other explicitly configured future-mid labels without interpolation. Its
 deterministic NPZ manifest binds the target horizon, sample interval, maximum
 label delay, dropped-gap/tail accounting, each sample's causal semantic
-volatility regime, regime counts, semantic matrix hash, and file hash. Matrix
-schema v1 lacks this evidence and cannot be loaded by the current search path;
-retain it for audit and build a new immutable schema-v2 artifact.
+volatility regime, regime counts, validation-plan hash, physical development
+cutoff, excluded holdout candidates, semantic matrix hash, and file hash.
+Schema v1 lacks semantic regimes; schema v2 retains regimes but may still carry
+final-holdout rows. Both remain historical evidence and are rejected by the
+current search path; build a new immutable schema-v3 development artifact.
 
 Fill probability and queue position remain estimates. The checked-in feature
 configuration labels its fill model uncalibrated, and the market maker rejects
@@ -239,6 +241,11 @@ parallel workers must hand immutable results to that owner.
   chosen over interpolation. It preserves observed prices and makes feed gaps
   visible, at the cost of dropping candidates when the next observation is too
   late.
+- A validation-plan-bound physical development partition was chosen over a
+  runtime-only window mask. The privileged sealer still needs the source
+  Parquet, but ordinary workers cannot inspect, hash, or accidentally select
+  holdout rows. The tradeoff is a new matrix identity whenever the validation
+  plan or cutoff changes.
 - DuckDB with an OS writer lock was chosen over a network database for the
   isolated research host. It is simple and analytically useful, but requires a
   single owner and is not suitable for multiple writable hosts.
