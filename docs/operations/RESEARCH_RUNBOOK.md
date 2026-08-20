@@ -148,8 +148,7 @@ uv run aqt-research run-search \
   --artifact-path challenger-20260804/fold-0.txt \
   --dependency-lock uv.lock \
   --created-at 2026-08-04T00:00:00+00:00 \
-  --randomized-label-minimum-mse 1.0 \
-  --randomized-seed 20260804 \
+  --control-policy configs/research/controls-v1.json \
   --no-signal-report state/research/challenger-20260804/no-signal.json \
   --no-signal-feature-manifest data/research/features/BTC.parquet.manifest.json \
   --no-signal-strategy-config configs/strategies/order-flow-scalper-v1.toml \
@@ -164,6 +163,23 @@ Every fold receipt reports the selected model's untouched walk-forward test
 MSE beside a zero-prediction baseline and a train-window-mean baseline. A model
 that does not improve on both baselines has not demonstrated forecast value,
 regardless of its rank among candidates.
+
+The control policy runs three deterministic shuffled-label fits per fold. Its
+comparisons are relative rather than an absolute MSE floor: the shuffled median
+must be at least `1.02x` the selected-model validation MSE, and the lowest
+shuffled score must be at least `0.95x` the training-mean validation MSE. Do not
+change these thresholds after viewing a result. Each seed and score is retained
+in the v2 negative-control report.
+
+The same policy freezes low/high volatility thresholds from training-window
+`realized_volatility` quantiles. The untouched walk-forward test is then scored
+as aggregate, low, normal, and high slices. All four need at least 100 rows and
+must have strictly lower MSE than both zero and training-mean predictions. The
+v1 fractional margin is zero, but equality does not pass. A failed or absent
+slice sets both
+`forecast_robustness_passed` and `negative_controls_passed` false. The command
+still retains the valid failing model and receipt for audit; it does not open
+the final holdout or advance a governance stage.
 
 Revalidate retained artifacts before scoring or deployment review:
 
@@ -182,7 +198,8 @@ inputs; do not repair the manifest manually.
 
 Every challenger must retain:
 
-- the seeded randomized-label result and configured minimum error;
+- every seeded randomized-label result and its policy-relative comparisons;
+- the aggregate and train-defined volatility-slice robustness report;
 - a no-signal replay with zero decisions;
 - baseline and pessimistic Phase 5 scenario reports;
 - fold-level post-cost metrics and an untouched walk-forward test result;
@@ -201,6 +218,11 @@ and observed decision count. `run-search` re-hashes the supplied feature
 manifest, strategy config, and scenario before loading a model engine, then
 hashes the report into its negative-control result. Legacy or hand-authored v1
 reports are rejected; the workflow never invents a passing zero.
+The resulting `NegativeControlReport` is also schema v2 and embeds the complete
+research-control policy, fold-derived seeds, raw shuffled scores, validation
+baselines, and forecast-robustness hash/outcome. Legacy absolute-threshold
+reports are rejected. Experiment registration also rejects a v2 control report
+bound to any search receipt other than the experiment's declared receipt.
 
 ## 5. Evaluate champion-challenger gates
 

@@ -12,9 +12,12 @@ from aiquanttrader.research.cli import main
 from aiquanttrader.research.governance import evaluate_challenger
 from aiquanttrader.research.models import (
     ChampionChallengerReport,
+    ForecastRegimePolicy,
     NegativeControlReport,
     PromotionMetrics,
     PromotionPolicy,
+    RandomizedLabelControlPolicy,
+    ResearchControlPolicy,
     ResearchExperimentManifest,
 )
 from aiquanttrader.research.registry import ResearchRegistry
@@ -39,12 +42,23 @@ def metrics() -> PromotionMetrics:
 
 
 def controls() -> NegativeControlReport:
+    control_policy = ResearchControlPolicy(
+        policy_id="registry-test-controls",
+        randomized_label=RandomizedLabelControlPolicy(base_seed=3),
+        forecast_regime=ForecastRegimePolicy(),
+    )
     return NegativeControlReport(
-        randomized_label_score=10.0,
-        randomized_label_minimum_mse=1.0,
+        policy=control_policy,
+        fold_index=0,
+        search_receipt_sha256="7" * 64,
+        selected_model_validation_mse=1.0,
+        training_mean_validation_mse=1.0,
+        randomized_label_scores=(10.0, 11.0, 12.0),
+        randomized_seeds=(3, 4, 5),
         no_signal_decision_count=0,
         no_signal_report_sha256="f" * 64,
-        randomized_seed=3,
+        forecast_robustness_report_sha256="e" * 64,
+        forecast_robustness_passed=True,
     )
 
 
@@ -108,6 +122,19 @@ def experiment(
         negative_controls=controls(),
         report_sha256=bound_report.sha256(),
     )
+
+
+def test_experiment_rejects_controls_from_another_search_receipt() -> None:
+    manifest = experiment()
+    with pytest.raises(ValueError, match="controls do not match search receipt"):
+        ResearchExperimentManifest.model_validate(
+            {
+                **manifest.model_dump(mode="python"),
+                "negative_controls": controls().model_copy(
+                    update={"search_receipt_sha256": "0" * 64}
+                ),
+            }
+        )
 
 
 def advance_to_shadow(registry: ResearchRegistry, experiment_id: str) -> None:

@@ -37,7 +37,7 @@ native/
 |- Dockerfile (separate dependency-complete, non-root `research` target)
 |- configs/features/microstructure-v1.toml
 |- configs/strategies/{avellaneda-stoikov,order-flow-scalper}-v1.toml
-|- configs/research/{search-lightgbm,search-xgboost,search-catboost,promotion}-v1.json
+|- configs/research/{search-lightgbm,search-xgboost,search-catboost,controls,promotion}-v1.json
 |- schemas/{features,research}.schema.json
 |- src/aiquanttrader_native/features/{models,engine,storage}.py
 |- src/aiquanttrader_native/strategies/{common,config,market_maker,scalper}.py
@@ -136,6 +136,26 @@ Each fold also reports zero-prediction and train-window-mean test MSE; ranking
 first among candidate models is insufficient when the winner cannot improve
 on both non-leaking baselines.
 
+The checked-in research-control policy removes the absolute randomized-label
+MSE threshold, whose meaning changed with fold target variance. Every fold now
+trains the selected parameters against three deterministic label permutations.
+The median shuffled-label MSE must be at least `1.02` times the selected real-
+label validation MSE, and even the lowest shuffled-label MSE must remain at
+least `0.95` times the train-mean validation baseline. Seeds are derived from
+the immutable policy and fold index and recorded with every raw score.
+
+Forecast robustness uses only the training window to calculate the one-third
+and two-third quantiles of `realized_volatility`. Those frozen cutoffs partition
+the untouched walk-forward test into low, normal, and high slices. The
+aggregate and all three slices must each contain at least 100 rows and the
+selected model must strictly improve on both zero and train-mean predictions in
+every slice. The configured fractional margin is zero, but equality still
+fails. Empty/tied regimes fail closed. The complete report, search/window
+hashes, thresholds, metrics, and policy are hashed into the mandatory control
+report, so aggregate performance cannot conceal a regime failure. Experiment
+manifests reject controls whose search-receipt hash differs from the
+experiment's selected search receipt.
+
 The v2 no-signal control streams immutable feature Parquet and replays the real
 order-flow kernel with only its three alpha inputs neutralized and forecast set
 to zero. Market prices, spread, volatility, readiness, timestamps, and
@@ -149,8 +169,9 @@ lineage before training; a supplied zero is not trusted.
 Promotion reports gate post-cost PnL, maximum drawdown, 99% tail loss, absolute
 inventory, fills, maker ratio, adverse-selection markout, decision latency,
 fold consistency, feature drift, operational failures, champion improvement,
-and negative controls. Randomized-label score and zero no-signal decisions are
-explicit mandatory evidence by default.
+and negative controls. Repeated relative randomized-label results, volatility-
+slice robustness, and zero no-signal decisions are explicit mandatory evidence
+by default.
 
 The DuckDB registry permits one writer process/thread. Artifact and experiment
 identities are immutable. New experiments must enter at `DRAFT`; stage events
@@ -180,6 +201,14 @@ parallel workers must hand immutable results to that owner.
 - Declared bounded search was chosen over Bayesian or unconstrained search. It
   reduces compute and selection bias and makes reruns auditable, but may leave
   parameter performance unexplored.
+- Relative shuffled-label comparisons were chosen over one absolute MSE floor
+  because label variance changes across folds. Three repetitions limit
+  single-shuffle luck without turning the control into an open-ended test, at
+  the cost of three additional selected-parameter fits per fold.
+- Train-derived volatility quantiles were chosen over full-dataset/test
+  quantiles to prevent future distribution leakage. Fixed semantic volatility
+  thresholds would be easier to compare across experiments, but require
+  separately calibrated BTC regime evidence that is not yet admitted.
 - First-observation-after-horizon labeling with an explicit maximum delay was
   chosen over interpolation. It preserves observed prices and makes feed gaps
   visible, at the cost of dropping candidates when the next observation is too
@@ -205,6 +234,9 @@ parallel workers must hand immutable results to that owner.
 - Model training is CPU-only and single-threaded for deterministic, bounded
   research. Parallelism belongs across isolated experiments, not inside one
   registry writer.
+- Relative controls add exactly three selected-parameter fits per fold. Regime
+  evaluation performs two training quantiles and four vectorized MSE slices;
+  it does not retrain or materialize another feature matrix.
 - Feature Parquet construction and no-signal replay stream deterministic Arrow
   batches. Feature construction retains one output row group plus bounded
   feature windows; no-signal replay retains one input batch and strategy
@@ -228,8 +260,9 @@ Automated now:
 - native save/load tests for all three engines, artifact tamper checks, and
   unsafe-format rejection;
 - validation-only selection, causal label-boundary tests, test-label isolation,
-  deterministic manifest-bound matrix construction, gap/tail accounting, test-
-  label isolation, and seeded randomized-label controls;
+  deterministic manifest-bound matrix construction, gap/tail accounting,
+  repeated relative randomized-label controls, and train-only volatility
+  slicing of untouched walk-forward tests;
 - generated neutral-alpha no-signal reports with immutable feature, strategy,
   and scenario lineage plus fail-before-training mismatch tests;
 - complete promotion gates, stable/shifted drift tests, immutable registry,

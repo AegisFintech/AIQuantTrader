@@ -112,6 +112,11 @@ observer. LLM output is evidence, never order or risk authority.
   over immutable feature Parquet and binds the feature file/schema, strategy
   configuration, and execution scenario. Model search revalidates that lineage
   before loading an engine or training a trial.
+- Research-control policy v1 replaces target-scale-dependent shuffled-label
+  thresholds with repeated relative comparisons. Its forecast robustness
+  report derives volatility cutoffs from training rows only and requires the
+  untouched test aggregate plus every low/normal/high slice to beat zero and
+  train-mean baselines; the result is bound into mandatory negative controls.
 - Paper journals retain every strategy action and gate reason atomically with
   its feature/account/checkpoint cycle, including outcomes that emit no order
   intent; `aqt-paper diagnostics` summarizes that evidence without changing it.

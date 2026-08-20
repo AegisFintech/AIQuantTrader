@@ -6,6 +6,7 @@ import hashlib
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from statistics import median
 from typing import Annotated, Any, Literal, Self
 
 import numpy as np
@@ -247,6 +248,122 @@ class SearchPolicy(DomainModel):
         return self
 
 
+class RandomizedLabelControlPolicy(DomainModel):
+    repetitions: int = Field(default=3, ge=3, le=32)
+    base_seed: int = Field(ge=0, le=4_294_967_295)
+    minimum_median_mse_multiple_of_selected_model: Annotated[
+        float, Field(ge=1, le=10, allow_inf_nan=False)
+    ] = 1.0
+    minimum_worst_mse_multiple_of_training_mean: Annotated[
+        float, Field(ge=0.5, le=2, allow_inf_nan=False)
+    ] = 0.95
+
+    def seeds_for_fold(self, fold_index: int) -> tuple[int, ...]:
+        if fold_index < 0:
+            raise ValueError("fold index must be non-negative")
+        first = self.base_seed + fold_index * self.repetitions
+        last = first + self.repetitions - 1
+        if last > 18_446_744_073_709_551_615:
+            raise ValueError("derived randomized-label seed exceeds uint64")
+        return tuple(range(first, last + 1))
+
+
+class ForecastRegimePolicy(DomainModel):
+    volatility_feature_name: Literal["realized_volatility"] = "realized_volatility"
+    low_quantile: Annotated[float, Field(gt=0, lt=1, allow_inf_nan=False)] = 1 / 3
+    high_quantile: Annotated[float, Field(gt=0, lt=1, allow_inf_nan=False)] = 2 / 3
+    minimum_rows_per_slice: int = Field(default=100, ge=2)
+    minimum_improvement_fraction_vs_zero: Annotated[
+        float, Field(ge=0, lt=1, allow_inf_nan=False)
+    ] = 0.0
+    minimum_improvement_fraction_vs_training_mean: Annotated[
+        float, Field(ge=0, lt=1, allow_inf_nan=False)
+    ] = 0.0
+
+    @model_validator(mode="after")
+    def validate_quantiles(self) -> Self:
+        if self.high_quantile <= self.low_quantile:
+            raise ValueError("forecast-regime high quantile must exceed low quantile")
+        return self
+
+
+class ResearchControlPolicy(DomainModel):
+    schema_version: Literal[1] = 1
+    policy_id: Identifier
+    randomized_label: RandomizedLabelControlPolicy
+    forecast_regime: ForecastRegimePolicy
+
+
+class ForecastSlice(StrEnum):
+    AGGREGATE = "aggregate"
+    LOW_VOLATILITY = "low_volatility"
+    NORMAL_VOLATILITY = "normal_volatility"
+    HIGH_VOLATILITY = "high_volatility"
+
+
+class ForecastSliceMetrics(DomainModel):
+    slice: ForecastSlice
+    row_count: int = Field(ge=0)
+    model_mse: NonNegativeMetric | None = None
+    zero_prediction_mse: NonNegativeMetric | None = None
+    training_mean_mse: NonNegativeMetric | None = None
+
+    @model_validator(mode="after")
+    def validate_metric_presence(self) -> Self:
+        metrics = (self.model_mse, self.zero_prediction_mse, self.training_mean_mse)
+        if self.row_count == 0 and any(value is not None for value in metrics):
+            raise ValueError("empty forecast slices cannot declare metrics")
+        if self.row_count > 0 and any(value is None for value in metrics):
+            raise ValueError("populated forecast slices require every metric")
+        return self
+
+    def passes(self, policy: ForecastRegimePolicy) -> bool:
+        if self.row_count < policy.minimum_rows_per_slice or self.model_mse is None:
+            return False
+        assert self.zero_prediction_mse is not None
+        assert self.training_mean_mse is not None
+        within_zero_limit = self.model_mse <= self.zero_prediction_mse * (
+            1 - policy.minimum_improvement_fraction_vs_zero
+        )
+        within_training_mean_limit = self.model_mse <= self.training_mean_mse * (
+            1 - policy.minimum_improvement_fraction_vs_training_mean
+        )
+        return (
+            within_zero_limit
+            and within_training_mean_limit
+            and self.model_mse < self.zero_prediction_mse
+            and self.model_mse < self.training_mean_mse
+        )
+
+
+class ForecastRobustnessReport(DomainModel):
+    schema_version: Literal[1] = 1
+    policy: ResearchControlPolicy
+    fold_index: int = Field(ge=0)
+    search_receipt_sha256: Sha256
+    feature_schema_sha256: Sha256
+    training_window_sha256: Sha256
+    test_window_sha256: Sha256
+    training_mean_label: FiniteMetric
+    training_low_volatility_threshold: FiniteMetric
+    training_high_volatility_threshold: FiniteMetric
+    slices: tuple[ForecastSliceMetrics, ...] = Field(min_length=4, max_length=4)
+
+    @model_validator(mode="after")
+    def validate_slices_and_thresholds(self) -> Self:
+        expected = tuple(ForecastSlice)
+        observed = tuple(item.slice for item in self.slices)
+        if observed != expected:
+            raise ValueError("forecast robustness slices must be complete and canonical")
+        if self.training_high_volatility_threshold < self.training_low_volatility_threshold:
+            raise ValueError("forecast robustness volatility thresholds are reversed")
+        return self
+
+    @property
+    def passed(self) -> bool:
+        return all(item.passes(self.policy.forecast_regime) for item in self.slices)
+
+
 class TrialResult(DomainModel):
     trial_id: Identifier
     parameters_sha256: Sha256
@@ -302,17 +419,49 @@ class NoSignalControlReport(DomainModel):
 
 
 class NegativeControlReport(DomainModel):
-    randomized_label_score: NonNegativeMetric
-    randomized_label_minimum_mse: NonNegativeMetric
+    schema_version: Literal[2] = 2
+    policy: ResearchControlPolicy
+    fold_index: int = Field(ge=0)
+    search_receipt_sha256: Sha256
+    selected_model_validation_mse: NonNegativeMetric
+    training_mean_validation_mse: NonNegativeMetric
+    randomized_label_scores: tuple[NonNegativeMetric, ...] = Field(min_length=3, max_length=32)
+    randomized_seeds: tuple[int, ...] = Field(min_length=3, max_length=32)
     no_signal_decision_count: int = Field(ge=0)
     no_signal_report_sha256: Sha256
-    randomized_seed: int = Field(ge=0)
+    forecast_robustness_report_sha256: Sha256
+    forecast_robustness_passed: bool
+
+    @model_validator(mode="after")
+    def validate_randomized_label_evidence(self) -> Self:
+        repetitions = self.policy.randomized_label.repetitions
+        if len(self.randomized_label_scores) != repetitions:
+            raise ValueError("randomized-label scores do not match policy repetitions")
+        expected_seeds = self.policy.randomized_label.seeds_for_fold(self.fold_index)
+        if self.randomized_seeds != expected_seeds:
+            raise ValueError("randomized-label seeds do not match policy and fold")
+        return self
+
+    @property
+    def randomized_label_median_mse(self) -> float:
+        return float(median(self.randomized_label_scores))
+
+    @property
+    def randomized_label_worst_case_mse(self) -> float:
+        return min(self.randomized_label_scores)
 
     @property
     def passed(self) -> bool:
+        randomized = self.policy.randomized_label
         return (
-            self.randomized_label_score >= self.randomized_label_minimum_mse
+            self.randomized_label_median_mse
+            >= self.selected_model_validation_mse
+            * randomized.minimum_median_mse_multiple_of_selected_model
+            and self.randomized_label_worst_case_mse
+            >= self.training_mean_validation_mse
+            * randomized.minimum_worst_mse_multiple_of_training_mean
             and self.no_signal_decision_count == 0
+            and self.forecast_robustness_passed
         )
 
 
@@ -444,4 +593,6 @@ class ResearchExperimentManifest(DomainModel):
             raise ValueError("experiment timestamp must be timezone-aware")
         if len(set(self.scenario_sha256s)) != len(self.scenario_sha256s):
             raise ValueError("experiment scenarios must be unique")
+        if self.negative_controls.search_receipt_sha256 != self.search_receipt_sha256:
+            raise ValueError("experiment controls do not match search receipt")
         return self

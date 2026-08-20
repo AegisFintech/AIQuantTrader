@@ -1,0 +1,18 @@
+{
+  "forecast_regime": {
+    "high_quantile": 0.6666666666666666,
+    "low_quantile": 0.3333333333333333,
+    "minimum_improvement_fraction_vs_training_mean": 0.0,
+    "minimum_improvement_fraction_vs_zero": 0.0,
+    "minimum_rows_per_slice": 100,
+    "volatility_feature_name": "realized_volatility"
+  },
+  "policy_id": "forecast-integrity-v1",
+  "randomized_label": {
+    "base_seed": 20260820,
+    "minimum_median_mse_multiple_of_selected_model": 1.02,
+    "minimum_worst_mse_multiple_of_training_mean": 0.95,
+    "repetitions": 3
+  },
+  "schema_version": 1
+}

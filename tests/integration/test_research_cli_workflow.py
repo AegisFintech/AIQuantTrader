@@ -27,8 +27,11 @@ from aiquanttrader.research.cli import main
 from aiquanttrader.research.models import (
     CausalTrainingMatrix,
     ForecastMatrixManifest,
+    ForecastRegimePolicy,
     ForecastTarget,
     NoSignalControlReport,
+    RandomizedLabelControlPolicy,
+    ResearchControlPolicy,
     SearchPolicy,
     SearchTrial,
 )
@@ -74,6 +77,7 @@ def write_matrix(
     rows = 60
     features = np.zeros((rows, len(MODEL_FEATURE_SCHEMA.features)), dtype=np.float64)
     features[:, 0] = np.arange(rows, dtype=np.float64) / 10
+    features[:, MODEL_FEATURE_SCHEMA.names.index("realized_volatility")] = np.arange(rows) % 3
     labels = features[:, 0] * 2
     timestamps = np.arange(rows, dtype=np.int64) * 10
     np.savez(
@@ -137,6 +141,21 @@ def write_feature_manifest(path: Path) -> FeatureDatasetManifest:
     )
     path.write_bytes(manifest.canonical_bytes() + b"\n")
     return manifest
+
+
+def write_control_policy(path: Path) -> ResearchControlPolicy:
+    policy = ResearchControlPolicy(
+        policy_id="cli-test-controls",
+        randomized_label=RandomizedLabelControlPolicy(
+            repetitions=3,
+            base_seed=11,
+            minimum_median_mse_multiple_of_selected_model=1.0,
+            minimum_worst_mse_multiple_of_training_mean=0.5,
+        ),
+        forecast_regime=ForecastRegimePolicy(minimum_rows_per_slice=2),
+    )
+    path.write_bytes(policy.canonical_bytes() + b"\n")
+    return policy
 
 
 def test_build_matrix_cli_binds_immutable_features_and_explicit_label_policy(
@@ -261,6 +280,7 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
     matrix_path = tmp_path / "matrix.npz"
     plan_path = tmp_path / "validation-plan.json"
     policy_path = tmp_path / "search-policy.json"
+    control_policy_path = tmp_path / "control-policy.json"
     receipt_path = tmp_path / "search-receipt.json"
     no_signal_path = tmp_path / "no-signal.json"
     artifacts = tmp_path / "artifacts"
@@ -289,6 +309,7 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
         ).model_dump_json(),
         encoding="utf-8",
     )
+    control_policy = write_control_policy(control_policy_path)
     no_signal_path.write_text(
         NoSignalControlReport(
             control_id="neutral-alpha-order-flow-v1",
@@ -330,10 +351,8 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
         str(project_root / "uv.lock"),
         "--created-at",
         "2026-08-04T00:00:00+00:00",
-        "--randomized-label-minimum-mse",
-        "0",
-        "--randomized-seed",
-        "11",
+        "--control-policy",
+        str(control_policy_path),
         "--no-signal-report",
         str(no_signal_path),
         "--no-signal-feature-manifest",
@@ -352,7 +371,10 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
     assert receipt["test_rows"] == 10
     assert receipt["walk_forward_test_mse"] < receipt["zero_prediction_test_mse"]
     assert receipt["walk_forward_test_mse"] < receipt["training_mean_test_mse"]
+    assert receipt["forecast_robustness_passed"] is True
+    assert receipt["forecast_robustness"]["policy"] == control_policy.model_dump(mode="json")
     assert receipt["negative_controls_passed"] is True
+    assert receipt["negative_controls"]["randomized_seeds"] == [11, 12, 13]
     manifest_path = Path(receipt["model_manifest"])
     assert manifest_path.is_file()
     assert (artifacts / "models" / "challenger.txt").is_file()
@@ -418,8 +440,8 @@ def test_research_cli_rejects_schema_mismatch_and_partial_champion(
                 str(tmp_path / "missing.lock"),
                 "--created-at",
                 "2026-08-04T00:00:00+00:00",
-                "--randomized-label-minimum-mse",
-                "0",
+                "--control-policy",
+                str(tmp_path / "missing-control-policy.json"),
                 "--no-signal-report",
                 str(tmp_path / "missing-no-signal.json"),
                 "--no-signal-feature-manifest",
@@ -492,8 +514,8 @@ def test_run_search_rejects_matrix_horizon_outside_frozen_validation_plan(
                 str(tmp_path / "unused.lock"),
                 "--created-at",
                 "2026-08-20T00:00:00+00:00",
-                "--randomized-label-minimum-mse",
-                "0",
+                "--control-policy",
+                str(tmp_path / "unused-control-policy.json"),
                 "--no-signal-report",
                 str(tmp_path / "unused-no-signal.json"),
                 "--no-signal-feature-manifest",

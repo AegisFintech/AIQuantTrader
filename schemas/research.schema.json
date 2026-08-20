@@ -319,6 +319,195 @@
       "title": "ForecastMatrixManifest",
       "type": "object"
     },
+    "ForecastRegimePolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "high_quantile": {
+          "default": 0.6666666666666666,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "High Quantile",
+          "type": "number"
+        },
+        "low_quantile": {
+          "default": 0.3333333333333333,
+          "exclusiveMaximum": 1,
+          "exclusiveMinimum": 0,
+          "title": "Low Quantile",
+          "type": "number"
+        },
+        "minimum_improvement_fraction_vs_training_mean": {
+          "default": 0.0,
+          "exclusiveMaximum": 1,
+          "minimum": 0,
+          "title": "Minimum Improvement Fraction Vs Training Mean",
+          "type": "number"
+        },
+        "minimum_improvement_fraction_vs_zero": {
+          "default": 0.0,
+          "exclusiveMaximum": 1,
+          "minimum": 0,
+          "title": "Minimum Improvement Fraction Vs Zero",
+          "type": "number"
+        },
+        "minimum_rows_per_slice": {
+          "default": 100,
+          "minimum": 2,
+          "title": "Minimum Rows Per Slice",
+          "type": "integer"
+        },
+        "volatility_feature_name": {
+          "const": "realized_volatility",
+          "default": "realized_volatility",
+          "title": "Volatility Feature Name",
+          "type": "string"
+        }
+      },
+      "title": "ForecastRegimePolicy",
+      "type": "object"
+    },
+    "ForecastRobustnessReport": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_schema_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Schema Sha256",
+          "type": "string"
+        },
+        "fold_index": {
+          "minimum": 0,
+          "title": "Fold Index",
+          "type": "integer"
+        },
+        "policy": {
+          "$ref": "#/$defs/ResearchControlPolicy"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "search_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Search Receipt Sha256",
+          "type": "string"
+        },
+        "slices": {
+          "items": {
+            "$ref": "#/$defs/ForecastSliceMetrics"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "title": "Slices",
+          "type": "array"
+        },
+        "test_window_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Test Window Sha256",
+          "type": "string"
+        },
+        "training_high_volatility_threshold": {
+          "title": "Training High Volatility Threshold",
+          "type": "number"
+        },
+        "training_low_volatility_threshold": {
+          "title": "Training Low Volatility Threshold",
+          "type": "number"
+        },
+        "training_mean_label": {
+          "title": "Training Mean Label",
+          "type": "number"
+        },
+        "training_window_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Training Window Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "policy",
+        "fold_index",
+        "search_receipt_sha256",
+        "feature_schema_sha256",
+        "training_window_sha256",
+        "test_window_sha256",
+        "training_mean_label",
+        "training_low_volatility_threshold",
+        "training_high_volatility_threshold",
+        "slices"
+      ],
+      "title": "ForecastRobustnessReport",
+      "type": "object"
+    },
+    "ForecastSlice": {
+      "enum": [
+        "aggregate",
+        "low_volatility",
+        "normal_volatility",
+        "high_volatility"
+      ],
+      "title": "ForecastSlice",
+      "type": "string"
+    },
+    "ForecastSliceMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "model_mse": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model Mse"
+        },
+        "row_count": {
+          "minimum": 0,
+          "title": "Row Count",
+          "type": "integer"
+        },
+        "slice": {
+          "$ref": "#/$defs/ForecastSlice"
+        },
+        "training_mean_mse": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Training Mean Mse"
+        },
+        "zero_prediction_mse": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Zero Prediction Mse"
+        }
+      },
+      "required": [
+        "slice",
+        "row_count"
+      ],
+      "title": "ForecastSliceMetrics",
+      "type": "object"
+    },
     "ForecastTarget": {
       "enum": [
         "next_mid_return_bps",
@@ -487,6 +676,20 @@
     "NegativeControlReport": {
       "additionalProperties": false,
       "properties": {
+        "fold_index": {
+          "minimum": 0,
+          "title": "Fold Index",
+          "type": "integer"
+        },
+        "forecast_robustness_passed": {
+          "title": "Forecast Robustness Passed",
+          "type": "boolean"
+        },
+        "forecast_robustness_report_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Forecast Robustness Report Sha256",
+          "type": "string"
+        },
         "no_signal_decision_count": {
           "minimum": 0,
           "title": "No Signal Decision Count",
@@ -497,28 +700,62 @@
           "title": "No Signal Report Sha256",
           "type": "string"
         },
-        "randomized_label_minimum_mse": {
-          "minimum": 0,
-          "title": "Randomized Label Minimum Mse",
-          "type": "number"
+        "policy": {
+          "$ref": "#/$defs/ResearchControlPolicy"
         },
-        "randomized_label_score": {
-          "minimum": 0,
-          "title": "Randomized Label Score",
-          "type": "number"
+        "randomized_label_scores": {
+          "items": {
+            "minimum": 0,
+            "type": "number"
+          },
+          "maxItems": 32,
+          "minItems": 3,
+          "title": "Randomized Label Scores",
+          "type": "array"
         },
-        "randomized_seed": {
-          "minimum": 0,
-          "title": "Randomized Seed",
+        "randomized_seeds": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 32,
+          "minItems": 3,
+          "title": "Randomized Seeds",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
           "type": "integer"
+        },
+        "search_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Search Receipt Sha256",
+          "type": "string"
+        },
+        "selected_model_validation_mse": {
+          "minimum": 0,
+          "title": "Selected Model Validation Mse",
+          "type": "number"
+        },
+        "training_mean_validation_mse": {
+          "minimum": 0,
+          "title": "Training Mean Validation Mse",
+          "type": "number"
         }
       },
       "required": [
-        "randomized_label_score",
-        "randomized_label_minimum_mse",
+        "policy",
+        "fold_index",
+        "search_receipt_sha256",
+        "selected_model_validation_mse",
+        "training_mean_validation_mse",
+        "randomized_label_scores",
+        "randomized_seeds",
         "no_signal_decision_count",
         "no_signal_report_sha256",
-        "randomized_seed"
+        "forecast_robustness_report_sha256",
+        "forecast_robustness_passed"
       ],
       "title": "NegativeControlReport",
       "type": "object"
@@ -789,6 +1026,72 @@
       ],
       "title": "PromotionStage",
       "type": "string"
+    },
+    "RandomizedLabelControlPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "base_seed": {
+          "maximum": 4294967295,
+          "minimum": 0,
+          "title": "Base Seed",
+          "type": "integer"
+        },
+        "minimum_median_mse_multiple_of_selected_model": {
+          "default": 1.0,
+          "maximum": 10,
+          "minimum": 1,
+          "title": "Minimum Median Mse Multiple Of Selected Model",
+          "type": "number"
+        },
+        "minimum_worst_mse_multiple_of_training_mean": {
+          "default": 0.95,
+          "maximum": 2,
+          "minimum": 0.5,
+          "title": "Minimum Worst Mse Multiple Of Training Mean",
+          "type": "number"
+        },
+        "repetitions": {
+          "default": 3,
+          "maximum": 32,
+          "minimum": 3,
+          "title": "Repetitions",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "base_seed"
+      ],
+      "title": "RandomizedLabelControlPolicy",
+      "type": "object"
+    },
+    "ResearchControlPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "forecast_regime": {
+          "$ref": "#/$defs/ForecastRegimePolicy"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "randomized_label": {
+          "$ref": "#/$defs/RandomizedLabelControlPolicy"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_id",
+        "randomized_label",
+        "forecast_regime"
+      ],
+      "title": "ResearchControlPolicy",
+      "type": "object"
     },
     "ResearchExperimentManifest": {
       "additionalProperties": false,
@@ -1084,6 +1387,12 @@
     },
     {
       "$ref": "#/$defs/SearchReceipt"
+    },
+    {
+      "$ref": "#/$defs/ResearchControlPolicy"
+    },
+    {
+      "$ref": "#/$defs/ForecastRobustnessReport"
     },
     {
       "$ref": "#/$defs/NegativeControlReport"
