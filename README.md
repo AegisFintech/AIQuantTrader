@@ -307,6 +307,8 @@ The read-only progress dashboard is bound to
 host and service health is at
 `http://127.0.0.1:3000/d/aqt-platform-health/aiquanttrader-server-live-status`;
 no Hyperliquid account or API key is required.
+Docker readiness uses a standard-library-only paper probe so frequent health
+checks do not load the trading and research dependency graph.
 An optional OpenAI Responses API observer can produce typed, shadow-only setup
 confirmations. It is disabled by default, reads its key only from
 `/run/secrets/openai_api_key`, and has no path to strategy, risk, or execution.

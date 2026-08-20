@@ -51,6 +51,13 @@ manifest, and `warming` or `ready`. L2 updates without fresh asset context must
 remain degraded. The checked-in scenario is `uncalibrated`; that is expected
 and must make the promotion report fail.
 
+Docker uses the standard-library-only `aqt-paper-healthcheck` entry point for
+its frequent readiness probe. Operators should continue using the full
+`aqt-paper healthcheck` command above for typed contract validation and drill
+recording. The lightweight probe validates the fail-closed lifecycle,
+heartbeat, feed, feature, and operator-kill projection without loading the
+trading dependency graph on every probe.
+
 `smart-money-scalper-v2` requires causal closed bars on 1m, 5m, and 15m, so a
 fresh run remains in structure warmup for roughly one hour. Its causal forecast
 also needs at least 500 resolved 1 Hz samples with 30-second labels. It allows
