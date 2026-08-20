@@ -41,24 +41,24 @@ class ModelEngine(StrEnum):
 class ModelFormat(StrEnum):
     LIGHTGBM_TEXT = "lightgbm_text"
     XGBOOST_JSON = "xgboost_json"
-    CATBOOST_CBM = "catboost_cbm"
+    CATBOOST_JSON = "catboost_json"
 
 
 MODEL_FORMAT_BY_ENGINE = {
     ModelEngine.LIGHTGBM: ModelFormat.LIGHTGBM_TEXT,
     ModelEngine.XGBOOST: ModelFormat.XGBOOST_JSON,
-    ModelEngine.CATBOOST: ModelFormat.CATBOOST_CBM,
+    ModelEngine.CATBOOST: ModelFormat.CATBOOST_JSON,
 }
 
 MODEL_SUFFIX_BY_FORMAT = {
     ModelFormat.LIGHTGBM_TEXT: ".txt",
     ModelFormat.XGBOOST_JSON: ".json",
-    ModelFormat.CATBOOST_CBM: ".cbm",
+    ModelFormat.CATBOOST_JSON: ".json",
 }
 
 
 class ModelArtifactManifest(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     model_id: Sha256
     engine: ModelEngine
     model_format: ModelFormat

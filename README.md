@@ -50,8 +50,9 @@ and the completed Phase 10 evidence-verification boundary:
   explicit stale-input exclusion counts;
 - pure Avellaneda-Stoikov market-making and cost-aware order-flow scalping
   kernels with HftBacktest/Nautilus representation parity;
-- CPU-only LightGBM, XGBoost, and CatBoost adapters using native model formats,
-  schema/hash validation, bounded validation search, and negative controls;
+- CPU-only LightGBM, XGBoost, and CatBoost adapters using deterministic native
+  model formats, schema/hash validation, bounded validation search, and
+  negative controls;
 - immutable single-writer research registry, full champion-challenger gates,
   drift reports, automation ceiling, metrics contract, and Grafana dashboard.
 - raw-first live public events driving the same feature, strategy, and hard-risk

@@ -123,6 +123,11 @@ observer. LLM output is evidence, never order or risk authority.
   train-mean baselines. A scenario-bound, non-overlapping directional replay
   must also clear conservative round-trip taker costs in every regime; all
   results are bound into mandatory negative controls.
+- Model-artifact manifest schema v2 uses deterministic native serialization:
+  LightGBM text plus XGBoost/CatBoost JSON. CatBoost's non-predictive random
+  model GUID is replaced with a content-derived value and its wall-clock model
+  timestamp is replaced with an epoch sentinel; historical CBM/schema-v1
+  artifacts remain audit evidence and are ineligible for current loading.
 - Paper journals retain every strategy action and gate reason atomically with
   its feature/account/checkpoint cycle, including outcomes that emit no order
   intent; `aqt-paper diagnostics` summarizes that evidence without changing it.

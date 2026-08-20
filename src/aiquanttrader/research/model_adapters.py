@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -15,6 +18,47 @@ from aiquanttrader.research.models import (
     ForecastTarget,
     ModelEngine,
 )
+
+_CATBOOST_GUID = re.compile(r"^[0-9a-f]{1,8}(?:-[0-9a-f]{1,8}){3}$")
+_CATBOOST_ZERO_GUID = b"00000000-00000000-00000000-00000000"
+_CATBOOST_FINISH_TIME = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+_CATBOOST_ZERO_FINISH_TIME = b"1970-01-01T00:00:00Z"
+
+
+def _canonicalize_catboost_json(path: Path) -> None:
+    """Normalize CatBoost's volatile metadata without changing predictive bytes."""
+
+    payload = path.read_bytes()
+    try:
+        document = json.loads(payload)
+        model_info = document["model_info"]
+        model_guid = model_info["model_guid"]
+        train_finish_time = model_info["train_finish_time"]
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise ValueError("CatBoost JSON artifact is missing required metadata") from exc
+    if not isinstance(model_guid, str) or _CATBOOST_GUID.fullmatch(model_guid) is None:
+        raise ValueError("CatBoost JSON artifact has an invalid model GUID")
+    if (
+        not isinstance(train_finish_time, str)
+        or _CATBOOST_FINISH_TIME.fullmatch(train_finish_time) is None
+    ):
+        raise ValueError("CatBoost JSON artifact has an invalid training finish time")
+    guid_bytes = model_guid.encode("ascii")
+    finish_time_bytes = train_finish_time.encode("ascii")
+    if payload.count(guid_bytes) != 1:
+        raise ValueError("CatBoost JSON model GUID is not unique")
+    if payload.count(finish_time_bytes) != 1:
+        raise ValueError("CatBoost JSON training finish time is not unique")
+
+    normalized = payload.replace(finish_time_bytes, _CATBOOST_ZERO_FINISH_TIME)
+    normalized = normalized.replace(guid_bytes, _CATBOOST_ZERO_GUID)
+    if normalized.count(_CATBOOST_ZERO_GUID) != 1:
+        raise ValueError("CatBoost JSON normalized model GUID is not unique")
+    digest = hashlib.sha256(normalized).hexdigest()[:32]
+    deterministic_guid = "-".join(digest[index : index + 8] for index in range(0, 32, 8)).encode(
+        "ascii"
+    )
+    path.write_bytes(normalized.replace(_CATBOOST_ZERO_GUID, deterministic_guid))
 
 
 @dataclass(frozen=True, slots=True)
@@ -348,7 +392,8 @@ class CatBoostAdapter:
         return _validate_predictions(predictions, len(values), model.target)
 
     def save(self, model: TrainedModel, path: Path) -> None:
-        model.native_model.save_model(path, format="cbm")
+        model.native_model.save_model(path, format="json")
+        _canonicalize_catboost_json(path)
 
     def load(
         self, path: Path, *, target: ForecastTarget, feature_schema: FeatureSchema
@@ -364,7 +409,7 @@ class CatBoostAdapter:
             }
             else CatBoostRegressor()
         )
-        model.load_model(path, format="cbm")
+        model.load_model(path, format="json")
         if tuple(model.feature_names_) != feature_schema.names:
             raise ValueError("CatBoost artifact feature names do not match schema")
         return TrainedModel(self.engine, target, feature_schema, {}, model)
