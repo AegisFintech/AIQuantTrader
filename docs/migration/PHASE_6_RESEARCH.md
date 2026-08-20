@@ -77,6 +77,10 @@ Multiple trades arriving at one local timestamp are preserved. A trade is
 consumed once rather than retained as sticky state across later book updates.
 Feature Parquet is deterministic and accompanied by a manifest binding source
 dataset, feature configuration, schema, file hash, rows, path, and time range.
+The research matrix builder verifies that lineage and constructs 30-second or
+other explicitly configured future-mid labels without interpolation. Its
+deterministic NPZ manifest binds the target horizon, sample interval, maximum
+label delay, dropped-gap/tail accounting, semantic matrix hash, and file hash.
 
 Fill probability and queue position remain estimates. The checked-in feature
 configuration labels its fill model uncalibrated, and the market maker rejects
@@ -126,7 +130,8 @@ Every fold trains on its causal train window, chooses parameters using only the
 validation window, and reports the walk-forward test afterward. Changes to
 test labels cannot alter the selected trial. Purge and embargo windows come
 from the Phase 5 frozen validation plan. Search is bounded to at most 64
-declared trials; it is not an open-ended optimizer.
+declared trials; it is not an open-ended optimizer. Search refuses an unbound
+NPZ and revalidates the matrix manifest before loading any training rows.
 
 ## Governance and registry
 
@@ -164,6 +169,10 @@ parallel workers must hand immutable results to that owner.
 - Declared bounded search was chosen over Bayesian or unconstrained search. It
   reduces compute and selection bias and makes reruns auditable, but may leave
   parameter performance unexplored.
+- First-observation-after-horizon labeling with an explicit maximum delay was
+  chosen over interpolation. It preserves observed prices and makes feed gaps
+  visible, at the cost of dropping candidates when the next observation is too
+  late.
 - DuckDB with an OS writer lock was chosen over a network database for the
   isolated research host. It is simple and analytically useful, but requires a
   single owner and is not suitable for multiple writable hosts.
@@ -188,6 +197,9 @@ parallel workers must hand immutable results to that owner.
 - Feature Parquet construction materializes the selected replay in memory.
   Partition production studies by admitted UTC hour/day artifacts until a
   benchmark supports a streaming writer.
+- Matrix construction vectorizes feature columns and label lookup, then writes
+  a compressed deterministic NPZ. Memory is linear in source rows; partition
+  long captures before concatenating fold inputs.
 - Strategies use `Decimal` at the order boundary for deterministic price and
   quantity semantics. Feature/model arrays remain NumPy `float64`.
 
@@ -204,7 +216,8 @@ Automated now:
 - native save/load tests for all three engines, artifact tamper checks, and
   unsafe-format rejection;
 - validation-only selection, causal label-boundary tests, test-label isolation,
-  and seeded randomized-label controls;
+  deterministic manifest-bound matrix construction, gap/tail accounting, test-
+  label isolation, and seeded randomized-label controls;
 - complete promotion gates, stable/shifted drift tests, immutable registry,
   single-writer/thread ownership, monotonic stage history, and the human
   approval ceiling;

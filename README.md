@@ -263,6 +263,7 @@ promotion commands:
 
 ```bash
 uv run aqt-research feature-replay --help
+uv run aqt-research build-matrix --help
 uv run aqt-research run-search --help
 uv run aqt-research validate-model --help
 uv run aqt-research registry-register-experiment --help
@@ -272,7 +273,9 @@ uv run aqt-research evaluate --help
 The market-maker seed requires calibrated fill evidence and therefore fails
 closed with the checked-in uncalibrated feature configuration. Research may
 advance a passing challenger only to `AWAITING_APPROVAL`; the CLI has no human
-approval actor. See
+approval actor. `build-matrix` derives deterministic, future-labeled forecast
+samples from an immutable feature Parquet and emits a hash-bound manifest;
+`run-search` requires that manifest and revalidates it before training. See
 [`PHASE_6_RESEARCH.md`](docs/migration/PHASE_6_RESEARCH.md) and
 [`RESEARCH_RUNBOOK.md`](docs/operations/RESEARCH_RUNBOOK.md).
 

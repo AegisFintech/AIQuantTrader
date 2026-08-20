@@ -57,7 +57,29 @@ not validate. Never edit a generated feature file or manifest in place.
 
 ## 2. Construct causal labels
 
-The labeling job must write a NumPy NPZ with exactly these arrays:
+Build the initial 30-second BTC return matrix directly from the immutable
+feature Parquet. All horizon and gap assumptions are explicit command inputs:
+
+```bash
+uv run aqt-research build-matrix \
+  --features data/research/features/2026-08-01/btc-microstructure-v1.parquet \
+  --feature-manifest data/research/features/2026-08-01/btc-microstructure-v1.parquet.manifest.json \
+  --output-root data/research \
+  --relative-path matrices/next-mid-return-30s-v1.npz \
+  --target next_mid_return_bps \
+  --horizon-ns 30000000000 \
+  --sample-interval-ns 1000000000 \
+  --maximum-label-delay-ns 2000000000
+```
+
+The builder verifies the feature file hash, manifest row count, feature schema,
+timestamp ordering, finite model values, and positive midprices. It uses the
+first ready observation at or after the horizon and rejects that candidate if
+the observation arrives beyond `maximum-label-delay-ns`; it never interpolates
+prices or backfills across a data gap. Warmup rows and unlabeled tail rows are
+excluded and counted in the matrix manifest.
+
+The deterministic NumPy NPZ contains exactly these arrays:
 
 - `features`: two-dimensional finite float64 matrix in
   `btc-microstructure-v1` order;
@@ -69,10 +91,12 @@ The labeling job must write a NumPy NPZ with exactly these arrays:
 - `source_dataset_sha256`: scalar lowercase SHA-256 bound by the validation
   plan.
 
-NumPy pickle loading is disabled. Normalization or calibration must be fit
-inside each train fold; do not pre-normalize against validation, test, final
-holdout, or future rows. Document the target horizon and economic meaning in
-the experiment manifest.
+NumPy pickle loading is disabled. The companion manifest binds the source
+feature dataset and raw dataset, target, schema, horizon, sample interval,
+maximum label delay, candidate accounting, semantic matrix hash, NPZ hash,
+rows, and causal time window. `run-search` requires and revalidates it.
+Normalization or calibration must be fit inside each train fold; do not
+pre-normalize against validation, test, final holdout, or future rows.
 
 ## 3. Run bounded fold research
 
@@ -82,6 +106,7 @@ are optimal. Run each fold separately and use a model-native extension:
 ```bash
 uv run aqt-research run-search \
   --matrix data/research/matrices/next-mid-return-v1.npz \
+  --matrix-manifest data/research/matrices/next-mid-return-v1.npz.manifest.json \
   --validation-plan data/research/plans/walk-forward-v1.json \
   --fold 0 \
   --policy configs/research/search-lightgbm-v1.json \
