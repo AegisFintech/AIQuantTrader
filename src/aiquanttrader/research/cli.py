@@ -263,6 +263,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 target=target,
                 policy=policy,
                 control_policy=control_policy,
+                scenario=no_signal_scenario,
             )
             selected_trial = next(
                 trial
@@ -281,6 +282,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 no_signal_decision_count=no_signal.decision_count,
                 no_signal_report_sha256=no_signal.sha256(),
                 forecast_robustness=result.forecast_robustness,
+                forecast_economic=result.forecast_economic,
             )
             manifest_path, model_manifest = save_model_artifact(
                 result.search.selected_model,
@@ -301,6 +303,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "test_rows": result.test_rows,
                 "forecast_robustness": result.forecast_robustness.model_dump(mode="json"),
                 "forecast_robustness_passed": result.forecast_robustness.passed,
+                "forecast_economic": result.forecast_economic.model_dump(mode="json"),
+                "forecast_economic_performance_passed": (
+                    result.forecast_economic.performance_passed
+                ),
+                "forecast_economic_passed": result.forecast_economic.passed,
                 "negative_controls": controls.model_dump(mode="json"),
                 "negative_controls_passed": controls.passed,
             }

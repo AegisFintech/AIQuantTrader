@@ -20,7 +20,8 @@ Hft local-arrival state ----> shared feature engine ----> pure strategy kernels
 Nautilus market objects ----/                              | exact parity
 
 admitted data -> causal labels -> bounded validation search -> native model
-  -> randomized-label/no-signal controls -> champion-challenger gates
+  -> semantic-regime and post-cost replay -> randomized-label/no-signal controls
+  -> champion-challenger gates
   -> append-only stage events -> AWAITING_APPROVAL -> human-only boundary
 ```
 
@@ -37,7 +38,8 @@ native/
 |- Dockerfile (separate dependency-complete, non-root `research` target)
 |- configs/features/microstructure-v1.toml
 |- configs/strategies/{avellaneda-stoikov,order-flow-scalper}-v1.toml
-|- configs/research/{search-lightgbm,search-xgboost,search-catboost,controls,promotion}-v1.json
+|- configs/research/search-{lightgbm,xgboost,catboost}-v1.json
+|- configs/research/{promotion-v1,controls-v2}.json
 |- schemas/{features,research}.schema.json
 |- src/aiquanttrader_native/features/{models,engine,storage}.py
 |- src/aiquanttrader_native/strategies/{common,config,market_maker,scalper}.py
@@ -80,7 +82,10 @@ dataset, feature configuration, schema, file hash, rows, path, and time range.
 The research matrix builder verifies that lineage and constructs 30-second or
 other explicitly configured future-mid labels without interpolation. Its
 deterministic NPZ manifest binds the target horizon, sample interval, maximum
-label delay, dropped-gap/tail accounting, semantic matrix hash, and file hash.
+label delay, dropped-gap/tail accounting, each sample's causal semantic
+volatility regime, regime counts, semantic matrix hash, and file hash. Matrix
+schema v1 lacks this evidence and cannot be loaded by the current search path;
+retain it for audit and build a new immutable schema-v2 artifact.
 
 Fill probability and queue position remain estimates. The checked-in feature
 configuration labels its fill model uncalibrated, and the market maker rejects
@@ -144,16 +149,31 @@ label validation MSE, and even the lowest shuffled-label MSE must remain at
 least `0.95` times the train-mean validation baseline. Seeds are derived from
 the immutable policy and fold index and recorded with every raw score.
 
-Forecast robustness uses only the training window to calculate the one-third
-and two-third quantiles of `realized_volatility`. Those frozen cutoffs partition
-the untouched walk-forward test into low, normal, and high slices. The
-aggregate and all three slices must each contain at least 100 rows and the
-selected model must strictly improve on both zero and train-mean predictions in
-every slice. The configured fractional margin is zero, but equality still
-fails. Empty/tied regimes fail closed. The complete report, search/window
-hashes, thresholds, metrics, and policy are hashed into the mandatory control
-report, so aggregate performance cannot conceal a regime failure. Experiment
-manifests reject controls whose search-receipt hash differs from the
+Forecast robustness consumes the exact `volatility_regime` stored at the
+sample's causal feature snapshot. It does not infer regimes from test data or
+repartition tied values with fold-specific quantiles. The untouched
+walk-forward aggregate and low, normal, and high slices must each contain at
+least 100 rows, and the selected model must strictly improve on both zero and
+train-mean predictions in every slice. The configured fractional margin is
+zero, but equality still fails. A missing or undersized regime fails closed.
+
+The same policy performs a chronological, non-overlapping directional replay
+over the untouched forecast rows. A signal is eligible only when absolute
+predicted edge exceeds conservative round-trip taker fees, configured taker
+slippage, and a 0.5 bps margin. Each accepted signal blocks observations until
+its label exit time. Aggregate and all semantic regimes need the configured
+trade counts, positive net/average return, and profit factor of at least 1.05.
+Negative maker fees are not treated as rebates in this screen. The report binds
+the scenario identity/hash, calibration state, search receipt, exact test
+matrix/window, fold, costs, counts, and accounting. An uncalibrated checked
+scenario can report diagnostic performance but cannot pass. This screen
+deliberately excludes fill, queue,
+latency, funding, and inventory simulation and therefore does not replace the
+Phase 5 HftBacktest scenario suite.
+
+The complete robustness and economic reports are hashed into mandatory
+negative controls, so aggregate performance cannot conceal a regime failure.
+Experiment manifests reject controls whose search-receipt hash differs from the
 experiment's selected search receipt.
 
 The v2 no-signal control streams immutable feature Parquet and replays the real
@@ -169,9 +189,9 @@ lineage before training; a supplied zero is not trusted.
 Promotion reports gate post-cost PnL, maximum drawdown, 99% tail loss, absolute
 inventory, fills, maker ratio, adverse-selection markout, decision latency,
 fold consistency, feature drift, operational failures, champion improvement,
-and negative controls. Repeated relative randomized-label results, volatility-
-slice robustness, and zero no-signal decisions are explicit mandatory evidence
-by default.
+and negative controls. Repeated relative randomized-label results, causal
+semantic-regime robustness, scenario-bound forecast economics, and zero
+no-signal decisions are explicit mandatory evidence by default.
 
 The DuckDB registry permits one writer process/thread. Artifact and experiment
 identities are immutable. New experiments must enter at `DRAFT`; stage events
@@ -205,10 +225,16 @@ parallel workers must hand immutable results to that owner.
   because label variance changes across folds. Three repetitions limit
   single-shuffle luck without turning the control into an open-ended test, at
   the cost of three additional selected-parameter fits per fold.
-- Train-derived volatility quantiles were chosen over full-dataset/test
-  quantiles to prevent future distribution leakage. Fixed semantic volatility
-  thresholds would be easier to compare across experiments, but require
-  separately calibrated BTC regime evidence that is not yet admitted.
+- Feature-engine semantic regimes were chosen over training or test quantiles.
+  They preserve the causal decision-time label, remain comparable across
+  folds, and avoid empty middle slices caused by tied quantiles. Their quality
+  depends on the frozen feature thresholds, so threshold changes require a new
+  feature dataset, matrix, and experiment identity.
+- A non-overlapping taker-cost replay was chosen as an early economic rejection
+  gate. An overlapping vectorized return sum would double-count simultaneous
+  exposure, while a full fill simulator at this stage would conflate forecast
+  value with execution policy. The screen is conservative and cheap but cannot
+  establish executable profitability; Phase 5 replay remains mandatory.
 - First-observation-after-horizon labeling with an explicit maximum delay was
   chosen over interpolation. It preserves observed prices and makes feed gaps
   visible, at the cost of dropping candidates when the next observation is too
@@ -235,8 +261,9 @@ parallel workers must hand immutable results to that owner.
   research. Parallelism belongs across isolated experiments, not inside one
   registry writer.
 - Relative controls add exactly three selected-parameter fits per fold. Regime
-  evaluation performs two training quantiles and four vectorized MSE slices;
-  it does not retrain or materialize another feature matrix.
+  evaluation uses four vectorized MSE slices, while economic replay makes one
+  chronological pass over the test rows; neither retrains nor materializes
+  another feature matrix.
 - Feature Parquet construction and no-signal replay stream deterministic Arrow
   batches. Feature construction retains one output row group plus bounded
   feature windows; no-signal replay retains one input batch and strategy
@@ -261,8 +288,9 @@ Automated now:
   unsafe-format rejection;
 - validation-only selection, causal label-boundary tests, test-label isolation,
   deterministic manifest-bound matrix construction, gap/tail accounting,
-  repeated relative randomized-label controls, and train-only volatility
-  slicing of untouched walk-forward tests;
+  repeated relative randomized-label controls, causal semantic-regime slicing,
+  non-overlapping cost replay, and calibration gating on untouched walk-forward
+  tests;
 - generated neutral-alpha no-signal reports with immutable feature, strategy,
   and scenario lineage plus fail-before-training mismatch tests;
 - complete promotion gates, stable/shifted drift tests, immutable registry,

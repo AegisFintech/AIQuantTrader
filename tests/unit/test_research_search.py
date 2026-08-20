@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 from pathlib import Path
 
 import numpy as np
@@ -8,11 +9,19 @@ import pytest
 from numpy.typing import NDArray
 from pydantic import ValidationError
 
-from aiquanttrader.backtest.models import TimeWindow, WalkForwardFold, WindowRole
-from aiquanttrader.features.models import MODEL_FEATURE_SCHEMA, FeatureSchema
+from aiquanttrader.backtest.models import (
+    CalibrationState,
+    ExecutionScenario,
+    QueueModel,
+    TimeWindow,
+    WalkForwardFold,
+    WindowRole,
+)
+from aiquanttrader.features.models import MODEL_FEATURE_SCHEMA, FeatureSchema, VolatilityRegime
 from aiquanttrader.research.model_adapters import TrainedModel
 from aiquanttrader.research.models import (
     CausalTrainingMatrix,
+    ForecastEconomicPolicy,
     ForecastRegimePolicy,
     ForecastSlice,
     ForecastSliceMetrics,
@@ -26,6 +35,7 @@ from aiquanttrader.research.models import (
     SearchTrial,
 )
 from aiquanttrader.research.search import (
+    evaluate_forecast_economics,
     mean_squared_error,
     randomized_label_control,
     run_fold_retraining,
@@ -72,11 +82,18 @@ def matrix(*, alter_test: bool = False) -> CausalTrainingMatrix:
     if alter_test:
         labels[34:44] = -10_000
     timestamps = np.arange(rows, dtype=np.int64) * 10
+    volatility_regimes = np.asarray(
+        [
+            (VolatilityRegime.LOW, VolatilityRegime.NORMAL, VolatilityRegime.HIGH)[index % 3].value
+            for index in range(rows)
+        ]
+    )
     return CausalTrainingMatrix(
         features=features,
         labels=labels,
         sample_ts_ns=timestamps,
         label_end_ts_ns=timestamps + 5,
+        volatility_regimes=volatility_regimes,
         feature_schema=MODEL_FEATURE_SCHEMA,
         source_dataset_sha256="a" * 64,
     )
@@ -113,6 +130,29 @@ def control_policy() -> ResearchControlPolicy:
             minimum_worst_mse_multiple_of_training_mean=0.5,
         ),
         forecast_regime=ForecastRegimePolicy(minimum_rows_per_slice=2),
+        forecast_economic=ForecastEconomicPolicy(
+            minimum_expected_edge_bps=0.0,
+            minimum_trades=2,
+            minimum_trades_per_regime=1,
+            minimum_profit_factor=1.01,
+            require_calibrated_scenario=False,
+        ),
+    )
+
+
+def scenario() -> ExecutionScenario:
+    return ExecutionScenario(
+        scenario_id="zero-cost-test",
+        calibration_state=CalibrationState.UNCALIBRATED,
+        tick_size=Decimal("1"),
+        lot_size=Decimal("0.00001"),
+        entry_latency_ns=0,
+        response_latency_ns=0,
+        feed_latency_offset_ns=0,
+        maker_fee_bps=Decimal("0"),
+        taker_fee_bps=Decimal("0"),
+        queue_model=QueueModel.RISK_ADVERSE,
+        taker_slippage_bps=Decimal("0"),
     )
 
 
@@ -124,6 +164,7 @@ def test_search_uses_validation_only_and_test_labels_cannot_change_selection() -
         target=ForecastTarget.NEXT_MID_RETURN_BPS,
         policy=policy(),
         control_policy=control_policy(),
+        scenario=scenario(),
     )
     altered = run_fold_retraining(
         adapter=FakeAdapter(),
@@ -132,6 +173,7 @@ def test_search_uses_validation_only_and_test_labels_cannot_change_selection() -
         target=ForecastTarget.NEXT_MID_RETURN_BPS,
         policy=policy(),
         control_policy=control_policy(),
+        scenario=scenario(),
     )
     assert first.search.receipt.selected_trial_id == "correct"
     assert altered.search.receipt.selected_trial_id == "correct"
@@ -140,6 +182,8 @@ def test_search_uses_validation_only_and_test_labels_cannot_change_selection() -
     assert first.walk_forward_test_mse < first.training_mean_test_mse
     assert first.forecast_robustness.passed
     assert not altered.forecast_robustness.passed
+    assert first.forecast_economic.passed
+    assert not altered.forecast_economic.passed
 
 
 def test_causal_windows_exclude_labels_crossing_the_boundary() -> None:
@@ -153,6 +197,7 @@ def test_causal_windows_exclude_labels_crossing_the_boundary() -> None:
         labels=source.labels,
         sample_ts_ns=source.sample_ts_ns,
         label_end_ts_ns=source.label_end_ts_ns + 20,
+        volatility_regimes=source.volatility_regimes,
         feature_schema=source.feature_schema,
         source_dataset_sha256=source.source_dataset_sha256,
     ).window(fold().train)
@@ -169,6 +214,7 @@ def test_randomized_label_control_is_seeded_and_no_signal_is_mandatory() -> None
         target=ForecastTarget.NEXT_MID_RETURN_BPS,
         policy=policy(),
         control_policy=control_policy(),
+        scenario=scenario(),
     )
     first = randomized_label_control(
         adapter=FakeAdapter(),
@@ -182,6 +228,7 @@ def test_randomized_label_control_is_seeded_and_no_signal_is_mandatory() -> None
         no_signal_decision_count=0,
         no_signal_report_sha256="f" * 64,
         forecast_robustness=result.forecast_robustness,
+        forecast_economic=result.forecast_economic,
     )
     second = randomized_label_control(
         adapter=FakeAdapter(),
@@ -195,6 +242,7 @@ def test_randomized_label_control_is_seeded_and_no_signal_is_mandatory() -> None
         no_signal_decision_count=0,
         no_signal_report_sha256="f" * 64,
         forecast_robustness=result.forecast_robustness,
+        forecast_economic=result.forecast_economic,
     )
     assert first == second
     assert first.randomized_seeds == (7, 8, 9)
@@ -212,6 +260,7 @@ def test_randomized_label_control_is_seeded_and_no_signal_is_mandatory() -> None
             no_signal_decision_count=0,
             no_signal_report_sha256="f" * 64,
             forecast_robustness=result.forecast_robustness,
+            forecast_economic=result.forecast_economic,
         )
     mismatched_receipt_report = result.forecast_robustness.model_copy(
         update={"search_receipt_sha256": "0" * 64}
@@ -229,6 +278,7 @@ def test_randomized_label_control_is_seeded_and_no_signal_is_mandatory() -> None
             no_signal_decision_count=0,
             no_signal_report_sha256="f" * 64,
             forecast_robustness=mismatched_receipt_report,
+            forecast_economic=result.forecast_economic,
         )
     with pytest.raises(ValueError, match="parameters do not match"):
         randomized_label_control(
@@ -243,6 +293,7 @@ def test_randomized_label_control_is_seeded_and_no_signal_is_mandatory() -> None
             no_signal_decision_count=0,
             no_signal_report_sha256="f" * 64,
             forecast_robustness=result.forecast_robustness,
+            forecast_economic=result.forecast_economic,
         )
     passing = first.model_copy(
         update={
@@ -267,6 +318,7 @@ def test_forecast_robustness_fails_closed_when_training_cannot_define_all_regime
         labels=source.labels,
         sample_ts_ns=source.sample_ts_ns,
         label_end_ts_ns=source.label_end_ts_ns,
+        volatility_regimes=np.full(len(source.labels), VolatilityRegime.LOW.value),
         feature_schema=source.feature_schema,
         source_dataset_sha256=source.source_dataset_sha256,
     )
@@ -277,9 +329,89 @@ def test_forecast_robustness_fails_closed_when_training_cannot_define_all_regime
         target=ForecastTarget.NEXT_MID_RETURN_BPS,
         policy=policy(),
         control_policy=control_policy(),
+        scenario=scenario(),
     )
     assert [item.row_count for item in result.forecast_robustness.slices] == [10, 10, 0, 0]
     assert not result.forecast_robustness.passed
+
+
+def test_economic_replay_enforces_non_overlap_and_scenario_calibration() -> None:
+    source = matrix()
+    overlapping_source = CausalTrainingMatrix(
+        features=source.features,
+        labels=source.labels,
+        sample_ts_ns=source.sample_ts_ns,
+        label_end_ts_ns=source.label_end_ts_ns + 10,
+        volatility_regimes=source.volatility_regimes,
+        feature_schema=source.feature_schema,
+        source_dataset_sha256=source.source_dataset_sha256,
+    )
+    result = run_fold_retraining(
+        adapter=FakeAdapter(),
+        matrix=source,
+        fold=fold(),
+        target=ForecastTarget.NEXT_MID_RETURN_BPS,
+        policy=policy(),
+        control_policy=control_policy(),
+        scenario=scenario(),
+    )
+    test = overlapping_source.window(fold().test)
+    calibrated_gate = control_policy().model_copy(
+        update={
+            "forecast_economic": control_policy().forecast_economic.model_copy(
+                update={"require_calibrated_scenario": True}
+            )
+        }
+    )
+    report = evaluate_forecast_economics(
+        test=test,
+        predictions=test.labels.copy(),
+        fold=fold(),
+        search_receipt=result.search.receipt,
+        policy=calibrated_gate,
+        scenario=scenario(),
+    )
+
+    assert report.slices[0].trade_count == 5
+    assert report.overlapping_signal_count == 4
+    assert report.below_threshold_count == 0
+    assert report.performance_passed
+    assert not report.passed
+    with pytest.raises(ValidationError, match="signal threshold"):
+        type(report).model_validate(
+            {**report.model_dump(mode="python"), "signal_threshold_bps": 1.0}
+        )
+
+
+def test_economic_replay_charges_conservative_round_trip_taker_cost() -> None:
+    source = matrix()
+    result = run_fold_retraining(
+        adapter=FakeAdapter(),
+        matrix=source,
+        fold=fold(),
+        target=ForecastTarget.NEXT_MID_RETURN_BPS,
+        policy=policy(),
+        control_policy=control_policy(),
+        scenario=scenario(),
+    )
+    test = source.window(fold().test)
+    costly = scenario().model_copy(
+        update={"taker_fee_bps": Decimal("1"), "taker_slippage_bps": Decimal("1")}
+    )
+    report = evaluate_forecast_economics(
+        test=test,
+        predictions=np.full_like(test.labels, 4.0),
+        fold=fold(),
+        search_receipt=result.search.receipt,
+        policy=control_policy(),
+        scenario=costly,
+    )
+
+    assert report.round_trip_cost_bps == 4.0
+    assert report.signal_threshold_bps == 4.0
+    assert report.slices[0].trade_count == 0
+    assert report.below_threshold_count == len(test.labels)
+    assert not report.performance_passed
 
 
 def test_training_matrix_and_metric_reject_invalid_inputs() -> None:
@@ -292,6 +424,7 @@ def test_training_matrix_and_metric_reject_invalid_inputs() -> None:
             labels=source.labels,
             sample_ts_ns=source.sample_ts_ns[::-1],
             label_end_ts_ns=source.label_end_ts_ns,
+            volatility_regimes=source.volatility_regimes,
             feature_schema=source.feature_schema,
             source_dataset_sha256=source.source_dataset_sha256,
         )
@@ -299,8 +432,6 @@ def test_training_matrix_and_metric_reject_invalid_inputs() -> None:
         mean_squared_error(np.asarray([1.0]), np.asarray([1.0, 2.0]))
     with pytest.raises(ValueError, match="finite"):
         mean_squared_error(np.asarray([float("nan")]), np.asarray([1.0]))
-    with pytest.raises(ValidationError, match="high quantile"):
-        ForecastRegimePolicy(low_quantile=0.8, high_quantile=0.2)
     with pytest.raises(ValueError, match="non-negative"):
         control_policy().randomized_label.seeds_for_fold(-1)
     with pytest.raises(ValueError, match="uint64"):
@@ -317,11 +448,14 @@ def test_training_matrix_and_metric_reject_invalid_inputs() -> None:
 
 def test_checked_research_control_policy_is_bounded(project_root: Path) -> None:
     checked = ResearchControlPolicy.model_validate_json(
-        (project_root / "configs/research/controls-v1.json").read_bytes()
+        (project_root / "configs/research/controls-v2.json").read_bytes()
     )
     assert checked.randomized_label.repetitions == 3
     assert checked.randomized_label.seeds_for_fold(2) == (20260826, 20260827, 20260828)
     assert checked.forecast_regime.minimum_rows_per_slice == 100
+    assert checked.schema_version == 2
+    assert checked.policy_id == "forecast-integrity-v2"
+    assert checked.forecast_economic.require_calibrated_scenario
 
 
 def test_no_signal_report_rejects_impossible_counts_and_windows() -> None:

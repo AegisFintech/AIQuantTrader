@@ -87,6 +87,12 @@ def test_forecast_matrix_is_deterministic_causal_and_manifest_bound(tmp_path: Pa
     assert first.ready_row_count == 8
     assert first.candidate_row_count == 8
     assert first.row_count == 6
+    assert (
+        first.low_volatility_row_count
+        + first.normal_volatility_row_count
+        + first.high_volatility_row_count
+        == first.row_count
+    )
     assert first.dropped_label_gap_count == 0
     assert first.dropped_tail_count == 2
 
@@ -97,6 +103,7 @@ def test_forecast_matrix_is_deterministic_causal_and_manifest_bound(tmp_path: Pa
     assert len(matrix.labels) == 6
     assert np.all(matrix.labels > 0)
     assert np.all(matrix.label_end_ts_ns - matrix.sample_ts_ns == 2 * SECOND_NS)
+    assert set(matrix.volatility_regimes) <= {"low", "normal", "high"}
     assert matrix.sha256() == first.causal_matrix_sha256
 
     manifest_values = first.model_dump(mode="python", exclude={"schema_version", "matrix_id"})
@@ -196,6 +203,9 @@ def test_forecast_matrix_manifest_rejects_corrupt_identity_counts_and_windows() 
         "ready_row_count": 8,
         "candidate_row_count": 6,
         "row_count": 4,
+        "low_volatility_row_count": 1,
+        "normal_volatility_row_count": 1,
+        "high_volatility_row_count": 2,
         "dropped_label_gap_count": 1,
         "dropped_tail_count": 1,
         "first_sample_ts_ns": 100,
@@ -211,6 +221,7 @@ def test_forecast_matrix_manifest_rejects_corrupt_identity_counts_and_windows() 
         ({"ready_row_count": 11}, "ready rows exceed"),
         ({"candidate_row_count": 9}, "candidates exceed"),
         ({"row_count": 3}, "accounting does not balance"),
+        ({"high_volatility_row_count": 1}, "regime accounting does not balance"),
         ({"last_sample_ts_ns": 100}, "sample window is not increasing"),
         ({"first_label_end_ts_ns": 100}, "first label is not causal"),
         ({"last_label_end_ts_ns": 200}, "last label is not causal"),

@@ -20,12 +20,14 @@ from aiquanttrader.features.models import (
     MODEL_FEATURE_SCHEMA,
     FeatureDatasetManifest,
     FeatureEngineConfig,
+    VolatilityRegime,
 )
 from aiquanttrader.features.storage import write_feature_dataset
 from aiquanttrader.market_data.io import sha256_file
 from aiquanttrader.research.cli import main
 from aiquanttrader.research.models import (
     CausalTrainingMatrix,
+    ForecastEconomicPolicy,
     ForecastMatrixManifest,
     ForecastRegimePolicy,
     ForecastTarget,
@@ -80,12 +82,19 @@ def write_matrix(
     features[:, MODEL_FEATURE_SCHEMA.names.index("realized_volatility")] = np.arange(rows) % 3
     labels = features[:, 0] * 2
     timestamps = np.arange(rows, dtype=np.int64) * 10
+    volatility_regimes = np.asarray(
+        [
+            (VolatilityRegime.LOW, VolatilityRegime.NORMAL, VolatilityRegime.HIGH)[index % 3].value
+            for index in range(rows)
+        ]
+    )
     np.savez(
         path,
         features=features,
         labels=labels,
         sample_ts_ns=timestamps,
         label_end_ts_ns=timestamps + 5,
+        volatility_regimes=volatility_regimes,
         feature_schema_sha256=(schema_hash or MODEL_FEATURE_SCHEMA.sha256()),
         source_dataset_sha256=SOURCE_DATASET_SHA256,
     )
@@ -94,6 +103,7 @@ def write_matrix(
         labels=labels,
         sample_ts_ns=timestamps,
         label_end_ts_ns=timestamps + 5,
+        volatility_regimes=volatility_regimes,
         feature_schema=MODEL_FEATURE_SCHEMA,
         source_dataset_sha256=SOURCE_DATASET_SHA256,
     )
@@ -111,6 +121,9 @@ def write_matrix(
         ready_row_count=rows,
         candidate_row_count=rows,
         row_count=rows,
+        low_volatility_row_count=20,
+        normal_volatility_row_count=20,
+        high_volatility_row_count=20,
         dropped_label_gap_count=0,
         dropped_tail_count=0,
         first_sample_ts_ns=int(timestamps[0]),
@@ -153,9 +166,40 @@ def write_control_policy(path: Path) -> ResearchControlPolicy:
             minimum_worst_mse_multiple_of_training_mean=0.5,
         ),
         forecast_regime=ForecastRegimePolicy(minimum_rows_per_slice=2),
+        forecast_economic=ForecastEconomicPolicy(
+            minimum_expected_edge_bps=0.0,
+            minimum_trades=2,
+            minimum_trades_per_regime=1,
+            minimum_profit_factor=1.01,
+            require_calibrated_scenario=False,
+        ),
     )
     path.write_bytes(policy.canonical_bytes() + b"\n")
     return policy
+
+
+def write_zero_cost_scenario(path: Path) -> None:
+    path.write_text(
+        """schema_version = 1
+scenario_id = "zero-cost-test"
+calibration_state = "uncalibrated"
+tick_size = "1.0"
+lot_size = "0.00001"
+entry_latency_ns = 0
+response_latency_ns = 0
+feed_latency_offset_ns = 0
+maker_fee_bps = "0"
+taker_fee_bps = "0"
+queue_model = "risk_adverse"
+queue_power = "2"
+allow_partial_fills = true
+book_liquidity_multiplier = "1.0"
+trade_flow_multiplier = "1.0"
+taker_slippage_bps = "0"
+funding_rate_multiplier = "1.0"
+""",
+        encoding="utf-8",
+    )
 
 
 def test_build_matrix_cli_binds_immutable_features_and_explicit_label_policy(
@@ -291,7 +335,8 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
         source_feature_dataset_sha256=feature_manifest.feature_dataset_id,
     )
     strategy_path = project_root / "configs/strategies/order-flow-scalper-v1.toml"
-    scenario_path = project_root / "configs/backtest/baseline.toml"
+    scenario_path = tmp_path / "zero-cost-scenario.toml"
+    write_zero_cost_scenario(scenario_path)
     plan_path.write_text(validation_plan().model_dump_json(), encoding="utf-8")
     policy_path.write_text(
         SearchPolicy(
@@ -373,6 +418,8 @@ def test_run_search_writes_reproducible_native_artifact_and_validates_it(
     assert receipt["walk_forward_test_mse"] < receipt["training_mean_test_mse"]
     assert receipt["forecast_robustness_passed"] is True
     assert receipt["forecast_robustness"]["policy"] == control_policy.model_dump(mode="json")
+    assert receipt["forecast_economic_performance_passed"] is True
+    assert receipt["forecast_economic_passed"] is True
     assert receipt["negative_controls_passed"] is True
     assert receipt["negative_controls"]["randomized_seeds"] == [11, 12, 13]
     manifest_path = Path(receipt["model_manifest"])

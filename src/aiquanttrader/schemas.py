@@ -100,6 +100,7 @@ from aiquanttrader.paper.models import (
 from aiquanttrader.research.models import (
     ChampionChallengerReport,
     DriftReport,
+    ForecastEconomicReport,
     ForecastMatrixManifest,
     ForecastRobustnessReport,
     ModelArtifactManifest,
@@ -274,6 +275,7 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | SearchReceipt
         | ResearchControlPolicy
         | ForecastRobustnessReport
+        | ForecastEconomicReport
         | NegativeControlReport
         | NoSignalControlReport
         | PromotionMetrics

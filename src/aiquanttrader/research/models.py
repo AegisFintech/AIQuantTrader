@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import math
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
@@ -13,10 +14,10 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import Field, StringConstraints, model_validator
 
-from aiquanttrader.backtest.models import TimeWindow
+from aiquanttrader.backtest.models import CalibrationState, TimeWindow
 from aiquanttrader.domain.base import DomainModel, canonical_sha256
 from aiquanttrader.domain.governance import PromotionStage
-from aiquanttrader.features.models import FeatureSchema
+from aiquanttrader.features.models import FeatureSchema, VolatilityRegime
 
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 Identifier = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")]
@@ -108,6 +109,7 @@ class CausalTrainingMatrix:
     labels: NDArray[np.float64]
     sample_ts_ns: NDArray[np.int64]
     label_end_ts_ns: NDArray[np.int64]
+    volatility_regimes: NDArray[np.str_]
     feature_schema: FeatureSchema
     source_dataset_sha256: str
 
@@ -116,12 +118,16 @@ class CausalTrainingMatrix:
         labels = np.array(self.labels, dtype=np.float64, order="C", copy=True)
         sample_ts_ns = np.array(self.sample_ts_ns, dtype=np.int64, order="C", copy=True)
         label_end_ts_ns = np.array(self.label_end_ts_ns, dtype=np.int64, order="C", copy=True)
-        for values in (features, labels, sample_ts_ns, label_end_ts_ns):
+        volatility_regimes = np.array(
+            self.volatility_regimes, dtype=np.dtype("U6"), order="C", copy=True
+        )
+        for values in (features, labels, sample_ts_ns, label_end_ts_ns, volatility_regimes):
             values.flags.writeable = False
         object.__setattr__(self, "features", features)
         object.__setattr__(self, "labels", labels)
         object.__setattr__(self, "sample_ts_ns", sample_ts_ns)
         object.__setattr__(self, "label_end_ts_ns", label_end_ts_ns)
+        object.__setattr__(self, "volatility_regimes", volatility_regimes)
         if len(self.source_dataset_sha256) != 64 or any(
             character not in "0123456789abcdef" for character in self.source_dataset_sha256
         ):
@@ -135,9 +141,19 @@ class CausalTrainingMatrix:
                 self.labels,
                 self.sample_ts_ns,
                 self.label_end_ts_ns,
+                self.volatility_regimes,
             )
         ):
-            raise ValueError("training labels and timestamps must align with feature rows")
+            raise ValueError(
+                "training labels, regimes, and timestamps must align with feature rows"
+            )
+        allowed_regimes = {
+            VolatilityRegime.LOW.value,
+            VolatilityRegime.NORMAL.value,
+            VolatilityRegime.HIGH.value,
+        }
+        if not set(self.volatility_regimes.tolist()) <= allowed_regimes:
+            raise ValueError("training matrix contains an invalid or warmup volatility regime")
         if not np.all(np.isfinite(self.features)) or not np.all(np.isfinite(self.labels)):
             raise ValueError("training matrix must contain only finite values")
         if not np.all(np.diff(self.sample_ts_ns) > 0):
@@ -157,6 +173,9 @@ class CausalTrainingMatrix:
         ):
             digest.update(str(values.shape).encode("ascii"))
             digest.update(values.tobytes(order="C"))
+        regime_bytes = "\n".join(self.volatility_regimes.tolist()).encode("ascii")
+        digest.update(str(self.volatility_regimes.shape).encode("ascii"))
+        digest.update(regime_bytes)
         return digest.hexdigest()
 
     def window(self, window: TimeWindow) -> CausalTrainingMatrix:
@@ -170,6 +189,7 @@ class CausalTrainingMatrix:
             labels=self.labels[mask],
             sample_ts_ns=self.sample_ts_ns[mask],
             label_end_ts_ns=self.label_end_ts_ns[mask],
+            volatility_regimes=self.volatility_regimes[mask],
             feature_schema=self.feature_schema,
             source_dataset_sha256=self.source_dataset_sha256,
         )
@@ -178,7 +198,7 @@ class CausalTrainingMatrix:
 class ForecastMatrixManifest(DomainModel):
     """Immutable lineage for a leakage-safe supervised forecast matrix."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     matrix_id: Sha256
     target: Literal[ForecastTarget.NEXT_MID_RETURN_BPS]
     horizon_ns: int = Field(gt=0)
@@ -193,6 +213,9 @@ class ForecastMatrixManifest(DomainModel):
     ready_row_count: int = Field(gt=0)
     candidate_row_count: int = Field(gt=0)
     row_count: int = Field(ge=2)
+    low_volatility_row_count: int = Field(ge=0)
+    normal_volatility_row_count: int = Field(ge=0)
+    high_volatility_row_count: int = Field(ge=0)
     dropped_label_gap_count: int = Field(ge=0)
     dropped_tail_count: int = Field(ge=0)
     first_sample_ts_ns: int = Field(ge=0)
@@ -217,6 +240,13 @@ class ForecastMatrixManifest(DomainModel):
         accounted = self.row_count + self.dropped_label_gap_count + self.dropped_tail_count
         if accounted != self.candidate_row_count:
             raise ValueError("forecast matrix candidate accounting does not balance")
+        regime_rows = (
+            self.low_volatility_row_count
+            + self.normal_volatility_row_count
+            + self.high_volatility_row_count
+        )
+        if regime_rows != self.row_count:
+            raise ValueError("forecast matrix volatility-regime accounting does not balance")
         if self.last_sample_ts_ns <= self.first_sample_ts_ns:
             raise ValueError("forecast matrix sample window is not increasing")
         if self.first_label_end_ts_ns <= self.first_sample_ts_ns:
@@ -269,9 +299,6 @@ class RandomizedLabelControlPolicy(DomainModel):
 
 
 class ForecastRegimePolicy(DomainModel):
-    volatility_feature_name: Literal["realized_volatility"] = "realized_volatility"
-    low_quantile: Annotated[float, Field(gt=0, lt=1, allow_inf_nan=False)] = 1 / 3
-    high_quantile: Annotated[float, Field(gt=0, lt=1, allow_inf_nan=False)] = 2 / 3
     minimum_rows_per_slice: int = Field(default=100, ge=2)
     minimum_improvement_fraction_vs_zero: Annotated[
         float, Field(ge=0, lt=1, allow_inf_nan=False)
@@ -280,18 +307,24 @@ class ForecastRegimePolicy(DomainModel):
         float, Field(ge=0, lt=1, allow_inf_nan=False)
     ] = 0.0
 
-    @model_validator(mode="after")
-    def validate_quantiles(self) -> Self:
-        if self.high_quantile <= self.low_quantile:
-            raise ValueError("forecast-regime high quantile must exceed low quantile")
-        return self
+
+class ForecastEconomicPolicy(DomainModel):
+    execution_style: Literal["taker_round_trip"] = "taker_round_trip"
+    minimum_expected_edge_bps: NonNegativeMetric = 0.5
+    minimum_trades: int = Field(default=100, ge=1)
+    minimum_trades_per_regime: int = Field(default=20, ge=1)
+    minimum_net_return_bps: FiniteMetric = 0.0
+    minimum_average_net_return_bps: FiniteMetric = 0.0
+    minimum_profit_factor: Annotated[float, Field(gt=1, le=100, allow_inf_nan=False)] = 1.05
+    require_calibrated_scenario: bool = True
 
 
 class ResearchControlPolicy(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     policy_id: Identifier
     randomized_label: RandomizedLabelControlPolicy
     forecast_regime: ForecastRegimePolicy
+    forecast_economic: ForecastEconomicPolicy
 
 
 class ForecastSlice(StrEnum):
@@ -337,31 +370,197 @@ class ForecastSliceMetrics(DomainModel):
 
 
 class ForecastRobustnessReport(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     policy: ResearchControlPolicy
     fold_index: int = Field(ge=0)
     search_receipt_sha256: Sha256
     feature_schema_sha256: Sha256
     training_window_sha256: Sha256
     test_window_sha256: Sha256
+    test_dataset_sha256: Sha256
     training_mean_label: FiniteMetric
-    training_low_volatility_threshold: FiniteMetric
-    training_high_volatility_threshold: FiniteMetric
+    regime_source: Literal["causal_feature_snapshot"] = "causal_feature_snapshot"
     slices: tuple[ForecastSliceMetrics, ...] = Field(min_length=4, max_length=4)
 
     @model_validator(mode="after")
-    def validate_slices_and_thresholds(self) -> Self:
+    def validate_slices(self) -> Self:
         expected = tuple(ForecastSlice)
         observed = tuple(item.slice for item in self.slices)
         if observed != expected:
             raise ValueError("forecast robustness slices must be complete and canonical")
-        if self.training_high_volatility_threshold < self.training_low_volatility_threshold:
-            raise ValueError("forecast robustness volatility thresholds are reversed")
         return self
 
     @property
     def passed(self) -> bool:
         return all(item.passes(self.policy.forecast_regime) for item in self.slices)
+
+
+class ForecastEconomicSliceMetrics(DomainModel):
+    slice: ForecastSlice
+    trade_count: int = Field(ge=0)
+    winning_trade_count: int = Field(ge=0)
+    losing_trade_count: int = Field(ge=0)
+    gross_directional_return_bps: FiniteMetric
+    transaction_cost_bps: NonNegativeMetric
+    net_return_bps: FiniteMetric
+    average_net_return_bps: FiniteMetric | None = None
+    net_profit_bps: NonNegativeMetric
+    net_loss_bps: NonNegativeMetric
+    maximum_drawdown_bps: NonNegativeMetric
+
+    @model_validator(mode="after")
+    def validate_trade_accounting(self) -> Self:
+        if self.winning_trade_count + self.losing_trade_count > self.trade_count:
+            raise ValueError("economic replay win/loss counts exceed trades")
+        if self.trade_count == 0 and self.average_net_return_bps is not None:
+            raise ValueError("empty economic replay slices cannot declare an average")
+        if self.trade_count > 0 and self.average_net_return_bps is None:
+            raise ValueError("populated economic replay slices require an average")
+        if not math.isclose(
+            self.gross_directional_return_bps - self.transaction_cost_bps,
+            self.net_return_bps,
+            rel_tol=1e-12,
+            abs_tol=1e-9,
+        ):
+            raise ValueError("economic replay return accounting does not balance")
+        if not math.isclose(
+            self.net_profit_bps - self.net_loss_bps,
+            self.net_return_bps,
+            rel_tol=1e-12,
+            abs_tol=1e-9,
+        ):
+            raise ValueError("economic replay profit/loss accounting does not balance")
+        if self.trade_count == 0 and any(
+            value != 0
+            for value in (
+                self.winning_trade_count,
+                self.losing_trade_count,
+                self.gross_directional_return_bps,
+                self.transaction_cost_bps,
+                self.net_return_bps,
+                self.net_profit_bps,
+                self.net_loss_bps,
+                self.maximum_drawdown_bps,
+            )
+        ):
+            raise ValueError("empty economic replay slices must have zero accounting")
+        if self.trade_count > 0:
+            assert self.average_net_return_bps is not None
+            if not math.isclose(
+                self.average_net_return_bps,
+                self.net_return_bps / self.trade_count,
+                rel_tol=1e-12,
+                abs_tol=1e-9,
+            ):
+                raise ValueError("economic replay average does not match net return")
+        if self.maximum_drawdown_bps > self.net_loss_bps + 1e-9:
+            raise ValueError("economic replay drawdown exceeds total net losses")
+        return self
+
+    @property
+    def profit_factor(self) -> float | None:
+        if self.net_loss_bps == 0:
+            return None
+        return self.net_profit_bps / self.net_loss_bps
+
+    def passes(self, policy: ForecastEconomicPolicy) -> bool:
+        minimum_trades = (
+            policy.minimum_trades
+            if self.slice is ForecastSlice.AGGREGATE
+            else policy.minimum_trades_per_regime
+        )
+        if self.trade_count < minimum_trades or self.average_net_return_bps is None:
+            return False
+        profit_factor_passed = (self.net_loss_bps == 0 and self.net_profit_bps > 0) or (
+            self.profit_factor is not None and self.profit_factor >= policy.minimum_profit_factor
+        )
+        return (
+            self.net_return_bps > policy.minimum_net_return_bps
+            and self.average_net_return_bps > policy.minimum_average_net_return_bps
+            and profit_factor_passed
+        )
+
+
+class ForecastEconomicReport(DomainModel):
+    schema_version: Literal[1] = 1
+    policy: ResearchControlPolicy
+    fold_index: int = Field(ge=0)
+    search_receipt_sha256: Sha256
+    test_window_sha256: Sha256
+    test_dataset_sha256: Sha256
+    scenario_id: Identifier
+    scenario_sha256: Sha256
+    calibration_state: CalibrationState
+    round_trip_cost_bps: NonNegativeMetric
+    signal_threshold_bps: NonNegativeMetric
+    observation_count: int = Field(gt=0)
+    below_threshold_count: int = Field(ge=0)
+    overlapping_signal_count: int = Field(ge=0)
+    slices: tuple[ForecastEconomicSliceMetrics, ...] = Field(min_length=4, max_length=4)
+
+    @model_validator(mode="after")
+    def validate_economic_report(self) -> Self:
+        expected = tuple(ForecastSlice)
+        observed = tuple(item.slice for item in self.slices)
+        if observed != expected:
+            raise ValueError("economic replay slices must be complete and canonical")
+        aggregate = self.slices[0]
+        accounted = (
+            aggregate.trade_count + self.below_threshold_count + self.overlapping_signal_count
+        )
+        if accounted != self.observation_count:
+            raise ValueError("economic replay observation accounting does not balance")
+        if sum(item.trade_count for item in self.slices[1:]) != aggregate.trade_count:
+            raise ValueError("economic replay regime trade accounting does not balance")
+        if not math.isclose(
+            self.signal_threshold_bps,
+            self.round_trip_cost_bps + self.policy.forecast_economic.minimum_expected_edge_bps,
+            rel_tol=1e-12,
+            abs_tol=1e-9,
+        ):
+            raise ValueError("economic replay signal threshold does not match policy and costs")
+        for item in self.slices:
+            if not math.isclose(
+                item.transaction_cost_bps,
+                self.round_trip_cost_bps * item.trade_count,
+                rel_tol=1e-12,
+                abs_tol=1e-9,
+            ):
+                raise ValueError("economic replay transaction costs do not match trade count")
+        for field in (
+            "winning_trade_count",
+            "losing_trade_count",
+            "gross_directional_return_bps",
+            "transaction_cost_bps",
+            "net_return_bps",
+            "net_profit_bps",
+            "net_loss_bps",
+        ):
+            aggregate_value = getattr(aggregate, field)
+            regime_total = sum(getattr(item, field) for item in self.slices[1:])
+            if isinstance(aggregate_value, int):
+                matches = aggregate_value == regime_total
+            else:
+                matches = math.isclose(
+                    aggregate_value,
+                    regime_total,
+                    rel_tol=1e-12,
+                    abs_tol=1e-9,
+                )
+            if not matches:
+                raise ValueError(f"economic replay regime {field} accounting does not balance")
+        return self
+
+    @property
+    def performance_passed(self) -> bool:
+        return all(item.passes(self.policy.forecast_economic) for item in self.slices)
+
+    @property
+    def passed(self) -> bool:
+        calibrated = self.calibration_state is CalibrationState.CALIBRATED
+        return self.performance_passed and (
+            calibrated or not self.policy.forecast_economic.require_calibrated_scenario
+        )
 
 
 class TrialResult(DomainModel):
@@ -419,7 +618,7 @@ class NoSignalControlReport(DomainModel):
 
 
 class NegativeControlReport(DomainModel):
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     policy: ResearchControlPolicy
     fold_index: int = Field(ge=0)
     search_receipt_sha256: Sha256
@@ -431,6 +630,9 @@ class NegativeControlReport(DomainModel):
     no_signal_report_sha256: Sha256
     forecast_robustness_report_sha256: Sha256
     forecast_robustness_passed: bool
+    forecast_economic_report_sha256: Sha256
+    forecast_economic_performance_passed: bool
+    forecast_economic_passed: bool
 
     @model_validator(mode="after")
     def validate_randomized_label_evidence(self) -> Self:
@@ -462,6 +664,7 @@ class NegativeControlReport(DomainModel):
             * randomized.minimum_worst_mse_multiple_of_training_mean
             and self.no_signal_decision_count == 0
             and self.forecast_robustness_passed
+            and self.forecast_economic_passed
         )
 
 

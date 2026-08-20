@@ -26,9 +26,11 @@ flowchart LR
     XGB --> NATIVE
     CAT --> NATIVE
     NATIVE --> CONTROL[Repeated relative randomized-label control]
-    NATIVE --> REGIME[Train-defined volatility-slice report]
+    NATIVE --> REGIME[Causal semantic volatility-regime report]
+    NATIVE --> ECONOMIC[Non-overlapping scenario cost replay]
     NOSIGNAL --> CONTROL
     REGIME --> CONTROL
+    ECONOMIC --> CONTROL
     POLICY --> CONTROL
     CONTROL --> GATES[Champion-challenger gates]
     MM --> GATES

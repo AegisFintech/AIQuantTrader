@@ -16,6 +16,7 @@ from numpy.typing import NDArray
 from aiquanttrader.features.models import (
     MODEL_FEATURE_SCHEMA,
     FeatureDatasetManifest,
+    VolatilityRegime,
 )
 from aiquanttrader.market_data.io import atomic_write_bytes, fsync_directory, sha256_file
 from aiquanttrader.research.models import (
@@ -28,6 +29,7 @@ _ARCHIVE_ARRAYS = {
     "features",
     "labels",
     "sample_ts_ns",
+    "volatility_regimes",
     "label_end_ts_ns",
     "feature_schema_sha256",
     "source_dataset_sha256",
@@ -146,12 +148,19 @@ def build_forecast_matrix(
     )
     if not np.all(np.isfinite(feature_values)):
         raise ValueError("feature dataset model values must be finite")
+    volatility_regimes = _column(table, "volatility_regime", np.dtype("U6"))
+    allowed_regimes = {regime.value for regime in VolatilityRegime}
+    if not set(volatility_regimes.tolist()) <= allowed_regimes:
+        raise ValueError("feature dataset contains an invalid volatility regime")
 
     ready_indices = np.flatnonzero(ready)
     if len(ready_indices) < 2:
         raise ValueError("feature dataset has fewer than two ready observations")
     ready_timestamps = timestamps[ready_indices]
     ready_midprices = midprices[ready_indices]
+    ready_regimes = volatility_regimes[ready_indices]
+    if np.any(ready_regimes == VolatilityRegime.WARMUP.value):
+        raise ValueError("ready feature rows cannot retain the warmup volatility regime")
     candidate_positions: list[int] = []
     last_sample_ts: int | None = None
     for position, timestamp in enumerate(ready_timestamps):
@@ -190,6 +199,7 @@ def build_forecast_matrix(
         ),
         sample_ts_ns=ready_timestamps[samples],
         label_end_ts_ns=ready_timestamps[labels_at],
+        volatility_regimes=ready_regimes[samples],
         feature_schema=MODEL_FEATURE_SCHEMA,
         source_dataset_sha256=feature_manifest.source_dataset_sha256,
     )
@@ -203,8 +213,13 @@ def build_forecast_matrix(
             "labels": matrix.labels,
             "sample_ts_ns": matrix.sample_ts_ns,
             "source_dataset_sha256": np.asarray(matrix.source_dataset_sha256),
+            "volatility_regimes": matrix.volatility_regimes,
         },
     )
+    regime_counts = {
+        regime: int(np.sum(matrix.volatility_regimes == regime.value))
+        for regime in (VolatilityRegime.LOW, VolatilityRegime.NORMAL, VolatilityRegime.HIGH)
+    }
     manifest = ForecastMatrixManifest.create(
         target=target,
         horizon_ns=horizon_ns,
@@ -219,6 +234,9 @@ def build_forecast_matrix(
         ready_row_count=len(ready_indices),
         candidate_row_count=len(candidate_positions),
         row_count=len(matrix.labels),
+        low_volatility_row_count=regime_counts[VolatilityRegime.LOW],
+        normal_volatility_row_count=regime_counts[VolatilityRegime.NORMAL],
+        high_volatility_row_count=regime_counts[VolatilityRegime.HIGH],
         dropped_label_gap_count=dropped_gap,
         dropped_tail_count=dropped_tail,
         first_sample_ts_ns=int(matrix.sample_ts_ns[0]),
@@ -255,6 +273,7 @@ def load_forecast_matrix(
             labels=np.asarray(archive["labels"], dtype=np.float64),
             sample_ts_ns=np.asarray(archive["sample_ts_ns"], dtype=np.int64),
             label_end_ts_ns=np.asarray(archive["label_end_ts_ns"], dtype=np.int64),
+            volatility_regimes=np.asarray(archive["volatility_regimes"], dtype=np.dtype("U6")),
             feature_schema=MODEL_FEATURE_SCHEMA,
             source_dataset_sha256=str(archive["source_dataset_sha256"].item()),
         )
@@ -266,6 +285,18 @@ def load_forecast_matrix(
         raise ValueError("forecast matrix semantic hash does not match its manifest")
     if manifest.row_count != len(matrix.labels):
         raise ValueError("forecast matrix row count does not match its manifest")
+    observed_regime_counts = (
+        int(np.sum(matrix.volatility_regimes == VolatilityRegime.LOW.value)),
+        int(np.sum(matrix.volatility_regimes == VolatilityRegime.NORMAL.value)),
+        int(np.sum(matrix.volatility_regimes == VolatilityRegime.HIGH.value)),
+    )
+    manifest_regime_counts = (
+        manifest.low_volatility_row_count,
+        manifest.normal_volatility_row_count,
+        manifest.high_volatility_row_count,
+    )
+    if observed_regime_counts != manifest_regime_counts:
+        raise ValueError("forecast matrix volatility-regime counts do not match its manifest")
     observed_label_delays = matrix.label_end_ts_ns - matrix.sample_ts_ns - manifest.horizon_ns
     if np.any(observed_label_delays < 0) or np.any(
         observed_label_delays > manifest.maximum_label_delay_ns

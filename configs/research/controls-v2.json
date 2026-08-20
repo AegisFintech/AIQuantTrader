@@ -1,0 +1,25 @@
+{
+  "forecast_regime": {
+    "minimum_improvement_fraction_vs_training_mean": 0.0,
+    "minimum_improvement_fraction_vs_zero": 0.0,
+    "minimum_rows_per_slice": 100
+  },
+  "forecast_economic": {
+    "execution_style": "taker_round_trip",
+    "minimum_average_net_return_bps": 0.0,
+    "minimum_expected_edge_bps": 0.5,
+    "minimum_net_return_bps": 0.0,
+    "minimum_profit_factor": 1.05,
+    "minimum_trades": 100,
+    "minimum_trades_per_regime": 20,
+    "require_calibrated_scenario": true
+  },
+  "policy_id": "forecast-integrity-v2",
+  "randomized_label": {
+    "base_seed": 20260820,
+    "minimum_median_mse_multiple_of_selected_model": 1.02,
+    "minimum_worst_mse_multiple_of_training_mean": 0.95,
+    "repetitions": 3
+  },
+  "schema_version": 2
+}
