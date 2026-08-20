@@ -103,3 +103,15 @@ def test_live_assembler_excludes_stale_bootstrap_trades_before_features() -> Non
     assert state is not None
     assert tuple(trade.size for trade in state.trades) == (Decimal("0.25"),)
     assert assembler.stale_trade_exclusions == 1
+
+
+def test_live_assembler_excludes_stale_book_without_weakening_feature_age() -> None:
+    assembler = LiveMarketStateAssembler(depth_levels=1, maximum_input_age_ns=100)
+
+    assert assembler.observe(book(900, 1_010)) is None
+    assert assembler.stale_book_exclusions == 1
+
+    fresh = assembler.observe(book(1_020, 1_030))
+    assert fresh is not None
+    assert fresh.sequence == 0
+    assert fresh.observed_ts_ns - fresh.book_exchange_ts_ns == 10

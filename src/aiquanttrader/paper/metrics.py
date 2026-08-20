@@ -79,6 +79,11 @@ class PaperMetrics:
             "Trades excluded before feature generation because their exchange time is stale",
             registry=registry,
         )
+        self.stale_books_excluded = Counter(
+            "aqt_paper_stale_books_excluded_total",
+            "L2 snapshots excluded before feature generation because their exchange time is stale",
+            registry=registry,
+        )
         self.markouts = Histogram(
             "aqt_paper_fill_markout_bps",
             "Signed post-fill markout in basis points",
@@ -281,6 +286,12 @@ class PaperMetrics:
             raise ValueError("paper stale-trade exclusion count cannot be negative")
         if count:
             self.stale_trades_excluded.inc(count)
+
+    def observe_stale_book_exclusions(self, count: int) -> None:
+        if count < 0:
+            raise ValueError("paper stale-book exclusion count cannot be negative")
+        if count:
+            self.stale_books_excluded.inc(count)
 
     def observe_cycle(
         self,

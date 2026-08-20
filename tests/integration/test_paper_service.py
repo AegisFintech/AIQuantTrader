@@ -166,6 +166,45 @@ def test_live_service_creates_credential_free_manifest_status_and_metrics(
     )
     asyncio.run(service.consume_frame(trades))
     asyncio.run(service.consume_frame(next_book))
+    accepted_market_wall_ns = service._last_market_wall_ns
+    assert accepted_market_wall_ns is not None
+    stale_book = ParsedFrame(
+        channel="l2Book",
+        events=(
+            book.events[0].model_copy(
+                update={
+                    "header": header.model_copy(
+                        update={
+                            "event_id": "stale-book",
+                            "event_ts_ns": receive - 7_000_000_000,
+                            "receive_ts_ns": receive + 4,
+                        }
+                    )
+                }
+            ),
+        ),
+    )
+    recovery_book = ParsedFrame(
+        channel="l2Book",
+        events=(
+            book.events[0].model_copy(
+                update={
+                    "header": header.model_copy(
+                        update={
+                            "event_id": "recovery-book",
+                            "event_ts_ns": receive + 5,
+                            "receive_ts_ns": receive + 5,
+                        }
+                    )
+                }
+            ),
+        ),
+    )
+    asyncio.run(service.consume_frame(stale_book))
+    assert service._last_market_wall_ns == accepted_market_wall_ns
+    asyncio.run(service.consume_frame(recovery_book))
+    assert service._last_market_wall_ns is not None
+    assert service._last_market_wall_ns >= accepted_market_wall_ns
 
     manifest = journal.latest_manifest()
     assert manifest is not None
@@ -176,8 +215,9 @@ def test_live_service_creates_credential_free_manifest_status_and_metrics(
     assert status.feed_connected
     assert status.account is not None
     metrics = generate_latest(registry)
-    assert b"aqt_paper_market_states_total 2.0" in metrics
+    assert b"aqt_paper_market_states_total 3.0" in metrics
     assert b"aqt_paper_stale_trades_excluded_total 1.0" in metrics
+    assert b"aqt_paper_stale_books_excluded_total 1.0" in metrics
     assert b"aqt_paper_equity_usd 100000.0" in metrics
     assert b"aqt_paper_drawdown_fraction 0.0" in metrics
     assert b"aqt_paper_daily_loss_fraction 0.0" in metrics
@@ -241,6 +281,7 @@ def test_service_run_archives_live_frame_and_stops_cleanly(
     async def watchdog_tick() -> None:
         service._recorder_connected = True
         service._last_frame_wall_ns = time.time_ns()
+        service._last_market_wall_ns = service._last_frame_wall_ns
         stop = asyncio.Event()
         task = asyncio.create_task(service._watchdog(stop))
         await asyncio.sleep(0.3)
@@ -256,6 +297,7 @@ def test_service_run_archives_live_frame_and_stops_cleanly(
         service._last_frame_wall_ns = (
             time.time_ns() - service.bundle.settings.risk.public_data_stale_after_ms * 1_000_000 - 1
         )
+        service._last_market_wall_ns = service._last_frame_wall_ns
         stop = asyncio.Event()
         task = asyncio.create_task(service._watchdog(stop))
         await asyncio.sleep(0.3)

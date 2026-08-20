@@ -22,12 +22,17 @@ class LiveMarketStateAssembler:
         self._maximum_input_age_ns = maximum_input_age_ns
         self._pending_trades: list[TradeEvent] = []
         self._stale_trade_exclusions = 0
+        self._stale_book_exclusions = 0
         self._sequence = 0
         self._last_observed_ts_ns: int | None = None
 
     @property
     def stale_trade_exclusions(self) -> int:
         return self._stale_trade_exclusions
+
+    @property
+    def stale_book_exclusions(self) -> int:
+        return self._stale_book_exclusions
 
     def observe(self, event: MarketEvent) -> KernelMarketState | None:
         if isinstance(event, TradeEvent):
@@ -45,7 +50,12 @@ class LiveMarketStateAssembler:
         observed = event.header.receive_ts_ns
         if self._last_observed_ts_ns is not None and observed <= self._last_observed_ts_ns:
             raise ValueError("live L2 receive timestamps must be strictly increasing")
+        if event.header.event_ts_ns > observed:
+            raise ValueError("live exchange timestamp follows local receipt; verify host clock")
         self._expire_stale_trades(observed)
+        if observed - event.header.event_ts_ns > self._maximum_input_age_ns:
+            self._stale_book_exclusions += 1
+            return None
         fresh_trades = tuple(self._pending_trades)
         trades = tuple(
             KernelTrade(

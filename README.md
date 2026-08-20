@@ -291,7 +291,9 @@ AQT_NATIVE_CODE_IDENTITY="$(git rev-parse HEAD)" \
 The paper service owns raw capture; do not start `market-data-recorder` against
 the same state volume. It durably syncs each raw frame before the live consumer
 and accepts only conservative risk-adverse, zero-synthetic-feed-delay paper
-scenarios. The checked-in paper challenger is `smart-money-scalper-v2`: it uses
+scenarios. Stale trades and L2 snapshots remain archived but are excluded from
+features; only a fresh accepted book refreshes the paper market watchdog. The
+checked-in paper challenger is `smart-money-scalper-v2`: it uses
 closed 15-minute bias, 5-minute alignment, a 1-minute BOS/CHoCH/sweep trigger,
 L2/tape confirmation, and a causal 30-second online forecast. Entries are
 post-only with a three-second TTL; risk exits are reduce-only, with a 60-second
