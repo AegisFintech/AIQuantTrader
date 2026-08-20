@@ -168,8 +168,14 @@ uv run aqt-research run-search \
   --output state/research/challenger-20260804/fold-0.json
 ```
 
-Use `.json` for XGBoost and `.cbm` for CatBoost. Do not use pickle, joblib, or
-an arbitrary callback/object parameter. A trial policy can declare at most 64
+Use `.json` for XGBoost and CatBoost. CatBoost artifacts deterministically bind
+their non-predictive model GUID to the remaining native JSON bytes and replace
+the wall-clock training timestamp with an epoch sentinel. The manifest's
+`created_at` remains the declared artifact time. CBM and model-artifact
+schema-v1 files are historical evidence only: rerun their exact bound
+experiment into a new path to create a schema-v2 artifact. Do not rename or
+manually convert them. Do not use pickle, joblib, or an arbitrary
+callback/object parameter. A trial policy can declare at most 64
 trials, and adapters reject parameters outside their fixed allowlists/bounds.
 Every fold receipt reports the selected model's untouched walk-forward test
 MSE beside a zero-prediction baseline and a train-window-mean baseline. A model

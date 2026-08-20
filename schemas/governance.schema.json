@@ -1192,8 +1192,8 @@
           "type": "string"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -1242,7 +1242,7 @@
       "enum": [
         "lightgbm_text",
         "xgboost_json",
-        "catboost_cbm"
+        "catboost_json"
       ],
       "title": "ModelFormat",
       "type": "string"

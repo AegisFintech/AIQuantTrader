@@ -125,8 +125,13 @@ Neither kernel can bypass Phase 4 risk. Integration must preserve the ordering
 The reference engines are pinned LightGBM, CPU-only XGBoost, and CatBoost.
 Each adapter accepts a small allowlist of bounded parameters, fixes its random
 seed and worker count, validates finite matrices, and retains exact feature
-names. Artifacts use LightGBM text, XGBoost JSON, or CatBoost CBM. Pickle is not
-accepted.
+names. Artifacts use LightGBM text or native JSON for XGBoost and CatBoost.
+CatBoost JSON has its non-predictive random model GUID replaced with a
+content-derived GUID and its wall-clock training timestamp replaced with an
+epoch sentinel, so independent fits produce identical artifact identities.
+Pickle is not accepted. Model-artifact manifest schema v2 rejects historical
+CatBoost CBM manifests; retain them as evidence and rerun the bound experiment
+to create a current artifact.
 
 An artifact manifest binds engine, target, native format, file path/hash/size,
 feature schema, training data/window, parameters, dependency lock, and model

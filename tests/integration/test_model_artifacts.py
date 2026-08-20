@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -13,7 +14,7 @@ from aiquanttrader.features.models import (
     VolatilityRegime,
 )
 from aiquanttrader.research.artifacts import load_model_artifact, save_model_artifact
-from aiquanttrader.research.model_adapters import adapter_for
+from aiquanttrader.research.model_adapters import _canonicalize_catboost_json, adapter_for
 from aiquanttrader.research.models import (
     CausalTrainingMatrix,
     ForecastTarget,
@@ -71,7 +72,7 @@ def classification_matrix(target: ForecastTarget, rows: int = 48) -> CausalTrain
             ".txt",
         ),
         (ModelEngine.XGBOOST, {"num_boost_round": 5, "max_depth": 2}, ".json"),
-        (ModelEngine.CATBOOST, {"iterations": 5, "depth": 2}, ".cbm"),
+        (ModelEngine.CATBOOST, {"iterations": 5, "depth": 2}, ".json"),
     ],
 )
 def test_native_model_formats_round_trip_without_pickle(
@@ -107,6 +108,120 @@ def test_native_model_formats_round_trip_without_pickle(
     np.testing.assert_allclose(actual, expected, rtol=1e-12, atol=1e-12)
     assert manifest.relative_path.endswith(suffix)
     assert manifest.artifact_sha256 != "0" * 64
+
+
+def test_catboost_artifact_and_identity_are_reproducible_across_independent_fits(
+    tmp_path: Path,
+) -> None:
+    training = matrix()
+    adapter = adapter_for(ModelEngine.CATBOOST)
+    manifests = []
+    artifacts = []
+    for run in range(2):
+        model = adapter.train(
+            training,
+            target=ForecastTarget.NEXT_MID_RETURN_BPS,
+            parameters={"iterations": 5, "depth": 2},
+        )
+        artifact_root = tmp_path / f"run-{run}"
+        _, manifest = save_model_artifact(
+            model,
+            artifact_root=artifact_root,
+            relative_path="models/fold-0.json",
+            training_dataset_sha256=training.sha256(),
+            training_window_sha256="b" * 64,
+            dependency_lock_sha256="c" * 64,
+            created_at=datetime(2026, 8, 20, tzinfo=UTC),
+        )
+        manifests.append(manifest)
+        artifacts.append((artifact_root / manifest.relative_path).read_bytes())
+
+    assert artifacts[0] == artifacts[1]
+    assert manifests[0].artifact_sha256 == manifests[1].artifact_sha256
+    assert manifests[0].model_id == manifests[1].model_id
+    assert manifests[0].canonical_bytes() == manifests[1].canonical_bytes()
+
+
+def test_catboost_canonicalization_removes_wall_clock_metadata(tmp_path: Path) -> None:
+    training = matrix()
+    model = adapter_for(ModelEngine.CATBOOST).train(
+        training,
+        target=ForecastTarget.NEXT_MID_RETURN_BPS,
+        parameters={"iterations": 2, "depth": 2},
+    )
+    first = tmp_path / "first.json"
+    second = tmp_path / "second.json"
+    model.native_model.save_model(first, format="json")
+    original = first.read_bytes()
+    metadata = json.loads(original)["model_info"]
+    second.write_bytes(
+        original.replace(metadata["model_guid"].encode("ascii"), b"1-2-3-4", 1).replace(
+            metadata["train_finish_time"].encode("ascii"),
+            b"2000-01-01T00:00:00Z",
+            1,
+        )
+    )
+
+    _canonicalize_catboost_json(first)
+    _canonicalize_catboost_json(second)
+
+    assert first.read_bytes() == second.read_bytes()
+    metadata = json.loads(first.read_bytes())["model_info"]
+    assert metadata["train_finish_time"] == "1970-01-01T00:00:00Z"
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ({}, "missing required metadata"),
+        (
+            {"model_info": {"model_guid": "invalid", "train_finish_time": "2026-08-20T00:00:00Z"}},
+            "invalid model GUID",
+        ),
+        (
+            {"model_info": {"model_guid": "1-2-3-4", "train_finish_time": "invalid"}},
+            "invalid training finish time",
+        ),
+        (
+            {
+                "model_info": {
+                    "model_guid": "1-2-3-4",
+                    "train_finish_time": "2026-08-20T00:00:00Z",
+                },
+                "duplicate": "1-2-3-4",
+            },
+            "model GUID is not unique",
+        ),
+        (
+            {
+                "model_info": {
+                    "model_guid": "1-2-3-4",
+                    "train_finish_time": "2026-08-20T00:00:00Z",
+                },
+                "duplicate": "2026-08-20T00:00:00Z",
+            },
+            "training finish time is not unique",
+        ),
+        (
+            {
+                "model_info": {
+                    "model_guid": "1-2-3-4",
+                    "train_finish_time": "2026-08-20T00:00:00Z",
+                },
+                "collision": "00000000-00000000-00000000-00000000",
+            },
+            "normalized model GUID is not unique",
+        ),
+    ],
+)
+def test_catboost_canonicalization_fails_closed_on_volatile_metadata(
+    tmp_path: Path, payload: dict[str, object], message: str
+) -> None:
+    artifact = tmp_path / "model.json"
+    artifact.write_text(json.dumps(payload))
+
+    with pytest.raises(ValueError, match=message):
+        _canonicalize_catboost_json(artifact)
 
 
 @pytest.mark.parametrize("engine", list(ModelEngine))
