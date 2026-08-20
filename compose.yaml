@@ -167,8 +167,7 @@ services:
     healthcheck:
       test:
         - CMD
-        - aqt-paper
-        - healthcheck
+        - aqt-paper-healthcheck
         - --state-root
         - /var/lib/aiquanttrader/state
         - --stale-after-ms

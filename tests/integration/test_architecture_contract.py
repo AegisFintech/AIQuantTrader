@@ -81,6 +81,14 @@ def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path
     normalizer = compose.split("  market-data-normalizer:", 1)[1].split("  paper-trader:", 1)[0]
     assert "normalizer-healthcheck" in normalizer
     assert "/var/lib/aiquanttrader/state" in normalizer
+    paper = compose.split("  paper-trader:", 1)[1].split("  node-exporter:", 1)[0]
+    assert "aqt-paper-healthcheck" in paper
+    lightweight_probe = (project_root / "src" / "aiquanttrader" / "paper_healthcheck.py").read_text(
+        encoding="utf-8"
+    )
+    assert "from aiquanttrader" not in lightweight_probe
+    assert "import aiquanttrader" not in lightweight_probe
+    assert "pydantic" not in lightweight_probe
 
 
 def test_execution_and_control_wallets_are_process_isolated(project_root: Path) -> None:
