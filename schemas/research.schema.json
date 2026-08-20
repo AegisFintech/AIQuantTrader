@@ -183,6 +183,142 @@
       "title": "FeatureDrift",
       "type": "object"
     },
+    "ForecastMatrixManifest": {
+      "additionalProperties": false,
+      "description": "Immutable lineage for a leakage-safe supervised forecast matrix.",
+      "properties": {
+        "candidate_row_count": {
+          "exclusiveMinimum": 0,
+          "title": "Candidate Row Count",
+          "type": "integer"
+        },
+        "causal_matrix_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Causal Matrix Sha256",
+          "type": "string"
+        },
+        "dropped_label_gap_count": {
+          "minimum": 0,
+          "title": "Dropped Label Gap Count",
+          "type": "integer"
+        },
+        "dropped_tail_count": {
+          "minimum": 0,
+          "title": "Dropped Tail Count",
+          "type": "integer"
+        },
+        "feature_schema_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Schema Sha256",
+          "type": "string"
+        },
+        "file_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "File Sha256",
+          "type": "string"
+        },
+        "first_label_end_ts_ns": {
+          "minimum": 0,
+          "title": "First Label End Ts Ns",
+          "type": "integer"
+        },
+        "first_sample_ts_ns": {
+          "minimum": 0,
+          "title": "First Sample Ts Ns",
+          "type": "integer"
+        },
+        "horizon_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Horizon Ns",
+          "type": "integer"
+        },
+        "last_label_end_ts_ns": {
+          "minimum": 0,
+          "title": "Last Label End Ts Ns",
+          "type": "integer"
+        },
+        "last_sample_ts_ns": {
+          "minimum": 0,
+          "title": "Last Sample Ts Ns",
+          "type": "integer"
+        },
+        "matrix_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Matrix Id",
+          "type": "string"
+        },
+        "maximum_label_delay_ns": {
+          "minimum": 0,
+          "title": "Maximum Label Delay Ns",
+          "type": "integer"
+        },
+        "ready_row_count": {
+          "exclusiveMinimum": 0,
+          "title": "Ready Row Count",
+          "type": "integer"
+        },
+        "row_count": {
+          "minimum": 2,
+          "title": "Row Count",
+          "type": "integer"
+        },
+        "sample_interval_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Sample Interval Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source_dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Dataset Sha256",
+          "type": "string"
+        },
+        "source_feature_dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Feature Dataset Sha256",
+          "type": "string"
+        },
+        "source_row_count": {
+          "exclusiveMinimum": 0,
+          "title": "Source Row Count",
+          "type": "integer"
+        },
+        "target": {
+          "const": "next_mid_return_bps",
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "matrix_id",
+        "target",
+        "horizon_ns",
+        "sample_interval_ns",
+        "maximum_label_delay_ns",
+        "source_feature_dataset_sha256",
+        "source_dataset_sha256",
+        "feature_schema_sha256",
+        "causal_matrix_sha256",
+        "file_sha256",
+        "source_row_count",
+        "ready_row_count",
+        "candidate_row_count",
+        "row_count",
+        "dropped_label_gap_count",
+        "dropped_tail_count",
+        "first_sample_ts_ns",
+        "last_sample_ts_ns",
+        "first_label_end_ts_ns",
+        "last_label_end_ts_ns"
+      ],
+      "title": "ForecastMatrixManifest",
+      "type": "object"
+    },
     "ForecastTarget": {
       "enum": [
         "next_mid_return_bps",
@@ -903,6 +1039,9 @@
   "anyOf": [
     {
       "$ref": "#/$defs/ModelArtifactManifest"
+    },
+    {
+      "$ref": "#/$defs/ForecastMatrixManifest"
     },
     {
       "$ref": "#/$defs/SearchPolicy"

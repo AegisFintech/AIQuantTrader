@@ -48,7 +48,7 @@ the migration record; none of those systems has runtime authority.
 | `execution/` | Nautilus execution gateway, strategy wiring, order journal, reconciliation, and metrics. |
 | `risk/` | Synchronous risk authority and durable operator kill switch. |
 | `sentinel/` | Separately credentialed dead-man renewal and emergency cancel-all. |
-| `research/` | CPU model adapters, bounded search, drift, registry, and champion-challenger evaluation. |
+| `research/` | Causal forecast-matrix construction, CPU model adapters, bounded search, drift, registry, and champion-challenger evaluation. |
 | `paper/` | Public-feed simulation, accounting, per-cycle strategy gate diagnostics, journals, evidence, and optional shadow-only LLM review. |
 | `shadow/` | Checksummed ingress, network-isolated counterfactual engine, observer, and evidence. |
 | `governance/` | Artifact bundles, offline approvals, admission ledger, renewals, and release evidence. |
@@ -103,6 +103,9 @@ observer. LLM output is evidence, never order or risk authority.
   layer.
 - SQLite journals own restart continuity for live, paper, shadow, admission,
   and evidence state where transactional semantics are required.
+- Research forecast matrices are deterministic NPZ artifacts whose manifests
+  bind the immutable feature dataset, raw dataset, schema, target horizon,
+  sampling cadence, label-gap policy, semantic matrix hash, and file hash.
 - Paper journals retain every strategy action and gate reason atomically with
   its feature/account/checkpoint cycle, including outcomes that emit no order
   intent; `aqt-paper diagnostics` summarizes that evidence without changing it.

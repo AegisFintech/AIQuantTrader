@@ -174,6 +174,59 @@ class CausalTrainingMatrix:
         )
 
 
+class ForecastMatrixManifest(DomainModel):
+    """Immutable lineage for a leakage-safe supervised forecast matrix."""
+
+    schema_version: Literal[1] = 1
+    matrix_id: Sha256
+    target: Literal[ForecastTarget.NEXT_MID_RETURN_BPS]
+    horizon_ns: int = Field(gt=0)
+    sample_interval_ns: int = Field(gt=0)
+    maximum_label_delay_ns: int = Field(ge=0)
+    source_feature_dataset_sha256: Sha256
+    source_dataset_sha256: Sha256
+    feature_schema_sha256: Sha256
+    causal_matrix_sha256: Sha256
+    file_sha256: Sha256
+    source_row_count: int = Field(gt=0)
+    ready_row_count: int = Field(gt=0)
+    candidate_row_count: int = Field(gt=0)
+    row_count: int = Field(ge=2)
+    dropped_label_gap_count: int = Field(ge=0)
+    dropped_tail_count: int = Field(ge=0)
+    first_sample_ts_ns: int = Field(ge=0)
+    last_sample_ts_ns: int = Field(ge=0)
+    first_label_end_ts_ns: int = Field(ge=0)
+    last_label_end_ts_ns: int = Field(ge=0)
+
+    @classmethod
+    def create(cls, **values: Any) -> Self:
+        identity = dict(values)
+        return cls(matrix_id=canonical_sha256(identity), **identity)
+
+    @model_validator(mode="after")
+    def validate_identity_and_counts(self) -> Self:
+        identity = self.model_dump(mode="json", exclude={"schema_version", "matrix_id"})
+        if canonical_sha256(identity) != self.matrix_id:
+            raise ValueError("forecast matrix ID does not match canonical lineage")
+        if self.ready_row_count > self.source_row_count:
+            raise ValueError("forecast matrix ready rows exceed source rows")
+        if self.candidate_row_count > self.ready_row_count:
+            raise ValueError("forecast matrix candidates exceed ready rows")
+        accounted = self.row_count + self.dropped_label_gap_count + self.dropped_tail_count
+        if accounted != self.candidate_row_count:
+            raise ValueError("forecast matrix candidate accounting does not balance")
+        if self.last_sample_ts_ns <= self.first_sample_ts_ns:
+            raise ValueError("forecast matrix sample window is not increasing")
+        if self.first_label_end_ts_ns <= self.first_sample_ts_ns:
+            raise ValueError("forecast matrix first label is not causal")
+        if self.last_label_end_ts_ns <= self.last_sample_ts_ns:
+            raise ValueError("forecast matrix last label is not causal")
+        if self.last_label_end_ts_ns < self.first_label_end_ts_ns:
+            raise ValueError("forecast matrix label window is reversed")
+        return self
+
+
 class SearchTrial(DomainModel):
     trial_id: Identifier
     parameters: dict[str, int | float | str | bool]

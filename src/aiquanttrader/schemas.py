@@ -100,6 +100,7 @@ from aiquanttrader.paper.models import (
 from aiquanttrader.research.models import (
     ChampionChallengerReport,
     DriftReport,
+    ForecastMatrixManifest,
     ModelArtifactManifest,
     NegativeControlReport,
     NoSignalControlReport,
@@ -266,6 +267,7 @@ SCHEMAS: dict[str, SchemaFactory] = {
     "recorder-state.schema.json": lambda: _model_schema(RecorderState),
     "research.schema.json": lambda: TypeAdapter(
         ModelArtifactManifest
+        | ForecastMatrixManifest
         | SearchPolicy
         | SearchReceipt
         | NegativeControlReport

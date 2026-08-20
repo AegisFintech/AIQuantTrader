@@ -10,8 +10,6 @@ from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
-import numpy as np
-
 from aiquanttrader.backtest.conversion import load_event_file
 from aiquanttrader.backtest.kernel import hft_market_states
 from aiquanttrader.backtest.models import BacktestDatasetManifest, ValidationPlan
@@ -21,9 +19,9 @@ from aiquanttrader.features.storage import write_feature_dataset
 from aiquanttrader.market_data.io import atomic_write_bytes, sha256_file
 from aiquanttrader.research.artifacts import load_model_artifact, save_model_artifact
 from aiquanttrader.research.governance import evaluate_challenger
+from aiquanttrader.research.matrix import build_forecast_matrix, load_forecast_matrix
 from aiquanttrader.research.model_adapters import adapter_for
 from aiquanttrader.research.models import (
-    CausalTrainingMatrix,
     ForecastTarget,
     ModelEngine,
     NegativeControlReport,
@@ -48,8 +46,23 @@ def _parser() -> argparse.ArgumentParser:
     feature.add_argument("--output-root", type=Path, required=True)
     feature.add_argument("--relative-path", required=True)
 
+    matrix = commands.add_parser("build-matrix")
+    matrix.add_argument("--features", type=Path, required=True)
+    matrix.add_argument("--feature-manifest", type=Path, required=True)
+    matrix.add_argument("--output-root", type=Path, required=True)
+    matrix.add_argument("--relative-path", required=True)
+    matrix.add_argument(
+        "--target",
+        choices=[ForecastTarget.NEXT_MID_RETURN_BPS.value],
+        required=True,
+    )
+    matrix.add_argument("--horizon-ns", type=int, required=True)
+    matrix.add_argument("--sample-interval-ns", type=int, required=True)
+    matrix.add_argument("--maximum-label-delay-ns", type=int, required=True)
+
     search = commands.add_parser("run-search")
     search.add_argument("--matrix", type=Path, required=True)
+    search.add_argument("--matrix-manifest", type=Path, required=True)
     search.add_argument("--validation-plan", type=Path, required=True)
     search.add_argument("--fold", type=int, required=True)
     search.add_argument("--policy", type=Path, required=True)
@@ -104,31 +117,6 @@ def _feature_config(path: Path) -> FeatureEngineConfig:
         return FeatureEngineConfig.model_validate(tomllib.load(handle))
 
 
-def _training_matrix(path: Path) -> CausalTrainingMatrix:
-    with np.load(path, allow_pickle=False) as archive:
-        expected = {
-            "features",
-            "labels",
-            "sample_ts_ns",
-            "label_end_ts_ns",
-            "feature_schema_sha256",
-            "source_dataset_sha256",
-        }
-        if set(archive.files) != expected:
-            raise ValueError("training archive has missing or unexpected arrays")
-        schema_hash = str(archive["feature_schema_sha256"].item())
-        if schema_hash != MODEL_FEATURE_SCHEMA.sha256():
-            raise ValueError("training archive feature schema mismatch")
-        return CausalTrainingMatrix(
-            features=np.asarray(archive["features"], dtype=np.float64),
-            labels=np.asarray(archive["labels"], dtype=np.float64),
-            sample_ts_ns=np.asarray(archive["sample_ts_ns"], dtype=np.int64),
-            label_end_ts_ns=np.asarray(archive["label_end_ts_ns"], dtype=np.int64),
-            feature_schema=MODEL_FEATURE_SCHEMA,
-            source_dataset_sha256=str(archive["source_dataset_sha256"].item()),
-        )
-
-
 def _write_output(path: Path | None, payload: dict[str, object]) -> None:
     content = json.dumps(payload, sort_keys=True, indent=2) + "\n"
     if path is None:
@@ -147,7 +135,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             if sha256_file(args.events) != dataset.event_file_sha256:
                 raise ValueError("event file does not match dataset manifest")
             states = hft_market_states(load_event_file(args.events))
-            manifest_path, manifest = write_feature_dataset(
+            manifest_path, feature_manifest = write_feature_dataset(
                 states,
                 config=_feature_config(args.config),
                 source_dataset_sha256=dataset.dataset_id,
@@ -158,13 +146,35 @@ def main(argv: Sequence[str] | None = None) -> int:
                 None,
                 {
                     "manifest": str(manifest_path),
-                    "feature_dataset_id": manifest.feature_dataset_id,
-                    "rows": manifest.row_count,
+                    "feature_dataset_id": feature_manifest.feature_dataset_id,
+                    "rows": feature_manifest.row_count,
+                },
+            )
+            return 0
+        if args.command == "build-matrix":
+            manifest_path, forecast_manifest = build_forecast_matrix(
+                feature_path=args.features,
+                feature_manifest_path=args.feature_manifest,
+                output_root=args.output_root,
+                relative_path=args.relative_path,
+                target=ForecastTarget(args.target),
+                horizon_ns=args.horizon_ns,
+                sample_interval_ns=args.sample_interval_ns,
+                maximum_label_delay_ns=args.maximum_label_delay_ns,
+            )
+            _write_output(
+                None,
+                {
+                    "manifest": str(manifest_path),
+                    "matrix_id": forecast_manifest.matrix_id,
+                    "rows": forecast_manifest.row_count,
+                    "dropped_label_gaps": forecast_manifest.dropped_label_gap_count,
+                    "dropped_tail": forecast_manifest.dropped_tail_count,
                 },
             )
             return 0
         if args.command == "run-search":
-            matrix = _training_matrix(args.matrix)
+            matrix, matrix_manifest = load_forecast_matrix(args.matrix, args.matrix_manifest)
             plan = ValidationPlan.model_validate_json(args.validation_plan.read_bytes())
             if plan.dataset_sha256 != matrix.source_dataset_sha256:
                 raise ValueError("training matrix source does not match validation plan")
@@ -173,6 +183,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             policy = SearchPolicy.model_validate_json(args.policy.read_bytes())
             engine = ModelEngine(args.engine)
             target = ForecastTarget(args.target)
+            if matrix_manifest.target is not target:
+                raise ValueError("forecast matrix target does not match requested research target")
             adapter = adapter_for(engine)
             result = run_fold_retraining(
                 adapter=adapter,

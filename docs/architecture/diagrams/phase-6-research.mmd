@@ -11,7 +11,8 @@ flowchart LR
     KERNEL --> FEATURES[Incremental bounded feature engine]
     FEATURES --> MM[Avellaneda-Stoikov kernel]
     FEATURES --> SCALPER[Order-flow scalper kernel]
-    FEATURES --> MATRIX[Causal training matrix]
+    FEATURES --> PARQUET[Immutable feature Parquet plus manifest]
+    PARQUET --> MATRIX[Hash-bound causal forecast matrix]
 
     DATA --> REPLAY[Offline tick replay]
     REPLAY --> KERNEL
