@@ -5,7 +5,16 @@ from typing import Any, cast
 
 import numpy as np
 import pytest
-from hftbacktest import BUY_EVENT, DEPTH_EVENT, SELL_EVENT, TRADE_EVENT, event_dtype
+from hftbacktest import (
+    BUY_EVENT,
+    DEPTH_BBO_EVENT,
+    DEPTH_CLEAR_EVENT,
+    DEPTH_EVENT,
+    DEPTH_SNAPSHOT_EVENT,
+    SELL_EVENT,
+    TRADE_EVENT,
+    event_dtype,
+)
 from hftbacktest.data.validation import correct_event_order
 from nautilus_trader.model import Price, Quantity
 from nautilus_trader.model.data import QuoteTick, TradeTick
@@ -21,6 +30,7 @@ from aiquanttrader.backtest.kernel import (
     KernelTransition,
     assert_kernel_parity,
     hft_market_states,
+    iter_hft_market_states,
     nautilus_market_states,
     replay_kernel,
 )
@@ -107,6 +117,7 @@ def nautilus_events() -> list[QuoteTick | TradeTick]:
 
 def test_shared_kernel_decisions_match_hft_and_real_nautilus_objects() -> None:
     hft_states = hft_market_states(hft_events(), depth_levels=1)
+    assert tuple(iter_hft_market_states(hft_events(), depth_levels=1)) == hft_states
     nautilus_states = nautilus_market_states(nautilus_events(), depth_levels=1)
     assert hft_states == nautilus_states
 
@@ -149,6 +160,36 @@ def test_hft_adapter_ignores_exchange_events_until_local_arrival() -> None:
     assert [level.price for level in state_at_2_100.bids] == [Decimal("100.0")]
     final = next(state for state in states if state.observed_ts_ns == 5_000)
     assert [level.price for level in final.bids] == [Decimal("100.0"), Decimal("99.0")]
+
+
+def test_hft_adapter_applies_delayed_full_snapshot_without_crossing_local_book() -> None:
+    rows = [
+        (DEPTH_CLEAR_EVENT | BUY_EVENT, 100, 110, 99.0, 0.0, 0, 0, 0.0),
+        (DEPTH_SNAPSHOT_EVENT | BUY_EVENT, 100, 110, 100.0, 5.0, 0, 0, 0.0),
+        (DEPTH_CLEAR_EVENT | SELL_EVENT, 100, 110, 102.0, 0.0, 0, 0, 0.0),
+        (DEPTH_SNAPSHOT_EVENT | SELL_EVENT, 100, 110, 101.0, 5.0, 0, 0, 0.0),
+        (DEPTH_BBO_EVENT | BUY_EVENT, 200, 210, 102.0, 2.0, 0, 0, 0.0),
+        (DEPTH_BBO_EVENT | SELL_EVENT, 200, 210, 103.0, 2.0, 0, 0, 0.0),
+        (DEPTH_BBO_EVENT | BUY_EVENT, 220, 220, 102.0, 0.0, 0, 0, 0.0),
+        (DEPTH_CLEAR_EVENT | BUY_EVENT, 250, 250, 100.0, 0.0, 0, 0, 0.0),
+        (DEPTH_CLEAR_EVENT | BUY_EVENT, 150, 300, 99.0, 0.0, 0, 0, 0.0),
+        (DEPTH_SNAPSHOT_EVENT | BUY_EVENT, 150, 300, 100.0, 3.0, 0, 0, 0.0),
+        (DEPTH_CLEAR_EVENT | SELL_EVENT, 150, 300, 102.0, 0.0, 0, 0, 0.0),
+        (DEPTH_SNAPSHOT_EVENT | SELL_EVENT, 150, 300, 101.0, 3.0, 0, 0, 0.0),
+    ]
+    raw = np.asarray(rows, dtype=event_dtype)
+    events = correct_event_order(
+        raw,
+        np.argsort(raw["exch_ts"], kind="mergesort"),
+        np.argsort(raw["local_ts"], kind="mergesort"),
+    )
+
+    states = hft_market_states(events, depth_levels=2)
+
+    assert all(state.observed_ts_ns != 250 for state in states)
+    assert states[-1].observed_ts_ns == 300
+    assert states[-1].bids[0].price == Decimal("100.0")
+    assert states[-1].asks[0].price == Decimal("101.0")
 
 
 def test_kernel_adapters_and_contract_reject_invalid_market_state() -> None:

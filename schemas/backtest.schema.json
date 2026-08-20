@@ -4,8 +4,11 @@
       "additionalProperties": false,
       "properties": {
         "converter_version": {
-          "const": "hft-events-v1",
-          "default": "hft-events-v1",
+          "default": "hft-events-v2",
+          "enum": [
+            "hft-events-v1",
+            "hft-events-v2"
+          ],
           "title": "Converter Version",
           "type": "string"
         },
@@ -57,8 +60,11 @@
           "type": "integer"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "default": 2,
+          "enum": [
+            1,
+            2
+          ],
           "title": "Schema Version",
           "type": "integer"
         },
@@ -691,14 +697,19 @@
           "title": "Folds",
           "type": "array"
         },
+        "label_horizon_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Label Horizon Ns",
+          "type": "integer"
+        },
         "policy_sha256": {
           "pattern": "^[0-9a-f]{64}$",
           "title": "Policy Sha256",
           "type": "string"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         }
@@ -706,6 +717,7 @@
       "required": [
         "policy_sha256",
         "dataset_sha256",
+        "label_horizon_ns",
         "folds",
         "final_holdout"
       ],

@@ -49,7 +49,9 @@ uv run aqt-backtest convert-normalized \
 ```
 
 Repeat `--normalized-manifest` for all admitted segments. Missing and extra
-segments fail closed.
+segments fail closed. Conversion applies admitted L2 snapshots, high-frequency
+BBO changes, and trades in causal receipt order; dropping BBO would make the
+research book stale between the venue's periodic depth snapshots.
 
 ## 4. Freeze validation windows
 
@@ -63,6 +65,9 @@ uv run aqt-backtest plan-validation \
 
 Record the policy hash before running a search. Do not edit thresholds, window
 lengths, candidates, or metrics after observing validation or test results.
+Validation-plan schema v2 also carries the policy's label horizon. Research
+training rejects a forecast matrix whose manifest declares a different
+horizon, even when its source dataset hash matches the plan.
 
 ## 5. Run replay and parity
 

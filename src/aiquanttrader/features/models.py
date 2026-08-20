@@ -48,7 +48,7 @@ class FeatureSchema(DomainModel):
 
 
 class FeatureDatasetManifest(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[1, 2] = 2
     feature_dataset_id: Sha256
     source_dataset_sha256: Sha256
     feature_schema_sha256: Sha256
@@ -56,6 +56,8 @@ class FeatureDatasetManifest(DomainModel):
     relative_path: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_./=:-]+$")]
     file_sha256: Sha256
     row_count: int = Field(gt=0)
+    stale_trade_exclusion_count: int = Field(default=0, ge=0)
+    stale_book_exclusion_count: int = Field(default=0, ge=0)
     first_receive_ts_ns: int = Field(ge=0)
     last_receive_ts_ns: int = Field(ge=0)
 
@@ -75,6 +77,16 @@ class FeatureDatasetManifest(DomainModel):
             "first_receive_ts_ns": self.first_receive_ts_ns,
             "last_receive_ts_ns": self.last_receive_ts_ns,
         }
+        if self.schema_version == 1:
+            if self.stale_trade_exclusion_count or self.stale_book_exclusion_count:
+                raise ValueError("feature manifest v1 cannot declare stale-input exclusions")
+        else:
+            identity.update(
+                {
+                    "stale_trade_exclusion_count": self.stale_trade_exclusion_count,
+                    "stale_book_exclusion_count": self.stale_book_exclusion_count,
+                }
+            )
         if canonical_sha256(identity) != self.feature_dataset_id:
             raise ValueError("feature_dataset_id does not match canonical identity")
         return self

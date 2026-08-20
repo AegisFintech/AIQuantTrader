@@ -8,6 +8,7 @@ from typing import Literal
 import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
+from pydantic import ValidationError
 
 from aiquanttrader.backtest.cli import main as backtest_main
 from aiquanttrader.backtest.conversion import (
@@ -15,6 +16,8 @@ from aiquanttrader.backtest.conversion import (
     convert_tardis_day,
     load_event_file,
 )
+from aiquanttrader.backtest.models import BacktestDatasetManifest
+from aiquanttrader.domain.base import canonical_sha256
 from aiquanttrader.domain.data import (
     DatasetManifest,
     NormalizedFileManifest,
@@ -45,6 +48,7 @@ def common_row(
 
 def write_normalized_fixture(root: Path) -> tuple[Path, Path]:
     book_path = root / "normalized/book.parquet"
+    bbo_path = root / "normalized/bbo.parquet"
     trade_path = root / "normalized/trade.parquet"
     book_path.parent.mkdir(parents=True)
     book_row = {
@@ -54,14 +58,22 @@ def write_normalized_fixture(root: Path) -> tuple[Path, Path]:
         "is_snapshot": True,
     }
     trade_row = {
-        **common_row(event_order=1, event_id="trade-1", event_ts=2_000, receive_ts=2_100),
+        **common_row(event_order=2, event_id="trade-1", event_ts=2_000, receive_ts=2_100),
         "trade_id": "trade-1",
         "price": "100",
         "size": "1.5",
         "aggressor": "seller",
         "transaction_hash": None,
     }
+    bbo_row = {
+        **common_row(event_order=1, event_id="bbo-1", event_ts=1_500, receive_ts=1_600),
+        "bid_price": "100",
+        "bid_size": "5",
+        "ask_price": "101",
+        "ask_size": "6",
+    }
     pq.write_table(pa.Table.from_pylist([book_row], schema=parquet_schema("l2_book")), book_path)
+    pq.write_table(pa.Table.from_pylist([bbo_row], schema=parquet_schema("bbo")), bbo_path)
     pq.write_table(pa.Table.from_pylist([trade_row], schema=parquet_schema("trade")), trade_path)
     normalized = NormalizedSegmentManifest(
         source_segment_id="segment-1",
@@ -76,6 +88,13 @@ def write_normalized_fixture(root: Path) -> tuple[Path, Path]:
                 file_sha256=sha256_file(book_path),
             ),
             NormalizedFileManifest(
+                event_type="bbo",
+                relative_path="normalized/bbo.parquet",
+                row_count=1,
+                byte_count=bbo_path.stat().st_size,
+                file_sha256=sha256_file(bbo_path),
+            ),
+            NormalizedFileManifest(
                 event_type="trade",
                 relative_path="normalized/trade.parquet",
                 row_count=1,
@@ -83,7 +102,7 @@ def write_normalized_fixture(root: Path) -> tuple[Path, Path]:
                 file_sha256=sha256_file(trade_path),
             ),
         ),
-        event_count=2,
+        event_count=3,
         excluded_frame_count=0,
         created_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
@@ -126,11 +145,33 @@ def test_normalized_parquet_conversion_is_admitted_causal_and_byte_deterministic
     )
 
     assert first.dataset_id == second.dataset_id
+    assert first.schema_version == 2
+    assert first.converter_version == "hft-events-v2"
     assert first.event_file_sha256 == second.event_file_sha256
     assert first_path.read_bytes() == second_path.read_bytes()
     events = load_event_file(first_path)
     assert len(events) == first.event_count
     assert events["local_ts"].min() >= events["exch_ts"].min()
+    bbo_updates = events[events["local_ts"] == 1_600]
+    assert sorted(bbo_updates["qty"].tolist()) == [5.0, 6.0]
+
+    legacy_values = {
+        **first.model_dump(),
+        "schema_version": 1,
+        "converter_version": "hft-events-v1",
+    }
+    legacy_values["dataset_id"] = canonical_sha256(
+        {
+            key: value
+            for key, value in legacy_values.items()
+            if key not in {"schema_version", "dataset_id", "event_file"}
+        }
+    )
+    legacy = BacktestDatasetManifest.model_validate(legacy_values)
+    assert legacy.converter_version == "hft-events-v1"
+    assert legacy.dataset_id != first.dataset_id
+    with pytest.raises(ValidationError, match="versions are incompatible"):
+        BacktestDatasetManifest.model_validate({**first.model_dump(), "schema_version": 1})
 
     cli_path = output / "events/cli.npz"
     assert (

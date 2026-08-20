@@ -54,6 +54,13 @@ uv run aqt-research feature-replay \
 Retain the emitted feature manifest with the source dataset manifest. Reject
 the run if input age, event order, schema, output hash, rows, or time bounds do
 not validate. Never edit a generated feature file or manifest in place.
+Replay yields causal market states and writes deterministic 65,536-row Parquet
+groups incrementally; memory use is bounded by the loaded HftBacktest event
+array, feature-engine time windows, and one output row group rather than the
+full state and feature histories.
+Offline replay applies the same causal stale-trade and stale-book exclusions as
+live assembly. Feature-manifest schema v2 records both exclusion counts; the
+research path never hides a discarded bootstrap trade or stale book state.
 
 ## 2. Construct causal labels
 
@@ -95,6 +102,9 @@ NumPy pickle loading is disabled. The companion manifest binds the source
 feature dataset and raw dataset, target, schema, horizon, sample interval,
 maximum label delay, candidate accounting, semantic matrix hash, NPZ hash,
 rows, and causal time window. `run-search` requires and revalidates it.
+The frozen validation-plan schema v2 independently carries the expected label
+horizon; a horizon mismatch fails before a search policy or model adapter is
+loaded.
 Normalization or calibration must be fit inside each train fold; do not
 pre-normalize against validation, test, final holdout, or future rows.
 

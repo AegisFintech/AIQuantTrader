@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -12,7 +12,10 @@ from typing import Annotated, Any, Literal, Protocol, Self, cast
 import numpy as np
 from hftbacktest import (
     BUY_EVENT,
+    DEPTH_BBO_EVENT,
+    DEPTH_CLEAR_EVENT,
     DEPTH_EVENT,
+    DEPTH_SNAPSHOT_EVENT,
     LOCAL_EVENT,
     SELL_EVENT,
     TRADE_EVENT,
@@ -147,21 +150,20 @@ def assert_kernel_parity(left: KernelTrace[Any], right: KernelTrace[Any]) -> Non
         raise ValueError("HftBacktest and Nautilus kernel decision traces diverged")
 
 
-def hft_market_states(
+def iter_hft_market_states(
     events: np.ndarray[Any, np.dtype[Any]], *, depth_levels: int = 10
-) -> tuple[KernelMarketState, ...]:
-    """Expose only local-arrival events, never exchange-side future state."""
+) -> Iterator[KernelMarketState]:
+    """Yield local-arrival states without retaining the complete replay in memory."""
 
     if events.dtype != event_dtype:
         raise ValueError("events do not use the pinned HftBacktest dtype")
     if depth_levels < 1:
         raise ValueError("depth_levels must be positive")
-    local_rows = [row for row in events if int(row["ev"]) & LOCAL_EVENT]
+    local_rows = (row for row in events if int(row["ev"]) & LOCAL_EVENT)
     bids: dict[float, float] = {}
     asks: dict[float, float] = {}
     bid_exchange_ts_ns: int | None = None
     ask_exchange_ts_ns: int | None = None
-    states: list[KernelMarketState] = []
     for sequence, (local_ts, grouped) in enumerate(
         groupby(local_rows, key=lambda row: int(row["local_ts"]))
     ):
@@ -169,20 +171,46 @@ def hft_market_states(
         trades: list[KernelTrade] = []
         for row in grouped:
             flags = int(row["ev"])
+            event_kind = flags & 0xFF
             exchange_ts = max(exchange_ts, int(row["exch_ts"]))
             price = float(row["px"])
             quantity = float(row["qty"])
-            if flags & DEPTH_EVENT:
+            if event_kind in {
+                DEPTH_EVENT,
+                DEPTH_CLEAR_EVENT,
+                DEPTH_SNAPSHOT_EVENT,
+                DEPTH_BBO_EVENT,
+            }:
                 side = bids if flags & BUY_EVENT else asks
                 if flags & BUY_EVENT:
                     bid_exchange_ts_ns = int(row["exch_ts"])
                 else:
                     ask_exchange_ts_ns = int(row["exch_ts"])
-                if quantity == 0:
+                if event_kind == DEPTH_CLEAR_EVENT:
+                    discarded = (
+                        (level for level in side if level >= price)
+                        if flags & BUY_EVENT
+                        else (level for level in side if level <= price)
+                    )
+                    for level in tuple(discarded):
+                        side.pop(level, None)
+                elif event_kind == DEPTH_BBO_EVENT:
+                    stale_better = (
+                        (level for level in side if level > price)
+                        if flags & BUY_EVENT
+                        else (level for level in side if level < price)
+                    )
+                    for level in tuple(stale_better):
+                        side.pop(level, None)
+                    if quantity == 0:
+                        side.pop(price, None)
+                    else:
+                        side[price] = quantity
+                elif quantity == 0:
                     side.pop(price, None)
                 else:
                     side[price] = quantity
-            elif flags & TRADE_EVENT:
+            elif event_kind == TRADE_EVENT:
                 aggressor = (
                     AggressorSide.BUYER
                     if flags & BUY_EVENT
@@ -210,19 +238,27 @@ def hft_market_states(
             for price, size in sorted(asks.items())[:depth_levels]
         )
         if bid_levels[0].price >= ask_levels[0].price:
-            raise ValueError("HftBacktest replay produced a crossed local book")
-        states.append(
-            KernelMarketState(
-                exchange_ts_ns=max(exchange_ts, bid_exchange_ts_ns, ask_exchange_ts_ns),
-                book_exchange_ts_ns=min(bid_exchange_ts_ns, ask_exchange_ts_ns),
-                observed_ts_ns=local_ts,
-                sequence=sequence,
-                bids=bid_levels,
-                asks=ask_levels,
-                trades=tuple(trades),
+            raise ValueError(
+                "HftBacktest replay produced a crossed local book "
+                f"at {local_ts}: bid={bid_levels[0].price} ask={ask_levels[0].price}"
             )
+        yield KernelMarketState(
+            exchange_ts_ns=max(exchange_ts, bid_exchange_ts_ns, ask_exchange_ts_ns),
+            book_exchange_ts_ns=min(bid_exchange_ts_ns, ask_exchange_ts_ns),
+            observed_ts_ns=local_ts,
+            sequence=sequence,
+            bids=bid_levels,
+            asks=ask_levels,
+            trades=tuple(trades),
         )
-    return tuple(states)
+
+
+def hft_market_states(
+    events: np.ndarray[Any, np.dtype[Any]], *, depth_levels: int = 10
+) -> tuple[KernelMarketState, ...]:
+    """Materialize local-arrival states for bounded tests and parity checks."""
+
+    return tuple(iter_hft_market_states(events, depth_levels=depth_levels))
 
 
 type NautilusMarketData = QuoteTick | TradeTick | OrderBookDepth10
