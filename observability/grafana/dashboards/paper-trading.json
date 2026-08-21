@@ -470,7 +470,7 @@
       "title": "Platform services — live now",
       "type": "stat",
       "description": "Prometheus scrape heartbeats for the paper stack. LIVE confirms process reachability only; it does not authorize trading.",
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
           "expr": "up{job=~\"prometheus|grafana|aiquanttrader-node|aiquanttrader-paper|aiquanttrader-research-readiness\"}",
@@ -514,7 +514,7 @@
       "id": 34,
       "title": "Host CPU",
       "type": "gauge",
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
           "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))",
@@ -544,7 +544,7 @@
       "id": 35,
       "title": "Host memory",
       "type": "gauge",
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
           "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
@@ -574,7 +574,7 @@
       "id": 36,
       "title": "Root disk usage",
       "type": "gauge",
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
           "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})",
@@ -604,7 +604,7 @@
       "id": 37,
       "title": "Capacity available",
       "type": "stat",
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
           "expr": "node_memory_MemAvailable_bytes",
@@ -624,7 +624,7 @@
       "id": 38,
       "title": "CPU, memory, and root disk",
       "type": "timeseries",
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
           "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[1m])))",
@@ -650,7 +650,7 @@
       "title": "Host bandwidth in / out",
       "type": "timeseries",
       "description": "Aggregate non-loopback, non-container host traffic in bytes per second.",
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
           "expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|veth.*|docker.*|br-.*\"}[1m]))",
@@ -670,7 +670,7 @@
       "id": 40,
       "title": "Host disk I/O",
       "type": "timeseries",
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
           "expr": "sum(rate(node_disk_read_bytes_total[1m]))",
@@ -690,7 +690,7 @@
       "id": 41,
       "title": "Host uptime",
       "type": "stat",
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
           "expr": "time() - node_boot_time_seconds",
@@ -705,7 +705,7 @@
       "id": 42,
       "title": "Processor capacity",
       "type": "stat",
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
           "expr": "count(count by (cpu) (node_cpu_seconds_total{mode=\"idle\"}))",
@@ -725,7 +725,7 @@
       "id": 43,
       "title": "Host load average",
       "type": "timeseries",
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {"expr": "node_load1", "legendFormat": "1m", "refId": "A"},
         {"expr": "node_load5", "legendFormat": "5m", "refId": "B"},
@@ -739,7 +739,7 @@
       "title": "Scrape heartbeat age",
       "type": "stat",
       "description": "Seconds since Prometheus last scraped the paper process and host exporter. Expected to remain below the 5-second scrape interval plus jitter.",
-      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
           "expr": "time() - timestamp(up{job=\"aiquanttrader-paper\"})",

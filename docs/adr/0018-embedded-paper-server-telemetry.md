@@ -16,11 +16,13 @@ from real-money execution.
 ## Decision
 
 Keep Node Exporter as the single host collector and Prometheus as the single
-query source. Add an explicit `LIVE DATA / PAPER ONLY` status panel to the BTC
-command center and embed a server section below the trading panels. The section
-shows process and scrape heartbeats, CPU usage and logical-core capacity,
-memory, root filesystem capacity, disk I/O, host network ingress/egress,
-uptime, and load.
+query source. Bind the embedded panels directly to the immutable provisioned
+Prometheus datasource UID `prometheus`; the home dashboard must not depend on
+an optional dashboard variable. Add an explicit `LIVE DATA / PAPER ONLY`
+status panel to the BTC command center and embed a server section below the
+trading panels. The section shows process and scrape heartbeats, CPU usage and
+logical-core capacity, memory, root filesystem capacity, disk I/O, host network
+ingress/egress, uptime, and load.
 
 The status wording is part of the safety contract: a green service or feed
 heartbeat means reachable and current, not execution-authorized. The operator
