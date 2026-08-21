@@ -275,6 +275,7 @@ def test_live_consumer_runs_only_after_raw_frame_is_flushed(tmp_path: Path) -> N
         stop = asyncio.Event()
         socket = FakeSocket(b'{"channel":"pong"}', stop)
         observed: list[str] = []
+        connection_states: list[bool] = []
 
         async def consume(frame: object) -> None:
             partials = list((tmp_path / "data" / "raw").rglob("*.partial"))
@@ -299,9 +300,11 @@ def test_live_consumer_runs_only_after_raw_frame_is_flushed(tmp_path: Path) -> N
                 metrics=RecorderMetrics.create(),
                 socket_factory=lambda _url, _size: FakeSocketContext(socket),
                 frame_consumer=consume,
+                connection_observer=connection_states.append,
             )
             await recorder.run(stop)
         assert observed == ["ParsedFrame"]
+        assert connection_states == [False, True, False, False]
 
     asyncio.run(scenario())
 
@@ -326,6 +329,32 @@ def test_disk_pressure_is_fail_closed(tmp_path: Path) -> None:
         recorder.data_root.mkdir(parents=True)
         with pytest.raises(DiskPressureError):
             recorder._check_disk()
+
+
+def test_connection_observer_failure_is_bounded_and_does_not_escape(tmp_path: Path) -> None:
+    metrics = RecorderMetrics.create()
+
+    def fail(_connected: bool) -> None:
+        raise RuntimeError("observer failure")
+
+    with ManifestCatalog(tmp_path / "catalog.duckdb") as catalog:
+        recorder = MarketDataRecorder(
+            websocket_url="wss://api.hyperliquid.xyz/ws",
+            network="mainnet",
+            environment="test",
+            config=MarketDataConfig(enabled=True),
+            data_root=tmp_path / "data",
+            state_root=tmp_path / "state",
+            catalog=catalog,
+            metrics=metrics,
+            connection_observer=fail,
+        )
+        recorder._set_connection_state(True)
+        recorder._set_connection_state(False)
+
+    output = generate_latest(metrics.registry)
+    assert b'code="connection_observer_error"' in output
+    assert b"aqt_market_data_connected 0.0" in output
 
 
 def test_disabled_and_runtime_disk_pressure_stop_recorder(tmp_path: Path) -> None:

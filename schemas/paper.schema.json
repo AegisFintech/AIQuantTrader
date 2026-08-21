@@ -1652,6 +1652,116 @@
       "title": "PaperExecutionCommand",
       "type": "object"
     },
+    "PaperFeedBlockReason": {
+      "enum": [
+        "none",
+        "socket_disconnected",
+        "public_frame_missing",
+        "public_frame_clock_regression",
+        "public_frame_stale",
+        "asset_context_missing",
+        "asset_context_clock_regression",
+        "asset_context_stale",
+        "market_state_missing",
+        "market_state_clock_regression",
+        "market_state_stale"
+      ],
+      "title": "PaperFeedBlockReason",
+      "type": "string"
+    },
+    "PaperFeedFreshness": {
+      "additionalProperties": false,
+      "description": "Bounded explanation of the public-data conditions required by risk.",
+      "properties": {
+        "asset_context_age_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asset Context Age Ms"
+        },
+        "asset_context_fresh": {
+          "title": "Asset Context Fresh",
+          "type": "boolean"
+        },
+        "blocking_reason": {
+          "$ref": "#/$defs/PaperFeedBlockReason"
+        },
+        "checked_ts_ns": {
+          "minimum": 0,
+          "title": "Checked Ts Ns",
+          "type": "integer"
+        },
+        "market_state_age_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Market State Age Ms"
+        },
+        "market_state_fresh": {
+          "title": "Market State Fresh",
+          "type": "boolean"
+        },
+        "public_frame_age_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Public Frame Age Ms"
+        },
+        "public_frame_fresh": {
+          "title": "Public Frame Fresh",
+          "type": "boolean"
+        },
+        "ready": {
+          "title": "Ready",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "socket_connected": {
+          "title": "Socket Connected",
+          "type": "boolean"
+        },
+        "stale_after_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Stale After Ms",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "checked_ts_ns",
+        "stale_after_ms",
+        "socket_connected",
+        "public_frame_fresh",
+        "asset_context_fresh",
+        "market_state_fresh",
+        "ready",
+        "blocking_reason"
+      ],
+      "title": "PaperFeedFreshness",
+      "type": "object"
+    },
     "PaperFill": {
       "additionalProperties": false,
       "properties": {
@@ -2186,6 +2296,9 @@
           "title": "Feed Connected",
           "type": "boolean"
         },
+        "feed_freshness": {
+          "$ref": "#/$defs/PaperFeedFreshness"
+        },
         "fills": {
           "minimum": 0,
           "title": "Fills",
@@ -2287,8 +2400,8 @@
           "type": "string"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -2327,6 +2440,7 @@
         "environment",
         "heartbeat_ts_ns",
         "feed_connected",
+        "feed_freshness",
         "feature_ready",
         "operator_kill",
         "scenario_id",

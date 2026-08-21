@@ -45,11 +45,14 @@ docker compose exec paper-trader \
   --record-observability
 ```
 
-The status must show the expected code/config/scenario hashes, BTC strategy,
-fresh L2 and mark/funding context, zero credential capability in the journal
-manifest, and `warming` or `ready`. L2 updates without fresh asset context must
-remain degraded. The checked-in scenario is `uncalibrated`; that is expected
-and must make the promotion report fail.
+The schema-v2 status must show the expected code/config/scenario hashes, BTC
+strategy, zero credential capability in the journal manifest, and `warming` or
+`ready`. Its `feed_freshness` block separates the WebSocket, latest public
+frame, mark/funding asset context, and usable market state. It reports signed
+ages, the unchanged risk threshold, and the first exact blocking reason. L2
+updates without fresh asset context must remain degraded. The checked-in
+scenario is `uncalibrated`; that is expected and must make the promotion report
+fail.
 
 Docker uses the standard-library-only `aqt-paper-healthcheck` entry point for
 its frequent readiness probe. Operators should continue using the full
@@ -78,9 +81,11 @@ viewer. The top rows show the exact action and gate reason, BTC bid/ask/mid,
 expected-versus-required edge, SMC confluence, 15m/5m/1m direction,
 support/resistance, stop/target, order flow, and position age.
 It also shows online forecast readiness, resolved labels, forecast bps,
-directional accuracy, MAE, and the cost hurdle. The platform dashboard shows
-service live state, CPU, memory, root-disk capacity/use, disk I/O, network
-in/out, uptime, load, and paper-feed freshness.
+directional accuracy, MAE, and the cost hurdle. The feed row shows the exact
+blocker, each component's current state, and component ages against the hard
+1.5-second risk limit. The platform dashboard shows service live state, CPU,
+memory, root-disk capacity/use, disk I/O, network in/out, uptime, load, and the
+same decomposed paper-feed freshness.
 Prometheus is available at `http://127.0.0.1:9090`. Neither endpoint is exposed
 to the LAN or internet. Do not publish or reverse-proxy Grafana without adding
 operator authentication and TLS.
@@ -111,7 +116,9 @@ and prediction. Counts are evidence, not permission to relax a gate.
 Scrape `paper-trader:9112` through Prometheus and provision
 `paper-trading.json`. Alert on:
 
-- `aqt_paper_feed_connected != 1` or feature readiness dropping after warmup;
+- `aqt_paper_feed_connected != 1`, any
+  `aqt_paper_feed_component_fresh{component=...} != 1`, or feature readiness
+  dropping after warmup. Inspect `aqt_paper_feed_blocked == 1` before recovery;
 - operator kill, stale recorder heartbeat, reconnect/error growth, or raw disk
   pressure;
 - risk denials, loss/drawdown state, inventory/open-order limits, and leverage;
@@ -131,6 +138,12 @@ trouble and requires operator review. Excluded L2 data cannot refresh the
 watchdog's market heartbeat, so sustained stale books degrade the service and
 cancel through the normal risk path. Future exchange timestamps and
 non-monotonic L2 receipt remain fatal integrity failures.
+
+`aqt_market_data_connected` means only that the public WebSocket is open. It is
+not sufficient for paper readiness. `aqt_paper_feed_connected` requires all
+four bounded component series—socket, public frame, asset context, and market
+state—to be one. Missing ages are exported as Prometheus `NaN`; a negative age
+is an explicit clock-regression block rather than being treated as fresh.
 
 The service writes raw segments below the data volume and its WAL journal,
 kill audit, and atomic status below `state/paper/`. Back up SQLite with its

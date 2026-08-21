@@ -19,6 +19,7 @@ from aiquanttrader.paper.journal import PaperJournal
 from aiquanttrader.paper.models import (
     PaperAccountState,
     PaperEvidenceReport,
+    PaperFeedFreshness,
     PaperRunManifest,
     PaperRuntimeStatus,
 )
@@ -60,13 +61,22 @@ def initialize_state(
     journal = PaperJournal(journal_path)
     journal.begin_run(run, account)
     journal.close()
+    status_now = time.time_ns()
     status = PaperRuntimeStatus(
         status="ready",
         run_id=run.run_id,
         environment="paper",
-        heartbeat_ts_ns=time.time_ns(),
+        heartbeat_ts_ns=status_now,
         last_public_data_ts_ns=now,
         feed_connected=True,
+        feed_freshness=PaperFeedFreshness.from_observations(
+            checked_ts_ns=status_now,
+            stale_after_ms=bundle.settings.risk.public_data_stale_after_ms,
+            socket_connected=True,
+            last_public_frame_wall_ns=status_now,
+            last_asset_context_wall_ns=status_now,
+            last_market_state_wall_ns=status_now,
+        ),
         feature_ready=True,
         operator_kill=False,
         scenario_id=artifacts.scenario.scenario_id,
@@ -167,7 +177,14 @@ def test_paper_cli_rejects_stale_health_missing_state_and_wrong_run(
     _, state_root = initialize_state(tmp_path, config_dir, monkeypatch)
     status_path = state_root / "paper" / "status.json"
     status = PaperRuntimeStatus.model_validate_json(status_path.read_bytes())
-    stale = status.model_copy(update={"heartbeat_ts_ns": 0})
+    monkeypatch.setattr("aiquanttrader.paper.cli.time.time_ns", lambda: status.heartbeat_ts_ns - 1)
+    assert cli.main(["healthcheck", "--state-root", str(state_root)]) == 1
+    stale = status.model_copy(
+        update={
+            "heartbeat_ts_ns": 0,
+            "feed_freshness": status.feed_freshness.model_copy(update={"checked_ts_ns": 0}),
+        }
+    )
     atomic_replace_bytes(status_path, stale.canonical_bytes() + b"\n")
     assert cli.main(["healthcheck", "--state-root", str(state_root)]) == 1
     assert (

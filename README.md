@@ -360,7 +360,10 @@ host and service health is at
 `http://127.0.0.1:3000/d/aqt-platform-health/aiquanttrader-server-live-status`;
 no Hyperliquid account or API key is required.
 Docker readiness uses a standard-library-only paper probe so frequent health
-checks do not load the trading and research dependency graph.
+checks do not load the trading and research dependency graph. Paper status
+schema v2 and bounded Prometheus metrics separately expose WebSocket state,
+public-frame age, mark/funding context age, usable-market age, and the first
+exact feed blocker; an open socket alone is never reported as risk-ready.
 An optional OpenAI Responses API observer can produce typed, shadow-only setup
 confirmations. It is disabled by default, reads its key only from
 `/run/secrets/openai_api_key`, and has no path to strategy, risk, or execution.

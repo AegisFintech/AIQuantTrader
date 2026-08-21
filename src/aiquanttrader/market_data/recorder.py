@@ -50,6 +50,7 @@ class SocketContext(Protocol):
 
 SocketFactory = Callable[[str, int], SocketContext]
 FrameConsumer = Callable[[ParsedFrame], Awaitable[None]]
+ConnectionObserver = Callable[[bool], None]
 
 
 class StaleFeedError(TimeoutError):
@@ -109,6 +110,7 @@ class MarketDataRecorder:
         monotonic_ns: Callable[[], int] = time.monotonic_ns,
         rng: random.Random | None = None,
         frame_consumer: FrameConsumer | None = None,
+        connection_observer: ConnectionObserver | None = None,
     ) -> None:
         if network not in {"mainnet", "testnet"}:
             raise ValueError(f"unsupported Hyperliquid network: {network}")
@@ -125,6 +127,7 @@ class MarketDataRecorder:
         self.monotonic_ns = monotonic_ns
         self.rng = rng or random.SystemRandom()
         self.frame_consumer = frame_consumer
+        self.connection_observer = connection_observer
         self.state_path = self.state_root / "market-data" / "recorder-state.json"
         self.reconnect_count = 0
         self.last_frame_ts_ns: int | None = None
@@ -137,6 +140,7 @@ class MarketDataRecorder:
             raise ValueError("market-data recorder is disabled by configuration")
         self.data_root.mkdir(parents=True, exist_ok=True)
         self.state_root.mkdir(parents=True, exist_ok=True)
+        self._set_connection_state(False)
         self._write_state("starting")
         backoff_ms = self.config.reconnect_initial_ms
         while not stop.is_set():
@@ -163,7 +167,7 @@ class MarketDataRecorder:
                 multiplier = 1 + self.rng.uniform(-jitter, jitter)
                 await asyncio.sleep(max(0, backoff_ms * multiplier) / 1_000)
                 backoff_ms = min(backoff_ms * 2, self.config.reconnect_max_ms)
-        self.metrics.connected.set(0)
+        self._set_connection_state(False)
         self._write_state("stopped")
 
     async def _record_connection(self, stop: asyncio.Event) -> None:
@@ -187,7 +191,7 @@ class MarketDataRecorder:
             async with self.socket_factory(
                 self.websocket_url, self.config.max_frame_bytes
             ) as socket:
-                self.metrics.connected.set(1)
+                self._set_connection_state(True)
                 for message in _subscriptions(self.config.public_channels):
                     await self._rate_limiter.acquire()
                     await socket.send(message)
@@ -274,10 +278,19 @@ class MarketDataRecorder:
             reason = SegmentFinalizationReason.ERROR
             raise
         finally:
-            self.metrics.connected.set(0)
+            self._set_connection_state(False)
             finalized = writer.finalize(reason)
             self.metrics.segments.labels(reason=reason.value).inc()
             self.catalog.register_raw(finalized.manifest)
+
+    def _set_connection_state(self, connected: bool) -> None:
+        self.metrics.connected.set(int(connected))
+        if self.connection_observer is not None:
+            try:
+                self.connection_observer(connected)
+            except Exception:
+                self.metrics.issues.labels(kind="consumer", code="connection_observer_error").inc()
+                self.connection_observer = None
 
     def _check_disk(self) -> None:
         usage = shutil.disk_usage(self.data_root)

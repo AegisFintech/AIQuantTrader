@@ -11,6 +11,7 @@ from aiquanttrader.paper.engine import (
     PaperWatchdogUpdate,
 )
 from aiquanttrader.paper.llm_models import LlmConfirmation
+from aiquanttrader.paper.models import PaperFeedBlockReason, PaperFeedFreshness
 from aiquanttrader.strategies.adaptive_scalper import AdaptiveScalperConfig
 
 
@@ -98,7 +99,30 @@ class PaperMetrics:
         )
         self.feed_connected = Gauge(
             "aqt_paper_feed_connected",
-            "Whether the raw-first public feed is current",
+            "Whether socket, public frames, asset context, and market state are current",
+            registry=registry,
+        )
+        self.feed_component_fresh = Gauge(
+            "aqt_paper_feed_component_fresh",
+            "Whether each bounded public-feed component is current",
+            ("component",),
+            registry=registry,
+        )
+        self.feed_component_age_seconds = Gauge(
+            "aqt_paper_feed_component_age_seconds",
+            "Wall-clock or causal age of each bounded public-feed component",
+            ("component",),
+            registry=registry,
+        )
+        self.feed_stale_after_seconds = Gauge(
+            "aqt_paper_feed_stale_after_seconds",
+            "Effective hard public-data freshness threshold",
+            registry=registry,
+        )
+        self.feed_blocked = Gauge(
+            "aqt_paper_feed_blocked",
+            "One-hot reason the combined paper feed is not ready",
+            ("reason",),
             registry=registry,
         )
         self.feature_ready = Gauge(
@@ -292,6 +316,28 @@ class PaperMetrics:
             raise ValueError("paper stale-book exclusion count cannot be negative")
         if count:
             self.stale_books_excluded.inc(count)
+
+    def observe_feed_freshness(self, freshness: PaperFeedFreshness) -> None:
+        self.feed_connected.set(int(freshness.ready))
+        self.feed_stale_after_seconds.set(freshness.stale_after_ms / 1_000)
+        for component, fresh in (
+            ("socket", freshness.socket_connected),
+            ("public_frame", freshness.public_frame_fresh),
+            ("asset_context", freshness.asset_context_fresh),
+            ("market_state", freshness.market_state_fresh),
+        ):
+            self.feed_component_fresh.labels(component=component).set(int(fresh))
+        for component, age_ms in (
+            ("public_frame", freshness.public_frame_age_ms),
+            ("asset_context", freshness.asset_context_age_ms),
+            ("market_state", freshness.market_state_age_ms),
+        ):
+            value = float("nan") if age_ms is None else age_ms / 1_000
+            self.feed_component_age_seconds.labels(component=component).set(value)
+        for reason in PaperFeedBlockReason:
+            self.feed_blocked.labels(reason=reason.value).set(
+                int(freshness.blocking_reason is reason)
+            )
 
     def observe_cycle(
         self,

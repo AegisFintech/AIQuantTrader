@@ -114,11 +114,17 @@ markouts, and drift windows, then cancel-requests every restored open order.
 Features warm up again rather than trusting unavailable process memory.
 
 The watchdog uses the same risk authority for stale, disconnect, loss,
-drawdown, leverage, and operator-kill state. Readiness requires both current L2
-traffic and fresh mark/funding asset context; active books cannot conceal a
-stale risk mark. Stale/disconnected/killed operation cannot submit a new intent
-and initiates cancel-all. A corrupt kill file is active by default. Paper status
-is atomically replaced and the service is not healthy while stale or killed.
+drawdown, leverage, and operator-kill state. Readiness requires an open socket,
+current public frames, fresh mark/funding asset context, and a current usable
+market state; active books cannot conceal a stale risk mark. Schema-v2 paper
+status binds that combined verdict to a typed component-age projection and the
+first exact missing, stale, disconnected, or clock-regression reason. Bounded
+Prometheus labels expose the same projection without putting timestamps or IDs
+in labels. The rationale and rejected alternatives are in
+[`ADR 0012`](../adr/0012-decomposed-paper-feed-freshness.md).
+Stale/disconnected/killed operation cannot submit a new intent and
+initiates cancel-all. A corrupt kill file is active by default. Paper status is
+atomically replaced and the service is not healthy while stale or killed.
 
 ## Frozen paper evidence
 
@@ -190,6 +196,8 @@ Automated now:
   approvals, deterministic fills/accounting/funding, and queue limitations;
 - atomic per-cycle strategy gate evidence plus deterministic live/replay
   diagnostics, including non-order outcomes;
+- independently attributable socket, public-frame, asset-context, and usable-
+  market freshness without weakening the public-data risk threshold;
 - restart recovery, cancel-on-resume, stale and kill drills, immutable evidence,
   hash/window/economic sensitivity binding, online drift, schemas, metrics,
   and dashboards;

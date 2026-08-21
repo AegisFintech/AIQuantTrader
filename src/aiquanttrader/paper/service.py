@@ -34,7 +34,7 @@ from aiquanttrader.paper.llm import (
 from aiquanttrader.paper.llm_models import LlmConfirmation
 from aiquanttrader.paper.market import LiveMarketStateAssembler
 from aiquanttrader.paper.metrics import PaperMetrics
-from aiquanttrader.paper.models import PaperRunManifest, PaperRuntimeStatus
+from aiquanttrader.paper.models import PaperFeedFreshness, PaperRunManifest, PaperRuntimeStatus
 from aiquanttrader.risk.kill_switch import KillSwitchStore
 
 
@@ -88,6 +88,7 @@ class PaperLiveService:
         self._last_frame_wall_ns: int | None = None
         self._last_market_wall_ns: int | None = None
         self._last_error_code: str | None = None
+        self._socket_connected = False
         self._recorder_connected = False
         self._socket_factory = socket_factory
         self._latest_llm_confirmation: LlmConfirmation | None = None
@@ -113,6 +114,7 @@ class PaperLiveService:
 
     async def consume_frame(self, frame: ParsedFrame) -> None:
         self._last_frame_wall_ns = self.clock_ns()
+        self._socket_connected = True
         self._recorder_connected = True
         if frame.is_control:
             return
@@ -207,6 +209,7 @@ class PaperLiveService:
                 catalog=catalog,
                 metrics=self._recorder_metrics,
                 frame_consumer=self.consume_frame,
+                connection_observer=self._set_socket_connected,
                 socket_factory=self._socket_factory or default_socket_factory,
             )
             watchdog = asyncio.create_task(self._watchdog(stop))
@@ -236,12 +239,14 @@ class PaperLiveService:
                     await watchdog
                 if llm_task is not None:
                     await llm_task
+        self._socket_connected = False
         self._recorder_connected = False
         self._write_status("stopped")
 
     def mark_stopped(self) -> None:
         """Publish a terminal status for finite retained-data replay."""
 
+        self._socket_connected = False
         self._recorder_connected = False
         self._write_status("stopped")
 
@@ -250,25 +255,7 @@ class PaperLiveService:
         while not stop.is_set():
             await asyncio.sleep(interval)
             now = self.clock_ns()
-            freshness_ns = min(
-                self.bundle.settings.market_data.stale_after_seconds * 1_000_000_000,
-                self.bundle.settings.risk.public_data_stale_after_ms * 1_000_000,
-            )
-            recent_frame = (
-                self._last_frame_wall_ns is not None
-                and now - self._last_frame_wall_ns <= freshness_ns
-            )
-            recent_context = (
-                self._last_context_wall_ns is not None
-                and now - self._last_context_wall_ns <= freshness_ns
-            )
-            recent_market = (
-                self._last_market_wall_ns is not None
-                and now - self._last_market_wall_ns <= freshness_ns
-            )
-            connected = (
-                self._recorder_connected and recent_frame and recent_context and recent_market
-            )
+            connected = self._feed_freshness(now).ready
             self._recorder_connected = connected
             if self._engine is not None:
                 self._engine.watchdog(now, recorder_connected=connected)
@@ -326,6 +313,9 @@ class PaperLiveService:
     ) -> None:
         now = self.clock_ns()
         engine = self._engine
+        feed_freshness = self._feed_freshness(now)
+        self._recorder_connected = feed_freshness.ready
+        self._paper_metrics.observe_feed_freshness(feed_freshness)
         run_id = "paper-awaiting-first-book" if engine is None else engine.manifest.run_id
         payload = PaperRuntimeStatus(
             status=status,
@@ -333,7 +323,8 @@ class PaperLiveService:
             environment=self.bundle.settings.environment,
             heartbeat_ts_ns=now,
             last_public_data_ts_ns=(None if engine is None else engine.last_public_data_ts_ns),
-            feed_connected=(self._recorder_connected and (engine is None or engine.feed_connected)),
+            feed_connected=feed_freshness.ready,
+            feed_freshness=feed_freshness,
             feature_ready=False if engine is None else engine.feature_ready,
             operator_kill=self.kill_switch.read().active,
             scenario_id=self.artifacts.scenario.scenario_id,
@@ -353,6 +344,35 @@ class PaperLiveService:
             last_error_code=self._last_error_code,
         )
         atomic_replace_bytes(self.status_path, payload.canonical_bytes() + b"\n")
+
+    def _set_socket_connected(self, connected: bool) -> None:
+        self._socket_connected = connected
+
+    def _feed_freshness(self, now_ns: int) -> PaperFeedFreshness:
+        stale_after_ms = min(
+            self.bundle.settings.market_data.stale_after_seconds * 1_000,
+            self.bundle.settings.risk.public_data_stale_after_ms,
+        )
+        context_wall_ns = self._last_context_wall_ns
+        engine = self._engine
+        if (
+            context_wall_ns is not None
+            and self._last_context_receive_ns is not None
+            and engine is not None
+            and engine.last_public_data_ts_ns is not None
+        ):
+            wall_age_ns = now_ns - context_wall_ns
+            causal_age_ns = engine.last_public_data_ts_ns - self._last_context_receive_ns
+            if wall_age_ns >= 0 and causal_age_ns > wall_age_ns:
+                context_wall_ns = now_ns - causal_age_ns
+        return PaperFeedFreshness.from_observations(
+            checked_ts_ns=now_ns,
+            stale_after_ms=stale_after_ms,
+            socket_connected=self._socket_connected,
+            last_public_frame_wall_ns=self._last_frame_wall_ns,
+            last_asset_context_wall_ns=context_wall_ns,
+            last_market_state_wall_ns=self._last_market_wall_ns,
+        )
 
     def _record_llm_confirmation(self, confirmation: LlmConfirmation) -> None:
         self.journal.record_llm_confirmation(confirmation)
