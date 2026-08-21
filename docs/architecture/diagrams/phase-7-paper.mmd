@@ -14,6 +14,7 @@ flowchart LR
         DRIFT[Run-frozen online drift monitor]
         FRESH[Socket / frame / context / BBO risk freshness + L2 state]
         WATCH[Stale and operator-kill watchdog]
+        PROBE[Independent liveness / readiness probe]
     end
 
     subgraph Durable[Writable state and data volumes]
@@ -45,8 +46,10 @@ flowchart LR
     WATCH --> RISK
     WATCH --> SIM
     WATCH --> STATUS
+    STATUS --> PROBE
 
     PROM[Prometheus] --> GRAF[Grafana paper dashboard]
+    PROBE -->|liveness only| DOCKER[Docker health]
     FEAT --> PROM
     RISK --> PROM
     SIM --> PROM

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from pathlib import Path
 
 import pytest
@@ -59,6 +60,10 @@ def test_lightweight_probe_accepts_fresh_running_status(tmp_path: Path) -> None:
     assert ready
     assert result == {
         "status": "ready",
+        "probe_mode": "readiness",
+        "lifecycle": "ready",
+        "live": True,
+        "readiness": True,
         "run_id": "paper-health-probe-test",
         "heartbeat_age_ms": 1_000.0,
         "feed_connected": True,
@@ -146,6 +151,76 @@ def test_lightweight_probe_fails_closed(
     result, ready = paper_healthcheck.evaluate_status(tmp_path, 5_000, now_ns=now_ns)
     assert not ready
     assert result["status"] == "not_ready"
+
+
+@pytest.mark.parametrize(
+    "updates",
+    [
+        {"status": "starting", "feature_ready": False},
+        {"status": "warming", "feature_ready": False},
+        {"status": "degraded", "feed_connected": False},
+        {"status": "degraded", "operator_kill": True},
+    ],
+)
+def test_liveness_probe_accepts_safe_non_ready_operation(
+    tmp_path: Path,
+    updates: dict[str, object],
+) -> None:
+    _write_status(tmp_path, **updates)
+
+    result, live = paper_healthcheck.evaluate_status(
+        tmp_path,
+        5_000,
+        mode=paper_healthcheck.ProbeMode.LIVENESS,
+        now_ns=11_000_000_000,
+    )
+
+    assert live
+    assert result["status"] == "live"
+    assert result["probe_mode"] == "liveness"
+    assert result["live"] is True
+
+
+@pytest.mark.parametrize(
+    ("updates", "now_ns"),
+    [
+        ({"status": "stopped"}, 11_000_000_000),
+        ({"status": "failed"}, 11_000_000_000),
+        ({}, 16_000_000_000),
+        ({}, 9_000_000_000),
+    ],
+)
+def test_liveness_probe_rejects_terminal_or_stale_operation(
+    tmp_path: Path,
+    updates: dict[str, object],
+    now_ns: int,
+) -> None:
+    _write_status(tmp_path, **updates)
+
+    result, live = paper_healthcheck.evaluate_status(
+        tmp_path,
+        5_000,
+        mode=paper_healthcheck.ProbeMode.LIVENESS,
+        now_ns=now_ns,
+    )
+
+    assert not live
+    assert result["status"] == "not_live"
+
+
+def test_liveness_cli_does_not_clear_fail_closed_readiness(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _write_status(tmp_path, status="degraded", operator_kill=True)
+    monkeypatch.setattr(time, "time_ns", lambda: 11_000_000_000)
+
+    assert paper_healthcheck.main(["--state-root", str(tmp_path), "--mode", "liveness"]) == 0
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "live"
+    assert output["readiness"] is False
+    assert output["operator_kill"] is True
 
 
 @pytest.mark.parametrize(

@@ -12,10 +12,12 @@ import json
 import sys
 import time
 from collections.abc import Sequence
+from enum import StrEnum
 from pathlib import Path
 from typing import cast
 
-_RUNNING_STATUSES = frozenset({"warming", "ready"})
+_READY_STATUSES = frozenset({"warming", "ready"})
+_LIVE_STATUSES = frozenset({"starting", "warming", "ready", "degraded"})
 _VALID_STATUSES = frozenset({"starting", "warming", "ready", "degraded", "stopped", "failed"})
 _FEED_BLOCK_REASONS = frozenset(
     {
@@ -33,6 +35,13 @@ _FEED_BLOCK_REASONS = frozenset(
     }
 )
 _L2_DEPTH_STATES = frozenset({"missing", "clock_regression", "stale", "fresh"})
+
+
+class ProbeMode(StrEnum):
+    """Bound whether the probe checks process liveness or operational readiness."""
+
+    LIVENESS = "liveness"
+    READINESS = "readiness"
 
 
 def _required_int(payload: dict[str, object], key: str) -> int:
@@ -85,9 +94,10 @@ def evaluate_status(
     state_root: Path,
     stale_after_ms: int,
     *,
+    mode: ProbeMode = ProbeMode.READINESS,
     now_ns: int | None = None,
 ) -> tuple[dict[str, object], bool]:
-    """Read the minimal health projection and return its output and readiness."""
+    """Read the minimal health projection and return the selected probe outcome."""
 
     if stale_after_ms <= 0:
         raise ValueError("paper heartbeat stale threshold must be positive")
@@ -173,9 +183,20 @@ def evaluate_status(
     observed_now_ns = time.time_ns() if now_ns is None else now_ns
     age_ns = observed_now_ns - heartbeat_ts_ns
     fresh = 0 <= age_ns <= stale_after_ms * 1_000_000
-    ready = status in _RUNNING_STATUSES and feed_connected and not operator_kill and fresh
+    live = status in _LIVE_STATUSES and fresh
+    ready = status in _READY_STATUSES and feed_connected and not operator_kill and fresh
+    passed = live if mode is ProbeMode.LIVENESS else ready
+    outcome = (
+        ("live" if live else "not_live")
+        if mode is ProbeMode.LIVENESS
+        else ("ready" if ready else "not_ready")
+    )
     result: dict[str, object] = {
-        "status": "ready" if ready else "not_ready",
+        "status": outcome,
+        "probe_mode": mode.value,
+        "lifecycle": status,
+        "live": live,
+        "readiness": ready,
         "run_id": run_id,
         "heartbeat_age_ms": age_ns / 1_000_000,
         "feed_connected": feed_connected,
@@ -189,25 +210,34 @@ def evaluate_status(
         "feature_ready": feature_ready,
         "operator_kill": operator_kill,
     }
-    return result, ready
+    return result, passed
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="aqt-paper-healthcheck")
     parser.add_argument("--state-root", type=Path, required=True)
     parser.add_argument("--stale-after-ms", type=int, default=5_000)
+    parser.add_argument(
+        "--mode",
+        choices=tuple(mode.value for mode in ProbeMode),
+        default=ProbeMode.READINESS.value,
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
-        result, ready = evaluate_status(args.state_root, args.stale_after_ms)
+        result, passed = evaluate_status(
+            args.state_root,
+            args.stale_after_ms,
+            mode=ProbeMode(args.mode),
+        )
     except (OSError, TypeError, ValueError) as exc:
         print(json.dumps({"status": "error", "error": str(exc)}), file=sys.stderr)
         return 2
     print(json.dumps(result, sort_keys=True))
-    return 0 if ready else 1
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

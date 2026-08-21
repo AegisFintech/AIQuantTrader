@@ -56,12 +56,17 @@ missing/stale BBO or asset context remains degraded. The checked-in
 scenario is `uncalibrated`; that is expected and must make the promotion report
 fail.
 
-Docker uses the standard-library-only `aqt-paper-healthcheck` entry point for
-its frequent readiness probe. Operators should continue using the full
+Docker uses the standard-library-only `aqt-paper-healthcheck --mode liveness`
+entry point for its frequent process probe. It requires a valid, fresh atomic
+status in a non-terminal lifecycle, but an intentionally active operator kill
+or a degraded feed does not falsely report the process as dead. Operators
+should continue using the full
 `aqt-paper healthcheck` command above for typed contract validation and drill
-recording. The lightweight probe validates the fail-closed lifecycle,
-heartbeat, feed, feature, and operator-kill projection without loading the
-trading dependency graph on every probe.
+recording; it remains the fail-closed operational-readiness check. The
+lightweight probe always validates the lifecycle, heartbeat, feed, feature, and
+operator-kill projection without loading the trading dependency graph on every
+probe. `liveness` is never permission to trade; readiness, strategy, risk, and
+the durable kill remain independent.
 
 `smart-money-scalper-v2` requires causal closed bars on 1m, 5m, and 15m, so a
 fresh run remains in structure warmup for roughly one hour. Its causal forecast
