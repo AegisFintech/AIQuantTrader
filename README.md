@@ -59,6 +59,9 @@ and the completed Phase 10 evidence-verification boundary:
   drift reports, automation ceiling, metrics contract, and Grafana dashboard.
 - raw-first live public events driving the same feature, strategy, and hard-risk
   code with no exchange account or wallet capability;
+- executable BBO freshness separated from independently aged full L2 depth,
+  with stale depth removed rather than relabeled and engine/journal states
+  bounded to the configured 1 Hz evidence cadence;
 - deterministic market-by-price paper queue/fill execution, cash/inventory/PnL,
   fees, funding, latency, markouts, and scenario lineage;
 - transactional SQLite restart continuity, cancel-on-resume, stale/kill

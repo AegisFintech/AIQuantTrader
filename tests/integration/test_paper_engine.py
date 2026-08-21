@@ -202,6 +202,10 @@ def test_live_feature_strategy_risk_simulation_and_restart_are_one_path(tmp_path
         metrics.observe_stale_trade_exclusions(-1)
     with pytest.raises(ValueError, match="cannot be negative"):
         metrics.observe_stale_book_exclusions(-1)
+    with pytest.raises(ValueError, match="cannot be negative"):
+        metrics.observe_stale_bbo_exclusions(-1)
+    with pytest.raises(ValueError, match="depth must be positive"):
+        metrics.observe_market_state(depth_levels=0, used_l2_depth=False)
     payload = generate_latest(registry)
     assert b'aqt_paper_risk_decisions_total{reason="approved",result="approved"}' in payload
     assert b'aqt_paper_fills_total{liquidity="taker"}' in payload

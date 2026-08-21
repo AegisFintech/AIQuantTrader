@@ -45,12 +45,14 @@ docker compose exec paper-trader \
   --record-observability
 ```
 
-The schema-v2 status must show the expected code/config/scenario hashes, BTC
+The schema-v3 status must show the expected code/config/scenario hashes, BTC
 strategy, zero credential capability in the journal manifest, and `warming` or
 `ready`. Its `feed_freshness` block separates the WebSocket, latest public
-frame, mark/funding asset context, and usable market state. It reports signed
-ages, the unchanged risk threshold, and the first exact blocking reason. L2
-updates without fresh asset context must remain degraded. The checked-in
+frame, mark/funding asset context, executable BBO, and full L2 depth. It reports
+signed ages, the unchanged 1.5-second executable risk threshold, the independent
+two-second depth limit, and the first exact blocking reason. Stale L2 depth is
+reported explicitly but cannot conceal a fresh BBO or be relabeled as current;
+missing/stale BBO or asset context remains degraded. The checked-in
 scenario is `uncalibrated`; that is expected and must make the promotion report
 fail.
 
@@ -82,8 +84,10 @@ expected-versus-required edge, SMC confluence, 15m/5m/1m direction,
 support/resistance, stop/target, order flow, and position age.
 It also shows online forecast readiness, resolved labels, forecast bps,
 directional accuracy, MAE, and the cost hurdle. The feed row shows the exact
-blocker, each component's current state, and component ages against the hard
-1.5-second risk limit. The platform dashboard shows service live state, CPU,
+executable blocker, each component's current state, BBO/context/frame ages
+against the hard 1.5-second risk limit, and L2 depth against its independent
+two-second limit. It also states whether the latest engine state used full L2
+or safely degraded to BBO only. The platform dashboard shows service live state, CPU,
 memory, root-disk capacity/use, disk I/O, network in/out, uptime, load, and the
 same decomposed paper-feed freshness.
 Prometheus is available at `http://127.0.0.1:9090`. Neither endpoint is exposed
@@ -116,9 +120,10 @@ and prediction. Counts are evidence, not permission to relax a gate.
 Scrape `paper-trader:9112` through Prometheus and provision
 `paper-trading.json`. Alert on:
 
-- `aqt_paper_feed_connected != 1`, any
-  `aqt_paper_feed_component_fresh{component=...} != 1`, or feature readiness
-  dropping after warmup. Inspect `aqt_paper_feed_blocked == 1` before recovery;
+- `aqt_paper_feed_connected != 1`, any required
+  `aqt_paper_feed_component_fresh{component!="l2_depth"} != 1`, or feature
+  readiness dropping after warmup. Inspect `aqt_paper_feed_blocked == 1` before
+  recovery; investigate L2 depth separately when its freshness remains zero;
 - operator kill, stale recorder heartbeat, reconnect/error growth, or raw disk
   pressure;
 - risk denials, loss/drawdown state, inventory/open-order limits, and leverage;
@@ -129,21 +134,25 @@ Scrape `paper-trader:9112` through Prometheus and provision
   LLM observer errors if that optional observer is enabled;
 - journal/state filesystem errors or a funding-gap event.
 
-The dashboard also reports cumulative stale-trade and stale-book exclusions.
+The dashboard also reports cumulative stale-trade, stale-book, and stale-BBO
+exclusions.
 Hyperliquid's initial subscriptions may contain bounded historical events, so a
 small startup increase is expected. The live assembler archives but excludes
 those inputs before feature generation using the configured maximum input age.
 Continued growth after startup indicates delayed exchange events or host/feed
-trouble and requires operator review. Excluded L2 data cannot refresh the
-watchdog's market heartbeat, so sustained stale books degrade the service and
-cancel through the normal risk path. Future exchange timestamps and
-non-monotonic L2 receipt remain fatal integrity failures.
+trouble and requires operator review. Every valid BBO refreshes executable-feed
+freshness, while engine/feature/journal states are bounded to the configured
+one-second cadence and retain intervening trades. Full L2 levels are merged only
+while they remain inside the existing feature input-age limit; otherwise the
+state contains current BBO only. Future exchange timestamps and non-monotonic
+book receipt remain fatal integrity failures.
 
 `aqt_market_data_connected` means only that the public WebSocket is open. It is
-not sufficient for paper readiness. `aqt_paper_feed_connected` requires all
-four bounded component series—socket, public frame, asset context, and market
-state—to be one. Missing ages are exported as Prometheus `NaN`; a negative age
-is an explicit clock-regression block rather than being treated as fresh.
+not sufficient for paper readiness. `aqt_paper_feed_connected` requires socket,
+public frame, asset context, and executable BBO to be current. `l2_depth` is an
+independent feature-quality series and does not change that combined verdict.
+Missing ages are exported as Prometheus `NaN`; a negative age is an explicit
+clock-regression state rather than being treated as fresh.
 
 The service writes raw segments below the data volume and its WAL journal,
 kill audit, and atomic status below `state/paper/`. Back up SQLite with its

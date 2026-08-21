@@ -3,6 +3,10 @@
 Status: accepted
 Date: 2026-08-21
 
+ADR 0014 supersedes this decision's final `market state` component with
+separate executable-BBO and L2-depth freshness. The remaining decomposition,
+signed-age, cardinality, and unchanged-risk decisions stay active.
+
 ## Context
 
 The paper risk gate intentionally requires more than an open Hyperliquid

@@ -225,10 +225,14 @@
       "id": 14,
       "title": "Stale input exclusions",
       "type": "timeseries",
-      "description": "Stale trades or L2 books are archived but excluded before features. Sustained growth requires review.",
+      "description": "Stale trades, L2 books, or BBO updates are archived but excluded before features. Sustained growth requires review.",
       "targets": [
         {"expr": "aqt_paper_stale_trades_excluded_total", "legendFormat": "trades"},
-        {"expr": "aqt_paper_stale_books_excluded_total", "legendFormat": "L2 books"}
+        {"expr": "aqt_paper_stale_books_excluded_total", "legendFormat": "L2 books"},
+        {
+          "expr": "aqt_paper_stale_bbo_updates_excluded_total",
+          "legendFormat": "BBO updates"
+        }
       ],
       "fieldConfig": {"defaults": {"decimals": 0}, "overrides": []},
       "gridPos": {"h": 7, "w": 8, "x": 16, "y": 34}
@@ -330,7 +334,7 @@
       "id": 28,
       "title": "Feed readiness — exact blocker",
       "type": "stat",
-      "description": "The first fail-closed public-data condition. 'none' means every required component is current.",
+      "description": "The first fail-closed executable-feed condition. Full L2 depth is independently classified and cannot conceal a fresh BBO.",
       "targets": [
         {
           "expr": "aqt_paper_feed_blocked == 1",
@@ -344,7 +348,7 @@
       "id": 29,
       "title": "Feed component freshness",
       "type": "stat",
-      "description": "Socket state is separate from the public-frame, asset-context, and usable-market freshness gates.",
+      "description": "Socket, public-frame, asset-context, and executable-BBO freshness determine readiness. L2 depth freshness is reported independently.",
       "targets": [
         {
           "expr": "aqt_paper_feed_component_fresh",
@@ -356,18 +360,40 @@
     },
     {
       "id": 30,
-      "title": "Feed ages versus hard risk limit",
+      "title": "Feed ages versus component limits",
       "type": "timeseries",
-      "description": "A fresh WebSocket alone is insufficient. All component ages must stay at or below the unchanged 1.5-second public-data risk limit.",
+      "description": "Socket-dependent executable inputs retain the unchanged 1.5-second risk limit. Full L2 depth has the separate feature-input limit and safely falls back to BBO-only state when older.",
       "targets": [
         {
           "expr": "aqt_paper_feed_component_age_seconds",
           "legendFormat": "{{component}} age"
         },
-        {"expr": "aqt_paper_feed_stale_after_seconds", "legendFormat": "risk limit"}
+        {"expr": "aqt_paper_feed_stale_after_seconds", "legendFormat": "executable risk limit"},
+        {
+          "expr": "aqt_paper_feed_depth_stale_after_seconds",
+          "legendFormat": "L2 depth limit"
+        }
       ],
       "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
       "gridPos": {"h": 7, "w": 8, "x": 16, "y": 62}
+    },
+    {
+      "id": 31,
+      "title": "Executable state depth",
+      "type": "stat",
+      "description": "A zero L2-used value means the latest state contains current BBO only; stale deeper levels are never relabeled as current.",
+      "targets": [
+        {
+          "expr": "aqt_paper_market_state_l2_depth_used",
+          "legendFormat": "fresh L2 incorporated"
+        },
+        {
+          "expr": "aqt_paper_market_state_depth_levels",
+          "legendFormat": "levels per side"
+        }
+      ],
+      "fieldConfig": {"defaults": {"min": 0}, "overrides": []},
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 69}
     }
   ],
   "refresh": "2s",
@@ -378,5 +404,5 @@
   "timezone": "utc",
   "title": "AIQuantTrader BTC Scalping Command Center",
   "uid": "aqt-paper-trading",
-  "version": 5
+  "version": 6
 }

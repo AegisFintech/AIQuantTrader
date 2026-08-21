@@ -13,7 +13,7 @@ from prometheus_client import CollectorRegistry
 
 from aiquanttrader.config.loader import ConfigBundle
 from aiquanttrader.config.models import ExchangeNetwork
-from aiquanttrader.domain.market import FundingEvent, MarkPriceEvent
+from aiquanttrader.domain.market import BboEvent, FundingEvent, L2BookSnapshot, MarkPriceEvent
 from aiquanttrader.market_data.catalog import ManifestCatalog
 from aiquanttrader.market_data.io import atomic_replace_bytes
 from aiquanttrader.market_data.metrics import RecorderMetrics
@@ -74,9 +74,11 @@ class PaperLiveService:
         self._assembler = LiveMarketStateAssembler(
             depth_levels=artifacts.feature_config.depth_levels,
             maximum_input_age_ns=artifacts.feature_config.maximum_input_age_ns,
+            minimum_state_interval_ns=settings.paper.market_state_interval_ms * 1_000_000,
         )
         self._observed_stale_trade_exclusions = 0
         self._observed_stale_book_exclusions = 0
+        self._observed_stale_bbo_exclusions = 0
         self._paper_metrics = PaperMetrics(registry)
         self._recorder_metrics = RecorderMetrics.create(registry)
         self._engine: PaperTradingEngine | None = None
@@ -86,7 +88,8 @@ class PaperLiveService:
         self._last_context_receive_ns: int | None = None
         self._last_context_wall_ns: int | None = None
         self._last_frame_wall_ns: int | None = None
-        self._last_market_wall_ns: int | None = None
+        self._last_bbo_wall_ns: int | None = None
+        self._last_l2_depth_wall_ns: int | None = None
         self._last_error_code: str | None = None
         self._socket_connected = False
         self._recorder_connected = False
@@ -113,7 +116,8 @@ class PaperLiveService:
         return self._engine
 
     async def consume_frame(self, frame: ParsedFrame) -> None:
-        self._last_frame_wall_ns = self.clock_ns()
+        frame_wall_ns = self.clock_ns()
+        self._last_frame_wall_ns = frame_wall_ns
         self._socket_connected = True
         self._recorder_connected = True
         if frame.is_control:
@@ -122,11 +126,29 @@ class PaperLiveService:
             if isinstance(event, MarkPriceEvent):
                 self._mark_price = event.mark_price
                 self._last_context_receive_ns = event.header.receive_ts_ns
-                self._last_context_wall_ns = self._last_frame_wall_ns
+                self._last_context_wall_ns = frame_wall_ns
             elif isinstance(event, FundingEvent):
                 self._funding_rate = event.funding_rate
                 self._next_funding_ts_ns = event.next_funding_ts_ns
+            previous_depth_receive_ns = self._assembler.latest_depth_receive_ts_ns
+            previous_bbo_receive_ns = self._assembler.latest_bbo_receive_ts_ns
             market = self._assembler.observe(event)
+            if (
+                isinstance(event, L2BookSnapshot)
+                and self._assembler.latest_depth_receive_ts_ns != previous_depth_receive_ns
+                and self._assembler.latest_depth_receive_ts_ns == event.header.receive_ts_ns
+            ):
+                self._last_l2_depth_wall_ns = frame_wall_ns - (
+                    event.header.receive_ts_ns - event.header.event_ts_ns
+                )
+            if (
+                isinstance(event, BboEvent)
+                and self._assembler.latest_bbo_receive_ts_ns != previous_bbo_receive_ns
+                and self._assembler.latest_bbo_receive_ts_ns == event.header.receive_ts_ns
+            ):
+                self._last_bbo_wall_ns = frame_wall_ns - (
+                    event.header.receive_ts_ns - event.header.event_ts_ns
+                )
             stale_trade_exclusions = self._assembler.stale_trade_exclusions
             self._paper_metrics.observe_stale_trade_exclusions(
                 stale_trade_exclusions - self._observed_stale_trade_exclusions
@@ -137,9 +159,17 @@ class PaperLiveService:
                 stale_book_exclusions - self._observed_stale_book_exclusions
             )
             self._observed_stale_book_exclusions = stale_book_exclusions
+            stale_bbo_exclusions = self._assembler.stale_bbo_exclusions
+            self._paper_metrics.observe_stale_bbo_exclusions(
+                stale_bbo_exclusions - self._observed_stale_bbo_exclusions
+            )
+            self._observed_stale_bbo_exclusions = stale_bbo_exclusions
             if market is None:
                 continue
-            self._last_market_wall_ns = self._last_frame_wall_ns
+            self._paper_metrics.observe_market_state(
+                depth_levels=min(len(market.bids), len(market.asks)),
+                used_l2_depth=self._assembler.last_state_used_l2_depth,
+            )
             if self._engine is None:
                 initial_mark = self._mark_price or (
                     market.bids[0].price + market.asks[0].price
@@ -167,15 +197,11 @@ class PaperLiveService:
                 next_funding_ts_ns=self._next_funding_ts_ns,
             )
             started = time.perf_counter()
-            context_fresh = (
-                self._last_context_receive_ns is not None
-                and market.observed_ts_ns - self._last_context_receive_ns
-                <= self.bundle.settings.risk.public_data_stale_after_ms * 1_000_000
-            )
+            feed_fresh = self._feed_freshness(frame_wall_ns).ready
             cycle = self._engine.on_market(
                 market,
                 mark_price=self._mark_price,
-                feed_connected=context_fresh,
+                feed_connected=feed_fresh,
             )
             self._paper_metrics.observe_cycle(
                 self._engine,
@@ -186,9 +212,7 @@ class PaperLiveService:
             if self._llm_worker is not None:
                 self._llm_worker.offer(self._engine.manifest.run_id, cycle)
             self._write_status(
-                "degraded"
-                if not context_fresh
-                else ("ready" if cycle.features.ready else "warming")
+                "degraded" if not feed_fresh else ("ready" if cycle.features.ready else "warming")
             )
 
     async def run(self, stop: asyncio.Event) -> None:
@@ -368,10 +392,14 @@ class PaperLiveService:
         return PaperFeedFreshness.from_observations(
             checked_ts_ns=now_ns,
             stale_after_ms=stale_after_ms,
+            depth_stale_after_ms=max(
+                1, self.artifacts.feature_config.maximum_input_age_ns // 1_000_000
+            ),
             socket_connected=self._socket_connected,
             last_public_frame_wall_ns=self._last_frame_wall_ns,
             last_asset_context_wall_ns=context_wall_ns,
-            last_market_state_wall_ns=self._last_market_wall_ns,
+            last_bbo_wall_ns=self._last_bbo_wall_ns,
+            last_l2_depth_wall_ns=self._last_l2_depth_wall_ns,
         )
 
     def _record_llm_confirmation(self, confirmation: LlmConfirmation) -> None:

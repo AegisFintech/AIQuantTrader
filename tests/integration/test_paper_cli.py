@@ -72,10 +72,12 @@ def initialize_state(
         feed_freshness=PaperFeedFreshness.from_observations(
             checked_ts_ns=status_now,
             stale_after_ms=bundle.settings.risk.public_data_stale_after_ms,
+            depth_stale_after_ms=artifacts.feature_config.maximum_input_age_ns // 1_000_000,
             socket_connected=True,
             last_public_frame_wall_ns=status_now,
             last_asset_context_wall_ns=status_now,
-            last_market_state_wall_ns=status_now,
+            last_bbo_wall_ns=status_now,
+            last_l2_depth_wall_ns=status_now,
         ),
         feature_ready=True,
         operator_kill=False,

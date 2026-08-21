@@ -86,6 +86,7 @@ class ShadowEngineService:
         self._assembler = LiveMarketStateAssembler(
             depth_levels=artifacts.paper.feature_config.depth_levels,
             maximum_input_age_ns=artifacts.paper.feature_config.maximum_input_age_ns,
+            minimum_state_interval_ns=settings.shadow.market_state_interval_ms * 1_000_000,
         )
         self._observed_stale_trade_exclusions = 0
         self._engine: PaperTradingEngine | None = None

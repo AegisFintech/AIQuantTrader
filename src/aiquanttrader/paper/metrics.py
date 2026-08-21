@@ -20,7 +20,17 @@ class PaperMetrics:
         self.registry = registry
         self.market_states = Counter(
             "aqt_paper_market_states_total",
-            "Causal L2 market states processed by the paper engine",
+            "Causal executable market states processed by the paper engine",
+            registry=registry,
+        )
+        self.market_state_l2_depth_used = Gauge(
+            "aqt_paper_market_state_l2_depth_used",
+            "Whether the latest executable market state incorporated independently fresh L2 depth",
+            registry=registry,
+        )
+        self.market_state_depth_levels = Gauge(
+            "aqt_paper_market_state_depth_levels",
+            "Minimum bid/ask level count in the latest executable market state",
             registry=registry,
         )
         self.decisions = Counter(
@@ -85,6 +95,11 @@ class PaperMetrics:
             "L2 snapshots excluded before feature generation because their exchange time is stale",
             registry=registry,
         )
+        self.stale_bbo_updates_excluded = Counter(
+            "aqt_paper_stale_bbo_updates_excluded_total",
+            "BBO updates excluded before state assembly because their exchange time is stale",
+            registry=registry,
+        )
         self.markouts = Histogram(
             "aqt_paper_fill_markout_bps",
             "Signed post-fill markout in basis points",
@@ -99,7 +114,7 @@ class PaperMetrics:
         )
         self.feed_connected = Gauge(
             "aqt_paper_feed_connected",
-            "Whether socket, public frames, asset context, and market state are current",
+            "Whether socket, public frames, asset context, and executable BBO are current",
             registry=registry,
         )
         self.feed_component_fresh = Gauge(
@@ -117,6 +132,11 @@ class PaperMetrics:
         self.feed_stale_after_seconds = Gauge(
             "aqt_paper_feed_stale_after_seconds",
             "Effective hard public-data freshness threshold",
+            registry=registry,
+        )
+        self.feed_depth_stale_after_seconds = Gauge(
+            "aqt_paper_feed_depth_stale_after_seconds",
+            "Independent maximum source age for incorporating full L2 depth",
             registry=registry,
         )
         self.feed_blocked = Gauge(
@@ -311,26 +331,41 @@ class PaperMetrics:
         if count:
             self.stale_trades_excluded.inc(count)
 
+    def observe_market_state(self, *, depth_levels: int, used_l2_depth: bool) -> None:
+        if depth_levels <= 0:
+            raise ValueError("paper market state depth must be positive")
+        self.market_state_depth_levels.set(depth_levels)
+        self.market_state_l2_depth_used.set(int(used_l2_depth))
+
     def observe_stale_book_exclusions(self, count: int) -> None:
         if count < 0:
             raise ValueError("paper stale-book exclusion count cannot be negative")
         if count:
             self.stale_books_excluded.inc(count)
 
+    def observe_stale_bbo_exclusions(self, count: int) -> None:
+        if count < 0:
+            raise ValueError("paper stale-BBO exclusion count cannot be negative")
+        if count:
+            self.stale_bbo_updates_excluded.inc(count)
+
     def observe_feed_freshness(self, freshness: PaperFeedFreshness) -> None:
         self.feed_connected.set(int(freshness.ready))
         self.feed_stale_after_seconds.set(freshness.stale_after_ms / 1_000)
+        self.feed_depth_stale_after_seconds.set(freshness.depth_stale_after_ms / 1_000)
         for component, fresh in (
             ("socket", freshness.socket_connected),
             ("public_frame", freshness.public_frame_fresh),
             ("asset_context", freshness.asset_context_fresh),
-            ("market_state", freshness.market_state_fresh),
+            ("bbo", freshness.bbo_fresh),
+            ("l2_depth", freshness.l2_depth_fresh),
         ):
             self.feed_component_fresh.labels(component=component).set(int(fresh))
         for component, age_ms in (
             ("public_frame", freshness.public_frame_age_ms),
             ("asset_context", freshness.asset_context_age_ms),
-            ("market_state", freshness.market_state_age_ms),
+            ("bbo", freshness.bbo_age_ms),
+            ("l2_depth", freshness.l2_depth_age_ms),
         ):
             value = float("nan") if age_ms is None else age_ms / 1_000
             self.feed_component_age_seconds.labels(component=component).set(value)

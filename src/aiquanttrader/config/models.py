@@ -232,6 +232,7 @@ class PaperConfig(FrozenModel):
     evidence_policy_path: Path = Path("paper/evidence-v1.toml")
     initial_equity_usd: Decimal = Field(default=Decimal("100000"), gt=0, le=Decimal("10000000"))
     watchdog_interval_ms: int = Field(default=250, ge=50, le=5_000)
+    market_state_interval_ms: int = Field(default=1_000, ge=100, le=5_000)
     status_stale_after_ms: int = Field(default=5_000, ge=1_000, le=30_000)
     markout_horizon_ms: int = Field(default=1_000, ge=100, le=60_000)
     metrics_host: str = "0.0.0.0"
@@ -267,6 +268,7 @@ class ShadowConfig(FrozenModel):
     evidence_policy_path: Path = Path("shadow/evidence-v1.toml")
     initial_equity_usd: Decimal = Field(default=Decimal("100000"), gt=0, le=Decimal("10000000"))
     watchdog_interval_ms: int = Field(default=250, ge=50, le=5_000)
+    market_state_interval_ms: int = Field(default=1_000, ge=100, le=5_000)
     health_sample_interval_ms: int = Field(default=1_000, ge=250, le=10_000)
     ingress_poll_interval_ms: int = Field(default=10, ge=1, le=1_000)
     ingress_batch_size: int = Field(default=100, ge=1, le=10_000)
@@ -460,6 +462,8 @@ class NativeSettings(FrozenModel):
                 raise ValueError("the paper engine requires public market data")
             if self.execution.enabled:
                 raise ValueError("the paper engine cannot enable execution")
+            if self.paper.market_state_interval_ms >= self.risk.public_data_stale_after_ms:
+                raise ValueError("paper market-state cadence must be faster than stale risk")
 
         if self.shadow.enabled:
             if self.mode is not DeploymentMode.SHADOW:
@@ -468,6 +472,8 @@ class NativeSettings(FrozenModel):
                 raise ValueError("the shadow gateway requires public market data")
             if self.execution.enabled:
                 raise ValueError("the shadow engine cannot enable execution")
+            if self.shadow.market_state_interval_ms >= self.risk.public_data_stale_after_ms:
+                raise ValueError("shadow market-state cadence must be faster than stale risk")
 
         if self.execution.enabled:
             allowed = {

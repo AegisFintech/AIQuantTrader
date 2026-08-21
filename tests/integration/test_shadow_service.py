@@ -217,6 +217,7 @@ def _service(
             "AQT_NATIVE__STORAGE__DATA_ROOT": str(tmp_path / "data"),
             "AQT_NATIVE__STORAGE__STATE_ROOT": str(tmp_path / "state"),
             "AQT_NATIVE__SHADOW__MAXIMUM_INGRESS_LAG_MS": "30000",
+            "AQT_NATIVE__SHADOW__MARKET_STATE_INTERVAL_MS": "100",
         },
     )
     metrics_path = tmp_path / ("replay-metrics.prom" if replay else "metrics.prom")
@@ -252,7 +253,8 @@ def test_isolated_service_records_commands_and_replays_decisions_exactly(
     ingress_path = (tmp_path / "ingress.sqlite3").resolve()
     writer = ShadowIngressWriter(ingress_path)
     source_reader = ShadowIngressReader(ingress_path)
-    base = time.time_ns() - 1_000_000
+    step = 200_000_000
+    base = time.time_ns() - 1_000_000_000
     writer.append(_context(base - 200))
     writer.append(_book(base - 100))
     source_journal = PaperJournal((tmp_path / "source.sqlite3").resolve())
@@ -267,11 +269,11 @@ def test_isolated_service_records_commands_and_replays_decisions_exactly(
     assert source.cursor == 2
     frames = (
         _context(base),
-        _book(base + 100),
-        _trade(base + 200),
-        _book(base + 300),
-        _trade(base + 400),
-        _book(base + 500),
+        _book(base + step),
+        _trade(base + 2 * step),
+        _book(base + 3 * step),
+        _trade(base + 4 * step),
+        _book(base + 5 * step),
     )
     for frame in frames:
         writer.append(frame)
@@ -315,7 +317,7 @@ def test_isolated_service_records_commands_and_replays_decisions_exactly(
         replay_journal,
         source_run_id=source_manifest.run_id,
         replay_run_id=replay.engine.manifest.run_id,
-        generated_ts_ns=base + 1_000,
+        generated_ts_ns=base + 6 * step,
     )
     assert comparison.decision_mismatches == 0
     assert comparison.command_mismatches == 0

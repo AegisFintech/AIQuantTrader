@@ -223,9 +223,12 @@ def _healthcheck(state_root: Path, stale_after_ms: int, *, record: bool) -> int:
                 "feed_component_age_ms": {
                     "public_frame": status.feed_freshness.public_frame_age_ms,
                     "asset_context": status.feed_freshness.asset_context_age_ms,
-                    "market_state": status.feed_freshness.market_state_age_ms,
+                    "bbo": status.feed_freshness.bbo_age_ms,
+                    "l2_depth": status.feed_freshness.l2_depth_age_ms,
                 },
                 "feed_stale_after_ms": status.feed_freshness.stale_after_ms,
+                "depth_stale_after_ms": status.feed_freshness.depth_stale_after_ms,
+                "l2_depth_state": status.feed_freshness.l2_depth_state.value,
                 "feature_ready": status.feature_ready,
             },
             sort_keys=True,

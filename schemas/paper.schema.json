@@ -1662,16 +1662,16 @@
         "asset_context_missing",
         "asset_context_clock_regression",
         "asset_context_stale",
-        "market_state_missing",
-        "market_state_clock_regression",
-        "market_state_stale"
+        "bbo_missing",
+        "bbo_clock_regression",
+        "bbo_stale"
       ],
       "title": "PaperFeedBlockReason",
       "type": "string"
     },
     "PaperFeedFreshness": {
       "additionalProperties": false,
-      "description": "Bounded explanation of the public-data conditions required by risk.",
+      "description": "Executable-feed verdict plus independent full-depth validity evidence.",
       "properties": {
         "asset_context_age_ms": {
           "anyOf": [
@@ -1689,15 +1689,7 @@
           "title": "Asset Context Fresh",
           "type": "boolean"
         },
-        "blocking_reason": {
-          "$ref": "#/$defs/PaperFeedBlockReason"
-        },
-        "checked_ts_ns": {
-          "minimum": 0,
-          "title": "Checked Ts Ns",
-          "type": "integer"
-        },
-        "market_state_age_ms": {
+        "bbo_age_ms": {
           "anyOf": [
             {
               "type": "integer"
@@ -1707,11 +1699,43 @@
             }
           ],
           "default": null,
-          "title": "Market State Age Ms"
+          "title": "Bbo Age Ms"
         },
-        "market_state_fresh": {
-          "title": "Market State Fresh",
+        "bbo_fresh": {
+          "title": "Bbo Fresh",
           "type": "boolean"
+        },
+        "blocking_reason": {
+          "$ref": "#/$defs/PaperFeedBlockReason"
+        },
+        "checked_ts_ns": {
+          "minimum": 0,
+          "title": "Checked Ts Ns",
+          "type": "integer"
+        },
+        "depth_stale_after_ms": {
+          "exclusiveMinimum": 0,
+          "title": "Depth Stale After Ms",
+          "type": "integer"
+        },
+        "l2_depth_age_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "L2 Depth Age Ms"
+        },
+        "l2_depth_fresh": {
+          "title": "L2 Depth Fresh",
+          "type": "boolean"
+        },
+        "l2_depth_state": {
+          "$ref": "#/$defs/PaperL2DepthState"
         },
         "public_frame_age_ms": {
           "anyOf": [
@@ -1734,8 +1758,8 @@
           "type": "boolean"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -1752,10 +1776,13 @@
       "required": [
         "checked_ts_ns",
         "stale_after_ms",
+        "depth_stale_after_ms",
         "socket_connected",
         "public_frame_fresh",
         "asset_context_fresh",
-        "market_state_fresh",
+        "bbo_fresh",
+        "l2_depth_fresh",
+        "l2_depth_state",
         "ready",
         "blocking_reason"
       ],
@@ -1973,6 +2000,16 @@
       ],
       "title": "PaperGateResult",
       "type": "object"
+    },
+    "PaperL2DepthState": {
+      "enum": [
+        "missing",
+        "clock_regression",
+        "stale",
+        "fresh"
+      ],
+      "title": "PaperL2DepthState",
+      "type": "string"
     },
     "PaperMarkout": {
       "additionalProperties": false,
@@ -2400,8 +2437,8 @@
           "type": "string"
         },
         "schema_version": {
-          "const": 2,
-          "default": 2,
+          "const": 3,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },

@@ -10,16 +10,20 @@ from aiquanttrader import paper_healthcheck
 
 def _write_status(state_root: Path, **updates: object) -> None:
     freshness: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": 2,
         "checked_ts_ns": 10_000_000_000,
         "stale_after_ms": 5_000,
+        "depth_stale_after_ms": 2_000,
         "socket_connected": True,
         "public_frame_age_ms": 1_000,
         "asset_context_age_ms": 1_000,
-        "market_state_age_ms": 1_000,
+        "bbo_age_ms": 1_000,
+        "l2_depth_age_ms": 1_000,
         "public_frame_fresh": True,
         "asset_context_fresh": True,
-        "market_state_fresh": True,
+        "bbo_fresh": True,
+        "l2_depth_fresh": True,
+        "l2_depth_state": "fresh",
         "ready": True,
         "blocking_reason": "none",
     }
@@ -30,7 +34,7 @@ def _write_status(state_root: Path, **updates: object) -> None:
             blocking_reason="socket_disconnected",
         )
     payload: dict[str, object] = {
-        "schema_version": 2,
+        "schema_version": 3,
         "status": "ready",
         "run_id": "paper-health-probe-test",
         "heartbeat_ts_ns": 10_000_000_000,
@@ -63,14 +67,18 @@ def test_lightweight_probe_accepts_fresh_running_status(tmp_path: Path) -> None:
         "feed_component_fresh": {
             "public_frame": True,
             "asset_context": True,
-            "market_state": True,
+            "bbo": True,
+            "l2_depth": True,
         },
         "feed_component_age_ms": {
             "public_frame": 1_000,
             "asset_context": 1_000,
-            "market_state": 1_000,
+            "bbo": 1_000,
+            "l2_depth": 1_000,
         },
         "feed_stale_after_ms": 5_000,
+        "depth_stale_after_ms": 2_000,
+        "l2_depth_state": "fresh",
         "feature_ready": True,
         "operator_kill": False,
     }
@@ -92,6 +100,31 @@ def test_health_heartbeat_threshold_is_independent_from_feed_threshold(tmp_path:
     assert ready
     assert result["heartbeat_age_ms"] == 4_000
     assert result["feed_stale_after_ms"] == 1_500
+
+
+def test_lightweight_probe_reports_stale_depth_without_blocking_executable_feed(
+    tmp_path: Path,
+) -> None:
+    _write_status(tmp_path)
+    path = tmp_path / "paper" / "status.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload["feed_freshness"].update(
+        l2_depth_age_ms=3_000,
+        l2_depth_fresh=False,
+        l2_depth_state="stale",
+    )
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result, ready = paper_healthcheck.evaluate_status(
+        tmp_path,
+        5_000,
+        now_ns=11_000_000_000,
+    )
+
+    assert ready
+    assert result["feed_connected"] is True
+    assert result["l2_depth_state"] == "stale"
+    assert result["feed_component_fresh"]["l2_depth"] is False  # type: ignore[index]
 
 
 @pytest.mark.parametrize(
@@ -118,7 +151,7 @@ def test_lightweight_probe_fails_closed(
 @pytest.mark.parametrize(
     ("field", "value"),
     [
-        ("schema_version", 1),
+        ("schema_version", 2),
         ("status", "unknown"),
         ("run_id", ""),
         ("heartbeat_ts_ns", True),
@@ -149,11 +182,14 @@ def test_lightweight_probe_cli_reports_missing_status(
 @pytest.mark.parametrize(
     ("updates", "match"),
     (
-        ({"schema_version": 2}, "schema_version must be 1"),
+        ({"schema_version": 1}, "schema_version must be 2"),
         ({"checked_ts_ns": 9}, "timestamp must match"),
         ({"stale_after_ms": 0}, "threshold must be positive"),
+        ({"depth_stale_after_ms": 0}, "depth stale threshold must be positive"),
         ({"public_frame_age_ms": "old"}, "integer or null"),
         ({"public_frame_fresh": False}, "freshness must match"),
+        ({"l2_depth_state": "unknown"}, "unsupported L2 depth state"),
+        ({"l2_depth_state": "stale"}, "depth state must match"),
         ({"blocking_reason": "unknown"}, "unsupported blocking reason"),
         ({"ready": False}, "verdict must match"),
     ),
