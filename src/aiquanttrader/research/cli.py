@@ -13,7 +13,7 @@ from pathlib import Path
 from aiquanttrader.backtest.conversion import load_event_file
 from aiquanttrader.backtest.kernel import iter_hft_market_states
 from aiquanttrader.backtest.models import BacktestDatasetManifest, ValidationPlan
-from aiquanttrader.backtest.scenarios import load_scenario
+from aiquanttrader.backtest.scenarios import load_scenario, load_validation_policy
 from aiquanttrader.domain.governance import ActorKind, PromotionStage
 from aiquanttrader.features.models import (
     MODEL_FEATURE_SCHEMA,
@@ -29,6 +29,7 @@ from aiquanttrader.research.feasibility import (
     require_viable_target_feasibility,
 )
 from aiquanttrader.research.governance import evaluate_challenger
+from aiquanttrader.research.horizons import audit_horizon_family
 from aiquanttrader.research.matrix import (
     build_forecast_matrix,
     load_forecast_matrix,
@@ -37,6 +38,7 @@ from aiquanttrader.research.matrix import (
 from aiquanttrader.research.model_adapters import adapter_for
 from aiquanttrader.research.models import (
     ForecastTarget,
+    HorizonFamilyPolicy,
     ModelEngine,
     NegativeControlReport,
     NoSignalControlReport,
@@ -85,6 +87,16 @@ def _parser() -> argparse.ArgumentParser:
     feasibility.add_argument("--control-policy", type=Path, required=True)
     feasibility.add_argument("--scenario", type=Path, required=True)
     feasibility.add_argument("--output", type=Path, required=True)
+
+    horizon_family = commands.add_parser("audit-horizon-family")
+    horizon_family.add_argument("--features", type=Path, required=True)
+    horizon_family.add_argument("--feature-manifest", type=Path, required=True)
+    horizon_family.add_argument("--artifact-root", type=Path, required=True)
+    horizon_family.add_argument("--policy", type=Path, required=True)
+    horizon_family.add_argument("--validation-template", type=Path, required=True)
+    horizon_family.add_argument("--control-policy", type=Path, required=True)
+    horizon_family.add_argument("--scenario", type=Path, required=True)
+    horizon_family.add_argument("--output", type=Path, required=True)
 
     no_signal = commands.add_parser("run-no-signal-control")
     no_signal.add_argument("--features", type=Path, required=True)
@@ -257,6 +269,50 @@ def main(argv: Sequence[str] | None = None) -> int:
                 },
             )
             return 0 if report.passed else 3
+        if args.command == "audit-horizon-family":
+            horizon_report = audit_horizon_family(
+                feature_path=args.features,
+                feature_manifest_path=args.feature_manifest,
+                artifact_root=args.artifact_root,
+                policy=HorizonFamilyPolicy.model_validate_json(args.policy.read_bytes()),
+                validation_template=load_validation_policy(args.validation_template),
+                control_policy=ResearchControlPolicy.model_validate_json(
+                    args.control_policy.read_bytes()
+                ),
+                scenario=load_scenario(args.scenario),
+            )
+            atomic_write_bytes(args.output, horizon_report.canonical_bytes() + b"\n")
+            _write_output(
+                None,
+                {
+                    "report": str(args.output),
+                    "report_sha256": horizon_report.sha256(),
+                    "selection_role": horizon_report.selection_role,
+                    "final_holdout_included": horizon_report.final_holdout_included,
+                    "model_training_performed": horizon_report.model_training_performed,
+                    "opportunity_sufficient_horizons_ns": (
+                        horizon_report.opportunity_sufficient_horizons_ns
+                    ),
+                    "passed_horizons_ns": horizon_report.passed_horizons_ns,
+                    "horizons": [
+                        {
+                            "horizon_ns": candidate.horizon_ns,
+                            "opportunity_sufficient": (
+                                candidate.target_feasibility.opportunity_sufficient
+                            ),
+                            "passed": candidate.target_feasibility.passed,
+                            "folds_possible": [
+                                fold.necessary_conditions_possible(
+                                    horizon_report.control_policy.forecast_economic
+                                )
+                                for fold in candidate.target_feasibility.folds
+                            ],
+                        }
+                        for candidate in horizon_report.candidates
+                    ],
+                },
+            )
+            return 0 if horizon_report.passed_horizons_ns else 3
         if args.command == "run-no-signal-control":
             no_signal_report = run_no_signal_control(
                 feature_path=args.features,

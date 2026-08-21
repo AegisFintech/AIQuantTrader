@@ -164,6 +164,286 @@
       "title": "DriftReport",
       "type": "object"
     },
+    "ExecutionScenario": {
+      "additionalProperties": false,
+      "description": "Every simulator assumption that can materially alter execution results.",
+      "properties": {
+        "allow_partial_fills": {
+          "default": true,
+          "title": "Allow Partial Fills",
+          "type": "boolean"
+        },
+        "book_liquidity_multiplier": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "maximum": 1.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "1",
+          "title": "Book Liquidity Multiplier"
+        },
+        "calibration_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Calibration Sha256"
+        },
+        "calibration_state": {
+          "$ref": "#/$defs/CalibrationState"
+        },
+        "entry_latency_ns": {
+          "minimum": 0,
+          "title": "Entry Latency Ns",
+          "type": "integer"
+        },
+        "feed_latency_offset_ns": {
+          "minimum": 0,
+          "title": "Feed Latency Offset Ns",
+          "type": "integer"
+        },
+        "funding_rate_multiplier": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "1",
+          "title": "Funding Rate Multiplier"
+        },
+        "lot_size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Lot Size"
+        },
+        "maker_fee_bps": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": -100.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Maker Fee Bps"
+        },
+        "queue_model": {
+          "$ref": "#/$defs/QueueModel"
+        },
+        "queue_power": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "2",
+          "title": "Queue Power"
+        },
+        "response_latency_ns": {
+          "minimum": 0,
+          "title": "Response Latency Ns",
+          "type": "integer"
+        },
+        "scenario_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Scenario Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "taker_fee_bps": {
+          "anyOf": [
+            {
+              "maximum": 100.0,
+              "minimum": -100.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Taker Fee Bps"
+        },
+        "taker_slippage_bps": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "0",
+          "title": "Taker Slippage Bps"
+        },
+        "tick_size": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "title": "Tick Size"
+        },
+        "trade_flow_multiplier": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "maximum": 1.0,
+              "type": "number"
+            },
+            {
+              "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+              "type": "string"
+            }
+          ],
+          "default": "1",
+          "title": "Trade Flow Multiplier"
+        }
+      },
+      "required": [
+        "scenario_id",
+        "calibration_state",
+        "tick_size",
+        "lot_size",
+        "entry_latency_ns",
+        "response_latency_ns",
+        "feed_latency_offset_ns",
+        "maker_fee_bps",
+        "taker_fee_bps",
+        "queue_model"
+      ],
+      "title": "ExecutionScenario",
+      "type": "object"
+    },
+    "FeatureDatasetManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_config_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Config Sha256",
+          "type": "string"
+        },
+        "feature_dataset_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Dataset Id",
+          "type": "string"
+        },
+        "feature_schema_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Feature Schema Sha256",
+          "type": "string"
+        },
+        "file_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "File Sha256",
+          "type": "string"
+        },
+        "first_receive_ts_ns": {
+          "minimum": 0,
+          "title": "First Receive Ts Ns",
+          "type": "integer"
+        },
+        "last_receive_ts_ns": {
+          "minimum": 0,
+          "title": "Last Receive Ts Ns",
+          "type": "integer"
+        },
+        "relative_path": {
+          "pattern": "^[A-Za-z0-9_./=:-]+$",
+          "title": "Relative Path",
+          "type": "string"
+        },
+        "row_count": {
+          "exclusiveMinimum": 0,
+          "title": "Row Count",
+          "type": "integer"
+        },
+        "schema_version": {
+          "default": 2,
+          "enum": [
+            1,
+            2
+          ],
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "source_dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Dataset Sha256",
+          "type": "string"
+        },
+        "stale_book_exclusion_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Stale Book Exclusion Count",
+          "type": "integer"
+        },
+        "stale_trade_exclusion_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Stale Trade Exclusion Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "feature_dataset_id",
+        "source_dataset_sha256",
+        "feature_schema_sha256",
+        "feature_config_sha256",
+        "relative_path",
+        "file_sha256",
+        "row_count",
+        "first_receive_ts_ns",
+        "last_receive_ts_ns"
+      ],
+      "title": "FeatureDatasetManifest",
+      "type": "object"
+    },
     "FeatureDrift": {
       "additionalProperties": false,
       "properties": {
@@ -829,6 +1109,153 @@
       "title": "GateResult",
       "type": "object"
     },
+    "HorizonFamilyFeasibilityReport": {
+      "additionalProperties": false,
+      "description": "No-selection audit across an immutable, predeclared scalping horizon family.",
+      "properties": {
+        "candidates": {
+          "items": {
+            "$ref": "#/$defs/HorizonFeasibilityCandidateReport"
+          },
+          "maxItems": 8,
+          "minItems": 2,
+          "title": "Candidates",
+          "type": "array"
+        },
+        "control_policy": {
+          "$ref": "#/$defs/ResearchControlPolicy"
+        },
+        "feature_manifest": {
+          "$ref": "#/$defs/FeatureDatasetManifest"
+        },
+        "final_holdout_included": {
+          "const": false,
+          "default": false,
+          "title": "Final Holdout Included",
+          "type": "boolean"
+        },
+        "model_training_performed": {
+          "const": false,
+          "default": false,
+          "title": "Model Training Performed",
+          "type": "boolean"
+        },
+        "policy": {
+          "$ref": "#/$defs/HorizonFamilyPolicy"
+        },
+        "scenario": {
+          "$ref": "#/$defs/ExecutionScenario"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "selection_role": {
+          "const": "predeclared_diagnostic_only",
+          "default": "predeclared_diagnostic_only",
+          "title": "Selection Role",
+          "type": "string"
+        },
+        "validation_template": {
+          "$ref": "#/$defs/ValidationPolicy"
+        }
+      },
+      "required": [
+        "policy",
+        "validation_template",
+        "feature_manifest",
+        "control_policy",
+        "scenario",
+        "candidates"
+      ],
+      "title": "HorizonFamilyFeasibilityReport",
+      "type": "object"
+    },
+    "HorizonFamilyPolicy": {
+      "additionalProperties": false,
+      "description": "Predeclared, bounded scalping horizons; never a candidate selector.",
+      "properties": {
+        "horizons_ns": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 8,
+          "minItems": 2,
+          "title": "Horizons Ns",
+          "type": "array"
+        },
+        "maximum_label_delay_ns": {
+          "minimum": 0,
+          "title": "Maximum Label Delay Ns",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "sample_interval_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Sample Interval Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "target": {
+          "const": "next_mid_return_bps",
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "policy_id",
+        "target",
+        "horizons_ns",
+        "sample_interval_ns",
+        "maximum_label_delay_ns"
+      ],
+      "title": "HorizonFamilyPolicy",
+      "type": "object"
+    },
+    "HorizonFeasibilityCandidateReport": {
+      "additionalProperties": false,
+      "description": "Exact plan, matrix lineage, and optimistic audit for one frozen horizon.",
+      "properties": {
+        "horizon_ns": {
+          "exclusiveMinimum": 0,
+          "maximum": 300000000000,
+          "title": "Horizon Ns",
+          "type": "integer"
+        },
+        "matrix_manifest": {
+          "$ref": "#/$defs/ForecastMatrixManifest"
+        },
+        "target_feasibility": {
+          "$ref": "#/$defs/TargetFeasibilityReport"
+        },
+        "validation_plan": {
+          "$ref": "#/$defs/ValidationPlan"
+        },
+        "validation_policy": {
+          "$ref": "#/$defs/ValidationPolicy"
+        }
+      },
+      "required": [
+        "horizon_ns",
+        "validation_policy",
+        "validation_plan",
+        "matrix_manifest",
+        "target_feasibility"
+      ],
+      "title": "HorizonFeasibilityCandidateReport",
+      "type": "object"
+    },
     "ModelArtifactManifest": {
       "additionalProperties": false,
       "properties": {
@@ -1313,6 +1740,15 @@
         "rolled_back"
       ],
       "title": "PromotionStage",
+      "type": "string"
+    },
+    "QueueModel": {
+      "enum": [
+        "log_probability",
+        "power_probability",
+        "risk_adverse"
+      ],
+      "title": "QueueModel",
       "type": "string"
     },
     "RandomizedLabelControlPolicy": {
@@ -1853,6 +2289,31 @@
       "title": "TargetFeasibilitySliceMetrics",
       "type": "object"
     },
+    "TimeWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "end_ts_ns": {
+          "exclusiveMinimum": 0,
+          "title": "End Ts Ns",
+          "type": "integer"
+        },
+        "role": {
+          "$ref": "#/$defs/WindowRole"
+        },
+        "start_ts_ns": {
+          "minimum": 0,
+          "title": "Start Ts Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "role",
+        "start_ts_ns",
+        "end_ts_ns"
+      ],
+      "title": "TimeWindow",
+      "type": "object"
+    },
     "TrialResult": {
       "additionalProperties": false,
       "properties": {
@@ -1879,6 +2340,174 @@
       ],
       "title": "TrialResult",
       "type": "object"
+    },
+    "ValidationPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "dataset_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Dataset Sha256",
+          "type": "string"
+        },
+        "final_holdout": {
+          "$ref": "#/$defs/TimeWindow"
+        },
+        "folds": {
+          "items": {
+            "$ref": "#/$defs/WalkForwardFold"
+          },
+          "minItems": 1,
+          "title": "Folds",
+          "type": "array"
+        },
+        "label_horizon_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Label Horizon Ns",
+          "type": "integer"
+        },
+        "policy_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 2,
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_sha256",
+        "dataset_sha256",
+        "label_horizon_ns",
+        "folds",
+        "final_holdout"
+      ],
+      "title": "ValidationPlan",
+      "type": "object"
+    },
+    "ValidationPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "embargo_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Embargo Ns",
+          "type": "integer"
+        },
+        "final_holdout_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Final Holdout Ns",
+          "type": "integer"
+        },
+        "label_horizon_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Label Horizon Ns",
+          "type": "integer"
+        },
+        "minimum_folds": {
+          "default": 3,
+          "minimum": 1,
+          "title": "Minimum Folds",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "purge_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Purge Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "step_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Step Ns",
+          "type": "integer"
+        },
+        "test_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Test Ns",
+          "type": "integer"
+        },
+        "train_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Train Ns",
+          "type": "integer"
+        },
+        "validation_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Validation Ns",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_id",
+        "train_ns",
+        "purge_ns",
+        "validation_ns",
+        "embargo_ns",
+        "test_ns",
+        "step_ns",
+        "final_holdout_ns",
+        "label_horizon_ns"
+      ],
+      "title": "ValidationPolicy",
+      "type": "object"
+    },
+    "WalkForwardFold": {
+      "additionalProperties": false,
+      "properties": {
+        "embargo": {
+          "$ref": "#/$defs/TimeWindow"
+        },
+        "fold": {
+          "minimum": 0,
+          "title": "Fold",
+          "type": "integer"
+        },
+        "purge": {
+          "$ref": "#/$defs/TimeWindow"
+        },
+        "test": {
+          "$ref": "#/$defs/TimeWindow"
+        },
+        "train": {
+          "$ref": "#/$defs/TimeWindow"
+        },
+        "validation": {
+          "$ref": "#/$defs/TimeWindow"
+        }
+      },
+      "required": [
+        "fold",
+        "train",
+        "purge",
+        "validation",
+        "embargo",
+        "test"
+      ],
+      "title": "WalkForwardFold",
+      "type": "object"
+    },
+    "WindowRole": {
+      "enum": [
+        "train",
+        "purge",
+        "validation",
+        "embargo",
+        "walk_forward_test",
+        "final_holdout"
+      ],
+      "title": "WindowRole",
+      "type": "string"
     }
   },
   "anyOf": [
@@ -1905,6 +2534,12 @@
     },
     {
       "$ref": "#/$defs/TargetFeasibilityReport"
+    },
+    {
+      "$ref": "#/$defs/HorizonFamilyPolicy"
+    },
+    {
+      "$ref": "#/$defs/HorizonFamilyFeasibilityReport"
     },
     {
       "$ref": "#/$defs/NegativeControlReport"

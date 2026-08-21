@@ -166,6 +166,49 @@ and calibrate costs, or predeclare and seal a different horizon or
 passive-maker target under a new validation plan. Do not change thresholds
 after this result, and do not open the final holdout.
 
+### Audit a predeclared scalping horizon family
+
+Do not choose a horizon after inspecting its labels. Freeze the complete family
+in `configs/research/horizon-family-v1.json`, then seal and audit every member in
+one command:
+
+```bash
+uv run aqt-research audit-horizon-family \
+  --features data/research/features/BTC.parquet \
+  --feature-manifest data/research/features/BTC.parquet.manifest.json \
+  --artifact-root state/research/horizon-family-v1/artifacts \
+  --policy configs/research/horizon-family-v1.json \
+  --validation-template data/research/plans/validation-template.toml \
+  --control-policy configs/research/controls-v2.json \
+  --scenario configs/backtest/baseline.toml \
+  --output state/research/horizon-family-v1/report.json
+```
+
+The checked policy declares 30, 60, 120, 180, and 300 seconds. The command
+derives a separately hashed validation policy and plan for each horizon,
+expands purge to at least the label horizon, preserves the same final-holdout
+window, writes a physically sealed development matrix, and runs the existing
+training-only target-feasibility audit. The family report embeds every plan,
+matrix manifest, and feasibility report. Its fixed role is
+`predeclared_diagnostic_only`; it has no selected candidate, includes no final-
+holdout rows, and performs no model training. Exit `3` is a valid all-ineligible
+or uncalibrated result, while exit `2` means the audit itself failed.
+
+The retained 2026-08-21 run was reproduced byte-for-byte; its canonical report
+SHA-256 begins `32b747ce7bcd` and ends `19e319656b48f610c`. Read the exact digest
+from the command output rather than copying a value from documentation.
+Every fold at every horizon failed at least one necessary condition. At 300
+seconds the aggregate ceiling had 287 maximum non-overlapping observations per
+fold and positive maximum net return in all four folds, so longer holding did
+improve gross opportunity. It did not repair regime coverage: normal volatility
+had no positive post-cost label in folds 0 and 1, high volatility was absent
+from folds 0 through 2, and fold 3 contained only 28 high-volatility rows with a
+maximum of one non-overlapping observation against the required 20 trades.
+Therefore the next admissible input is a materially longer, independently
+captured regime-diverse dataset plus reviewed cost calibration—not another
+model, a post-hoc horizon, or relaxed thresholds. The final holdout remains
+sealed.
+
 ## 3. Run bounded fold research
 
 First generate the no-signal control from immutable feature evidence. Do not

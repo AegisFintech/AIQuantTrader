@@ -13,11 +13,15 @@ flowchart LR
     FEATURES --> SCALPER[Order-flow scalper kernel]
     FEATURES --> PARQUET[Immutable feature Parquet plus manifest]
     PARQUET --> MATRIX[Plan-bound development matrix without holdout rows]
+    PARQUET --> FAMILY[Predeclared no-selection scalping horizon audit]
     PARQUET --> NOSIGNAL[Bounded neutral-alpha kernel replay]
 
     DATA --> REPLAY[Offline tick replay]
     REPLAY --> KERNEL
     MATRIX --> FEAS[Training-only optimistic target-feasibility ceiling]
+    FAMILY --> MATRIX
+    FAMILY --> FEAS
+    POLICY --> FAMILY
     FEAS --> SEARCH[Bounded validation-only search]
     POLICY --> FEAS
     SEARCH --> LGB[LightGBM reference]
