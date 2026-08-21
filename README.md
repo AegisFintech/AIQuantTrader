@@ -271,6 +271,7 @@ uv run aqt-research feature-replay --help
 uv run aqt-research build-matrix --help
 uv run aqt-research audit-target-feasibility --help
 uv run aqt-research audit-horizon-family --help
+uv run aqt-research data-readiness --help
 uv run aqt-research run-no-signal-control --help
 uv run aqt-research run-search --help
 uv run aqt-research validate-model --help
@@ -309,6 +310,11 @@ scalping family from `configs/research/horizon-family-v1.json`, derives a
 horizon-correct purge and plan for every member, preserves one holdout boundary,
 and runs the same oracle without fitting or selecting a model. It reports all
 members; it cannot nominate a winning horizon.
+`data-readiness` derives the full capture requirement from the frozen
+walk-forward policy, gates on the latest continuous normalized chain, and
+projects whether disk headroom can retain the remaining evidence. The
+monitoring profile publishes that status to Prometheus/Grafana without reading
+labels, fitting models, or granting training or promotion authority.
 
 ## Paper trading
 

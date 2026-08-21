@@ -1,0 +1,16 @@
+schema_version = 1
+policy_id = "btc-mainnet-research-data-readiness-v1"
+maximum_contiguous_gap_ns = 30000000000
+maximum_latest_segment_age_ns = 7200000000000
+maximum_excluded_frames = 0
+minimum_free_bytes = 5368709120
+storage_projection_safety_bps = 12500
+
+[data_quality_policy]
+schema_version = 1
+max_classified_gap_ns = 30000000000
+max_schema_errors = 0
+max_crossed_books = 0
+max_timestamp_regressions = 0
+max_duplicates = 0
+reject_unexplained_gaps = true

@@ -73,6 +73,8 @@ def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path
     assert "FROM builder AS research-builder" in dockerfile
     assert "uv sync --frozen --no-dev --no-editable --extra research" in dockerfile
     assert "FROM runtime-base AS research" in dockerfile
+    assert "FROM runtime-base AS readiness" in dockerfile
+    assert 'PYTHONPATH="/opt/aiquanttrader/src"' in dockerfile
     assert 'ENTRYPOINT ["aqt-research"]' in dockerfile
     assert "read_only: true" in compose
     assert 'user: "65532:65532"' in compose
@@ -89,6 +91,18 @@ def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path
     assert "from aiquanttrader" not in lightweight_probe
     assert "import aiquanttrader" not in lightweight_probe
     assert "pydantic" not in lightweight_probe
+    readiness = compose.split("  research-readiness:", 1)[1].split("  prometheus:", 1)[0]
+    assert 'profiles: ["monitoring"]' in readiness
+    assert "native-data:/var/lib/aiquanttrader/data:ro" in readiness
+    assert "aiquanttrader.research_readiness_healthcheck" in readiness
+    assert "target: readiness" in readiness
+    assert "9114:9114" in readiness
+    readiness_probe = (
+        project_root / "src" / "aiquanttrader" / "research_readiness_healthcheck.py"
+    ).read_text(encoding="utf-8")
+    assert "from aiquanttrader" not in readiness_probe
+    assert "import aiquanttrader" not in readiness_probe
+    assert "pydantic" not in readiness_probe
 
 
 def test_execution_and_control_wallets_are_process_isolated(project_root: Path) -> None:

@@ -37,6 +37,45 @@ docker run --rm --read-only --tmpfs /tmp:rw,noexec,nosuid,size=256m \
 Mount admitted data read-only and dedicated research model/state paths only for
 real jobs. Do not reuse trading-node or sentinel secret mounts.
 
+## 0. Wait for continuous data readiness
+
+The checked production validation policy needs 6,051,900 seconds (70.045 days)
+of one latest admissible chain. Inspect the deployment volume without fitting a
+model or reading the final holdout:
+
+```bash
+uv run aqt-research data-readiness \
+  --data-root /var/lib/aiquanttrader/data \
+  --policy configs/research/data-readiness-v1.toml \
+  --validation-policy configs/backtest/validation-v1.toml \
+  --output state/research/data-readiness-report.json
+```
+
+Exit `0` means the data prerequisites pass; exit `3` means evidence is still
+collecting. Invalid inputs return `2`. The report shows the latest and longest
+continuous spans, normalization lineage, excluded frames, age, disk reserve,
+observed storage rate, required additional capacity, and each failed gate. It
+always records `model_training_authorized=false` and
+`production_promotion_authorized=false`.
+
+The monitoring profile runs the same evaluator every 60 seconds, stores its
+atomic state at `state/research/data-readiness.json`, and exposes metrics on
+`127.0.0.1:9114`:
+
+```bash
+docker compose --profile monitoring up --build -d \
+  research-readiness prometheus grafana
+docker compose ps research-readiness
+curl --fail http://127.0.0.1:9114/metrics
+```
+
+Docker health verifies only that the evaluator is fresh. In Grafana, the
+Research Governance dashboard separately shows `COLLECTING` or `AUDIT READY`,
+completion, required time, storage projection, and individual gates. Never
+delete retained data, weaken continuity, reduce folds, or shorten the sealed
+holdout merely to turn this panel green. Expand storage through a reviewed
+operator change if projected capacity fails.
+
 ## 1. Build deterministic features
 
 The input event hash must match the Phase 5 dataset manifest. The output path

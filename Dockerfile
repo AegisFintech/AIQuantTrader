@@ -35,10 +35,29 @@ RUN groupadd --gid 65532 aiquanttrader \
     && chown -R 65532:65532 /var/lib/aiquanttrader
 
 COPY --chown=65532:65532 configs /etc/aiquanttrader-native
-COPY --from=builder --chown=65532:65532 /build/uv.lock /opt/aiquanttrader/release/uv.lock
+COPY --chown=65532:65532 uv.lock /opt/aiquanttrader/release/uv.lock
 
 USER 65532:65532
 WORKDIR /var/lib/aiquanttrader
+
+FROM runtime-base AS readiness
+
+USER root
+RUN python -m pip install --no-cache-dir \
+        annotated-types==0.8.0 \
+        prometheus-client==0.25.0 \
+        pydantic==2.13.4 \
+        pydantic-core==2.46.4 \
+        typing-extensions==4.16.0 \
+        typing-inspection==0.4.2
+
+COPY --chown=65532:65532 src /opt/aiquanttrader/src
+
+ENV PYTHONPATH="/opt/aiquanttrader/src"
+
+USER 65532:65532
+ENTRYPOINT ["python", "-m", "aiquanttrader.research_readiness_cli"]
+CMD ["--help"]
 
 FROM runtime-base AS research
 
@@ -67,7 +86,7 @@ RUN /usr/local/bin/python -m pip --python /opt/aiquanttrader/.venv install \
         --no-cache-dir --no-deps /tmp/aiquanttrader-0.1.0-py3-none-any.whl \
     && rm /tmp/aiquanttrader-0.1.0-py3-none-any.whl
 
-EXPOSE 9108 9109 9110 9111 9112 9113
+EXPOSE 9108 9109 9110 9111 9112 9113 9114
 
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
     CMD ["aqt-native", "healthcheck", "--url", "http://127.0.0.1:9108/health/ready"]

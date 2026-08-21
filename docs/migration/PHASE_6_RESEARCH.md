@@ -23,6 +23,9 @@ admitted data -> causal labels -> bounded validation search -> native model
   -> semantic-regime and post-cost replay -> randomized-label/no-signal controls
   -> champion-challenger gates
   -> append-only stage events -> AWAITING_APPROVAL -> human-only boundary
+
+continuous normalized capture -> latest-chain and storage readiness
+  -> admitted data prerequisite only (never a training trigger)
 ```
 
 The feature engine and strategy kernels own no network, storage, clock, risk,
@@ -35,17 +38,19 @@ in paper, shadow, and the disabled-by-default exchange pipeline.
 
 ```text
 native/
-|- Dockerfile (separate dependency-complete, non-root `research` target)
+|- Dockerfile (separate full `research` and minimal `readiness` targets)
 |- configs/features/microstructure-v1.toml
 |- configs/strategies/{avellaneda-stoikov,order-flow-scalper}-v1.toml
 |- configs/research/search-{lightgbm,xgboost,catboost}-v1.json
 |- configs/research/{promotion-v1,controls-v2}.json
+|- configs/research/data-readiness-v1.toml
 |- schemas/{features,research}.schema.json
 |- src/aiquanttrader_native/features/{models,engine,storage}.py
 |- src/aiquanttrader_native/strategies/{common,config,market_maker,scalper}.py
 |- src/aiquanttrader_native/research/
 |  |- {models,model_adapters,artifacts,search,controls}.py
-|  `- {drift,governance,registry,metrics,cli}.py
+|  `- {drift,governance,registry,readiness,metrics,cli}.py
+|- compose.yaml (`research-readiness`, read-only data mount, port 9114)
 |- observability/grafana/dashboards/research.json
 `- tests/{unit,integration}/test_{feature,research,strategy,model}*.py
 
@@ -54,6 +59,23 @@ docs/
 |- migration/PHASE_6_RESEARCH.md
 `- operations/RESEARCH_RUNBOOK.md
 ```
+
+## Continuous data prerequisite
+
+The readiness monitor derives its required range from the frozen validation
+policy: train, purge, validation, embargo, test, fold steps, and final holdout.
+It gates on the latest chain whose gaps and quality satisfy dataset admission,
+not the first/last timestamps or an older best chain. It also projects whether
+free bytes above the 5 GiB reserve can retain the remaining range. The service
+uses only manifest parsing and file metadata on each poll; final research
+sealing still performs full cryptographic verification.
+
+Service health and data readiness are separate. A fresh service remains
+healthy while it reports `COLLECTING`. Even `AUDIT READY` only permits an
+immutable no-selection horizon audit; typed output fixes model-training and
+production-promotion authority to false. Design rationale and alternatives are
+recorded in
+[`ADR 0011`](../adr/0011-continuous-research-data-readiness.md).
 
 ## Feature contracts and causality
 
@@ -328,6 +350,8 @@ Automated now:
   approval ceiling;
 - strict schemas, typing, pinned research dependencies, dashboard JSON, and
   native quality gates;
+- typed latest-chain duration, normalization, freshness, and projected-storage
+  readiness with an independent lightweight health probe and Grafana gates;
 - a separate non-root research container target with no wallet mounts or
   production approval capability.
 

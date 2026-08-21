@@ -24,6 +24,9 @@ scrape_configs:
   - job_name: aiquanttrader-paper
     static_configs:
       - targets: ["paper-trader:9112"]
+  - job_name: aiquanttrader-research-readiness
+    static_configs:
+      - targets: ["research-readiness:9114"]
   - job_name: aiquanttrader-shadow-gateway
     static_configs:
       - targets: ["shadow-gateway:9109"]

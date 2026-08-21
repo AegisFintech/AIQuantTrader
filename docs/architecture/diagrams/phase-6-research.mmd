@@ -3,8 +3,13 @@ flowchart LR
         HFT[HftBacktest local-arrival states]
         NT[Nautilus market-data objects]
         DATA[Manifest-admitted Tardis and local data]
+        RAW[Continuous raw and normalized BTC capture]
         POLICY[Frozen validation and promotion policies]
     end
+
+    RAW --> READY[Latest-chain duration quality and storage readiness]
+    POLICY --> READY
+    READY -->|prerequisite only| DATA
 
     HFT --> KERNEL[Shared causal market-state contract]
     NT --> KERNEL
@@ -50,6 +55,7 @@ flowchart LR
     FEATURES --> DRIFT[Feature drift report]
     DRIFT --> GATES
     GATES --> METRICS[Bounded Prometheus metrics]
+    READY --> METRICS
     METRICS --> DASH[Research governance dashboard]
 
     classDef hard fill:#5b1a1a,color:#fff,stroke:#ff6b6b,stroke-width:2px;

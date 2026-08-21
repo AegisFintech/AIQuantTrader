@@ -49,8 +49,10 @@ from aiquanttrader.research.models import (
     SearchPolicy,
     TargetFeasibilityReport,
 )
+from aiquanttrader.research.readiness import evaluate_data_readiness, load_readiness_inputs
 from aiquanttrader.research.registry import ResearchRegistry
 from aiquanttrader.research.search import randomized_label_control, run_fold_retraining
+from aiquanttrader.research_readiness_cli import readiness_summary, serve_data_readiness
 from aiquanttrader.strategies.config import load_scalper_config
 
 
@@ -97,6 +99,25 @@ def _parser() -> argparse.ArgumentParser:
     horizon_family.add_argument("--control-policy", type=Path, required=True)
     horizon_family.add_argument("--scenario", type=Path, required=True)
     horizon_family.add_argument("--output", type=Path, required=True)
+
+    readiness = commands.add_parser(
+        "data-readiness", help="evaluate retained normalized data without fitting models"
+    )
+    readiness.add_argument("--data-root", type=Path, required=True)
+    readiness.add_argument("--policy", type=Path, required=True)
+    readiness.add_argument("--validation-policy", type=Path, required=True)
+    readiness.add_argument("--output", type=Path, required=True)
+
+    serve_readiness = commands.add_parser(
+        "serve-data-readiness", help="continuously publish readiness state and metrics"
+    )
+    serve_readiness.add_argument("--data-root", type=Path, required=True)
+    serve_readiness.add_argument("--state-root", type=Path, required=True)
+    serve_readiness.add_argument("--policy", type=Path, required=True)
+    serve_readiness.add_argument("--validation-policy", type=Path, required=True)
+    serve_readiness.add_argument("--poll-seconds", type=int, default=60)
+    serve_readiness.add_argument("--metrics-host", default="0.0.0.0")  # nosec B104
+    serve_readiness.add_argument("--metrics-port", type=int, default=9114)
 
     no_signal = commands.add_parser("run-no-signal-control")
     no_signal.add_argument("--features", type=Path, required=True)
@@ -313,6 +334,23 @@ def main(argv: Sequence[str] | None = None) -> int:
                 },
             )
             return 0 if horizon_report.passed_horizons_ns else 3
+        if args.command == "data-readiness":
+            readiness_policy, validation_policy = load_readiness_inputs(
+                args.policy, args.validation_policy
+            )
+            readiness_report = evaluate_data_readiness(
+                data_root=args.data_root,
+                policy=readiness_policy,
+                validation_policy=validation_policy,
+            )
+            atomic_write_bytes(args.output, readiness_report.canonical_bytes() + b"\n")
+            _write_output(
+                None,
+                {**readiness_summary(readiness_report), "report": str(args.output)},
+            )
+            return 0 if readiness_report.ready_for_horizon_audit else 3
+        if args.command == "serve-data-readiness":
+            return serve_data_readiness(args)
         if args.command == "run-no-signal-control":
             no_signal_report = run_no_signal_control(
                 feature_path=args.features,
