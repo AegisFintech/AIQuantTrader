@@ -1,4 +1,4 @@
-FROM python:3.12.13-slim-bookworm@sha256:d50fb7611f86d04a3b0471b46d7557818d88983fc3136726336b2a4c657aa30b AS builder
+FROM python:3.12.13-slim-bookworm@sha256:d50fb7611f86d04a3b0471b46d7557818d88983fc3136726336b2a4c657aa30b AS build-base
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
     UV_COMPILE_BYTECODE=1 \
@@ -11,9 +11,15 @@ RUN python -m pip install --no-cache-dir uv==0.11.29
 
 COPY pyproject.toml uv.lock README.md ./
 
+FROM build-base AS builder
+
 RUN uv sync --frozen --no-dev --no-editable --no-install-project
 
-FROM builder AS package-builder
+FROM build-base AS paper-builder
+
+RUN uv sync --frozen --only-group paper-runtime --no-editable --no-install-project
+
+FROM build-base AS package-builder
 
 COPY src ./src
 
@@ -75,6 +81,21 @@ RUN /usr/local/bin/python -m pip --python /opt/aiquanttrader/.venv install \
 
 USER 65532:65532
 ENTRYPOINT ["aqt-research"]
+CMD ["--help"]
+
+FROM runtime-base AS paper
+
+COPY --from=paper-builder --chown=65532:65532 /opt/aiquanttrader/.venv /opt/aiquanttrader/.venv
+COPY --from=package-builder --chown=65532:65532 /build/dist/aiquanttrader-0.1.0-py3-none-any.whl /tmp/aiquanttrader-0.1.0-py3-none-any.whl
+
+RUN /usr/local/bin/python -m pip --python /opt/aiquanttrader/.venv install \
+        --no-cache-dir --no-deps /tmp/aiquanttrader-0.1.0-py3-none-any.whl \
+    && rm /tmp/aiquanttrader-0.1.0-py3-none-any.whl
+
+EXPOSE 9112
+
+USER 65532:65532
+ENTRYPOINT ["aqt-paper"]
 CMD ["--help"]
 
 FROM runtime-base AS runtime

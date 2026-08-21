@@ -136,10 +136,11 @@ services:
 
   paper-trader:
     profiles: ["paper"]
-    image: aiquanttrader-native-foundation:0.1.0
+    image: aiquanttrader-native-paper:0.1.0
     build:
       context: .
       dockerfile: Dockerfile
+      target: paper
     entrypoint: ["aqt-paper"]
     command:
       - run
