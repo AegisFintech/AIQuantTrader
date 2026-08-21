@@ -214,6 +214,62 @@ services:
         max-file: "3"
         max-size: 10m
 
+  research-readiness:
+    profiles: ["monitoring"]
+    image: aiquanttrader-native-readiness:0.1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: readiness
+    entrypoint: ["python", "-m", "aiquanttrader.research_readiness_cli"]
+    command:
+      - serve
+      - --data-root
+      - /var/lib/aiquanttrader/data
+      - --state-root
+      - /var/lib/aiquanttrader/state
+      - --policy
+      - /etc/aiquanttrader-native/research/data-readiness-v1.toml
+      - --validation-policy
+      - /etc/aiquanttrader-native/backtest/validation-v1.toml
+      - --poll-seconds
+      - "60"
+      - --metrics-port
+      - "9114"
+    user: "65532:65532"
+    read_only: true
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 15s
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    volumes:
+      - native-data:/var/lib/aiquanttrader/data:ro
+      - native-state:/var/lib/aiquanttrader/state
+    ports:
+      - "127.0.0.1:9114:9114"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -m
+        - aiquanttrader.research_readiness_healthcheck
+        - --state-root
+        - /var/lib/aiquanttrader/state
+        - --stale-after-seconds
+        - "180"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-file: "3"
+        max-size: 10m
+
   prometheus:
     profiles: ["monitoring"]
     image: prom/prometheus:v3.13.0-distroless@sha256:f3b6aae627d96e7ad8256cdf6de5953247735117c6f577383fadb42efeeea7bc

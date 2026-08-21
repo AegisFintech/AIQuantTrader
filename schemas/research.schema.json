@@ -93,6 +93,54 @@
       "title": "ChampionChallengerReport",
       "type": "object"
     },
+    "DataQualityPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "max_classified_gap_ns": {
+          "default": 30000000000,
+          "minimum": 0,
+          "title": "Max Classified Gap Ns",
+          "type": "integer"
+        },
+        "max_crossed_books": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Max Crossed Books",
+          "type": "integer"
+        },
+        "max_duplicates": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Max Duplicates",
+          "type": "integer"
+        },
+        "max_schema_errors": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Max Schema Errors",
+          "type": "integer"
+        },
+        "max_timestamp_regressions": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Max Timestamp Regressions",
+          "type": "integer"
+        },
+        "reject_unexplained_gaps": {
+          "default": true,
+          "title": "Reject Unexplained Gaps",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "title": "DataQualityPolicy",
+      "type": "object"
+    },
     "DriftReport": {
       "additionalProperties": false,
       "properties": {
@@ -1256,6 +1304,27 @@
       "title": "HorizonFeasibilityCandidateReport",
       "type": "object"
     },
+    "MarketDataNamedCount": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "name": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "count"
+      ],
+      "title": "MarketDataNamedCount",
+      "type": "object"
+    },
     "ModelArtifactManifest": {
       "additionalProperties": false,
       "properties": {
@@ -1819,6 +1888,417 @@
         "forecast_economic"
       ],
       "title": "ResearchControlPolicy",
+      "type": "object"
+    },
+    "ResearchDataReadinessGate": {
+      "additionalProperties": false,
+      "properties": {
+        "actual": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Actual",
+          "type": "string"
+        },
+        "gate": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Gate",
+          "type": "string"
+        },
+        "passed": {
+          "title": "Passed",
+          "type": "boolean"
+        },
+        "required": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Required",
+          "type": "string"
+        }
+      },
+      "required": [
+        "gate",
+        "passed",
+        "actual",
+        "required"
+      ],
+      "title": "ResearchDataReadinessGate",
+      "type": "object"
+    },
+    "ResearchDataReadinessPolicy": {
+      "additionalProperties": false,
+      "description": "Frozen gates for deciding when retained public data can be sealed for research.",
+      "properties": {
+        "data_quality_policy": {
+          "$ref": "#/$defs/DataQualityPolicy"
+        },
+        "maximum_contiguous_gap_ns": {
+          "minimum": 0,
+          "title": "Maximum Contiguous Gap Ns",
+          "type": "integer"
+        },
+        "maximum_excluded_frames": {
+          "minimum": 0,
+          "title": "Maximum Excluded Frames",
+          "type": "integer"
+        },
+        "maximum_latest_segment_age_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Maximum Latest Segment Age Ns",
+          "type": "integer"
+        },
+        "minimum_free_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Free Bytes",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "storage_projection_safety_bps": {
+          "default": 12500,
+          "maximum": 30000,
+          "minimum": 10000,
+          "title": "Storage Projection Safety Bps",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_id",
+        "maximum_contiguous_gap_ns",
+        "maximum_latest_segment_age_ns",
+        "maximum_excluded_frames",
+        "minimum_free_bytes",
+        "data_quality_policy"
+      ],
+      "title": "ResearchDataReadinessPolicy",
+      "type": "object"
+    },
+    "ResearchDataReadinessReport": {
+      "additionalProperties": false,
+      "description": "Content-addressed status of retained data; it never authorizes model training.",
+      "properties": {
+        "completion_bps": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Completion Bps",
+          "type": "integer"
+        },
+        "contiguous_chain_count": {
+          "minimum": 0,
+          "title": "Contiguous Chain Count",
+          "type": "integer"
+        },
+        "continuity_break_count": {
+          "minimum": 0,
+          "title": "Continuity Break Count",
+          "type": "integer"
+        },
+        "data_bytes": {
+          "minimum": 0,
+          "title": "Data Bytes",
+          "type": "integer"
+        },
+        "disk_free_bytes": {
+          "minimum": 0,
+          "title": "Disk Free Bytes",
+          "type": "integer"
+        },
+        "estimated_additional_bytes_required": {
+          "minimum": 0,
+          "title": "Estimated Additional Bytes Required",
+          "type": "integer"
+        },
+        "gates": {
+          "items": {
+            "$ref": "#/$defs/ResearchDataReadinessGate"
+          },
+          "minItems": 1,
+          "title": "Gates",
+          "type": "array"
+        },
+        "generated_ts_ns": {
+          "minimum": 0,
+          "title": "Generated Ts Ns",
+          "type": "integer"
+        },
+        "invalid_binding_count": {
+          "minimum": 0,
+          "title": "Invalid Binding Count",
+          "type": "integer"
+        },
+        "invalid_manifest_count": {
+          "minimum": 0,
+          "title": "Invalid Manifest Count",
+          "type": "integer"
+        },
+        "latest_chain_dataset_admitted": {
+          "title": "Latest Chain Dataset Admitted",
+          "type": "boolean"
+        },
+        "latest_chain_excluded_frames": {
+          "minimum": 0,
+          "title": "Latest Chain Excluded Frames",
+          "type": "integer"
+        },
+        "latest_chain_normalized_events": {
+          "minimum": 0,
+          "title": "Latest Chain Normalized Events",
+          "type": "integer"
+        },
+        "latest_chain_quality_issues": {
+          "items": {
+            "$ref": "#/$defs/MarketDataNamedCount"
+          },
+          "title": "Latest Chain Quality Issues",
+          "type": "array"
+        },
+        "latest_chain_raw_records": {
+          "minimum": 0,
+          "title": "Latest Chain Raw Records",
+          "type": "integer"
+        },
+        "latest_chain_segment_count": {
+          "minimum": 0,
+          "title": "Latest Chain Segment Count",
+          "type": "integer"
+        },
+        "latest_contiguous_ended_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latest Contiguous Ended Ts Ns"
+        },
+        "latest_contiguous_span_ns": {
+          "minimum": 0,
+          "title": "Latest Contiguous Span Ns",
+          "type": "integer"
+        },
+        "latest_contiguous_started_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latest Contiguous Started Ts Ns"
+        },
+        "latest_segment_age_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latest Segment Age Ns"
+        },
+        "longest_contiguous_span_ns": {
+          "minimum": 0,
+          "title": "Longest Contiguous Span Ns",
+          "type": "integer"
+        },
+        "missing_normalized_file_count": {
+          "minimum": 0,
+          "title": "Missing Normalized File Count",
+          "type": "integer"
+        },
+        "model_training_authorized": {
+          "const": false,
+          "default": false,
+          "title": "Model Training Authorized",
+          "type": "boolean"
+        },
+        "normalized_manifest_count": {
+          "minimum": 0,
+          "title": "Normalized Manifest Count",
+          "type": "integer"
+        },
+        "orphan_normalized_segment_count": {
+          "minimum": 0,
+          "title": "Orphan Normalized Segment Count",
+          "type": "integer"
+        },
+        "overlap_count": {
+          "minimum": 0,
+          "title": "Overlap Count",
+          "type": "integer"
+        },
+        "paired_segment_count": {
+          "minimum": 0,
+          "title": "Paired Segment Count",
+          "type": "integer"
+        },
+        "policy": {
+          "$ref": "#/$defs/ResearchDataReadinessPolicy"
+        },
+        "production_promotion_authorized": {
+          "const": false,
+          "default": false,
+          "title": "Production Promotion Authorized",
+          "type": "boolean"
+        },
+        "raw_manifest_count": {
+          "minimum": 0,
+          "title": "Raw Manifest Count",
+          "type": "integer"
+        },
+        "ready_for_horizon_audit": {
+          "title": "Ready For Horizon Audit",
+          "type": "boolean"
+        },
+        "remaining_validation_span_ns": {
+          "minimum": 0,
+          "title": "Remaining Validation Span Ns",
+          "type": "integer"
+        },
+        "report_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Report Id",
+          "type": "string"
+        },
+        "required_validation_span_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Required Validation Span Ns",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "storage_headroom_bytes": {
+          "title": "Storage Headroom Bytes",
+          "type": "integer"
+        },
+        "storage_rate_bytes_per_day": {
+          "minimum": 0,
+          "title": "Storage Rate Bytes Per Day",
+          "type": "integer"
+        },
+        "unpaired_raw_segment_count": {
+          "minimum": 0,
+          "title": "Unpaired Raw Segment Count",
+          "type": "integer"
+        },
+        "validation_policy": {
+          "$ref": "#/$defs/ValidationPolicy"
+        }
+      },
+      "required": [
+        "report_id",
+        "generated_ts_ns",
+        "policy",
+        "validation_policy",
+        "required_validation_span_ns",
+        "raw_manifest_count",
+        "normalized_manifest_count",
+        "paired_segment_count",
+        "invalid_manifest_count",
+        "invalid_binding_count",
+        "unpaired_raw_segment_count",
+        "orphan_normalized_segment_count",
+        "missing_normalized_file_count",
+        "overlap_count",
+        "continuity_break_count",
+        "contiguous_chain_count",
+        "latest_contiguous_span_ns",
+        "longest_contiguous_span_ns",
+        "remaining_validation_span_ns",
+        "completion_bps",
+        "latest_chain_segment_count",
+        "latest_chain_raw_records",
+        "latest_chain_normalized_events",
+        "latest_chain_excluded_frames",
+        "latest_chain_quality_issues",
+        "latest_chain_dataset_admitted",
+        "data_bytes",
+        "disk_free_bytes",
+        "storage_rate_bytes_per_day",
+        "estimated_additional_bytes_required",
+        "storage_headroom_bytes",
+        "gates",
+        "ready_for_horizon_audit"
+      ],
+      "title": "ResearchDataReadinessReport",
+      "type": "object"
+    },
+    "ResearchDataReadinessState": {
+      "additionalProperties": false,
+      "properties": {
+        "heartbeat_ts_ns": {
+          "minimum": 0,
+          "title": "Heartbeat Ts Ns",
+          "type": "integer"
+        },
+        "last_error_code": {
+          "anyOf": [
+            {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Error Code"
+        },
+        "report": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResearchDataReadinessReport"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "starting",
+            "running",
+            "stopped",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "heartbeat_ts_ns"
+      ],
+      "title": "ResearchDataReadinessState",
       "type": "object"
     },
     "ResearchExperimentManifest": {
@@ -2540,6 +3020,15 @@
     },
     {
       "$ref": "#/$defs/HorizonFamilyFeasibilityReport"
+    },
+    {
+      "$ref": "#/$defs/ResearchDataReadinessPolicy"
+    },
+    {
+      "$ref": "#/$defs/ResearchDataReadinessReport"
+    },
+    {
+      "$ref": "#/$defs/ResearchDataReadinessState"
     },
     {
       "$ref": "#/$defs/NegativeControlReport"

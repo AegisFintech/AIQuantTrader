@@ -161,12 +161,16 @@ risk limits, account/vault, wallet roles, capital, expiry, and rollback target.
 
 ## Observability
 
-Metrics cover market-data integrity and freshness, feature readiness, decision
-and execution latency, risk denials, inventory, order/fill quality, markouts,
-PnL attribution, drift, admission, renewal, sentinel continuity, and kill
-state. Node Exporter supplies host CPU, memory, disk, network, uptime, and load.
+Metrics cover market-data integrity and freshness, continuous research-data
+readiness and projected retention capacity, feature readiness, decision and
+execution latency, risk denials, inventory, order/fill quality, markouts, PnL
+attribution, drift, admission, renewal, sentinel continuity, and kill state.
+Node Exporter supplies host CPU, memory, disk, network, uptime, and load.
 Grafana dashboards are provisioned from
 `observability/grafana/dashboards/`.
+The read-only `research-readiness` service exposes latest-chain progress and
+gate state on port 9114. Its Docker health reports evaluator freshness rather
+than requiring the expected multi-week capture gate to have passed.
 
 ## Operational entry points
 

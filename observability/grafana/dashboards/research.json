@@ -4,8 +4,94 @@
   "panels": [
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"min": 0, "max": 1, "unit": "percentunit"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 0},
+      "id": 10,
+      "targets": [{"expr": "aqt_research_data_completion_ratio", "refId": "A"}],
+      "title": "Validation data completion",
+      "type": "gauge"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 0},
+      "id": 11,
+      "targets": [
+        {
+          "expr": "aqt_research_data_capture_span_seconds{scope=~\"latest|required\"}",
+          "legendFormat": "{{scope}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Contiguous vs required span",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 0},
+      "id": 12,
+      "targets": [
+        {
+          "expr": "clamp_min(aqt_research_data_capture_span_seconds{scope=\"required\"} - aqt_research_data_capture_span_seconds{scope=\"latest\"}, 0)",
+          "refId": "A"
+        }
+      ],
+      "title": "Minimum data time remaining",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"color": "red", "text": "COLLECTING"}, "1": {"color": "green", "text": "AUDIT READY"}}, "type": "value"}
+          ],
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 0},
+      "id": 13,
+      "targets": [{"expr": "aqt_research_data_ready", "refId": "A"}],
+      "title": "Sealed horizon-audit readiness",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 16, "x": 0, "y": 5},
+      "id": 14,
+      "targets": [
+        {
+          "expr": "aqt_research_data_disk_bytes{state=~\"free|reserve|headroom|projected_required\"}",
+          "legendFormat": "{{state}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Research capture storage capacity",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"min": 0, "max": 1, "unit": "none"}, "overrides": []},
+      "gridPos": {"h": 6, "w": 8, "x": 16, "y": 5},
+      "id": 15,
+      "targets": [
+        {
+          "expr": "aqt_research_data_gate_passed",
+          "legendFormat": "{{gate}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Data-readiness gates",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
-      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 0},
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 11},
       "id": 1,
       "targets": [
         {"expr": "sum by (stage) (aqt_research_stage_info)", "refId": "A"}
@@ -16,7 +102,7 @@
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
-      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 0},
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 11},
       "id": 2,
       "targets": [
         {"expr": "max by (feature_set) (aqt_research_feature_drift_psi_max)", "refId": "A"}
@@ -27,7 +113,7 @@
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
-      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 0},
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 11},
       "id": 3,
       "targets": [
         {"expr": "sum(increase(aqt_research_experiments_total[24h]))", "refId": "A"}
@@ -38,7 +124,7 @@
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 5},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
       "id": 4,
       "targets": [
         {
@@ -52,7 +138,7 @@
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 5},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
       "id": 5,
       "targets": [
         {
@@ -66,7 +152,7 @@
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"min": 0, "max": 1, "unit": "none"}, "overrides": []},
-      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 13},
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 24},
       "id": 6,
       "targets": [
         {
@@ -93,8 +179,8 @@
       }
     ]
   },
-  "time": {"from": "now-24h", "to": "now"},
+  "time": {"from": "now-7d", "to": "now"},
   "title": "AIQuantTrader Research Governance",
   "uid": "aqt-research-governance",
-  "version": 1
+  "version": 2
 }
