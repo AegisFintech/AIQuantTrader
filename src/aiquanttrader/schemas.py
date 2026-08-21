@@ -103,6 +103,8 @@ from aiquanttrader.research.models import (
     ForecastEconomicReport,
     ForecastMatrixManifest,
     ForecastRobustnessReport,
+    HorizonFamilyFeasibilityReport,
+    HorizonFamilyPolicy,
     ModelArtifactManifest,
     NegativeControlReport,
     NoSignalControlReport,
@@ -278,6 +280,8 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | ForecastRobustnessReport
         | ForecastEconomicReport
         | TargetFeasibilityReport
+        | HorizonFamilyPolicy
+        | HorizonFamilyFeasibilityReport
         | NegativeControlReport
         | NoSignalControlReport
         | PromotionMetrics

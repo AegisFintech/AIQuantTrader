@@ -31,6 +31,9 @@ from aiquanttrader.research.models import (
     ForecastMatrixManifest,
     ForecastRegimePolicy,
     ForecastTarget,
+    HorizonFamilyFeasibilityReport,
+    HorizonFamilyPolicy,
+    HorizonFeasibilityCandidateReport,
     NoSignalControlReport,
     RandomizedLabelControlPolicy,
     ResearchControlPolicy,
@@ -367,6 +370,284 @@ def test_build_matrix_cli_binds_immutable_features_and_explicit_label_policy(
         == 2
     )
     assert "immutable manifest" in capsys.readouterr().err
+
+
+def test_horizon_family_cli_seals_every_candidate_without_selecting_one(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    states = tuple(
+        KernelMarketState(
+            exchange_ts_ns=(sequence + 1) * SECOND_NS,
+            book_exchange_ts_ns=(sequence + 1) * SECOND_NS,
+            observed_ts_ns=(sequence + 1) * SECOND_NS + 100,
+            sequence=sequence,
+            bids=(KernelBookLevel(price=Decimal(100 + sequence), size=Decimal("2")),),
+            asks=(KernelBookLevel(price=Decimal(101 + sequence), size=Decimal("1")),),
+        )
+        for sequence in range(100)
+    )
+    feature_manifest_path, feature_manifest = write_feature_dataset(
+        states,
+        config=FeatureEngineConfig(
+            depth_levels=1,
+            flow_window_ns=10 * SECOND_NS,
+            volatility_window_ns=10 * SECOND_NS,
+            spread_window_ns=10 * SECOND_NS,
+            markout_horizon_ns=SECOND_NS,
+            warmup_samples=2,
+            maximum_input_age_ns=1_000,
+            low_volatility_bps=Decimal("1"),
+            high_volatility_bps=Decimal("1000"),
+        ),
+        source_dataset_sha256=SOURCE_DATASET_SHA256,
+        output_root=tmp_path,
+        relative_path="features/BTC.parquet",
+    )
+    horizon_policy_path = tmp_path / "horizon-policy.json"
+    horizon_policy_path.write_bytes(
+        HorizonFamilyPolicy(
+            policy_id="integration-scalping-horizons",
+            target=ForecastTarget.NEXT_MID_RETURN_BPS,
+            horizons_ns=(2 * SECOND_NS, 4 * SECOND_NS),
+            sample_interval_ns=SECOND_NS,
+            maximum_label_delay_ns=0,
+        ).canonical_bytes()
+        + b"\n"
+    )
+    validation_template_path = tmp_path / "validation-template.toml"
+    validation_template_path.write_text(
+        """schema_version = 1
+policy_id = "integration-horizon-template"
+train_ns = 20000000000
+purge_ns = 4000000000
+validation_ns = 10000000000
+embargo_ns = 5000000000
+test_ns = 10000000000
+step_ns = 10000000000
+final_holdout_ns = 10000000000
+label_horizon_ns = 2000000000
+minimum_folds = 1
+""",
+        encoding="utf-8",
+    )
+    control_policy_path = tmp_path / "control-policy.json"
+    write_control_policy(control_policy_path)
+    scenario_path = tmp_path / "zero-cost-scenario.toml"
+    write_zero_cost_scenario(scenario_path)
+    report_path = tmp_path / "horizon-family-report.json"
+    artifact_root = tmp_path / "horizon-artifacts"
+
+    assert (
+        main(
+            [
+                "audit-horizon-family",
+                "--features",
+                str(tmp_path / feature_manifest.relative_path),
+                "--feature-manifest",
+                str(feature_manifest_path),
+                "--artifact-root",
+                str(artifact_root),
+                "--policy",
+                str(horizon_policy_path),
+                "--validation-template",
+                str(validation_template_path),
+                "--control-policy",
+                str(control_policy_path),
+                "--scenario",
+                str(scenario_path),
+                "--output",
+                str(report_path),
+            ]
+        )
+        == 3
+    )
+    summary = json.loads(capsys.readouterr().out)
+    report = HorizonFamilyFeasibilityReport.model_validate_json(report_path.read_bytes())
+    assert summary["selection_role"] == "predeclared_diagnostic_only"
+    assert summary["final_holdout_included"] is False
+    assert summary["model_training_performed"] is False
+    assert [item["horizon_ns"] for item in summary["horizons"]] == [
+        2 * SECOND_NS,
+        4 * SECOND_NS,
+    ]
+    assert report.opportunity_sufficient_horizons_ns == ()
+    assert len({item.validation_plan.final_holdout.sha256() for item in report.candidates}) == 1
+    tampered_template = report.model_dump(mode="python")
+    tampered_template["validation_template"]["train_ns"] += SECOND_NS
+    with pytest.raises(ValueError, match="not derived from the template"):
+        HorizonFamilyFeasibilityReport.model_validate(tampered_template)
+    selected_payload = report.model_dump(mode="python")
+    selected_payload["selected_horizon_ns"] = 2 * SECOND_NS
+    with pytest.raises(ValueError, match="Extra inputs are not permitted"):
+        HorizonFamilyFeasibilityReport.model_validate(selected_payload)
+
+    candidate = report.candidates[0]
+
+    def invalid_candidate(**updates: object) -> None:
+        values: dict[str, object] = {
+            "horizon_ns": candidate.horizon_ns,
+            "validation_policy": candidate.validation_policy,
+            "validation_plan": candidate.validation_plan,
+            "matrix_manifest": candidate.matrix_manifest,
+            "target_feasibility": candidate.target_feasibility,
+        }
+        values.update(updates)
+        constructed = HorizonFeasibilityCandidateReport.model_construct(
+            **values  # type: ignore[arg-type]
+        )
+        constructed.validate_candidate_lineage()  # type: ignore[operator]
+
+    with pytest.raises(ValueError, match="policy has the wrong horizon"):
+        invalid_candidate(
+            validation_policy=candidate.validation_policy.model_copy(
+                update={"label_horizon_ns": candidate.horizon_ns + 1}
+            )
+        )
+    with pytest.raises(ValueError, match="purge does not cover"):
+        invalid_candidate(
+            validation_policy=candidate.validation_policy.model_copy(
+                update={"purge_ns": candidate.horizon_ns - 1}
+            )
+        )
+    with pytest.raises(ValueError, match="plan does not bind its policy"):
+        invalid_candidate(
+            validation_plan=candidate.validation_plan.model_copy(update={"policy_sha256": "f" * 64})
+        )
+    with pytest.raises(ValueError, match="plan has the wrong horizon"):
+        invalid_candidate(
+            validation_plan=candidate.validation_plan.model_copy(
+                update={"label_horizon_ns": candidate.horizon_ns + 1}
+            )
+        )
+    with pytest.raises(ValueError, match="matrix has the wrong horizon"):
+        invalid_candidate(
+            matrix_manifest=candidate.matrix_manifest.model_copy(
+                update={"horizon_ns": candidate.horizon_ns + 1}
+            )
+        )
+    with pytest.raises(ValueError, match="matrix does not bind its validation plan"):
+        invalid_candidate(
+            matrix_manifest=candidate.matrix_manifest.model_copy(
+                update={"validation_plan_sha256": "f" * 64}
+            )
+        )
+    with pytest.raises(ValueError, match="feasibility report has the wrong horizon"):
+        invalid_candidate(
+            target_feasibility=candidate.target_feasibility.model_copy(
+                update={"horizon_ns": candidate.horizon_ns + 1}
+            )
+        )
+    with pytest.raises(ValueError, match="report does not bind its matrix"):
+        invalid_candidate(
+            target_feasibility=candidate.target_feasibility.model_copy(
+                update={"matrix_id": "f" * 64}
+            )
+        )
+    with pytest.raises(ValueError, match="report does not bind its plan"):
+        invalid_candidate(
+            target_feasibility=candidate.target_feasibility.model_copy(
+                update={"validation_plan_sha256": "f" * 64}
+            )
+        )
+
+    def invalid_family(**updates: object) -> None:
+        values: dict[str, object] = {
+            "policy": report.policy,
+            "validation_template": report.validation_template,
+            "feature_manifest": report.feature_manifest,
+            "control_policy": report.control_policy,
+            "scenario": report.scenario,
+            "candidates": report.candidates,
+        }
+        values.update(updates)
+        constructed = HorizonFamilyFeasibilityReport.model_construct(
+            **values  # type: ignore[arg-type]
+        )
+        constructed.validate_family_lineage()  # type: ignore[operator]
+
+    with pytest.raises(ValueError, match="do not match the predeclared family"):
+        invalid_family(
+            policy=report.policy.model_copy(
+                update={"horizons_ns": tuple(reversed(report.policy.horizons_ns))}
+            )
+        )
+    different_holdout = report.candidates[1].validation_plan.final_holdout.model_copy(
+        update={"end_ts_ns": report.candidates[1].validation_plan.final_holdout.end_ts_ns + 1}
+    )
+    different_plan = report.candidates[1].validation_plan.model_copy(
+        update={"final_holdout": different_holdout}
+    )
+    with pytest.raises(ValueError, match="share one final holdout"):
+        invalid_family(
+            candidates=(
+                report.candidates[0],
+                report.candidates[1].model_copy(update={"validation_plan": different_plan}),
+            )
+        )
+    altered_fold = candidate.validation_plan.folds[0].model_copy(update={"fold": 99})
+    altered_plan = candidate.validation_plan.model_copy(
+        update={"folds": (altered_fold, *candidate.validation_plan.folds[1:])}
+    )
+    with pytest.raises(ValueError, match="plan was not derived from feature bounds"):
+        invalid_family(
+            candidates=(
+                candidate.model_copy(update={"validation_plan": altered_plan}),
+                report.candidates[1],
+            )
+        )
+
+    def candidate_with_matrix(**updates: object) -> HorizonFeasibilityCandidateReport:
+        return candidate.model_copy(
+            update={"matrix_manifest": candidate.matrix_manifest.model_copy(update=updates)}
+        )
+
+    for update, message in (
+        ({"source_feature_dataset_sha256": "f" * 64}, "feature dataset"),
+        ({"source_dataset_sha256": "f" * 64}, "source dataset"),
+        ({"feature_schema_sha256": "f" * 64}, "feature schema"),
+        ({"target": ForecastTarget.PASSIVE_FILL_PROBABILITY}, "declared target"),
+        ({"sample_interval_ns": report.policy.sample_interval_ns + 1}, "sample interval"),
+        ({"maximum_label_delay_ns": report.policy.maximum_label_delay_ns + 1}, "label delay"),
+    ):
+        with pytest.raises(ValueError, match=message):
+            invalid_family(candidates=(candidate_with_matrix(**update), report.candidates[1]))
+    with pytest.raises(ValueError, match="control policy"):
+        invalid_family(
+            candidates=(
+                candidate.model_copy(
+                    update={
+                        "target_feasibility": candidate.target_feasibility.model_copy(
+                            update={
+                                "policy": report.control_policy.model_copy(
+                                    update={"policy_id": "different-control-policy"}
+                                )
+                            }
+                        )
+                    }
+                ),
+                report.candidates[1],
+            )
+        )
+    with pytest.raises(ValueError, match="execution scenario"):
+        invalid_family(
+            candidates=(
+                candidate.model_copy(
+                    update={
+                        "target_feasibility": candidate.target_feasibility.model_copy(
+                            update={"scenario_sha256": "f" * 64}
+                        )
+                    }
+                ),
+                report.candidates[1],
+            )
+        )
+    for horizon_ns in report.policy.horizons_ns:
+        root = artifact_root / f"horizon_ns={horizon_ns}"
+        assert (root / "validation-plan.json").is_file()
+        assert (root / "next-mid-return-development.npz").is_file()
+        assert (root / "next-mid-return-development.npz.manifest.json").is_file()
+        assert (root / "target-feasibility.json").is_file()
 
 
 def test_run_search_writes_reproducible_native_artifact_and_validates_it(

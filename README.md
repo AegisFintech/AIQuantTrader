@@ -270,6 +270,7 @@ promotion commands:
 uv run aqt-research feature-replay --help
 uv run aqt-research build-matrix --help
 uv run aqt-research audit-target-feasibility --help
+uv run aqt-research audit-horizon-family --help
 uv run aqt-research run-no-signal-control --help
 uv run aqt-research run-search --help
 uv run aqt-research validate-model --help
@@ -303,7 +304,11 @@ independently derive the same training-only, perfect-foresight count and return
 ceilings. A mathematically impossible required count, total return, or average
 return stops search; the audit can never serve as profitability or promotion
 evidence. Its hash and full calibration outcome are bound into negative-control
-schema v4.
+schema v4. `audit-horizon-family` seals the predeclared 30/60/120/180/300-second
+scalping family from `configs/research/horizon-family-v1.json`, derives a
+horizon-correct purge and plan for every member, preserves one holdout boundary,
+and runs the same oracle without fitting or selecting a model. It reports all
+members; it cannot nominate a winning horizon.
 
 ## Paper trading
 

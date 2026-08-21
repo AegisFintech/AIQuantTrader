@@ -129,6 +129,11 @@ observer. LLM output is evidence, never order or risk authority.
   recomputes it before loading an engine, stops when a required outcome is
   impossible, and binds its hash/full outcome into negative-control schema v4;
   the oracle is never promotion evidence.
+- Horizon-family policy/report schema v1 freezes a sorted sub-five-minute
+  candidate set, derives a horizon-safe validation plan and development matrix
+  for every member, preserves one final-holdout boundary, and embeds every
+  target-feasibility result. It performs no ranking, selection, model training,
+  or holdout inclusion.
 - Model-artifact manifest schema v2 uses deterministic native serialization:
   LightGBM text plus XGBoost/CatBoost JSON. CatBoost's non-predictive random
   model GUID is replaced with a content-derived value and its wall-clock model

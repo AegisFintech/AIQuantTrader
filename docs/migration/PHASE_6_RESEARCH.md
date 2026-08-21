@@ -151,6 +151,12 @@ return must leave the aggregate and low/normal/high policy requirements
 possible. This is an optimistic necessary condition, not model or trading
 evidence; failure stops search, while an uncalibrated scenario still prevents
 the resulting controls from passing.
+The schema-v1 horizon-family audit freezes every candidate before reading
+labels, derives a distinct horizon-correct purge and plan for each, and embeds
+the exact matrix lineage plus feasibility report. All plans share the same
+final-holdout boundary. The audit exposes all results and has no selected-
+candidate field, so it cannot convert exploratory horizon comparison into a
+promotion decision.
 Each fold also reports zero-prediction and train-window-mean test MSE; ranking
 first among candidate models is insufficient when the winner cannot improve
 on both non-leaking baselines.

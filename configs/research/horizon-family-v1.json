@@ -1,0 +1,14 @@
+{
+  "horizons_ns": [
+    30000000000,
+    60000000000,
+    120000000000,
+    180000000000,
+    300000000000
+  ],
+  "maximum_label_delay_ns": 2000000000,
+  "policy_id": "btc-sub-five-minute-taker-horizons-v1",
+  "sample_interval_ns": 1000000000,
+  "schema_version": 1,
+  "target": "next_mid_return_bps"
+}

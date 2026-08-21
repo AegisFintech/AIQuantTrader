@@ -14,10 +14,21 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import Field, StringConstraints, model_validator
 
-from aiquanttrader.backtest.models import CalibrationState, TimeWindow
+from aiquanttrader.backtest.models import (
+    CalibrationState,
+    ExecutionScenario,
+    TimeWindow,
+    ValidationPlan,
+    ValidationPolicy,
+)
+from aiquanttrader.backtest.validation import plan_walk_forward
 from aiquanttrader.domain.base import DomainModel, canonical_sha256
 from aiquanttrader.domain.governance import PromotionStage
-from aiquanttrader.features.models import FeatureSchema, VolatilityRegime
+from aiquanttrader.features.models import (
+    FeatureDatasetManifest,
+    FeatureSchema,
+    VolatilityRegime,
+)
 
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 Identifier = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")]
@@ -711,6 +722,148 @@ class TargetFeasibilityReport(DomainModel):
         calibrated = self.calibration_state is CalibrationState.CALIBRATED
         return self.opportunity_sufficient and (
             calibrated or not self.policy.forecast_economic.require_calibrated_scenario
+        )
+
+
+class HorizonFamilyPolicy(DomainModel):
+    """Predeclared, bounded scalping horizons; never a candidate selector."""
+
+    schema_version: Literal[1] = 1
+    policy_id: Identifier
+    target: Literal[ForecastTarget.NEXT_MID_RETURN_BPS]
+    horizons_ns: tuple[int, ...] = Field(min_length=2, max_length=8)
+    sample_interval_ns: int = Field(gt=0)
+    maximum_label_delay_ns: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_horizons(self) -> Self:
+        if self.horizons_ns != tuple(sorted(set(self.horizons_ns))):
+            raise ValueError("horizon family must be strictly increasing and unique")
+        if self.horizons_ns[0] <= 0 or self.horizons_ns[-1] > 300_000_000_000:
+            raise ValueError("horizon family must stay within the five-minute scalping bound")
+        if self.sample_interval_ns > self.horizons_ns[0]:
+            raise ValueError("horizon family sample interval cannot exceed its shortest horizon")
+        return self
+
+
+class HorizonFeasibilityCandidateReport(DomainModel):
+    """Exact plan, matrix lineage, and optimistic audit for one frozen horizon."""
+
+    horizon_ns: int = Field(gt=0, le=300_000_000_000)
+    validation_policy: ValidationPolicy
+    validation_plan: ValidationPlan
+    matrix_manifest: ForecastMatrixManifest
+    target_feasibility: TargetFeasibilityReport
+
+    @model_validator(mode="after")
+    def validate_candidate_lineage(self) -> Self:
+        if self.validation_policy.label_horizon_ns != self.horizon_ns:
+            raise ValueError("candidate validation policy has the wrong horizon")
+        if self.validation_policy.purge_ns < self.horizon_ns:
+            raise ValueError("candidate validation purge does not cover its horizon")
+        if self.validation_plan.policy_sha256 != self.validation_policy.sha256():
+            raise ValueError("candidate validation plan does not bind its policy")
+        if self.validation_plan.label_horizon_ns != self.horizon_ns:
+            raise ValueError("candidate validation plan has the wrong horizon")
+        if self.matrix_manifest.horizon_ns != self.horizon_ns:
+            raise ValueError("candidate matrix has the wrong horizon")
+        if self.matrix_manifest.validation_plan_sha256 != self.validation_plan.sha256():
+            raise ValueError("candidate matrix does not bind its validation plan")
+        if self.target_feasibility.horizon_ns != self.horizon_ns:
+            raise ValueError("candidate target-feasibility report has the wrong horizon")
+        if self.target_feasibility.matrix_id != self.matrix_manifest.matrix_id:
+            raise ValueError("candidate target-feasibility report does not bind its matrix")
+        if self.target_feasibility.validation_plan_sha256 != self.validation_plan.sha256():
+            raise ValueError("candidate target-feasibility report does not bind its plan")
+        return self
+
+
+class HorizonFamilyFeasibilityReport(DomainModel):
+    """No-selection audit across an immutable, predeclared scalping horizon family."""
+
+    schema_version: Literal[1] = 1
+    policy: HorizonFamilyPolicy
+    validation_template: ValidationPolicy
+    feature_manifest: FeatureDatasetManifest
+    control_policy: ResearchControlPolicy
+    scenario: ExecutionScenario
+    selection_role: Literal["predeclared_diagnostic_only"] = "predeclared_diagnostic_only"
+    final_holdout_included: Literal[False] = False
+    model_training_performed: Literal[False] = False
+    candidates: tuple[HorizonFeasibilityCandidateReport, ...] = Field(min_length=2, max_length=8)
+
+    @model_validator(mode="after")
+    def validate_family_lineage(self) -> Self:
+        horizons = tuple(candidate.horizon_ns for candidate in self.candidates)
+        if horizons != self.policy.horizons_ns:
+            raise ValueError("horizon candidates do not match the predeclared family")
+        holdouts = {
+            candidate.validation_plan.final_holdout.sha256() for candidate in self.candidates
+        }
+        if len(holdouts) != 1:
+            raise ValueError("horizon candidates must share one final holdout")
+        for candidate in self.candidates:
+            expected_policy_values = self.validation_template.model_dump(mode="python")
+            expected_policy_values.update(
+                {
+                    "policy_id": (f"{self.validation_template.policy_id}.h{candidate.horizon_ns}"),
+                    "label_horizon_ns": candidate.horizon_ns,
+                    "purge_ns": max(self.validation_template.purge_ns, candidate.horizon_ns),
+                }
+            )
+            expected_policy = ValidationPolicy.model_validate(expected_policy_values)
+            if candidate.validation_policy != expected_policy:
+                raise ValueError("horizon candidate policy was not derived from the template")
+            expected_plan = plan_walk_forward(
+                dataset_sha256=self.feature_manifest.source_dataset_sha256,
+                start_ts_ns=self.feature_manifest.first_receive_ts_ns,
+                end_ts_ns=self.feature_manifest.last_receive_ts_ns + 1,
+                policy=expected_policy,
+            )
+            if candidate.validation_plan != expected_plan:
+                raise ValueError("horizon candidate plan was not derived from feature bounds")
+            matrix = candidate.matrix_manifest
+            feasibility = candidate.target_feasibility
+            if matrix.source_feature_dataset_sha256 != self.feature_manifest.feature_dataset_id:
+                raise ValueError("horizon candidate does not bind the feature dataset")
+            if matrix.source_dataset_sha256 != self.feature_manifest.source_dataset_sha256:
+                raise ValueError("horizon candidate does not bind the source dataset")
+            if matrix.feature_schema_sha256 != self.feature_manifest.feature_schema_sha256:
+                raise ValueError("horizon candidate does not bind the feature schema")
+            if (
+                matrix.target is not self.policy.target
+                or feasibility.target is not self.policy.target
+            ):
+                raise ValueError("horizon candidate does not bind the declared target")
+            if matrix.sample_interval_ns != self.policy.sample_interval_ns:
+                raise ValueError("horizon candidate does not bind the declared sample interval")
+            if matrix.maximum_label_delay_ns != self.policy.maximum_label_delay_ns:
+                raise ValueError("horizon candidate does not bind the declared label delay")
+            if (
+                candidate.validation_plan.dataset_sha256
+                != self.feature_manifest.source_dataset_sha256
+            ):
+                raise ValueError("horizon validation plan does not bind the source dataset")
+            if feasibility.policy != self.control_policy:
+                raise ValueError("horizon candidate does not bind the control policy")
+            if feasibility.scenario_sha256 != self.scenario.sha256():
+                raise ValueError("horizon candidate does not bind the execution scenario")
+        return self
+
+    @property
+    def opportunity_sufficient_horizons_ns(self) -> tuple[int, ...]:
+        return tuple(
+            candidate.horizon_ns
+            for candidate in self.candidates
+            if candidate.target_feasibility.opportunity_sufficient
+        )
+
+    @property
+    def passed_horizons_ns(self) -> tuple[int, ...]:
+        return tuple(
+            candidate.horizon_ns
+            for candidate in self.candidates
+            if candidate.target_feasibility.passed
         )
 
 
