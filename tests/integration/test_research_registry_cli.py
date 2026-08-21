@@ -59,6 +59,8 @@ def controls() -> NegativeControlReport:
         randomized_seeds=(3, 4, 5),
         no_signal_decision_count=0,
         no_signal_report_sha256="f" * 64,
+        target_feasibility_report_sha256="a" * 64,
+        target_feasibility_passed=True,
         forecast_robustness_report_sha256="e" * 64,
         forecast_robustness_passed=True,
         forecast_economic_report_sha256="c" * 64,

@@ -578,6 +578,142 @@ class ForecastEconomicReport(DomainModel):
         )
 
 
+class TargetFeasibilitySliceMetrics(DomainModel):
+    """Optimistic label-derived ceilings; never tradable performance evidence."""
+
+    slice: ForecastSlice
+    observation_count: int = Field(ge=0)
+    positive_net_label_count: int = Field(ge=0)
+    maximum_non_overlapping_observation_count: int = Field(ge=0)
+    maximum_non_overlapping_positive_net_count: int = Field(ge=0)
+    maximum_non_overlapping_net_return_bps: NonNegativeMetric
+    maximum_single_trade_net_return_bps: NonNegativeMetric | None = None
+
+    @model_validator(mode="after")
+    def validate_ceilings(self) -> Self:
+        if self.positive_net_label_count > self.observation_count:
+            raise ValueError("target-feasibility opportunity counts do not balance")
+        if not (
+            self.maximum_non_overlapping_positive_net_count <= self.positive_net_label_count
+        ) or not (
+            self.maximum_non_overlapping_positive_net_count
+            <= self.maximum_non_overlapping_observation_count
+            <= self.observation_count
+        ):
+            raise ValueError("target-feasibility non-overlapping counts do not balance")
+        if self.observation_count == 0 and self.maximum_non_overlapping_observation_count != 0:
+            raise ValueError("empty target-feasibility slices cannot select observations")
+        if self.observation_count > 0 and self.maximum_non_overlapping_observation_count == 0:
+            raise ValueError("populated target-feasibility slices require an observation ceiling")
+        if self.positive_net_label_count == 0:
+            if (
+                self.maximum_non_overlapping_positive_net_count != 0
+                or self.maximum_non_overlapping_net_return_bps != 0
+                or self.maximum_single_trade_net_return_bps is not None
+            ):
+                raise ValueError("empty target-feasibility slices must have zero ceilings")
+        elif (
+            self.maximum_non_overlapping_positive_net_count == 0
+            or self.maximum_non_overlapping_net_return_bps <= 0
+            or self.maximum_single_trade_net_return_bps is None
+            or self.maximum_single_trade_net_return_bps <= 0
+        ):
+            raise ValueError("populated target-feasibility slices require positive ceilings")
+        return self
+
+    def necessary_conditions_possible(self, policy: ForecastEconomicPolicy) -> bool:
+        minimum_trades = (
+            policy.minimum_trades
+            if self.slice is ForecastSlice.AGGREGATE
+            else policy.minimum_trades_per_regime
+        )
+        return (
+            self.maximum_non_overlapping_observation_count >= minimum_trades
+            and self.maximum_non_overlapping_net_return_bps > policy.minimum_net_return_bps
+            and self.maximum_single_trade_net_return_bps is not None
+            and self.maximum_single_trade_net_return_bps > policy.minimum_average_net_return_bps
+        )
+
+
+class TargetFeasibilityFoldReport(DomainModel):
+    fold_index: int = Field(ge=0)
+    training_window_sha256: Sha256
+    training_dataset_sha256: Sha256
+    training_start_ts_ns: int = Field(ge=0)
+    training_end_ts_ns: int = Field(gt=0)
+    slices: tuple[TargetFeasibilitySliceMetrics, ...] = Field(min_length=4, max_length=4)
+
+    @model_validator(mode="after")
+    def validate_fold(self) -> Self:
+        if self.training_end_ts_ns <= self.training_start_ts_ns:
+            raise ValueError("target-feasibility training window must be positive")
+        expected = tuple(ForecastSlice)
+        observed = tuple(item.slice for item in self.slices)
+        if observed != expected:
+            raise ValueError("target-feasibility slices must be complete and canonical")
+        aggregate = self.slices[0]
+        if sum(item.observation_count for item in self.slices[1:]) != aggregate.observation_count:
+            raise ValueError("target-feasibility regime observations do not balance")
+        if (
+            sum(item.positive_net_label_count for item in self.slices[1:])
+            != aggregate.positive_net_label_count
+        ):
+            raise ValueError("target-feasibility regime opportunities do not balance")
+        return self
+
+    def necessary_conditions_possible(self, policy: ForecastEconomicPolicy) -> bool:
+        return all(item.necessary_conditions_possible(policy) for item in self.slices)
+
+
+class TargetFeasibilityReport(DomainModel):
+    schema_version: Literal[1] = 1
+    target: ForecastTarget
+    matrix_id: Sha256
+    causal_matrix_sha256: Sha256
+    feature_schema_sha256: Sha256
+    validation_plan_sha256: Sha256
+    horizon_ns: int = Field(gt=0)
+    sample_interval_ns: int = Field(gt=0)
+    policy: ResearchControlPolicy
+    scenario_id: Identifier
+    scenario_sha256: Sha256
+    calibration_state: CalibrationState
+    round_trip_cost_bps: NonNegativeMetric
+    signal_threshold_bps: NonNegativeMetric
+    selection_role: Literal["training_windows_only"] = "training_windows_only"
+    oracle_kind: Literal["optimistic_non_overlapping_label_ceiling"] = (
+        "optimistic_non_overlapping_label_ceiling"
+    )
+    folds: tuple[TargetFeasibilityFoldReport, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_report(self) -> Self:
+        if not math.isclose(
+            self.signal_threshold_bps,
+            self.round_trip_cost_bps + self.policy.forecast_economic.minimum_expected_edge_bps,
+            rel_tol=1e-12,
+            abs_tol=1e-9,
+        ):
+            raise ValueError("target-feasibility threshold does not match policy and costs")
+        fold_indices = tuple(item.fold_index for item in self.folds)
+        if fold_indices != tuple(range(len(self.folds))):
+            raise ValueError("target-feasibility folds must be complete and canonical")
+        return self
+
+    @property
+    def opportunity_sufficient(self) -> bool:
+        return all(
+            fold.necessary_conditions_possible(self.policy.forecast_economic) for fold in self.folds
+        )
+
+    @property
+    def passed(self) -> bool:
+        calibrated = self.calibration_state is CalibrationState.CALIBRATED
+        return self.opportunity_sufficient and (
+            calibrated or not self.policy.forecast_economic.require_calibrated_scenario
+        )
+
+
 class TrialResult(DomainModel):
     trial_id: Identifier
     parameters_sha256: Sha256
@@ -633,7 +769,7 @@ class NoSignalControlReport(DomainModel):
 
 
 class NegativeControlReport(DomainModel):
-    schema_version: Literal[3] = 3
+    schema_version: Literal[4] = 4
     policy: ResearchControlPolicy
     fold_index: int = Field(ge=0)
     search_receipt_sha256: Sha256
@@ -643,6 +779,8 @@ class NegativeControlReport(DomainModel):
     randomized_seeds: tuple[int, ...] = Field(min_length=3, max_length=32)
     no_signal_decision_count: int = Field(ge=0)
     no_signal_report_sha256: Sha256
+    target_feasibility_report_sha256: Sha256
+    target_feasibility_passed: bool
     forecast_robustness_report_sha256: Sha256
     forecast_robustness_passed: bool
     forecast_economic_report_sha256: Sha256
@@ -678,6 +816,7 @@ class NegativeControlReport(DomainModel):
             >= self.training_mean_validation_mse
             * randomized.minimum_worst_mse_multiple_of_training_mean
             and self.no_signal_decision_count == 0
+            and self.target_feasibility_passed
             and self.forecast_robustness_passed
             and self.forecast_economic_passed
         )

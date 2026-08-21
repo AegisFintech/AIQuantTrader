@@ -269,6 +269,7 @@ promotion commands:
 ```bash
 uv run aqt-research feature-replay --help
 uv run aqt-research build-matrix --help
+uv run aqt-research audit-target-feasibility --help
 uv run aqt-research run-no-signal-control --help
 uv run aqt-research run-search --help
 uv run aqt-research validate-model --help
@@ -297,6 +298,12 @@ scenario-bound, non-overlapping post-cost directional replay. A missing regime,
 a regime that loses to either non-leaking baseline, insufficient post-cost
 evidence, an uncalibrated scenario, or any failed control keeps the candidate
 ineligible for promotion.
+Before an engine is loaded, `audit-target-feasibility` and `run-search`
+independently derive the same training-only, perfect-foresight count and return
+ceilings. A mathematically impossible required count, total return, or average
+return stops search; the audit can never serve as profitability or promotion
+evidence. Its hash and full calibration outcome are bound into negative-control
+schema v4.
 
 ## Paper trading
 

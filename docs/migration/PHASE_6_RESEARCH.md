@@ -144,6 +144,13 @@ test labels cannot alter the selected trial. Purge and embargo windows come
 from the Phase 5 frozen validation plan. Search is bounded to at most 64
 declared trials; it is not an open-ended optimizer. Search refuses an unbound
 NPZ and revalidates the matrix manifest before loading any training rows.
+Before loading an engine it also recomputes a schema-v1 target-feasibility
+report over training windows only. Separate perfect-foresight ceilings for
+maximum non-overlapping observations, total net return, and single-trade net
+return must leave the aggregate and low/normal/high policy requirements
+possible. This is an optimistic necessary condition, not model or trading
+evidence; failure stops search, while an uncalibrated scenario still prevents
+the resulting controls from passing.
 Each fold also reports zero-prediction and train-window-mean test MSE; ranking
 first among candidate models is insufficient when the winner cannot improve
 on both non-leaking baselines.
@@ -177,6 +184,11 @@ scenario can report diagnostic performance but cannot pass. This screen
 deliberately excludes fill, queue,
 latency, funding, and inventory simulation and therefore does not replace the
 Phase 5 HftBacktest scenario suite.
+
+The target-feasibility report hash and full pass state are retained in
+negative-control schema v4. Search recomputes the report rather than trusting a
+hand-authored JSON file. A changed matrix, plan, cost scenario, policy, target,
+or regime composition therefore invalidates the report before fitting.
 
 The complete robustness and economic reports are hashed into mandatory
 negative controls, so aggregate performance cannot conceal a regime failure.
