@@ -8,10 +8,15 @@ from pydantic import Field, StringConstraints, model_validator
 
 from aiquanttrader.backtest.models import ValidationPolicy
 from aiquanttrader.domain.base import DomainModel, canonical_sha256
-from aiquanttrader.domain.data import DataQualityPolicy, MarketDataNamedCount
+from aiquanttrader.domain.data import (
+    DataQualityPolicy,
+    MarketDataNamedCount,
+    SegmentFinalizationReason,
+)
 
 Sha256 = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 Identifier = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$")]
+ContinuityBreakTrigger = Literal["quality_ineligible", "overlap", "previous_error", "gap_exceeded"]
 
 
 class ResearchDataReadinessPolicy(DomainModel):
@@ -40,10 +45,46 @@ class ResearchDataReadinessGate(DomainModel):
     required: Annotated[str, Field(min_length=1, max_length=512)]
 
 
+class ResearchDataContinuityBreak(DomainModel):
+    """Latest exact boundary that reset the uninterrupted capture clock."""
+
+    schema_version: Literal[1] = 1
+    trigger: ContinuityBreakTrigger
+    current_segment_started_ts_ns: int = Field(ge=0)
+    previous_segment_ended_ts_ns: int | None = Field(default=None, ge=0)
+    gap_ns: int | None = None
+    previous_finalization_reason: SegmentFinalizationReason | None = None
+
+    @model_validator(mode="after")
+    def validate_boundary(self) -> Self:
+        previous = self.previous_segment_ended_ts_ns
+        if previous is None:
+            if self.gap_ns is not None or self.previous_finalization_reason is not None:
+                raise ValueError(
+                    "first-segment continuity break cannot describe a previous segment"
+                )
+            if self.trigger != "quality_ineligible":
+                raise ValueError("first-segment continuity break must be quality-ineligible")
+            return self
+        if self.gap_ns != self.current_segment_started_ts_ns - previous:
+            raise ValueError("continuity break gap does not match its boundary")
+        if self.previous_finalization_reason is None:
+            raise ValueError("continuity break with a previous segment requires its reason")
+        if self.trigger == "overlap" and (self.gap_ns is None or self.gap_ns >= 0):
+            raise ValueError("overlap continuity break requires a negative gap")
+        if self.trigger == "previous_error" and (
+            self.previous_finalization_reason is not SegmentFinalizationReason.ERROR
+            or self.gap_ns is None
+            or self.gap_ns <= 0
+        ):
+            raise ValueError("previous-error continuity break requires a positive error gap")
+        return self
+
+
 class ResearchDataReadinessReport(DomainModel):
     """Content-addressed status of retained data; it never authorizes model training."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     report_id: Sha256
     generated_ts_ns: int = Field(ge=0)
     policy: ResearchDataReadinessPolicy
@@ -59,6 +100,8 @@ class ResearchDataReadinessReport(DomainModel):
     missing_normalized_file_count: int = Field(ge=0)
     overlap_count: int = Field(ge=0)
     continuity_break_count: int = Field(ge=0)
+    continuity_breaks_by_reason: tuple[MarketDataNamedCount, ...]
+    latest_continuity_break: ResearchDataContinuityBreak | None = None
     contiguous_chain_count: int = Field(ge=0)
     latest_contiguous_started_ts_ns: int | None = Field(default=None, ge=0)
     latest_contiguous_ended_ts_ns: int | None = Field(default=None, ge=0)
@@ -122,6 +165,33 @@ class ResearchDataReadinessReport(DomainModel):
             self.latest_chain_quality_issues
         ):
             raise ValueError("readiness quality issue names must be unique")
+        expected_break_reasons = {
+            "quality_ineligible",
+            "overlap",
+            "previous_error",
+            "gap_exceeded",
+        }
+        break_counts = {item.name: item.count for item in self.continuity_breaks_by_reason}
+        if (
+            len(break_counts) != len(self.continuity_breaks_by_reason)
+            or set(break_counts) != expected_break_reasons
+        ):
+            raise ValueError("readiness continuity break reasons must be complete and unique")
+        if sum(break_counts.values()) != self.continuity_break_count:
+            raise ValueError("readiness continuity break counts do not match their total")
+        if (self.latest_continuity_break is None) != (self.continuity_break_count == 0):
+            raise ValueError("readiness latest continuity break must match the break count")
+        latest_break = self.latest_continuity_break
+        if latest_break is not None:
+            if break_counts[latest_break.trigger] == 0:
+                raise ValueError("latest continuity break trigger has no matching count")
+            if latest_break.current_segment_started_ts_ns > self.generated_ts_ns:
+                raise ValueError("latest continuity break cannot be from the future")
+            if latest_break.trigger == "gap_exceeded" and (
+                latest_break.gap_ns is None
+                or latest_break.gap_ns <= self.policy.maximum_contiguous_gap_ns
+            ):
+                raise ValueError("gap-exceeded continuity break must exceed the policy")
         if len({gate.gate for gate in self.gates}) != len(self.gates):
             raise ValueError("readiness gates must be unique")
         if self.ready_for_horizon_audit != all(gate.passed for gate in self.gates):
@@ -135,7 +205,7 @@ class ResearchDataReadinessReport(DomainModel):
 
 
 class ResearchDataReadinessState(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     status: Literal["starting", "running", "stopped", "failed"]
     heartbeat_ts_ns: int = Field(ge=0)
     report: ResearchDataReadinessReport | None = None

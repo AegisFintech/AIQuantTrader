@@ -52,9 +52,11 @@ uv run aqt-research data-readiness \
 ```
 
 Exit `0` means the data prerequisites pass; exit `3` means evidence is still
-collecting. Invalid inputs return `2`. The report shows the latest and longest
-continuous spans, normalization lineage, excluded frames, age, disk reserve,
-observed storage rate, required additional capacity, and each failed gate. It
+collecting. Invalid inputs return `2`. The schema-v2 report shows the latest and
+longest continuous spans, normalization lineage, excluded frames, age, disk
+reserve, observed storage rate, required additional capacity, and each failed
+gate. It also binds four mutually exclusive continuity-reset counts plus the
+latest exact reset boundary, signed gap, and previous finalization reason. It
 always records `model_training_authorized=false` and
 `production_promotion_authorized=false`.
 
@@ -71,10 +73,13 @@ curl --fail http://127.0.0.1:9114/metrics
 
 Docker health verifies only that the evaluator is fresh. In Grafana, the
 Research Governance dashboard separately shows `COLLECTING` or `AUDIT READY`,
-completion, required time, storage projection, and individual gates. Never
-delete retained data, weaken continuity, reduce folds, or shorten the sealed
-holdout merely to turn this panel green. Expand storage through a reviewed
-operator change if projected capacity fails.
+completion, required time, current uninterrupted duration, time and cause of
+the latest reset, cumulative reset causes, storage projection, and individual
+gates. `previous_error` means a positive boundary followed a segment finalized
+with `error`; `gap_exceeded` means a non-error boundary exceeded the unchanged
+30-second policy. Never delete retained data, weaken continuity, reduce folds,
+or shorten the sealed holdout merely to turn this panel green. Expand storage
+through a reviewed operator change if projected capacity fails.
 
 ## 1. Build deterministic features
 

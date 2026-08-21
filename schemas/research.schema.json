@@ -1890,6 +1890,75 @@
       "title": "ResearchControlPolicy",
       "type": "object"
     },
+    "ResearchDataContinuityBreak": {
+      "additionalProperties": false,
+      "description": "Latest exact boundary that reset the uninterrupted capture clock.",
+      "properties": {
+        "current_segment_started_ts_ns": {
+          "minimum": 0,
+          "title": "Current Segment Started Ts Ns",
+          "type": "integer"
+        },
+        "gap_ns": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Gap Ns"
+        },
+        "previous_finalization_reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SegmentFinalizationReason"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "previous_segment_ended_ts_ns": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Previous Segment Ended Ts Ns"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "trigger": {
+          "enum": [
+            "quality_ineligible",
+            "overlap",
+            "previous_error",
+            "gap_exceeded"
+          ],
+          "title": "Trigger",
+          "type": "string"
+        }
+      },
+      "required": [
+        "trigger",
+        "current_segment_started_ts_ns"
+      ],
+      "title": "ResearchDataContinuityBreak",
+      "type": "object"
+    },
     "ResearchDataReadinessGate": {
       "additionalProperties": false,
       "properties": {
@@ -2001,6 +2070,13 @@
           "title": "Continuity Break Count",
           "type": "integer"
         },
+        "continuity_breaks_by_reason": {
+          "items": {
+            "$ref": "#/$defs/MarketDataNamedCount"
+          },
+          "title": "Continuity Breaks By Reason",
+          "type": "array"
+        },
         "data_bytes": {
           "minimum": 0,
           "title": "Data Bytes",
@@ -2101,6 +2177,17 @@
           "default": null,
           "title": "Latest Contiguous Started Ts Ns"
         },
+        "latest_continuity_break": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResearchDataContinuityBreak"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "latest_segment_age_ns": {
           "anyOf": [
             {
@@ -2184,8 +2271,8 @@
           "type": "integer"
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -2223,6 +2310,7 @@
         "missing_normalized_file_count",
         "overlap_count",
         "continuity_break_count",
+        "continuity_breaks_by_reason",
         "contiguous_chain_count",
         "latest_contiguous_span_ns",
         "longest_contiguous_span_ns",
@@ -2278,8 +2366,8 @@
           "default": null
         },
         "schema_version": {
-          "const": 1,
-          "default": 1,
+          "const": 2,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -2554,6 +2642,18 @@
       ],
       "title": "SearchTrial",
       "type": "object"
+    },
+    "SegmentFinalizationReason": {
+      "enum": [
+        "rotation",
+        "disconnect",
+        "shutdown",
+        "stale_feed",
+        "disk_pressure",
+        "error"
+      ],
+      "title": "SegmentFinalizationReason",
+      "type": "string"
     },
     "TargetFeasibilityFoldReport": {
       "additionalProperties": false,

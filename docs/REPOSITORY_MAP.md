@@ -105,6 +105,11 @@ observer. LLM output is evidence, never order or risk authority.
   layout into an immutable report. It identifies the next EBS, partition, or
   filesystem layer but has no cloud, package-manager, process, or resize
   capability.
+- Research-readiness schema v2 gates only on the latest uninterrupted chain and
+  binds complete bounded reset-cause counts plus the latest reset boundary,
+  signed gap, and prior finalization reason. Prometheus exports the current
+  streak without using segment IDs as labels; diagnostics never weaken the
+  frozen continuity or validation policies.
 - Parquet is the immutable analytical format and DuckDB is the query/catalog
   layer.
 - SQLite journals own restart continuity for live, paper, shadow, admission,

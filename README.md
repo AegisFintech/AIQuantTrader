@@ -317,9 +317,12 @@ and runs the same oracle without fitting or selecting a model. It reports all
 members; it cannot nominate a winning horizon.
 `data-readiness` derives the full capture requirement from the frozen
 walk-forward policy, gates on the latest continuous normalized chain, and
-projects whether disk headroom can retain the remaining evidence. The
-monitoring profile publishes that status to Prometheus/Grafana without reading
-labels, fitting models, or granting training or promotion authority.
+projects whether disk headroom can retain the remaining evidence. Its schema-v2
+state attributes every continuity reset to one bounded cause and retains the
+latest exact boundary, gap, and prior finalization reason. The monitoring
+profile publishes the uninterrupted streak and reset diagnostics to
+Prometheus/Grafana without reading labels, fitting models, or granting training
+or promotion authority.
 When its storage-capacity gate fails, derive the current host target and exact
 incomplete layer without modifying the host:
 

@@ -25,6 +25,8 @@ from aiquanttrader.market_data.admission import DatasetQualityError, build_datas
 from aiquanttrader.market_data.io import atomic_replace_bytes
 from aiquanttrader.research.metrics import DataReadinessMetrics
 from aiquanttrader.research.readiness_models import (
+    ContinuityBreakTrigger,
+    ResearchDataContinuityBreak,
     ResearchDataReadinessGate,
     ResearchDataReadinessPolicy,
     ResearchDataReadinessReport,
@@ -50,6 +52,15 @@ class _Discovery:
     unpaired_raw_segment_count: int
     orphan_normalized_segment_count: int
     missing_normalized_file_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class _ContinuityBreak:
+    trigger: ContinuityBreakTrigger
+    current_segment_started_ts_ns: int
+    previous_segment_ended_ts_ns: int | None
+    gap_ns: int | None
+    previous_finalization_reason: SegmentFinalizationReason | None
 
 
 def _load_raw_manifest(path: Path) -> RawSegmentManifest:
@@ -192,15 +203,17 @@ def _segment_quality_eligible(pair: _SegmentPair, policy: ResearchDataReadinessP
 
 def _contiguous_chains(
     pairs: tuple[_SegmentPair, ...], policy: ResearchDataReadinessPolicy
-) -> tuple[tuple[tuple[_SegmentPair, ...], ...], int, int]:
+) -> tuple[tuple[tuple[_SegmentPair, ...], ...], tuple[_ContinuityBreak, ...], int]:
     chains: list[tuple[_SegmentPair, ...]] = []
     current: list[_SegmentPair] = []
-    breaks = 0
+    breaks: list[_ContinuityBreak] = []
     overlaps = 0
     previous: _SegmentPair | None = None
     for pair in pairs:
         eligible = _segment_quality_eligible(pair, policy)
         must_break = not eligible
+        trigger: ContinuityBreakTrigger | None = "quality_ineligible" if must_break else None
+        gap_ns: int | None = None
         if previous is not None:
             gap_ns = pair.raw.started_at_ns - previous.raw.ended_at_ns
             overlap = gap_ns < 0
@@ -213,17 +226,38 @@ def _contiguous_chains(
             must_break = (
                 must_break or overlap or gap_ns > policy.maximum_contiguous_gap_ns or unexplained
             )
+            if trigger is None:
+                if overlap:
+                    trigger = "overlap"
+                elif unexplained:
+                    trigger = "previous_error"
+                elif gap_ns > policy.maximum_contiguous_gap_ns:
+                    trigger = "gap_exceeded"
         if must_break:
             if current:
                 chains.append(tuple(current))
                 current.clear()
-            breaks += 1
+            if trigger is None:  # pragma: no cover - guarded by must_break construction
+                raise RuntimeError("continuity break is missing its trigger")
+            breaks.append(
+                _ContinuityBreak(
+                    trigger=trigger,
+                    current_segment_started_ts_ns=pair.raw.started_at_ns,
+                    previous_segment_ended_ts_ns=(
+                        None if previous is None else previous.raw.ended_at_ns
+                    ),
+                    gap_ns=gap_ns,
+                    previous_finalization_reason=(
+                        None if previous is None else previous.raw.finalization_reason
+                    ),
+                )
+            )
         if eligible:
             current.append(pair)
         previous = pair
     if current:
         chains.append(tuple(current))
-    return tuple(chains), breaks, overlaps
+    return tuple(chains), tuple(breaks), overlaps
 
 
 def _chain_span(chain: tuple[_SegmentPair, ...]) -> int:
@@ -274,6 +308,30 @@ def evaluate_data_readiness(
         issue.kind.value for pair in latest for issue in pair.normalized.issues
     )
     excluded_frames = sum(pair.normalized.excluded_frame_count for pair in latest)
+    break_counts = Counter(item.trigger for item in continuity_breaks)
+    break_reasons = tuple(
+        {"name": reason, "count": break_counts[reason]}
+        for reason in ("quality_ineligible", "overlap", "previous_error", "gap_exceeded")
+    )
+    latest_break = (
+        None
+        if not continuity_breaks
+        else ResearchDataContinuityBreak.model_validate(
+            {
+                "trigger": continuity_breaks[-1].trigger,
+                "current_segment_started_ts_ns": (
+                    continuity_breaks[-1].current_segment_started_ts_ns
+                ),
+                "previous_segment_ended_ts_ns": (
+                    continuity_breaks[-1].previous_segment_ended_ts_ns
+                ),
+                "gap_ns": continuity_breaks[-1].gap_ns,
+                "previous_finalization_reason": (
+                    continuity_breaks[-1].previous_finalization_reason
+                ),
+            }
+        )
+    )
     dataset_admitted = False
     if latest:
         try:
@@ -349,7 +407,7 @@ def evaluate_data_readiness(
         ),
     )
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "generated_ts_ns": now_ns,
         "policy": policy,
         "validation_policy": validation_policy,
@@ -363,7 +421,9 @@ def evaluate_data_readiness(
         "orphan_normalized_segment_count": discovery.orphan_normalized_segment_count,
         "missing_normalized_file_count": discovery.missing_normalized_file_count,
         "overlap_count": overlaps,
-        "continuity_break_count": continuity_breaks,
+        "continuity_break_count": len(continuity_breaks),
+        "continuity_breaks_by_reason": break_reasons,
+        "latest_continuity_break": latest_break,
         "contiguous_chain_count": len(chains),
         "latest_contiguous_started_ts_ns": latest_start,
         "latest_contiguous_ended_ts_ns": latest_end,

@@ -14,10 +14,10 @@ def _write_state(root: Path, *, status: str = "running", heartbeat_ns: int = 1_0
     path.write_text(
         json.dumps(
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "status": status,
                 "heartbeat_ts_ns": heartbeat_ns,
-                "report": {"ready_for_horizon_audit": False},
+                "report": {"schema_version": 2, "ready_for_horizon_audit": False},
                 "last_error_code": None,
             }
         ),
@@ -55,11 +55,11 @@ def test_healthcheck_cli_fails_closed_on_invalid_state(
     ("payload", "match"),
     (
         ([], "JSON object"),
-        ({"schema_version": 2, "status": "running", "heartbeat_ts_ns": 1}, "must be 1"),
-        ({"schema_version": 1, "status": "unknown", "heartbeat_ts_ns": 1}, "unsupported"),
+        ({"schema_version": 1, "status": "running", "heartbeat_ts_ns": 1}, "must be 2"),
+        ({"schema_version": 2, "status": "unknown", "heartbeat_ts_ns": 1}, "unsupported"),
         (
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "status": "running",
                 "heartbeat_ts_ns": 1,
                 "report": "invalid",
@@ -68,12 +68,21 @@ def test_healthcheck_cli_fails_closed_on_invalid_state(
         ),
         (
             {
-                "schema_version": 1,
+                "schema_version": 2,
                 "status": "running",
                 "heartbeat_ts_ns": 1,
-                "report": {},
+                "report": {"schema_version": 2},
             },
             "verdict must be a boolean",
+        ),
+        (
+            {
+                "schema_version": 2,
+                "status": "running",
+                "heartbeat_ts_ns": 1,
+                "report": {"schema_version": 1, "ready_for_horizon_audit": False},
+            },
+            "report schema_version must be 2",
         ),
     ),
 )
