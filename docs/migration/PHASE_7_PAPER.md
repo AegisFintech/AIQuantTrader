@@ -130,7 +130,10 @@ split, alternatives, and performance implications are in
 [`ADR 0014`](../adr/0014-bbo-executable-l2-depth-freshness.md).
 Stale/disconnected/killed operation cannot submit a new intent and
 initiates cancel-all. A corrupt kill file is active by default. Paper status is
-atomically replaced and the service is not healthy while stale or killed.
+atomically replaced. Operational readiness remains false while stale or
+killed, while Docker liveness independently requires a fresh, valid status in
+a non-terminal lifecycle. [`ADR 0016`](../adr/0016-paper-liveness-readiness-separation.md)
+records why process health cannot be inferred from permission to trade.
 
 ## Frozen paper evidence
 

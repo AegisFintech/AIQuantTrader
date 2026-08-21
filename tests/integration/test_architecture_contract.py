@@ -120,6 +120,7 @@ def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path
     assert "/var/lib/aiquanttrader/state" in normalizer
     paper = compose.split("  paper-trader:", 1)[1].split("  node-exporter:", 1)[0]
     assert "aqt-paper-healthcheck" in paper
+    assert "- liveness" in paper
     lightweight_probe = (project_root / "src" / "aiquanttrader" / "paper_healthcheck.py").read_text(
         encoding="utf-8"
     )

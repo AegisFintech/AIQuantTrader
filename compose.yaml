@@ -172,6 +172,8 @@ services:
         - /var/lib/aiquanttrader/state
         - --stale-after-ms
         - "5000"
+        - --mode
+        - liveness
       interval: 5s
       timeout: 5s
       retries: 3
