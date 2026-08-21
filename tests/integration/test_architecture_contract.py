@@ -330,7 +330,7 @@ def test_paper_monitor_is_local_pinned_read_only_and_metric_complete(project_roo
     )
     rendered = json.dumps(dashboard)
     assert dashboard["uid"] == "aqt-paper-trading"
-    assert len(dashboard["panels"]) >= 15
+    assert len(dashboard["panels"]) >= 44
     for metric in (
         "aqt_paper_market_states_total",
         "aqt_paper_fills_total",
@@ -349,8 +349,37 @@ def test_paper_monitor_is_local_pinned_read_only_and_metric_complete(project_roo
         "aqt_paper_feed_blocked",
         "aqt_paper_adaptive_forecast_ready",
         "aqt_paper_adaptive_forecast_directional_accuracy",
+        "node_cpu_seconds_total",
+        "node_memory_MemAvailable_bytes",
+        "node_filesystem_avail_bytes",
+        "node_network_receive_bytes_total",
+        "node_network_transmit_bytes_total",
+        "node_disk_read_bytes_total",
+        "node_disk_written_bytes_total",
+        "node_boot_time_seconds",
+        "node_load1",
+        "aiquanttrader-paper",
+        "aiquanttrader-node",
     ):
         assert metric in rendered
+    paper_panels = dashboard["panels"]
+    paper_panel_ids = [panel["id"] for panel in paper_panels]
+    assert len(paper_panel_ids) == len(set(paper_panel_ids))
+    runtime_panel = next(panel for panel in paper_panels if panel["id"] == 1)
+    assert "LIVE DATA / PAPER ONLY" in runtime_panel["title"]
+    assert "execution.enabled=false" in runtime_panel["description"]
+    server_row = next(panel for panel in paper_panels if panel["id"] == 32)
+    assert server_row["title"] == "Server heartbeat and resource telemetry"
+    assert server_row["gridPos"]["y"] > 69
+    server_titles = {panel["title"] for panel in paper_panels if panel["gridPos"]["y"] > 69}
+    assert {
+        "Host CPU",
+        "Host memory",
+        "Root disk usage",
+        "Host bandwidth in / out",
+        "Processor capacity",
+        "Scrape heartbeat age",
+    } <= server_titles
 
     platform_dashboard = json.loads(
         (project_root / "observability/grafana/dashboards/platform-health.json").read_text(

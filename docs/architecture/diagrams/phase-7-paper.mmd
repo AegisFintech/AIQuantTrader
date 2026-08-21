@@ -48,7 +48,8 @@ flowchart LR
     WATCH --> STATUS
     STATUS --> PROBE
 
-    PROM[Prometheus] --> GRAF[Grafana paper dashboard]
+    NODE[Node Exporter host heartbeat / CPU / memory / disk / network] --> PROM[Prometheus]
+    PROM --> GRAF[Grafana BTC command center + embedded server telemetry]
     PROBE -->|liveness only| DOCKER[Docker health]
     FEAT --> PROM
     RISK --> PROM

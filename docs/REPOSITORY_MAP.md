@@ -188,6 +188,10 @@ attribution, drift, admission, renewal, sentinel continuity, and kill state.
 Node Exporter supplies host CPU, memory, disk, network, uptime, and load.
 Grafana dashboards are provisioned from
 `observability/grafana/dashboards/`.
+The primary BTC paper dashboard distinguishes live public-data/process state
+from the paper-only execution mode and embeds the server heartbeat, processor,
+memory, disk, bandwidth, I/O, uptime, and load panels below the trading view.
+The separate platform-health dashboard retains the same operator-wide view.
 The paper container's dependency-light Docker probe checks fresh process
 liveness; operational readiness remains a separate fail-closed verdict over
 feed state and the durable operator kill. Liveness never authorizes trading.
