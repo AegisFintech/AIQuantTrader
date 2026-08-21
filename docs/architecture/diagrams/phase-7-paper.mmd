@@ -60,8 +60,11 @@ flowchart LR
     KEY[Exchange account or wallet]
     KEY -. forbidden by config, compose, and tests .-> PaperContainer
 
+    HEAVY[HftBacktest / Nautilus / SDK / PyArrow / approval crypto]
+    HEAVY -. excluded by paper image contract .-> PaperContainer
+
     OPENAI[OpenAI key file]
     OPENAI -->|read-only; no execution path| LLM
 
     classDef forbidden fill:#5b1a1a,color:#fff,stroke:#ff6b6b,stroke-width:2px;
-    class KEY forbidden;
+    class KEY,HEAVY forbidden;

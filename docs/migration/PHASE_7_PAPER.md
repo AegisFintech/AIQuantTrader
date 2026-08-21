@@ -75,6 +75,16 @@ mode deliberately does not instantiate its live execution client because a
 simulated sink must be incapable of emitting an order. The shared kernel parity
 contract is the boundary between representation-specific live data and alpha.
 
+The dedicated paper Docker target also excludes HftBacktest, NautilusTrader,
+the Hyperliquid SDK, PyArrow, and approval cryptography at the distribution
+boundary. Representation adapters and the Parquet writer load lazily only in
+images that install them. The paper image retains its required raw recorder,
+DuckDB catalog, NumPy feature engine, optional OpenAI observer, Prometheus,
+Pydantic, WebSockets, and Zstandard. Adoption measured 98,100,519 bytes versus
+577,778,314 bytes for the general foundation image, an 83.02% reduction. The
+decision and alternatives are recorded in
+[`ADR 0017`](../adr/0017-minimal-paper-runtime-image.md).
+
 ## Paper execution and accounting
 
 The simulator consumes the versioned Phase 5 `ExecutionScenario`, so paper and

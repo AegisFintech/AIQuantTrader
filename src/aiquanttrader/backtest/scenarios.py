@@ -4,19 +4,14 @@ from __future__ import annotations
 
 import tomllib
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from hftbacktest import (
-    BUY_EVENT,
-    DEPTH_EVENT,
-    SELL_EVENT,
-    TRADE_EVENT,
-    BacktestAsset,
-    event_dtype,
-)
 
 from aiquanttrader.backtest.models import ExecutionScenario, QueueModel, ValidationPolicy
+
+if TYPE_CHECKING:
+    from hftbacktest import BacktestAsset
 
 
 def load_scenario(path: Path) -> ExecutionScenario:
@@ -36,6 +31,8 @@ def stressed_events(
 ) -> np.ndarray[Any, np.dtype[Any]]:
     """Apply scenario liquidity assumptions without mutating the admitted dataset."""
 
+    from hftbacktest import DEPTH_EVENT, TRADE_EVENT, event_dtype
+
     if events.dtype != event_dtype:
         raise ValueError("events do not use the pinned HftBacktest dtype")
     stressed = events.copy()
@@ -53,6 +50,8 @@ def build_hft_asset(
     events: np.ndarray[Any, np.dtype[Any]], scenario: ExecutionScenario
 ) -> BacktestAsset:
     """Build one linear BTC asset with every material assumption explicit."""
+
+    from hftbacktest import BacktestAsset
 
     asset = (
         BacktestAsset()
@@ -79,6 +78,8 @@ def build_hft_asset(
 
 
 def scenario_event_counts(events: np.ndarray[Any, np.dtype[Any]]) -> dict[str, int]:
+    from hftbacktest import BUY_EVENT, DEPTH_EVENT, SELL_EVENT, TRADE_EVENT
+
     flags = events["ev"]
     return {
         "depth": int(np.sum(flags & DEPTH_EVENT == DEPTH_EVENT)),

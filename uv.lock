@@ -41,6 +41,15 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
+paper-runtime = [
+    { name = "duckdb" },
+    { name = "numpy" },
+    { name = "openai" },
+    { name = "prometheus-client" },
+    { name = "pydantic" },
+    { name = "websockets" },
+    { name = "zstandard" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -69,6 +78,15 @@ dev = [
     { name = "pytest", specifier = "==9.1.1" },
     { name = "pytest-cov", specifier = ">=7,<8" },
     { name = "ruff", specifier = "==0.15.22" },
+]
+paper-runtime = [
+    { name = "duckdb", specifier = "==1.5.4" },
+    { name = "numpy", specifier = "==2.2.6" },
+    { name = "openai", specifier = "==2.47.0" },
+    { name = "prometheus-client", specifier = "==0.25.0" },
+    { name = "pydantic", specifier = "==2.13.4" },
+    { name = "websockets", specifier = "==17.0.1" },
+    { name = "zstandard", specifier = "==0.25.0" },
 ]
 
 [[package]]

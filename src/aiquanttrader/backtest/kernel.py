@@ -7,27 +7,21 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
 from itertools import groupby
-from typing import Annotated, Any, Literal, Protocol, Self, cast
+from typing import TYPE_CHECKING, Annotated, Any, Literal, Protocol, Self, cast
 
 import numpy as np
-from hftbacktest import (
-    BUY_EVENT,
-    DEPTH_BBO_EVENT,
-    DEPTH_CLEAR_EVENT,
-    DEPTH_EVENT,
-    DEPTH_SNAPSHOT_EVENT,
-    LOCAL_EVENT,
-    SELL_EVENT,
-    TRADE_EVENT,
-    event_dtype,
-)
-from nautilus_trader.model.data import OrderBookDepth10, QuoteTick, TradeTick
-from nautilus_trader.model.enums import AggressorSide as NautilusAggressorSide
 from pydantic import Field, model_validator
 
 from aiquanttrader.domain.base import DomainModel
 from aiquanttrader.domain.execution import OrderIntent
 from aiquanttrader.domain.market import AggressorSide
+
+if TYPE_CHECKING:
+    from nautilus_trader.model.data import OrderBookDepth10, QuoteTick, TradeTick
+
+    type NautilusMarketData = QuoteTick | TradeTick | OrderBookDepth10
+else:
+    type NautilusMarketData = Any
 
 
 class KernelBookLevel(DomainModel):
@@ -155,6 +149,18 @@ def iter_hft_market_states(
 ) -> Iterator[KernelMarketState]:
     """Yield local-arrival states without retaining the complete replay in memory."""
 
+    from hftbacktest import (
+        BUY_EVENT,
+        DEPTH_BBO_EVENT,
+        DEPTH_CLEAR_EVENT,
+        DEPTH_EVENT,
+        DEPTH_SNAPSHOT_EVENT,
+        LOCAL_EVENT,
+        SELL_EVENT,
+        TRADE_EVENT,
+        event_dtype,
+    )
+
     if events.dtype != event_dtype:
         raise ValueError("events do not use the pinned HftBacktest dtype")
     if depth_levels < 1:
@@ -261,13 +267,13 @@ def hft_market_states(
     return tuple(iter_hft_market_states(events, depth_levels=depth_levels))
 
 
-type NautilusMarketData = QuoteTick | TradeTick | OrderBookDepth10
-
-
 def nautilus_market_states(
     events: Sequence[NautilusMarketData], *, depth_levels: int = 10
 ) -> tuple[KernelMarketState, ...]:
     """Normalize actual Nautilus objects to the identical kernel contract."""
+
+    from nautilus_trader.model.data import OrderBookDepth10, QuoteTick, TradeTick
+    from nautilus_trader.model.enums import AggressorSide as NautilusAggressorSide
 
     if depth_levels < 1 or depth_levels > 10:
         raise ValueError("Nautilus depth_levels must be in [1, 10]")

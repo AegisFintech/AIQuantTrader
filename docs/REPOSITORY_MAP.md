@@ -23,7 +23,7 @@ the migration record; none of those systems has runtime authority.
 | `configs/` | Typed, fail-closed environment and artifact policies. |
 | `schemas/` | Checked-in JSON schemas generated from domain models. |
 | `observability/` | Prometheus and provisioned Grafana configuration. |
-| `Dockerfile` | Pinned, non-root runtime and research images. |
+| `Dockerfile` | Pinned, non-root general, paper, readiness, and research images. |
 | `compose.yaml` | Credential-free foundation, market-data, and paper services. |
 | `compose.testnet.yaml` | Explicit testnet execution and independent sentinel overlay. |
 | `compose.shadow.yaml` | Public gateway plus network-isolated shadow engine. |
@@ -89,6 +89,10 @@ repository artifacts.
 Paper never receives an exchange account or wallet. Its optional OpenAI key is
 mounted as a read-only file and is usable only by the asynchronous confirmation
 observer. LLM output is evidence, never order or risk authority.
+The dedicated paper image installs a lockfile-backed minimal dependency group;
+HftBacktest, NautilusTrader, Hyperliquid SDK, PyArrow, and approval cryptography
+remain outside that credential-free runtime. Shared adapter and storage APIs are
+lazy so this isolation does not fork kernel behavior.
 
 ## Storage
 

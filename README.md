@@ -365,6 +365,13 @@ paper/replay-only and cannot approve production promotion.
 The checked-in scenarios are uncalibrated and therefore cannot pass
 `aqt-paper evidence`. Procedures, drills, sensitivity rules, and rollback are in
 [`PAPER_TRADING_RUNBOOK.md`](docs/operations/PAPER_TRADING_RUNBOOK.md).
+Compose builds the dedicated `paper` target rather than the general foundation
+image. Its locked runtime keeps DuckDB, NumPy, optional OpenAI, Prometheus,
+Pydantic, WebSockets, and Zstandard while excluding HftBacktest,
+NautilusTrader, Hyperliquid SDK, PyArrow, and approval cryptography. The measured
+image fell from 577,778,314 to 98,100,519 bytes (83.02%) without changing paper
+commands or strategy/risk behavior; see
+[`ADR 0017`](docs/adr/0017-minimal-paper-runtime-image.md).
 `aqt-paper replay` verifies finalized raw segments and runs required sensitivity
 scenarios through the same consumer path without network access. Every causal
 strategy evaluation—including warmup and blocked outcomes that emit no

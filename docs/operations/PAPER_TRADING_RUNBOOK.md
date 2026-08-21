@@ -19,6 +19,13 @@ the optional read-only `/run/secrets/openai_api_key`; it is `/dev/null` while
 the observer is disabled. `execution.enabled` must be false and `paper.enabled`
 true. Stop if any exchange identity or wallet secret is present.
 
+The service must render `target: paper` and
+`image: aiquanttrader-native-paper:0.1.0`. That image retains the public-feed,
+paper, observability, and optional OpenAI dependencies but excludes
+HftBacktest, NautilusTrader, Hyperliquid SDK, PyArrow, and approval
+cryptography. A missing excluded package is intentional; do not add the general
+dependency set to work around an unrelated operational failure.
+
 Do not run `market-data-recorder` against the same state volume. `paper-trader`
 owns raw capture for this profile. The normalizer may run separately after raw
 segments finalize.
@@ -36,6 +43,21 @@ docker compose logs --tail 100 paper-trader
 docker compose exec paper-trader \
   aqt-paper healthcheck --state-root /var/lib/aiquanttrader/state
 ```
+
+For a release that changes the Docker boundary, record the image size and
+verify the paper entry points before replacement:
+
+```bash
+docker image inspect aiquanttrader-native-paper:0.1.0 --format '{{.Size}}'
+docker run --rm --entrypoint aqt-paper \
+  aiquanttrader-native-paper:0.1.0 --help
+docker run --rm --entrypoint aqt-paper-healthcheck \
+  aiquanttrader-native-paper:0.1.0 --help
+```
+
+Size is a regression diagnostic, not a safety or promotion gate. The build
+cache may be pruned after the exact image is running; never prune active images,
+volumes, journals, or captured data.
 
 Record a successful independent status-contract check once per run:
 

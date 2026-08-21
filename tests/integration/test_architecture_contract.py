@@ -100,7 +100,8 @@ def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path
     assert "UV_PROJECT_ENVIRONMENT=/opt/aiquanttrader/.venv" in dockerfile
     assert "/opt/aiquanttrader/.venv /opt/aiquanttrader/.venv" in dockerfile
     assert "uv sync --frozen --no-dev --no-editable --no-install-project" in dockerfile
-    assert "FROM builder AS package-builder" in dockerfile
+    assert "FROM build-base AS builder" in dockerfile
+    assert "FROM build-base AS package-builder" in dockerfile
     assert "uv build --wheel --out-dir /build/dist" in dockerfile
     assert "--no-cache-dir --no-deps /tmp/aiquanttrader-0.1.0-py3-none-any.whl" in dockerfile
     assert "USER 65532:65532" in dockerfile
@@ -108,6 +109,10 @@ def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path
     assert "FROM builder AS research-builder" in dockerfile
     assert "uv sync --frozen --no-dev --no-editable --extra research" in dockerfile
     assert "FROM runtime-base AS research" in dockerfile
+    assert "FROM build-base AS paper-builder" in dockerfile
+    assert "uv sync --frozen --only-group paper-runtime" in dockerfile
+    assert "FROM runtime-base AS paper" in dockerfile
+    assert "COPY --from=paper-builder" in dockerfile
     assert "FROM runtime-base AS readiness" in dockerfile
     assert 'PYTHONPATH="/opt/aiquanttrader/src"' in dockerfile
     assert 'ENTRYPOINT ["aqt-research"]' in dockerfile
@@ -119,6 +124,8 @@ def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path
     assert "normalizer-healthcheck" in normalizer
     assert "/var/lib/aiquanttrader/state" in normalizer
     paper = compose.split("  paper-trader:", 1)[1].split("  node-exporter:", 1)[0]
+    assert "aiquanttrader-native-paper:0.1.0" in paper
+    assert "target: paper" in paper
     assert "aqt-paper-healthcheck" in paper
     assert "- liveness" in paper
     lightweight_probe = (project_root / "src" / "aiquanttrader" / "paper_healthcheck.py").read_text(
@@ -139,6 +146,50 @@ def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path
     assert "from aiquanttrader" not in readiness_probe
     assert "import aiquanttrader" not in readiness_probe
     assert "pydantic" not in readiness_probe
+
+
+def test_paper_runtime_dependency_boundary_is_explicit(project_root: Path) -> None:
+    with (project_root / "pyproject.toml").open("rb") as handle:
+        project = tomllib.load(handle)
+    paper_dependencies = set(project["dependency-groups"]["paper-runtime"])
+    assert paper_dependencies == {
+        "duckdb==1.5.4",
+        "numpy==2.2.6",
+        "openai==2.47.0",
+        "prometheus-client==0.25.0",
+        "pydantic==2.13.4",
+        "websockets==17.0.1",
+        "zstandard==0.25.0",
+    }
+
+    script = """
+import builtins
+
+blocked = {"Crypto", "hftbacktest", "hyperliquid", "nautilus_trader", "pyarrow"}
+original_import = builtins.__import__
+
+def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+    if name.split(".", 1)[0] in blocked:
+        raise RuntimeError(f"paper imported prohibited dependency: {name}")
+    return original_import(name, globals, locals, fromlist, level)
+
+builtins.__import__ = guarded_import
+from aiquanttrader.paper import cli
+from aiquanttrader.paper.config import load_paper_artifacts
+assert cli.main is not None
+assert load_paper_artifacts is not None
+"""
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(project_root / "src")
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        cwd=project_root,
+        env=environment,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_execution_and_control_wallets_are_process_isolated(project_root: Path) -> None:

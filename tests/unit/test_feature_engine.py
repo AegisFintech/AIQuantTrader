@@ -7,6 +7,7 @@ import pyarrow.parquet as pq
 import pytest
 from pydantic import ValidationError
 
+import aiquanttrader.features as feature_package
 from aiquanttrader.backtest.kernel import KernelBookLevel, KernelMarketState, KernelTrade
 from aiquanttrader.domain.base import canonical_sha256
 from aiquanttrader.domain.market import AggressorSide
@@ -19,6 +20,12 @@ from aiquanttrader.features.models import (
     VolatilityRegime,
 )
 from aiquanttrader.features.storage import write_feature_dataset
+
+
+def test_feature_storage_public_export_remains_lazy_and_compatible() -> None:
+    assert feature_package.write_feature_dataset is write_feature_dataset
+    with pytest.raises(AttributeError, match="missing_export"):
+        feature_package.__getattr__("missing_export")
 
 
 def market_state(
