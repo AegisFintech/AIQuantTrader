@@ -1,0 +1,14 @@
+flowchart LR
+  R[Fresh typed research-readiness state] --> P[Read-only storage preflight]
+  C[Checked retention and maintenance policy] --> P
+  H[Filesystem stat and Linux sysfs] --> P
+  P --> I[Immutable content-addressed report]
+  I -->|block_device_resize_required| E[Human-approved EBS expansion]
+  E --> P
+  I -->|partition_resize_required| G[Operator growpart]
+  G --> P
+  I -->|filesystem_resize_required| F[Operator ext4 resize]
+  F --> P
+  I -->|ready| O[Storage closeout only]
+  I -->|unsupported layout| S[Stop and investigate]
+  O -. does not bypass .-> V[Capture, research, paper, shadow and promotion gates]

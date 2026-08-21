@@ -164,6 +164,13 @@ from aiquanttrader.retirement.models import (
     RetirementReadinessReport,
     VerifiedRetirementApproval,
 )
+from aiquanttrader.service.storage import (
+    BlockDeviceSnapshot,
+    HostStorageSnapshot,
+    ResearchRetentionRequirement,
+    StorageExpansionPolicy,
+    StorageExpansionPreflightReport,
+)
 from aiquanttrader.shadow.models import (
     ShadowDeterminismReport,
     ShadowEvidencePolicy,
@@ -348,6 +355,13 @@ SCHEMAS: dict[str, SchemaFactory] = {
         | ShadowEvidencePolicy
         | ShadowDeterminismReport
         | ShadowEvidenceReport
+    ).json_schema(),
+    "storage.schema.json": lambda: TypeAdapter(
+        StorageExpansionPolicy
+        | ResearchRetentionRequirement
+        | BlockDeviceSnapshot
+        | HostStorageSnapshot
+        | StorageExpansionPreflightReport
     ).json_schema(),
     "tardis-file-manifest.schema.json": lambda: _model_schema(TardisFileManifest),
 }

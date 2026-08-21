@@ -24,7 +24,9 @@ and the completed Phase 10 evidence-verification boundary:
 - raw-first Hyperliquid BTC WebSocket capture with reconnect and disk guards;
 - deterministic, independently operated Parquet normalization and quarantine;
 - immutable Tardis historical-file acquisition;
-- DuckDB manifest catalogs and bounded Prometheus metrics.
+- DuckDB manifest catalogs and bounded Prometheus metrics;
+- a read-only, content-addressed storage expansion preflight that preserves
+  projected research retention plus separate recorder and maintenance reserves.
 - a synchronous position, inventory, leverage, loss, drawdown, freshness, and
   operator-kill risk authority with short-lived single-use approvals;
 - one risk-managed NautilusTrader Hyperliquid execution gateway and a durable
@@ -315,6 +317,21 @@ walk-forward policy, gates on the latest continuous normalized chain, and
 projects whether disk headroom can retain the remaining evidence. The
 monitoring profile publishes that status to Prometheus/Grafana without reading
 labels, fitting models, or granting training or promotion authority.
+When its storage-capacity gate fails, derive the current host target and exact
+incomplete layer without modifying the host:
+
+```bash
+uv run aqt-native storage-expansion-preflight \
+  --data-root /var/lib/docker/volumes/aiquanttrader-native-data/_data \
+  --readiness-state /var/lib/docker/volumes/aiquanttrader-native-state/_data/research/data-readiness.json \
+  --policy configs/operations/storage-expansion-v1.toml \
+  --output state/storage-expansion/preflight.json
+```
+
+Exit `3` means a valid immutable report requires an operator action; it is not
+permission to resize a guessed device. The staged AWS EBS, partition, and ext4
+procedure is in
+[`STORAGE_EXPANSION_RUNBOOK.md`](docs/operations/STORAGE_EXPANSION_RUNBOOK.md).
 
 ## Paper trading
 

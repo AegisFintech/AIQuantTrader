@@ -7,6 +7,7 @@ import json
 import signal
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 from collections.abc import Sequence
@@ -14,8 +15,15 @@ from pathlib import Path
 from typing import Any
 
 from aiquanttrader.config import ConfigLoadError, load_config
+from aiquanttrader.market_data.io import atomic_write_bytes
 from aiquanttrader.schemas import export_schemas
 from aiquanttrader.service import create_health_server
+from aiquanttrader.service.storage import (
+    evaluate_storage_expansion,
+    inspect_host_storage,
+    load_retention_requirement,
+    load_storage_expansion_policy,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -42,6 +50,15 @@ def _parser() -> argparse.ArgumentParser:
     schemas = subparsers.add_parser("export-schemas", help="write or verify JSON schemas")
     schemas.add_argument("--output", type=Path, required=True)
     schemas.add_argument("--check", action="store_true")
+
+    storage = subparsers.add_parser(
+        "storage-expansion-preflight",
+        help="write a read-only host storage expansion report",
+    )
+    storage.add_argument("--data-root", type=Path, required=True)
+    storage.add_argument("--readiness-state", type=Path, required=True)
+    storage.add_argument("--policy", type=Path, required=True)
+    storage.add_argument("--output", type=Path, required=True)
     return parser
 
 
@@ -96,6 +113,49 @@ def _serve(config_dir: Path, environment: str) -> int:
     return 0
 
 
+def _storage_expansion_preflight(
+    *,
+    data_root: Path,
+    readiness_state: Path,
+    policy_path: Path,
+    output: Path,
+) -> int:
+    now_ns = time.time_ns()
+    policy = load_storage_expansion_policy(policy_path)
+    requirement = load_retention_requirement(
+        readiness_state,
+        now_ns=now_ns,
+        maximum_age_ns=policy.maximum_readiness_age_ns,
+    )
+    report = evaluate_storage_expansion(
+        policy=policy,
+        requirement=requirement,
+        snapshot=inspect_host_storage(data_root),
+        generated_ts_ns=now_ns,
+    )
+    artifact_path = output.resolve()
+    atomic_write_bytes(artifact_path, report.canonical_bytes() + b"\n")
+    print(
+        json.dumps(
+            {
+                "status": ("ready" if report.ready_for_expansion_closeout else "action_required"),
+                "report_id": report.report_id,
+                "stage": report.stage.value,
+                "filesystem_device_id": report.snapshot.filesystem_device_id,
+                "filesystem_total_bytes": report.snapshot.filesystem_total_bytes,
+                "filesystem_available_bytes": report.snapshot.filesystem_available_bytes,
+                "capacity_shortfall_bytes": report.capacity_shortfall_bytes,
+                "minimum_block_device_bytes": report.minimum_block_device_bytes,
+                "recommended_block_device_bytes": report.recommended_block_device_bytes,
+                "operator_action_required": report.operator_action_required,
+                "output": str(artifact_path),
+            },
+            sort_keys=True,
+        )
+    )
+    return 0 if report.ready_for_expansion_closeout else 3
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
@@ -121,7 +181,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             paths = export_schemas(args.output, check=args.check)
             print(json.dumps({"status": "valid", "schemas": [str(path) for path in paths]}))
             return 0
-    except (ConfigLoadError, ValueError) as exc:
+        if args.command == "storage-expansion-preflight":
+            return _storage_expansion_preflight(
+                data_root=args.data_root,
+                readiness_state=args.readiness_state,
+                policy_path=args.policy,
+                output=args.output,
+            )
+    except (ConfigLoadError, OSError, ValueError) as exc:
         print(json.dumps({"status": "invalid", "error": str(exc)}), file=sys.stderr)
         return 2
     raise RuntimeError(f"unhandled command: {args.command}")
