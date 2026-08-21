@@ -52,7 +52,7 @@ the migration record; none of those systems has runtime authority.
 | `paper/` | Public-feed simulation, accounting, per-cycle strategy gate diagnostics, journals, evidence, and optional shadow-only LLM review. |
 | `shadow/` | Checksummed ingress, network-isolated counterfactual engine, observer, and evidence. |
 | `governance/` | Artifact bundles, offline approvals, admission ledger, renewals, and release evidence. |
-| `service/` | Common health/readiness service. |
+| `service/` | Common health/readiness service plus read-only host storage expansion inspection and evidence. |
 | `retirement/` | Offline replay of retained Phase 10 migration evidence; no operational capability. |
 
 ## Data and execution flow
@@ -78,7 +78,8 @@ cancel-all. Paper and shadow code must not import an order-capable client.
 The root configuration files (`base.toml`, `paper.toml`, `shadow.toml`,
 `testnet.toml`, `canary.toml`, and `production.toml`) compose into an immutable
 configuration bundle. Nested artifact policies live below `configs/backtest/`,
-`features/`, `paper/`, `production/`, `research/`, `shadow/`, and `strategies/`.
+`features/`, `market-data/`, `operations/`, `paper/`, `production/`, `research/`,
+`retirement/`, `shadow/`, and `strategies/`.
 
 All checked-in environments default to execution disabled. Private keys are
 mode-`0600` runtime files mounted below `/run/secrets`; their values are never
@@ -99,6 +100,11 @@ observer. LLM output is evidence, never order or risk authority.
 - The frozen deployment soak evaluator discovers only in-window segments and
   binds verified lineage to runtime/collector commits, image/config identities,
   Prometheus counters, restart counts, and disk floors.
+- The storage expansion preflight binds a fresh research-readiness projection,
+  checked recorder/maintenance reserves, filesystem usage, and Linux sysfs
+  layout into an immutable report. It identifies the next EBS, partition, or
+  filesystem layer but has no cloud, package-manager, process, or resize
+  capability.
 - Parquet is the immutable analytical format and DuckDB is the query/catalog
   layer.
 - SQLite journals own restart continuity for live, paper, shadow, admission,
@@ -180,6 +186,7 @@ than requiring the expected multi-week capture gate to have passed.
 | Task | Entry point |
 |---|---|
 | Validate configuration/health | `aqt-native` |
+| Inspect storage expansion stage | `aqt-native storage-expansion-preflight` |
 | Record/normalize/download data | `aqt-market-data` |
 | Convert/replay/validate | `aqt-backtest` |
 | Feature/model research | `aqt-research` |

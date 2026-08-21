@@ -28,6 +28,9 @@ Hyperliquid/NautilusTrader platform.
 - [ ] Public/private feed freshness and reconnect metrics are healthy.
 - [ ] Book integrity, publication cadence, duplicate, and gap checks are healthy.
 - [ ] Raw archive, Parquet finalization, manifests, and disk headroom are healthy.
+- [ ] When the readiness projection requires expansion, a fresh immutable
+  storage preflight reports `ready` with both retention and maintenance
+  headroom; no recorder floor was reduced and no retained data was deleted.
 - [ ] Host time synchronization and monotonic timing checks are healthy.
 
 ## 4. Validate execution and risk

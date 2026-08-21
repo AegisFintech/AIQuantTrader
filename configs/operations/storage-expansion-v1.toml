@@ -1,0 +1,5 @@
+schema_version = 1
+policy_id = "btc-mainnet-storage-expansion-v1"
+minimum_maintenance_headroom_bytes = 4294967296
+allocation_increment_bytes = 10737418240
+maximum_readiness_age_ns = 180000000000

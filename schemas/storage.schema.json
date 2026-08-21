@@ -1,0 +1,352 @@
+{
+  "$defs": {
+    "BlockDeviceSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "filesystem_device_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Filesystem Device Bytes",
+          "type": "integer"
+        },
+        "filesystem_device_name": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Filesystem Device Name",
+          "type": "string"
+        },
+        "logical_block_size": {
+          "exclusiveMinimum": 0,
+          "title": "Logical Block Size",
+          "type": "integer"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "parent_device_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Parent Device Bytes",
+          "type": "integer"
+        },
+        "parent_device_name": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Parent Device Name",
+          "type": "string"
+        },
+        "partition_index": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Partition Index"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "serial": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Serial"
+        }
+      },
+      "required": [
+        "filesystem_device_name",
+        "filesystem_device_bytes",
+        "parent_device_name",
+        "parent_device_bytes",
+        "logical_block_size"
+      ],
+      "title": "BlockDeviceSnapshot",
+      "type": "object"
+    },
+    "HostStorageSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "block_device": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BlockDeviceSnapshot"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "data_root": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Data Root",
+          "type": "string"
+        },
+        "filesystem_available_bytes": {
+          "minimum": 0,
+          "title": "Filesystem Available Bytes",
+          "type": "integer"
+        },
+        "filesystem_device_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Filesystem Device Id",
+          "type": "string"
+        },
+        "filesystem_total_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Filesystem Total Bytes",
+          "type": "integer"
+        },
+        "filesystem_used_bytes": {
+          "minimum": 0,
+          "title": "Filesystem Used Bytes",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "data_root",
+        "filesystem_device_id",
+        "filesystem_total_bytes",
+        "filesystem_used_bytes",
+        "filesystem_available_bytes"
+      ],
+      "title": "HostStorageSnapshot",
+      "type": "object"
+    },
+    "ResearchRetentionRequirement": {
+      "additionalProperties": false,
+      "properties": {
+        "estimated_additional_bytes_required": {
+          "minimum": 0,
+          "title": "Estimated Additional Bytes Required",
+          "type": "integer"
+        },
+        "generated_ts_ns": {
+          "minimum": 0,
+          "title": "Generated Ts Ns",
+          "type": "integer"
+        },
+        "minimum_free_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Free Bytes",
+          "type": "integer"
+        },
+        "readiness_report_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Readiness Report Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "readiness_report_id",
+        "generated_ts_ns",
+        "minimum_free_bytes",
+        "estimated_additional_bytes_required"
+      ],
+      "title": "ResearchRetentionRequirement",
+      "type": "object"
+    },
+    "StorageExpansionPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "allocation_increment_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Allocation Increment Bytes",
+          "type": "integer"
+        },
+        "maximum_readiness_age_ns": {
+          "exclusiveMinimum": 0,
+          "title": "Maximum Readiness Age Ns",
+          "type": "integer"
+        },
+        "minimum_maintenance_headroom_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Maintenance Headroom Bytes",
+          "type": "integer"
+        },
+        "policy_id": {
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "policy_id",
+        "minimum_maintenance_headroom_bytes",
+        "allocation_increment_bytes",
+        "maximum_readiness_age_ns"
+      ],
+      "title": "StorageExpansionPolicy",
+      "type": "object"
+    },
+    "StorageExpansionPreflightReport": {
+      "additionalProperties": false,
+      "properties": {
+        "capacity_shortfall_bytes": {
+          "minimum": 0,
+          "title": "Capacity Shortfall Bytes",
+          "type": "integer"
+        },
+        "generated_ts_ns": {
+          "minimum": 0,
+          "title": "Generated Ts Ns",
+          "type": "integer"
+        },
+        "maintenance_headroom_ready": {
+          "title": "Maintenance Headroom Ready",
+          "type": "boolean"
+        },
+        "minimum_block_device_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Minimum Block Device Bytes",
+          "type": "integer"
+        },
+        "operator_action_required": {
+          "title": "Operator Action Required",
+          "type": "boolean"
+        },
+        "policy": {
+          "$ref": "#/$defs/StorageExpansionPolicy"
+        },
+        "readiness_age_ns": {
+          "minimum": 0,
+          "title": "Readiness Age Ns",
+          "type": "integer"
+        },
+        "ready_for_expansion_closeout": {
+          "title": "Ready For Expansion Closeout",
+          "type": "boolean"
+        },
+        "recommended_block_device_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Recommended Block Device Bytes",
+          "type": "integer"
+        },
+        "report_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Report Id",
+          "type": "string"
+        },
+        "requirement": {
+          "$ref": "#/$defs/ResearchRetentionRequirement"
+        },
+        "research_required_available_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Research Required Available Bytes",
+          "type": "integer"
+        },
+        "research_retention_ready": {
+          "title": "Research Retention Ready",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "const": 1,
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "snapshot": {
+          "$ref": "#/$defs/HostStorageSnapshot"
+        },
+        "stage": {
+          "$ref": "#/$defs/StorageExpansionStage"
+        },
+        "total_required_available_bytes": {
+          "exclusiveMinimum": 0,
+          "title": "Total Required Available Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "report_id",
+        "generated_ts_ns",
+        "policy",
+        "requirement",
+        "readiness_age_ns",
+        "snapshot",
+        "research_required_available_bytes",
+        "total_required_available_bytes",
+        "capacity_shortfall_bytes",
+        "minimum_block_device_bytes",
+        "recommended_block_device_bytes",
+        "stage",
+        "research_retention_ready",
+        "maintenance_headroom_ready",
+        "ready_for_expansion_closeout",
+        "operator_action_required"
+      ],
+      "title": "StorageExpansionPreflightReport",
+      "type": "object"
+    },
+    "StorageExpansionStage": {
+      "enum": [
+        "ready",
+        "block_device_resize_required",
+        "partition_resize_required",
+        "filesystem_resize_required",
+        "unsupported_device_layout"
+      ],
+      "title": "StorageExpansionStage",
+      "type": "string"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/StorageExpansionPolicy"
+    },
+    {
+      "$ref": "#/$defs/ResearchRetentionRequirement"
+    },
+    {
+      "$ref": "#/$defs/BlockDeviceSnapshot"
+    },
+    {
+      "$ref": "#/$defs/HostStorageSnapshot"
+    },
+    {
+      "$ref": "#/$defs/StorageExpansionPreflightReport"
+    }
+  ]
+}

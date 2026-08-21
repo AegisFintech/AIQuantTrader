@@ -57,6 +57,41 @@ def test_all_checked_in_environments_default_to_execution_disabled(project_root:
         assert payload.get("live_strategy", {}).get("enabled", False) is False, path
 
 
+def test_storage_expansion_preflight_is_read_only_and_preserves_reserves(
+    project_root: Path,
+) -> None:
+    source = (project_root / "src" / "aiquanttrader" / "service" / "storage.py").read_text(
+        encoding="utf-8"
+    )
+    prohibited = (
+        "import subprocess",
+        "import socket",
+        "import urllib",
+        "boto3",
+        "modify_volume",
+        "growpart",
+        "resize2fs",
+        ".unlink(",
+        "rmtree(",
+    )
+    assert all(token not in source for token in prohibited)
+
+    policy_path = project_root / "configs" / "operations" / "storage-expansion-v1.toml"
+    with policy_path.open("rb") as handle:
+        policy = tomllib.load(handle)
+    assert policy["minimum_maintenance_headroom_bytes"] == 4 * 1024**3
+    assert policy["allocation_increment_bytes"] == 10 * 1024**3
+    assert policy["maximum_readiness_age_ns"] == 180_000_000_000
+
+    cli = (project_root / "src" / "aiquanttrader" / "cli.py").read_text(encoding="utf-8")
+    assert '"storage-expansion-preflight"' in cli
+    assert (project_root / "schemas" / "storage.schema.json").is_file()
+    assert (project_root / "docs" / "operations" / "STORAGE_EXPANSION_RUNBOOK.md").is_file()
+    assert (
+        project_root / "docs" / "architecture" / "diagrams" / "storage-expansion-preflight.mmd"
+    ).is_file()
+
+
 def test_container_is_pinned_non_root_and_read_only_by_policy(project_root: Path) -> None:
     dockerfile = (project_root / "Dockerfile").read_text(encoding="utf-8")
     compose = (project_root / "compose.yaml").read_text(encoding="utf-8")
