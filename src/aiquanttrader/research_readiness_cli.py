@@ -27,11 +27,21 @@ def readiness_summary(report: ResearchDataReadinessReport) -> dict[str, object]:
         "status": "ready" if report.ready_for_horizon_audit else "collecting",
         "report_id": report.report_id,
         "completion_bps": report.completion_bps,
+        "current_chain_started_ts_ns": report.latest_contiguous_started_ts_ns,
         "latest_contiguous_span_ns": report.latest_contiguous_span_ns,
         "required_validation_span_ns": report.required_validation_span_ns,
         "remaining_validation_span_ns": report.remaining_validation_span_ns,
         "estimated_additional_bytes_required": report.estimated_additional_bytes_required,
         "storage_headroom_bytes": report.storage_headroom_bytes,
+        "continuity_break_count": report.continuity_break_count,
+        "continuity_breaks_by_reason": {
+            item.name: item.count for item in report.continuity_breaks_by_reason
+        },
+        "latest_continuity_break": (
+            None
+            if report.latest_continuity_break is None
+            else report.latest_continuity_break.model_dump(mode="json")
+        ),
         "failed_gates": [gate.gate for gate in report.gates if not gate.passed],
         "model_training_authorized": report.model_training_authorized,
         "production_promotion_authorized": report.production_promotion_authorized,

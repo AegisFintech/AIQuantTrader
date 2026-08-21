@@ -90,8 +90,67 @@
     },
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"min": 0, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 0, "y": 11},
+      "id": 16,
+      "targets": [
+        {
+          "expr": "clamp_min(time() - aqt_research_data_current_chain_started_timestamp_seconds, 0) and aqt_research_data_current_chain_started_timestamp_seconds > 0",
+          "refId": "A"
+        }
+      ],
+      "title": "Current uninterrupted capture",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"min": 0, "unit": "s"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 6, "y": 11},
+      "id": 17,
+      "targets": [
+        {
+          "expr": "clamp_min(time() - aqt_research_data_latest_continuity_break_timestamp_seconds, 0) and aqt_research_data_latest_continuity_break_timestamp_seconds > 0",
+          "refId": "A"
+        }
+      ],
+      "title": "Time since latest continuity reset",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 12, "y": 11},
+      "id": 18,
+      "options": {"colorMode": "value", "graphMode": "none", "textMode": "name"},
+      "targets": [
+        {
+          "expr": "aqt_research_data_latest_continuity_break_info",
+          "legendFormat": "{{reason}} after {{previous_finalization_reason}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Latest continuity reset",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {"defaults": {"min": 0, "unit": "short"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 6, "x": 18, "y": 11},
+      "id": 19,
+      "targets": [
+        {
+          "expr": "aqt_research_data_continuity_breaks",
+          "legendFormat": "{{reason}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Continuity resets by cause",
+      "type": "stat"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
-      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 11},
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 16},
       "id": 1,
       "targets": [
         {"expr": "sum by (stage) (aqt_research_stage_info)", "refId": "A"}
@@ -102,7 +161,7 @@
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []},
-      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 11},
+      "gridPos": {"h": 5, "w": 8, "x": 8, "y": 16},
       "id": 2,
       "targets": [
         {"expr": "max by (feature_set) (aqt_research_feature_drift_psi_max)", "refId": "A"}
@@ -113,7 +172,7 @@
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
-      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 11},
+      "gridPos": {"h": 5, "w": 8, "x": 16, "y": 16},
       "id": 3,
       "targets": [
         {"expr": "sum(increase(aqt_research_experiments_total[24h]))", "refId": "A"}
@@ -124,7 +183,7 @@
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
-      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 21},
       "id": 4,
       "targets": [
         {
@@ -138,7 +197,7 @@
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 21},
       "id": 5,
       "targets": [
         {
@@ -152,7 +211,7 @@
     {
       "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
       "fieldConfig": {"defaults": {"min": 0, "max": 1, "unit": "none"}, "overrides": []},
-      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 24},
+      "gridPos": {"h": 9, "w": 24, "x": 0, "y": 29},
       "id": 6,
       "targets": [
         {
@@ -182,5 +241,5 @@
   "time": {"from": "now-7d", "to": "now"},
   "title": "AIQuantTrader Research Governance",
   "uid": "aqt-research-governance",
-  "version": 2
+  "version": 3
 }

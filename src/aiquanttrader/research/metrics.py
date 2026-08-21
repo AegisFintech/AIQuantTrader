@@ -85,6 +85,33 @@ class DataReadinessMetrics:
             "Age of the latest segment in the latest admissible chain",
             registry=self.registry,
         )
+        self.continuity_breaks = Gauge(
+            "aqt_research_data_continuity_breaks",
+            "Capture continuity resets by mutually exclusive bounded reason",
+            ("reason",),
+            registry=self.registry,
+        )
+        self.latest_continuity_break_info = Gauge(
+            "aqt_research_data_latest_continuity_break_info",
+            "Identity of the latest capture continuity reset",
+            ("reason", "previous_finalization_reason"),
+            registry=self.registry,
+        )
+        self.latest_continuity_break_timestamp_seconds = Gauge(
+            "aqt_research_data_latest_continuity_break_timestamp_seconds",
+            "Unix time when the latest capture continuity reset began",
+            registry=self.registry,
+        )
+        self.latest_continuity_break_gap_seconds = Gauge(
+            "aqt_research_data_latest_continuity_break_gap_seconds",
+            "Signed boundary gap at the latest capture continuity reset",
+            registry=self.registry,
+        )
+        self.current_chain_started_timestamp_seconds = Gauge(
+            "aqt_research_data_current_chain_started_timestamp_seconds",
+            "Unix time when the current uninterrupted capture chain began",
+            registry=self.registry,
+        )
         self.disk_bytes = Gauge(
             "aqt_research_data_disk_bytes",
             "Research-data storage bytes by bounded state",
@@ -141,6 +168,32 @@ class DataReadinessMetrics:
             0
             if report.latest_segment_age_ns is None
             else report.latest_segment_age_ns / 1_000_000_000
+        )
+        for item in report.continuity_breaks_by_reason:
+            self.continuity_breaks.labels(reason=item.name).set(item.count)
+        self.latest_continuity_break_info.clear()
+        latest_break = report.latest_continuity_break
+        if latest_break is None:
+            self.latest_continuity_break_timestamp_seconds.set(0)
+            self.latest_continuity_break_gap_seconds.set(0)
+        else:
+            previous_reason = latest_break.previous_finalization_reason
+            self.latest_continuity_break_info.labels(
+                reason=latest_break.trigger,
+                previous_finalization_reason=(
+                    "none" if previous_reason is None else previous_reason.value
+                ),
+            ).set(1)
+            self.latest_continuity_break_timestamp_seconds.set(
+                latest_break.current_segment_started_ts_ns / 1_000_000_000
+            )
+            self.latest_continuity_break_gap_seconds.set(
+                0 if latest_break.gap_ns is None else latest_break.gap_ns / 1_000_000_000
+            )
+        self.current_chain_started_timestamp_seconds.set(
+            0
+            if report.latest_contiguous_started_ts_ns is None
+            else report.latest_contiguous_started_ts_ns / 1_000_000_000
         )
         for state, value in (
             ("used_by_data", report.data_bytes),

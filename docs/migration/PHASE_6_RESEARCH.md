@@ -352,6 +352,9 @@ Automated now:
   native quality gates;
 - typed latest-chain duration, normalization, freshness, and projected-storage
   readiness with an independent lightweight health probe and Grafana gates;
+- schema-v2 continuity-reset attribution, exact latest boundary evidence, and
+  bounded current-streak/cause metrics without changing the frozen gap or
+  validation policies;
 - a separate non-root research container target with no wallet mounts or
   production approval capability.
 

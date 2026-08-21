@@ -3,6 +3,10 @@
 Status: accepted
 Date: 2026-08-21
 
+Continuity-reset attribution and schema-v2 operator diagnostics are specified
+by [ADR 0015](0015-research-continuity-reset-evidence.md). ADR 0011's latest-
+chain gate and frozen duration remain unchanged.
+
 ## Context
 
 Short-horizon BTC research can produce attractive but meaningless results when

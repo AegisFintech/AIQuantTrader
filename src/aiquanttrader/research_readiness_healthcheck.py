@@ -31,8 +31,8 @@ def evaluate_status(
     if not isinstance(raw, dict):
         raise ValueError("readiness state must be a JSON object")
     payload = cast(dict[str, object], raw)
-    if _non_negative_int(payload, "schema_version") != 1:
-        raise ValueError("readiness state schema_version must be 1")
+    if _non_negative_int(payload, "schema_version") != 2:
+        raise ValueError("readiness state schema_version must be 2")
     status = payload.get("status")
     if status not in {"starting", "running", "stopped", "failed"}:
         raise ValueError("readiness state has an unsupported lifecycle status")
@@ -45,6 +45,8 @@ def evaluate_status(
     if report is not None:
         if not isinstance(report, dict):
             raise ValueError("readiness report must be an object or null")
+        if _non_negative_int(cast(dict[str, object], report), "schema_version") != 2:
+            raise ValueError("readiness report schema_version must be 2")
         ready_value = report.get("ready_for_horizon_audit")
         if not isinstance(ready_value, bool):
             raise ValueError("readiness report verdict must be a boolean")

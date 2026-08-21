@@ -554,7 +554,11 @@ def test_research_modules_cold_import_and_dashboard_is_valid(project_root: Path)
         )
     )
     assert dashboard["uid"] == "aqt-research-governance"
-    assert len(dashboard["panels"]) >= 5
+    assert len(dashboard["panels"]) >= 10
+    rendered = json.dumps(dashboard)
+    assert "aqt_research_data_current_chain_started_timestamp_seconds" in rendered
+    assert "aqt_research_data_latest_continuity_break_info" in rendered
+    assert "aqt_research_data_continuity_breaks" in rendered
 
 
 def test_rust_toolchain_is_pinned_without_placeholder_crates(project_root: Path) -> None:

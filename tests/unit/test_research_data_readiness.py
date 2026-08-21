@@ -152,6 +152,82 @@ def test_readiness_uses_latest_chain_instead_of_an_older_longer_chain(tmp_path: 
     assert "latest_capture_span" in failed
 
 
+def test_readiness_attributes_each_continuity_reset_and_exports_latest_break(
+    tmp_path: Path,
+) -> None:
+    base = _NOW_NS - 100_000_000_000
+    _write_pair(tmp_path, 1, base, base + 10_000_000_000)
+    _write_pair(tmp_path, 2, base + 10_000_000_000, base + 20_000_000_000)
+    _write_pair(tmp_path, 3, base + 20_500_000_000, base + 30_000_000_000)
+    _write_pair(tmp_path, 4, base + 32_000_000_000, base + 40_000_000_000)
+    _write_pair(tmp_path, 5, base + 39_500_000_000, base + 50_000_000_000)
+
+    first_normalized = sorted((tmp_path / "normalized" / "manifests").glob("*.json"))[0]
+    normalized_payload = json.loads(first_normalized.read_bytes())
+    normalized_payload["excluded_frame_count"] = 1
+    first_normalized.write_text(json.dumps(normalized_payload), encoding="utf-8")
+
+    second_raw = sorted((tmp_path / "raw").glob("*.manifest.json"))[1]
+    raw_payload = json.loads(second_raw.read_bytes())
+    raw_payload["finalization_reason"] = "error"
+    second_raw.write_text(json.dumps(raw_payload), encoding="utf-8")
+
+    metrics = DataReadinessMetrics()
+    report = evaluate_data_readiness(
+        data_root=tmp_path,
+        policy=_readiness_policy(),
+        validation_policy=_validation_policy(),
+        generated_ts_ns=_NOW_NS,
+    )
+    metrics.observe(report, service_healthy=True)
+
+    assert report.schema_version == 2
+    assert report.continuity_break_count == 4
+    assert {item.name: item.count for item in report.continuity_breaks_by_reason} == {
+        "quality_ineligible": 1,
+        "overlap": 1,
+        "previous_error": 1,
+        "gap_exceeded": 1,
+    }
+    assert report.latest_continuity_break is not None
+    assert report.latest_continuity_break.trigger == "overlap"
+    assert report.latest_continuity_break.gap_ns == -500_000_000
+    assert report.latest_contiguous_started_ts_ns == base + 39_500_000_000
+    assert metrics.continuity_breaks.labels(reason="previous_error")._value.get() == 1
+    assert metrics.latest_continuity_break_gap_seconds._value.get() == pytest.approx(-0.5)
+    assert (
+        metrics.latest_continuity_break_info.labels(
+            reason="overlap", previous_finalization_reason="rotation"
+        )._value.get()
+        == 1
+    )
+
+
+def test_readiness_retains_a_latest_quality_reset_after_the_last_admissible_chain(
+    tmp_path: Path,
+) -> None:
+    _write_pair(tmp_path, 1, _NOW_NS - 20_000_000_000, _NOW_NS - 10_000_000_000)
+    _write_pair(tmp_path, 2, _NOW_NS - 10_000_000_000, _NOW_NS - 1_000_000_000)
+    latest_normalized = sorted((tmp_path / "normalized" / "manifests").glob("*.json"))[1]
+    payload = json.loads(latest_normalized.read_bytes())
+    payload["excluded_frame_count"] = 1
+    latest_normalized.write_text(json.dumps(payload), encoding="utf-8")
+
+    report = evaluate_data_readiness(
+        data_root=tmp_path,
+        policy=_readiness_policy(),
+        validation_policy=_validation_policy(),
+        generated_ts_ns=_NOW_NS,
+    )
+
+    assert report.latest_contiguous_started_ts_ns == _NOW_NS - 20_000_000_000
+    assert report.latest_continuity_break is not None
+    assert report.latest_continuity_break.trigger == "quality_ineligible"
+    assert report.latest_continuity_break.current_segment_started_ts_ns == (
+        _NOW_NS - 10_000_000_000
+    )
+
+
 def test_readiness_fails_closed_on_unpaired_raw_segment(tmp_path: Path) -> None:
     _write_pair(tmp_path, 1, _NOW_NS - 30_000_000_000, _NOW_NS - 1_000_000_000)
     raw_path = next((tmp_path / "raw").glob("*.manifest.json"))
@@ -193,6 +269,7 @@ def test_monitor_writes_fresh_state_and_bounded_metrics(tmp_path: Path) -> None:
     state = json.loads((state_root / "research" / "data-readiness.json").read_bytes())
 
     assert state["status"] == "running"
+    assert state["schema_version"] == 2
     assert state["report"]["report_id"] == report.report_id
     assert metrics.ready._value.get() == pytest.approx(1.0)
 
@@ -313,6 +390,16 @@ def test_readiness_report_and_state_invariants_reject_tampering(tmp_path: Path) 
         ({"remaining_validation_span_ns": 1}, "remaining readiness span"),
         ({"completion_bps": 1}, "readiness completion"),
         ({"storage_headroom_bytes": 1}, "storage headroom"),
+        ({"continuity_breaks_by_reason": []}, "reasons must be complete"),
+        (
+            {
+                "continuity_breaks_by_reason": [
+                    *base["continuity_breaks_by_reason"],
+                    base["continuity_breaks_by_reason"][0],
+                ]
+            },
+            "reasons must be complete",
+        ),
         ({"gates": [*base["gates"], base["gates"][0]]}, "gates must be unique"),
         ({"ready_for_horizon_audit": False}, "verdict does not match"),
         ({"report_id": "0" * 64}, "identity does not match"),

@@ -92,6 +92,14 @@ minimum_folds = 3
     assert result == 3
     summary = json.loads(capsys.readouterr().out)
     assert summary["status"] == "collecting"
+    assert summary["continuity_break_count"] == 0
+    assert summary["continuity_breaks_by_reason"] == {
+        "quality_ineligible": 0,
+        "overlap": 0,
+        "previous_error": 0,
+        "gap_exceeded": 0,
+    }
+    assert summary["latest_continuity_break"] is None
     assert summary["model_training_authorized"] is False
     report = ResearchDataReadinessReport.model_validate_json(output.read_bytes())
     assert report.paired_segment_count == 1
