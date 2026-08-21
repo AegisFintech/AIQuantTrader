@@ -380,6 +380,12 @@ def test_paper_monitor_is_local_pinned_read_only_and_metric_complete(project_roo
         "Processor capacity",
         "Scrape heartbeat age",
     } <= server_titles
+    server_metric_panels = [panel for panel in paper_panels if panel["id"] >= 33]
+    assert len(server_metric_panels) == 12
+    assert all(
+        panel["datasource"] == {"type": "prometheus", "uid": "prometheus"}
+        for panel in server_metric_panels
+    )
 
     platform_dashboard = json.loads(
         (project_root / "observability/grafana/dashboards/platform-health.json").read_text(
