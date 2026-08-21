@@ -228,24 +228,35 @@ class PaperFeedBlockReason(StrEnum):
     ASSET_CONTEXT_MISSING = "asset_context_missing"
     ASSET_CONTEXT_CLOCK_REGRESSION = "asset_context_clock_regression"
     ASSET_CONTEXT_STALE = "asset_context_stale"
-    MARKET_STATE_MISSING = "market_state_missing"
-    MARKET_STATE_CLOCK_REGRESSION = "market_state_clock_regression"
-    MARKET_STATE_STALE = "market_state_stale"
+    BBO_MISSING = "bbo_missing"
+    BBO_CLOCK_REGRESSION = "bbo_clock_regression"
+    BBO_STALE = "bbo_stale"
+
+
+class PaperL2DepthState(StrEnum):
+    MISSING = "missing"
+    CLOCK_REGRESSION = "clock_regression"
+    STALE = "stale"
+    FRESH = "fresh"
 
 
 class PaperFeedFreshness(DomainModel):
-    """Bounded explanation of the public-data conditions required by risk."""
+    """Executable-feed verdict plus independent full-depth validity evidence."""
 
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     checked_ts_ns: int = Field(ge=0)
     stale_after_ms: int = Field(gt=0)
+    depth_stale_after_ms: int = Field(gt=0)
     socket_connected: bool
     public_frame_age_ms: int | None = None
     asset_context_age_ms: int | None = None
-    market_state_age_ms: int | None = None
+    bbo_age_ms: int | None = None
+    l2_depth_age_ms: int | None = None
     public_frame_fresh: bool
     asset_context_fresh: bool
-    market_state_fresh: bool
+    bbo_fresh: bool
+    l2_depth_fresh: bool
+    l2_depth_state: PaperL2DepthState
     ready: bool
     blocking_reason: PaperFeedBlockReason
 
@@ -260,7 +271,7 @@ class PaperFeedFreshness(DomainModel):
         socket_connected: bool,
         frame_age_ms: int | None,
         context_age_ms: int | None,
-        market_age_ms: int | None,
+        bbo_age_ms: int | None,
         stale_after_ms: int,
     ) -> PaperFeedBlockReason:
         if not socket_connected:
@@ -277,13 +288,23 @@ class PaperFeedFreshness(DomainModel):
             return PaperFeedBlockReason.ASSET_CONTEXT_CLOCK_REGRESSION
         if not cls._fresh(context_age_ms, stale_after_ms):
             return PaperFeedBlockReason.ASSET_CONTEXT_STALE
-        if market_age_ms is None:
-            return PaperFeedBlockReason.MARKET_STATE_MISSING
-        if market_age_ms < 0:
-            return PaperFeedBlockReason.MARKET_STATE_CLOCK_REGRESSION
-        if not cls._fresh(market_age_ms, stale_after_ms):
-            return PaperFeedBlockReason.MARKET_STATE_STALE
+        if bbo_age_ms is None:
+            return PaperFeedBlockReason.BBO_MISSING
+        if bbo_age_ms < 0:
+            return PaperFeedBlockReason.BBO_CLOCK_REGRESSION
+        if not cls._fresh(bbo_age_ms, stale_after_ms):
+            return PaperFeedBlockReason.BBO_STALE
         return PaperFeedBlockReason.NONE
+
+    @classmethod
+    def _depth_state(cls, age_ms: int | None, depth_stale_after_ms: int) -> PaperL2DepthState:
+        if age_ms is None:
+            return PaperL2DepthState.MISSING
+        if age_ms < 0:
+            return PaperL2DepthState.CLOCK_REGRESSION
+        if not cls._fresh(age_ms, depth_stale_after_ms):
+            return PaperL2DepthState.STALE
+        return PaperL2DepthState.FRESH
 
     @classmethod
     def from_observations(
@@ -291,13 +312,15 @@ class PaperFeedFreshness(DomainModel):
         *,
         checked_ts_ns: int,
         stale_after_ms: int,
+        depth_stale_after_ms: int,
         socket_connected: bool,
         last_public_frame_wall_ns: int | None,
         last_asset_context_wall_ns: int | None,
-        last_market_state_wall_ns: int | None,
+        last_bbo_wall_ns: int | None,
+        last_l2_depth_wall_ns: int | None,
     ) -> Self:
-        if stale_after_ms <= 0:
-            raise ValueError("paper feed stale threshold must be positive")
+        if stale_after_ms <= 0 or depth_stale_after_ms <= 0:
+            raise ValueError("paper feed and depth stale thresholds must be positive")
 
         def age_ms(observed_ns: int | None) -> int | None:
             if observed_ns is None:
@@ -306,27 +329,33 @@ class PaperFeedFreshness(DomainModel):
 
         frame_age = age_ms(last_public_frame_wall_ns)
         context_age = age_ms(last_asset_context_wall_ns)
-        market_age = age_ms(last_market_state_wall_ns)
+        bbo_age = age_ms(last_bbo_wall_ns)
+        depth_age = age_ms(last_l2_depth_wall_ns)
         frame_fresh = cls._fresh(frame_age, stale_after_ms)
         context_fresh = cls._fresh(context_age, stale_after_ms)
-        market_fresh = cls._fresh(market_age, stale_after_ms)
+        bbo_fresh = cls._fresh(bbo_age, stale_after_ms)
+        depth_state = cls._depth_state(depth_age, depth_stale_after_ms)
         reason = cls._block_reason(
             socket_connected=socket_connected,
             frame_age_ms=frame_age,
             context_age_ms=context_age,
-            market_age_ms=market_age,
+            bbo_age_ms=bbo_age,
             stale_after_ms=stale_after_ms,
         )
         return cls(
             checked_ts_ns=checked_ts_ns,
             stale_after_ms=stale_after_ms,
+            depth_stale_after_ms=depth_stale_after_ms,
             socket_connected=socket_connected,
             public_frame_age_ms=frame_age,
             asset_context_age_ms=context_age,
-            market_state_age_ms=market_age,
+            bbo_age_ms=bbo_age,
+            l2_depth_age_ms=depth_age,
             public_frame_fresh=frame_fresh,
             asset_context_fresh=context_fresh,
-            market_state_fresh=market_fresh,
+            bbo_fresh=bbo_fresh,
+            l2_depth_fresh=depth_state is PaperL2DepthState.FRESH,
+            l2_depth_state=depth_state,
             ready=reason is PaperFeedBlockReason.NONE,
             blocking_reason=reason,
         )
@@ -336,20 +365,27 @@ class PaperFeedFreshness(DomainModel):
         expected_freshness = (
             self._fresh(self.public_frame_age_ms, self.stale_after_ms),
             self._fresh(self.asset_context_age_ms, self.stale_after_ms),
-            self._fresh(self.market_state_age_ms, self.stale_after_ms),
+            self._fresh(self.bbo_age_ms, self.stale_after_ms),
+            self._fresh(self.l2_depth_age_ms, self.depth_stale_after_ms),
         )
         actual_freshness = (
             self.public_frame_fresh,
             self.asset_context_fresh,
-            self.market_state_fresh,
+            self.bbo_fresh,
+            self.l2_depth_fresh,
         )
         if actual_freshness != expected_freshness:
             raise ValueError("paper feed component freshness does not match its age")
+        expected_depth_state = type(self)._depth_state(
+            self.l2_depth_age_ms, self.depth_stale_after_ms
+        )
+        if self.l2_depth_state is not expected_depth_state:
+            raise ValueError("paper L2 depth state does not match its age")
         expected_reason = type(self)._block_reason(
             socket_connected=self.socket_connected,
             frame_age_ms=self.public_frame_age_ms,
             context_age_ms=self.asset_context_age_ms,
-            market_age_ms=self.market_state_age_ms,
+            bbo_age_ms=self.bbo_age_ms,
             stale_after_ms=self.stale_after_ms,
         )
         if self.ready != (expected_reason is PaperFeedBlockReason.NONE):
@@ -561,7 +597,7 @@ class PaperEvidenceReport(DomainModel):
 
 
 class PaperRuntimeStatus(DomainModel):
-    schema_version: Literal[2] = 2
+    schema_version: Literal[3] = 3
     status: Literal["starting", "warming", "ready", "degraded", "stopped", "failed"]
     run_id: Identifier
     environment: Identifier

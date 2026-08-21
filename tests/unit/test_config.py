@@ -340,6 +340,7 @@ def test_market_data_configuration_is_bounded_and_secret_referenced(config_dir: 
     assert paper.execution.enabled is False
     assert paper.paper.scenario_path == Path("paper/baseline-v1.toml")
     assert paper.paper.sensitivity_scenario_paths == (Path("paper/pessimistic-v1.toml"),)
+    assert paper.paper.market_state_interval_ms == 1_000
 
     with pytest.raises(ValidationError, match="unique"):
         MarketDataConfig(public_channels=("trades", "trades"))
@@ -349,6 +350,13 @@ def test_market_data_configuration_is_bounded_and_secret_referenced(config_dir: 
         MarketDataConfig(reconnect_initial_ms=1_000, reconnect_max_ms=500)
     with pytest.raises(ValidationError, match="below /run/secrets"):
         MarketDataConfig(tardis_api_key_secret_path=Path("/tmp/key"))
+
+    with pytest.raises(ConfigLoadError, match="cadence must be faster"):
+        load_config(
+            config_dir,
+            "paper",
+            environ={"AQT_NATIVE__PAPER__MARKET_STATE_INTERVAL_MS": "1500"},
+        )
 
 
 def test_execution_wallet_names_and_endpoints_are_environment_scoped(config_dir: Path) -> None:

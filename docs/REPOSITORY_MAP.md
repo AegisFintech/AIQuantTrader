@@ -148,9 +148,11 @@ observer. LLM output is evidence, never order or risk authority.
 - Paper journals retain every strategy action and gate reason atomically with
   its feature/account/checkpoint cycle, including outcomes that emit no order
   intent; `aqt-paper diagnostics` summarizes that evidence without changing it.
-- Paper runtime status schema v2 binds the combined feed-ready verdict to
-  socket state plus signed public-frame, asset-context, and usable-market ages.
-  Bounded metrics expose the same components and exact fail-closed reason.
+- Paper runtime status schema v3 binds the feed-ready verdict to socket state
+  plus signed public-frame, asset-context, and executable-BBO ages. Full L2
+  depth has an independent two-second validity state and is never relabeled as
+  current by a BBO; bounded metrics expose both limits, the exact fail-closed
+  reason, and whether the latest 1 Hz market state incorporated L2 depth.
 - `data/`, `state/`, models, databases, logs, credentials, and runtime files are
   gitignored.
 

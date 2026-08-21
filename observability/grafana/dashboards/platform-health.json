@@ -131,7 +131,8 @@
       "targets": [
         {"expr": "time() - aqt_market_data_last_frame_timestamp_seconds", "legendFormat": "raw recorder age", "refId": "A"},
         {"expr": "aqt_paper_feed_component_age_seconds", "legendFormat": "{{component}} age", "refId": "B"},
-        {"expr": "aqt_paper_feed_stale_after_seconds", "legendFormat": "paper risk limit", "refId": "C"}
+        {"expr": "aqt_paper_feed_stale_after_seconds", "legendFormat": "executable risk limit", "refId": "C"},
+        {"expr": "aqt_paper_feed_depth_stale_after_seconds", "legendFormat": "L2 depth limit", "refId": "D"}
       ],
       "title": "Trading feed component ages",
       "type": "timeseries"
@@ -175,5 +176,5 @@
   "time": {"from": "now-6h", "to": "now"},
   "title": "AIQuantTrader Server & Live Status",
   "uid": "aqt-platform-health",
-  "version": 2
+  "version": 3
 }

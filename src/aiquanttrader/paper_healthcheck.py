@@ -27,11 +27,12 @@ _FEED_BLOCK_REASONS = frozenset(
         "asset_context_missing",
         "asset_context_clock_regression",
         "asset_context_stale",
-        "market_state_missing",
-        "market_state_clock_regression",
-        "market_state_stale",
+        "bbo_missing",
+        "bbo_clock_regression",
+        "bbo_stale",
     }
 )
+_L2_DEPTH_STATES = frozenset({"missing", "clock_regression", "stale", "fresh"})
 
 
 def _required_int(payload: dict[str, object], key: str) -> int:
@@ -69,7 +70,7 @@ def _expected_feed_block_reason(
 ) -> str:
     if not socket_connected:
         return "socket_disconnected"
-    for component in ("public_frame", "asset_context", "market_state"):
+    for component in ("public_frame", "asset_context", "bbo"):
         age_ms = component_age_ms[component]
         if age_ms is None:
             return f"{component}_missing"
@@ -95,8 +96,8 @@ def evaluate_status(
     if not isinstance(raw, dict):
         raise ValueError("paper status must be a JSON object")
     payload = cast(dict[str, object], raw)
-    if _required_int(payload, "schema_version") != 2:
-        raise ValueError("paper status schema_version must be 2")
+    if _required_int(payload, "schema_version") != 3:
+        raise ValueError("paper status schema_version must be 3")
     status = _required_string(payload, "status")
     if status not in _VALID_STATUSES:
         raise ValueError("paper status contains an unsupported lifecycle state")
@@ -109,27 +110,35 @@ def evaluate_status(
     if not isinstance(raw_freshness, dict):
         raise ValueError("paper status feed_freshness must be an object")
     freshness = cast(dict[str, object], raw_freshness)
-    if _required_int(freshness, "schema_version") != 1:
-        raise ValueError("paper feed freshness schema_version must be 1")
+    if _required_int(freshness, "schema_version") != 2:
+        raise ValueError("paper feed freshness schema_version must be 2")
     checked_ts_ns = _required_int(freshness, "checked_ts_ns")
     if checked_ts_ns != heartbeat_ts_ns:
         raise ValueError("paper feed freshness timestamp must match the heartbeat")
     feed_stale_after_ms = _required_int(freshness, "stale_after_ms")
     if feed_stale_after_ms == 0:
         raise ValueError("paper feed stale threshold must be positive")
+    depth_stale_after_ms = _required_int(freshness, "depth_stale_after_ms")
+    if depth_stale_after_ms == 0:
+        raise ValueError("paper L2 depth stale threshold must be positive")
     socket_connected = _required_bool(freshness, "socket_connected")
     component_fresh = {
         "public_frame": _required_bool(freshness, "public_frame_fresh"),
         "asset_context": _required_bool(freshness, "asset_context_fresh"),
-        "market_state": _required_bool(freshness, "market_state_fresh"),
+        "bbo": _required_bool(freshness, "bbo_fresh"),
+        "l2_depth": _required_bool(freshness, "l2_depth_fresh"),
     }
     component_age_ms = {
         "public_frame": _optional_signed_int(freshness, "public_frame_age_ms"),
         "asset_context": _optional_signed_int(freshness, "asset_context_age_ms"),
-        "market_state": _optional_signed_int(freshness, "market_state_age_ms"),
+        "bbo": _optional_signed_int(freshness, "bbo_age_ms"),
+        "l2_depth": _optional_signed_int(freshness, "l2_depth_age_ms"),
     }
     expected_component_fresh = {
-        component: age_ms is not None and 0 <= age_ms <= feed_stale_after_ms
+        component: age_ms is not None
+        and 0
+        <= age_ms
+        <= (depth_stale_after_ms if component == "l2_depth" else feed_stale_after_ms)
         for component, age_ms in component_age_ms.items()
     }
     if component_fresh != expected_component_fresh:
@@ -140,6 +149,21 @@ def evaluate_status(
     block_reason = _required_string(freshness, "blocking_reason")
     if block_reason not in _FEED_BLOCK_REASONS:
         raise ValueError("paper feed freshness has an unsupported blocking reason")
+    depth_state = _required_string(freshness, "l2_depth_state")
+    if depth_state not in _L2_DEPTH_STATES:
+        raise ValueError("paper feed freshness has an unsupported L2 depth state")
+    depth_age_ms = component_age_ms["l2_depth"]
+    expected_depth_state = (
+        "missing"
+        if depth_age_ms is None
+        else "clock_regression"
+        if depth_age_ms < 0
+        else "stale"
+        if depth_age_ms > depth_stale_after_ms
+        else "fresh"
+    )
+    if depth_state != expected_depth_state:
+        raise ValueError("paper L2 depth state must match its age")
     expected_block_reason = _expected_feed_block_reason(
         socket_connected, component_age_ms, feed_stale_after_ms
     )
@@ -160,6 +184,8 @@ def evaluate_status(
         "feed_component_fresh": component_fresh,
         "feed_component_age_ms": component_age_ms,
         "feed_stale_after_ms": feed_stale_after_ms,
+        "depth_stale_after_ms": depth_stale_after_ms,
+        "l2_depth_state": depth_state,
         "feature_ready": feature_ready,
         "operator_kill": operator_kill,
     }

@@ -51,12 +51,15 @@ docs/
 
 ## Live production-path parity
 
-`LiveMarketStateAssembler` buffers normalized trades until the next full L2
-snapshot, excludes exchange-stale trades using the feature contract's maximum
-input age, and emits the same `KernelMarketState` consumed by HftBacktest and
-actual Nautilus objects in Phase 5/6 parity tests. Exclusions are counted in
-Prometheus; a stale L2 book, future timestamp, or non-monotonic receipt remains
-fatal. `IncrementalFeatureEngine`,
+`LiveMarketStateAssembler` treats the exchange-native BBO as executable
+top-of-book and full L2 as independently aged depth. It buffers normalized
+trades between the configured 1 Hz states and excludes exchange-stale inputs
+using the existing feature maximum age. A state merges a newer BBO with L2 only
+while that depth is current; otherwise it contains BBO only and never presents
+old deeper queues as fresh. It emits the same `KernelMarketState` consumed by
+HftBacktest and actual Nautilus objects in Phase 5/6 parity tests. Exclusions
+are counted in Prometheus; future timestamps or non-monotonic book receipt
+remain fatal. `IncrementalFeatureEngine`,
 `AvellanedaStoikovKernel`, `OrderFlowScalperKernel`, or the bounded
 `SmartMoneyScalperKernel`, `OrderIntent`,
 `RiskSnapshot`, and `RiskAuthority` are imported directly. Phase 7 does not
@@ -115,13 +118,16 @@ Features warm up again rather than trusting unavailable process memory.
 
 The watchdog uses the same risk authority for stale, disconnect, loss,
 drawdown, leverage, and operator-kill state. Readiness requires an open socket,
-current public frames, fresh mark/funding asset context, and a current usable
-market state; active books cannot conceal a stale risk mark. Schema-v2 paper
-status binds that combined verdict to a typed component-age projection and the
-first exact missing, stale, disconnected, or clock-regression reason. Bounded
-Prometheus labels expose the same projection without putting timestamps or IDs
-in labels. The rationale and rejected alternatives are in
-[`ADR 0012`](../adr/0012-decomposed-paper-feed-freshness.md).
+current public frames, fresh mark/funding asset context, and a current
+executable BBO. Full L2 depth retains its own two-second validity state and
+cannot conceal or impersonate that quote. Schema-v3 paper status binds the
+combined verdict to a typed component-age projection and the first exact
+missing, stale, disconnected, or clock-regression reason. Bounded Prometheus
+labels expose the same projection without putting timestamps or IDs in labels.
+The decomposition rationale is in
+[`ADR 0012`](../adr/0012-decomposed-paper-feed-freshness.md), and the BBO/L2
+split, alternatives, and performance implications are in
+[`ADR 0014`](../adr/0014-bbo-executable-l2-depth-freshness.md).
 Stale/disconnected/killed operation cannot submit a new intent and
 initiates cancel-all. A corrupt kill file is active by default. Paper status is
 atomically replaced and the service is not healthy while stale or killed.

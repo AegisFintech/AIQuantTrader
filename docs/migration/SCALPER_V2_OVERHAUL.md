@@ -23,8 +23,9 @@ zero trades.
 
 ```mermaid
 flowchart LR
-    WS[Hyperliquid public L2 and trades] --> RAW[Raw archive]
-    RAW --> FE[Incremental microstructure]
+    WS[Hyperliquid BBO / L2 / trades / context] --> RAW[Raw archive]
+    RAW --> FRESH[1.5 s BBO gate + independent L2 age]
+    FRESH --> FE[Bounded 1 Hz incremental microstructure]
     FE --> MTF[Closed 15m / 5m / 1m structure]
     FE --> OF[1 Hz causal forecast sample]
     OF --> LABEL[Delayed 30 s label]
