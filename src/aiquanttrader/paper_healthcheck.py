@@ -17,6 +17,21 @@ from typing import cast
 
 _RUNNING_STATUSES = frozenset({"warming", "ready"})
 _VALID_STATUSES = frozenset({"starting", "warming", "ready", "degraded", "stopped", "failed"})
+_FEED_BLOCK_REASONS = frozenset(
+    {
+        "none",
+        "socket_disconnected",
+        "public_frame_missing",
+        "public_frame_clock_regression",
+        "public_frame_stale",
+        "asset_context_missing",
+        "asset_context_clock_regression",
+        "asset_context_stale",
+        "market_state_missing",
+        "market_state_clock_regression",
+        "market_state_stale",
+    }
+)
 
 
 def _required_int(payload: dict[str, object], key: str) -> int:
@@ -40,6 +55,31 @@ def _required_string(payload: dict[str, object], key: str) -> str:
     return value
 
 
+def _optional_signed_int(payload: dict[str, object], key: str) -> int | None:
+    value = payload.get(key)
+    if value is not None and (not isinstance(value, int) or isinstance(value, bool)):
+        raise ValueError(f"paper status field {key!r} must be an integer or null")
+    return value
+
+
+def _expected_feed_block_reason(
+    socket_connected: bool,
+    component_age_ms: dict[str, int | None],
+    stale_after_ms: int,
+) -> str:
+    if not socket_connected:
+        return "socket_disconnected"
+    for component in ("public_frame", "asset_context", "market_state"):
+        age_ms = component_age_ms[component]
+        if age_ms is None:
+            return f"{component}_missing"
+        if age_ms < 0:
+            return f"{component}_clock_regression"
+        if age_ms > stale_after_ms:
+            return f"{component}_stale"
+    return "none"
+
+
 def evaluate_status(
     state_root: Path,
     stale_after_ms: int,
@@ -55,8 +95,8 @@ def evaluate_status(
     if not isinstance(raw, dict):
         raise ValueError("paper status must be a JSON object")
     payload = cast(dict[str, object], raw)
-    if _required_int(payload, "schema_version") != 1:
-        raise ValueError("paper status schema_version must be 1")
+    if _required_int(payload, "schema_version") != 2:
+        raise ValueError("paper status schema_version must be 2")
     status = _required_string(payload, "status")
     if status not in _VALID_STATUSES:
         raise ValueError("paper status contains an unsupported lifecycle state")
@@ -65,6 +105,46 @@ def evaluate_status(
     feed_connected = _required_bool(payload, "feed_connected")
     feature_ready = _required_bool(payload, "feature_ready")
     operator_kill = _required_bool(payload, "operator_kill")
+    raw_freshness = payload.get("feed_freshness")
+    if not isinstance(raw_freshness, dict):
+        raise ValueError("paper status feed_freshness must be an object")
+    freshness = cast(dict[str, object], raw_freshness)
+    if _required_int(freshness, "schema_version") != 1:
+        raise ValueError("paper feed freshness schema_version must be 1")
+    checked_ts_ns = _required_int(freshness, "checked_ts_ns")
+    if checked_ts_ns != heartbeat_ts_ns:
+        raise ValueError("paper feed freshness timestamp must match the heartbeat")
+    feed_stale_after_ms = _required_int(freshness, "stale_after_ms")
+    if feed_stale_after_ms == 0:
+        raise ValueError("paper feed stale threshold must be positive")
+    socket_connected = _required_bool(freshness, "socket_connected")
+    component_fresh = {
+        "public_frame": _required_bool(freshness, "public_frame_fresh"),
+        "asset_context": _required_bool(freshness, "asset_context_fresh"),
+        "market_state": _required_bool(freshness, "market_state_fresh"),
+    }
+    component_age_ms = {
+        "public_frame": _optional_signed_int(freshness, "public_frame_age_ms"),
+        "asset_context": _optional_signed_int(freshness, "asset_context_age_ms"),
+        "market_state": _optional_signed_int(freshness, "market_state_age_ms"),
+    }
+    expected_component_fresh = {
+        component: age_ms is not None and 0 <= age_ms <= feed_stale_after_ms
+        for component, age_ms in component_age_ms.items()
+    }
+    if component_fresh != expected_component_fresh:
+        raise ValueError("paper feed component freshness must match its age")
+    feed_ready = _required_bool(freshness, "ready")
+    if feed_ready != feed_connected:
+        raise ValueError("paper feed freshness verdict must match feed_connected")
+    block_reason = _required_string(freshness, "blocking_reason")
+    if block_reason not in _FEED_BLOCK_REASONS:
+        raise ValueError("paper feed freshness has an unsupported blocking reason")
+    expected_block_reason = _expected_feed_block_reason(
+        socket_connected, component_age_ms, feed_stale_after_ms
+    )
+    if block_reason != expected_block_reason or feed_ready != (block_reason == "none"):
+        raise ValueError("paper feed blocking reason must match its readiness verdict")
 
     observed_now_ns = time.time_ns() if now_ns is None else now_ns
     age_ns = observed_now_ns - heartbeat_ts_ns
@@ -75,6 +155,11 @@ def evaluate_status(
         "run_id": run_id,
         "heartbeat_age_ms": age_ns / 1_000_000,
         "feed_connected": feed_connected,
+        "feed_blocking_reason": block_reason,
+        "feed_socket_connected": socket_connected,
+        "feed_component_fresh": component_fresh,
+        "feed_component_age_ms": component_age_ms,
+        "feed_stale_after_ms": feed_stale_after_ms,
         "feature_ready": feature_ready,
         "operator_kill": operator_kill,
     }

@@ -193,7 +193,7 @@ def _healthcheck(state_root: Path, stale_after_ms: int, *, record: bool) -> int:
         status.status in {"warming", "ready"}
         and status.feed_connected
         and not status.operator_kill
-        and age_ns <= stale_after_ms * 1_000_000
+        and 0 <= age_ns <= stale_after_ms * 1_000_000
     )
     if record:
         if not ready:
@@ -218,6 +218,14 @@ def _healthcheck(state_root: Path, stale_after_ms: int, *, record: bool) -> int:
                 "run_id": status.run_id,
                 "heartbeat_age_ms": age_ns / 1_000_000,
                 "feed_connected": status.feed_connected,
+                "feed_blocking_reason": status.feed_freshness.blocking_reason.value,
+                "feed_socket_connected": status.feed_freshness.socket_connected,
+                "feed_component_age_ms": {
+                    "public_frame": status.feed_freshness.public_frame_age_ms,
+                    "asset_context": status.feed_freshness.asset_context_age_ms,
+                    "market_state": status.feed_freshness.market_state_age_ms,
+                },
+                "feed_stale_after_ms": status.feed_freshness.stale_after_ms,
                 "feature_ready": status.feature_ready,
             },
             sort_keys=True,

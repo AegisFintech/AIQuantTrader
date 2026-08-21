@@ -219,6 +219,146 @@ class PaperStrategyEvaluationSummary(DomainModel):
         return self
 
 
+class PaperFeedBlockReason(StrEnum):
+    NONE = "none"
+    SOCKET_DISCONNECTED = "socket_disconnected"
+    PUBLIC_FRAME_MISSING = "public_frame_missing"
+    PUBLIC_FRAME_CLOCK_REGRESSION = "public_frame_clock_regression"
+    PUBLIC_FRAME_STALE = "public_frame_stale"
+    ASSET_CONTEXT_MISSING = "asset_context_missing"
+    ASSET_CONTEXT_CLOCK_REGRESSION = "asset_context_clock_regression"
+    ASSET_CONTEXT_STALE = "asset_context_stale"
+    MARKET_STATE_MISSING = "market_state_missing"
+    MARKET_STATE_CLOCK_REGRESSION = "market_state_clock_regression"
+    MARKET_STATE_STALE = "market_state_stale"
+
+
+class PaperFeedFreshness(DomainModel):
+    """Bounded explanation of the public-data conditions required by risk."""
+
+    schema_version: Literal[1] = 1
+    checked_ts_ns: int = Field(ge=0)
+    stale_after_ms: int = Field(gt=0)
+    socket_connected: bool
+    public_frame_age_ms: int | None = None
+    asset_context_age_ms: int | None = None
+    market_state_age_ms: int | None = None
+    public_frame_fresh: bool
+    asset_context_fresh: bool
+    market_state_fresh: bool
+    ready: bool
+    blocking_reason: PaperFeedBlockReason
+
+    @staticmethod
+    def _fresh(age_ms: int | None, stale_after_ms: int) -> bool:
+        return age_ms is not None and 0 <= age_ms <= stale_after_ms
+
+    @classmethod
+    def _block_reason(
+        cls,
+        *,
+        socket_connected: bool,
+        frame_age_ms: int | None,
+        context_age_ms: int | None,
+        market_age_ms: int | None,
+        stale_after_ms: int,
+    ) -> PaperFeedBlockReason:
+        if not socket_connected:
+            return PaperFeedBlockReason.SOCKET_DISCONNECTED
+        if frame_age_ms is None:
+            return PaperFeedBlockReason.PUBLIC_FRAME_MISSING
+        if frame_age_ms < 0:
+            return PaperFeedBlockReason.PUBLIC_FRAME_CLOCK_REGRESSION
+        if not cls._fresh(frame_age_ms, stale_after_ms):
+            return PaperFeedBlockReason.PUBLIC_FRAME_STALE
+        if context_age_ms is None:
+            return PaperFeedBlockReason.ASSET_CONTEXT_MISSING
+        if context_age_ms < 0:
+            return PaperFeedBlockReason.ASSET_CONTEXT_CLOCK_REGRESSION
+        if not cls._fresh(context_age_ms, stale_after_ms):
+            return PaperFeedBlockReason.ASSET_CONTEXT_STALE
+        if market_age_ms is None:
+            return PaperFeedBlockReason.MARKET_STATE_MISSING
+        if market_age_ms < 0:
+            return PaperFeedBlockReason.MARKET_STATE_CLOCK_REGRESSION
+        if not cls._fresh(market_age_ms, stale_after_ms):
+            return PaperFeedBlockReason.MARKET_STATE_STALE
+        return PaperFeedBlockReason.NONE
+
+    @classmethod
+    def from_observations(
+        cls,
+        *,
+        checked_ts_ns: int,
+        stale_after_ms: int,
+        socket_connected: bool,
+        last_public_frame_wall_ns: int | None,
+        last_asset_context_wall_ns: int | None,
+        last_market_state_wall_ns: int | None,
+    ) -> Self:
+        if stale_after_ms <= 0:
+            raise ValueError("paper feed stale threshold must be positive")
+
+        def age_ms(observed_ns: int | None) -> int | None:
+            if observed_ns is None:
+                return None
+            return (checked_ts_ns - observed_ns) // 1_000_000
+
+        frame_age = age_ms(last_public_frame_wall_ns)
+        context_age = age_ms(last_asset_context_wall_ns)
+        market_age = age_ms(last_market_state_wall_ns)
+        frame_fresh = cls._fresh(frame_age, stale_after_ms)
+        context_fresh = cls._fresh(context_age, stale_after_ms)
+        market_fresh = cls._fresh(market_age, stale_after_ms)
+        reason = cls._block_reason(
+            socket_connected=socket_connected,
+            frame_age_ms=frame_age,
+            context_age_ms=context_age,
+            market_age_ms=market_age,
+            stale_after_ms=stale_after_ms,
+        )
+        return cls(
+            checked_ts_ns=checked_ts_ns,
+            stale_after_ms=stale_after_ms,
+            socket_connected=socket_connected,
+            public_frame_age_ms=frame_age,
+            asset_context_age_ms=context_age,
+            market_state_age_ms=market_age,
+            public_frame_fresh=frame_fresh,
+            asset_context_fresh=context_fresh,
+            market_state_fresh=market_fresh,
+            ready=reason is PaperFeedBlockReason.NONE,
+            blocking_reason=reason,
+        )
+
+    @model_validator(mode="after")
+    def validate_verdict(self) -> Self:
+        expected_freshness = (
+            self._fresh(self.public_frame_age_ms, self.stale_after_ms),
+            self._fresh(self.asset_context_age_ms, self.stale_after_ms),
+            self._fresh(self.market_state_age_ms, self.stale_after_ms),
+        )
+        actual_freshness = (
+            self.public_frame_fresh,
+            self.asset_context_fresh,
+            self.market_state_fresh,
+        )
+        if actual_freshness != expected_freshness:
+            raise ValueError("paper feed component freshness does not match its age")
+        expected_reason = type(self)._block_reason(
+            socket_connected=self.socket_connected,
+            frame_age_ms=self.public_frame_age_ms,
+            context_age_ms=self.asset_context_age_ms,
+            market_age_ms=self.market_state_age_ms,
+            stale_after_ms=self.stale_after_ms,
+        )
+        if self.ready != (expected_reason is PaperFeedBlockReason.NONE):
+            raise ValueError("paper feed readiness does not match its blocking reason")
+        if self.blocking_reason is not expected_reason:
+            raise ValueError("paper feed readiness does not match its blocking reason")
+        return self
+
+
 class PaperCommandKind(StrEnum):
     SUBMIT = "submit"
     CANCEL = "cancel"
@@ -421,13 +561,14 @@ class PaperEvidenceReport(DomainModel):
 
 
 class PaperRuntimeStatus(DomainModel):
-    schema_version: Literal[1] = 1
+    schema_version: Literal[2] = 2
     status: Literal["starting", "warming", "ready", "degraded", "stopped", "failed"]
     run_id: Identifier
     environment: Identifier
     heartbeat_ts_ns: int = Field(ge=0)
     last_public_data_ts_ns: int | None = Field(default=None, ge=0)
     feed_connected: bool
+    feed_freshness: PaperFeedFreshness
     feature_ready: bool
     operator_kill: bool
     scenario_id: Identifier
@@ -445,6 +586,14 @@ class PaperRuntimeStatus(DomainModel):
     latest_llm_confirmation: LlmConfirmation | None = None
     llm_last_error_code: Identifier | None = None
     last_error_code: Identifier | None = None
+
+    @model_validator(mode="after")
+    def validate_feed_projection(self) -> Self:
+        if self.feed_connected != self.feed_freshness.ready:
+            raise ValueError("paper feed projection does not match freshness evidence")
+        if self.heartbeat_ts_ns != self.feed_freshness.checked_ts_ns:
+            raise ValueError("paper heartbeat and feed freshness timestamps must match")
+        return self
 
 
 class PaperMarkout(DomainModel):

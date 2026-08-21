@@ -12,6 +12,7 @@ flowchart LR
         SIM[Deterministic MBP paper exchange]
         LLM[Async shadow-only LLM observer]
         DRIFT[Run-frozen online drift monitor]
+        FRESH[Socket frame asset-context and market freshness]
         WATCH[Stale and operator-kill watchdog]
     end
 
@@ -28,6 +29,9 @@ flowchart LR
     PARSE --> STATE
     STATE --> FEAT
     STATE --> MTF
+    RAW --> FRESH
+    STATE --> FRESH
+    FRESH --> WATCH
     FEAT --> STRAT
     MTF --> STRAT
     FEAT --> DRIFT
@@ -48,6 +52,7 @@ flowchart LR
     SIM --> PROM
     DRIFT --> PROM
     LLM --> PROM
+    FRESH --> PROM
 
     KEY[Exchange account or wallet]
     KEY -. forbidden by config, compose, and tests .-> PaperContainer

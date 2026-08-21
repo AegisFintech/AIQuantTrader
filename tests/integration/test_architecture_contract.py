@@ -252,6 +252,10 @@ def test_paper_monitor_is_local_pinned_read_only_and_metric_complete(project_roo
         "aqt_paper_drawdown_fraction",
         "aqt_paper_stale_trades_excluded_total",
         "aqt_paper_stale_books_excluded_total",
+        "aqt_paper_feed_component_fresh",
+        "aqt_paper_feed_component_age_seconds",
+        "aqt_paper_feed_stale_after_seconds",
+        "aqt_paper_feed_blocked",
         "aqt_paper_adaptive_forecast_ready",
         "aqt_paper_adaptive_forecast_directional_accuracy",
     ):
@@ -271,6 +275,9 @@ def test_paper_monitor_is_local_pinned_read_only_and_metric_complete(project_roo
         "node_network_receive_bytes_total",
         "node_network_transmit_bytes_total",
         "aiquanttrader-paper",
+        "aqt_paper_feed_component_fresh",
+        "aqt_paper_feed_component_age_seconds",
+        "aqt_paper_feed_stale_after_seconds",
     ):
         assert metric in platform_rendered
 

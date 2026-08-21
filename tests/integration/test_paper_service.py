@@ -213,11 +213,20 @@ def test_live_service_creates_credential_free_manifest_status_and_metrics(
     status = PaperRuntimeStatus.model_validate_json(service.status_path.read_bytes())
     assert status.status == "warming"
     assert status.feed_connected
+    assert status.feed_freshness.ready
+    assert status.feed_freshness.socket_connected
+    with pytest.raises(ValueError, match="projection does not match"):
+        PaperRuntimeStatus.model_validate(
+            {**status.model_dump(mode="json"), "feed_connected": False}
+        )
     assert status.account is not None
     metrics = generate_latest(registry)
     assert b"aqt_paper_market_states_total 3.0" in metrics
     assert b"aqt_paper_stale_trades_excluded_total 1.0" in metrics
     assert b"aqt_paper_stale_books_excluded_total 1.0" in metrics
+    assert b'aqt_paper_feed_component_fresh{component="socket"} 1.0' in metrics
+    assert b"aqt_paper_feed_stale_after_seconds 1.5" in metrics
+    assert b'aqt_paper_feed_blocked{reason="none"} 1.0' in metrics
     assert b"aqt_paper_equity_usd 100000.0" in metrics
     assert b"aqt_paper_drawdown_fraction 0.0" in metrics
     assert b"aqt_paper_daily_loss_fraction 0.0" in metrics
@@ -274,14 +283,17 @@ def test_service_run_archives_live_frame_and_stops_cleanly(
     status = PaperRuntimeStatus.model_validate_json(service.status_path.read_bytes())
     assert status.status == "stopped"
     assert not status.feed_connected
+    assert status.feed_freshness.blocking_reason.value == "socket_disconnected"
     assert service.engine is not None and not service.engine.feed_connected
     raw_files = list((tmp_path / "data" / "raw").rglob("*.raw.zst"))
     assert len(raw_files) == 1
 
     async def watchdog_tick() -> None:
-        service._recorder_connected = True
-        service._last_frame_wall_ns = time.time_ns()
-        service._last_market_wall_ns = service._last_frame_wall_ns
+        now_ns = time.time_ns()
+        service._socket_connected = True
+        service._last_frame_wall_ns = now_ns
+        service._last_context_wall_ns = now_ns
+        service._last_market_wall_ns = now_ns
         stop = asyncio.Event()
         task = asyncio.create_task(service._watchdog(stop))
         await asyncio.sleep(0.3)
@@ -290,13 +302,15 @@ def test_service_run_archives_live_frame_and_stops_cleanly(
 
     asyncio.run(watchdog_tick())
     refreshed = PaperRuntimeStatus.model_validate_json(service.status_path.read_bytes())
-    assert refreshed.status in {"warming", "ready", "degraded"}
+    assert refreshed.status in {"warming", "ready"}
+    assert refreshed.feed_connected
 
     async def stale_watchdog_tick() -> None:
-        service._recorder_connected = True
+        service._socket_connected = True
         service._last_frame_wall_ns = (
             time.time_ns() - service.bundle.settings.risk.public_data_stale_after_ms * 1_000_000 - 1
         )
+        service._last_context_wall_ns = time.time_ns()
         service._last_market_wall_ns = service._last_frame_wall_ns
         stop = asyncio.Event()
         task = asyncio.create_task(service._watchdog(stop))
@@ -308,6 +322,7 @@ def test_service_run_archives_live_frame_and_stops_cleanly(
     stale = PaperRuntimeStatus.model_validate_json(service.status_path.read_bytes())
     assert stale.status == "degraded"
     assert not stale.feed_connected
+    assert stale.feed_freshness.blocking_reason.value == "public_frame_stale"
     journal.close()
 
 

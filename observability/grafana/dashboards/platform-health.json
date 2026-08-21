@@ -128,9 +128,34 @@
       "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
       "gridPos": {"h": 7, "w": 8, "x": 16, "y": 13},
       "id": 11,
-      "targets": [{"expr": "time() - aqt_market_data_last_frame_timestamp_seconds", "legendFormat": "public-feed age", "refId": "A"}],
-      "title": "Trading feed freshness",
+      "targets": [
+        {"expr": "time() - aqt_market_data_last_frame_timestamp_seconds", "legendFormat": "raw recorder age", "refId": "A"},
+        {"expr": "aqt_paper_feed_component_age_seconds", "legendFormat": "{{component}} age", "refId": "B"},
+        {"expr": "aqt_paper_feed_stale_after_seconds", "legendFormat": "paper risk limit", "refId": "C"}
+      ],
+      "title": "Trading feed component ages",
       "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            {"options": {"0": {"color": "red", "text": "BLOCKED"}, "1": {"color": "green", "text": "FRESH"}}, "type": "value"}
+          ],
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 20},
+      "id": 12,
+      "options": {"colorMode": "background", "graphMode": "none", "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "textMode": "value_and_name"},
+      "targets": [
+        {"expr": "aqt_paper_feed_component_fresh", "legendFormat": "paper {{component}}", "refId": "A"}
+      ],
+      "title": "Paper feed components — live now",
+      "type": "stat"
     }
   ],
   "refresh": "5s",
@@ -150,5 +175,5 @@
   "time": {"from": "now-6h", "to": "now"},
   "title": "AIQuantTrader Server & Live Status",
   "uid": "aqt-platform-health",
-  "version": 1
+  "version": 2
 }
