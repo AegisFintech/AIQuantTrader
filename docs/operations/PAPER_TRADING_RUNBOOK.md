@@ -109,14 +109,19 @@ It opens the provisioned BTC scalping command center as an anonymous read-only
 viewer. The top rows show the exact action and gate reason, BTC bid/ask/mid,
 expected-versus-required edge, SMC confluence, 15m/5m/1m direction,
 support/resistance, stop/target, order flow, and position age.
+The runtime-status panel explicitly separates a live paper-service heartbeat
+and live public BTC feed from the paper-only mode and durable operator kill. A
+LIVE value never means that real execution is enabled.
 It also shows online forecast readiness, resolved labels, forecast bps,
 directional accuracy, MAE, and the cost hurdle. The feed row shows the exact
 executable blocker, each component's current state, BBO/context/frame ages
 against the hard 1.5-second risk limit, and L2 depth against its independent
 two-second limit. It also states whether the latest engine state used full L2
-or safely degraded to BBO only. The platform dashboard shows service live state, CPU,
-memory, root-disk capacity/use, disk I/O, network in/out, uptime, load, and the
-same decomposed paper-feed freshness.
+or safely degraded to BBO only. Below the trading panels, the command center
+shows Prometheus scrape heartbeats, CPU usage and logical cores, memory,
+root-disk capacity/use, disk I/O, network upload/download, uptime, and load. The
+separate platform dashboard retains the same operator-wide service view and
+decomposed paper-feed freshness.
 Prometheus is available at `http://127.0.0.1:9090`. Neither endpoint is exposed
 to the LAN or internet. Do not publish or reverse-proxy Grafana without adding
 operator authentication and TLS.

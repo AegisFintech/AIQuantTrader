@@ -82,14 +82,76 @@
     },
     {
       "id": 1,
-      "title": "Paper safety state",
+      "title": "Runtime status — LIVE DATA / PAPER ONLY",
       "type": "stat",
+      "description": "LIVE means the process and Hyperliquid public feed are current. This service is paper simulation only: execution.enabled=false, no wallet is mounted, and the operator kill remains an independent hard stop.",
       "targets": [
+        {
+          "expr": "max(up{job=\"aiquanttrader-paper\"}) or vector(0)",
+          "legendFormat": "service heartbeat"
+        },
         {"expr": "aqt_paper_feed_connected", "legendFormat": "feed connected"},
         {"expr": "aqt_paper_feature_ready", "legendFormat": "features ready"},
         {"expr": "aqt_paper_adaptive_forecast_ready", "legendFormat": "forecast ready"},
+        {"expr": "vector(1)", "legendFormat": "execution mode"},
         {"expr": "aqt_paper_operator_kill", "legendFormat": "operator kill"}
       ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "WAITING / DOWN", "color": "red"},
+                "1": {"text": "LIVE", "color": "green"}
+              }
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "execution mode"},
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {"text": "INVALID", "color": "red"},
+                      "1": {"text": "PAPER ONLY", "color": "blue"}
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {"id": "byName", "options": "operator kill"},
+            "properties": [
+              {
+                "id": "mappings",
+                "value": [
+                  {
+                    "type": "value",
+                    "options": {
+                      "0": {"text": "CLEAR", "color": "green"},
+                      "1": {"text": "ACTIVE", "color": "orange"}
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
       "gridPos": {"h": 6, "w": 8, "x": 0, "y": 14}
     },
     {
@@ -394,6 +456,318 @@
       ],
       "fieldConfig": {"defaults": {"min": 0}, "overrides": []},
       "gridPos": {"h": 6, "w": 24, "x": 0, "y": 69}
+    },
+    {
+      "id": 32,
+      "title": "Server heartbeat and resource telemetry",
+      "type": "row",
+      "collapsed": false,
+      "panels": [],
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 75}
+    },
+    {
+      "id": 33,
+      "title": "Platform services — live now",
+      "type": "stat",
+      "description": "Prometheus scrape heartbeats for the paper stack. LIVE confirms process reachability only; it does not authorize trading.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {
+          "expr": "up{job=~\"prometheus|grafana|aiquanttrader-node|aiquanttrader-paper|aiquanttrader-research-readiness\"}",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "max": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {"text": "DOWN", "color": "red"},
+                "1": {"text": "LIVE", "color": "green"}
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "green", "value": 1}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false},
+        "textMode": "value_and_name"
+      },
+      "gridPos": {"h": 5, "w": 8, "x": 0, "y": 76}
+    },
+    {
+      "id": 34,
+      "title": "Host CPU",
+      "type": "gauge",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {
+          "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])))",
+          "legendFormat": "CPU used",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 70},
+              {"color": "red", "value": 90}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 8, "y": 76}
+    },
+    {
+      "id": 35,
+      "title": "Host memory",
+      "type": "gauge",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {
+          "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "legendFormat": "memory used",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 75},
+              {"color": "red", "value": 90}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 12, "y": 76}
+    },
+    {
+      "id": 36,
+      "title": "Root disk usage",
+      "type": "gauge",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {
+          "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})",
+          "legendFormat": "disk used",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 75},
+              {"color": "red", "value": 90}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 5, "w": 4, "x": 16, "y": 76}
+    },
+    {
+      "id": 37,
+      "title": "Capacity available",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {
+          "expr": "node_memory_MemAvailable_bytes",
+          "legendFormat": "available memory",
+          "refId": "A"
+        },
+        {
+          "expr": "node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"}",
+          "legendFormat": "available disk",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+      "gridPos": {"h": 5, "w": 4, "x": 20, "y": 76}
+    },
+    {
+      "id": 38,
+      "title": "CPU, memory, and root disk",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {
+          "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[1m])))",
+          "legendFormat": "CPU used",
+          "refId": "A"
+        },
+        {
+          "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "legendFormat": "memory used",
+          "refId": "B"
+        },
+        {
+          "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{mountpoint=\"/\",fstype!~\"tmpfs|overlay\"})",
+          "legendFormat": "disk used",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "percent"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 81}
+    },
+    {
+      "id": 39,
+      "title": "Host bandwidth in / out",
+      "type": "timeseries",
+      "description": "Aggregate non-loopback, non-container host traffic in bytes per second.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {
+          "expr": "sum(rate(node_network_receive_bytes_total{device!~\"lo|veth.*|docker.*|br-.*\"}[1m]))",
+          "legendFormat": "download / inbound",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(node_network_transmit_bytes_total{device!~\"lo|veth.*|docker.*|br-.*\"}[1m]))",
+          "legendFormat": "upload / outbound",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 81}
+    },
+    {
+      "id": 40,
+      "title": "Host disk I/O",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {
+          "expr": "sum(rate(node_disk_read_bytes_total[1m]))",
+          "legendFormat": "disk read",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(node_disk_written_bytes_total[1m]))",
+          "legendFormat": "disk write",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "Bps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 81}
+    },
+    {
+      "id": 41,
+      "title": "Host uptime",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {
+          "expr": "time() - node_boot_time_seconds",
+          "legendFormat": "uptime",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 0, "y": 89}
+    },
+    {
+      "id": 42,
+      "title": "Processor capacity",
+      "type": "stat",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {
+          "expr": "count(count by (cpu) (node_cpu_seconds_total{mode=\"idle\"}))",
+          "legendFormat": "logical CPU cores",
+          "refId": "A"
+        },
+        {
+          "expr": "node_load1",
+          "legendFormat": "current 1m load",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "short", "decimals": 2}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 6, "y": 89}
+    },
+    {
+      "id": 43,
+      "title": "Host load average",
+      "type": "timeseries",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {"expr": "node_load1", "legendFormat": "1m", "refId": "A"},
+        {"expr": "node_load5", "legendFormat": "5m", "refId": "B"},
+        {"expr": "node_load15", "legendFormat": "15m", "refId": "C"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 7, "w": 6, "x": 12, "y": 89}
+    },
+    {
+      "id": 44,
+      "title": "Scrape heartbeat age",
+      "type": "stat",
+      "description": "Seconds since Prometheus last scraped the paper process and host exporter. Expected to remain below the 5-second scrape interval plus jitter.",
+      "datasource": {"type": "prometheus", "uid": "${DS_PROMETHEUS}"},
+      "targets": [
+        {
+          "expr": "time() - timestamp(up{job=\"aiquanttrader-paper\"})",
+          "legendFormat": "paper heartbeat age",
+          "refId": "A"
+        },
+        {
+          "expr": "time() - timestamp(up{job=\"aiquanttrader-node\"})",
+          "legendFormat": "server heartbeat age",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "green", "value": null},
+              {"color": "yellow", "value": 15},
+              {"color": "red", "value": 30}
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 7, "w": 6, "x": 18, "y": 89}
     }
   ],
   "refresh": "2s",
@@ -404,5 +778,5 @@
   "timezone": "utc",
   "title": "AIQuantTrader BTC Scalping Command Center",
   "uid": "aqt-paper-trading",
-  "version": 6
+  "version": 7
 }

@@ -389,6 +389,13 @@ The read-only progress dashboard is bound to
 host and service health is at
 `http://127.0.0.1:3000/d/aqt-platform-health/aiquanttrader-server-live-status`;
 no Hyperliquid account or API key is required.
+The BTC command center labels the runtime explicitly as live public data and
+paper-only execution. Its lower server section embeds process/scrape
+heartbeats, CPU usage and logical-core capacity, memory, disk capacity and I/O,
+host uptime/load, and network upload/download rates from Node Exporter. A green
+heartbeat means the service is reachable; it is not execution authorization.
+The reuse and performance rationale is recorded in
+[`ADR 0018`](docs/adr/0018-embedded-paper-server-telemetry.md).
 Docker liveness uses a standard-library-only paper probe so frequent health
 checks do not load the trading and research dependency graph. Direct probe
 calls retain fail-closed operational readiness: an active operator kill or
