@@ -21,8 +21,8 @@ from aiquanttrader.features.models import FeatureEngineConfig, VolatilityRegime
 from aiquanttrader.strategies.common import StrategyInput, replay_strategy
 from aiquanttrader.strategies.config import (
     load_market_maker_config,
+    load_reactive_scalper_config,
     load_scalper_config,
-    load_smart_money_scalper_config,
 )
 from aiquanttrader.strategies.market_maker import (
     AvellanedaStoikovConfig,
@@ -304,12 +304,18 @@ def test_checked_in_strategy_configs_are_strict(project_root: Path) -> None:
     scalper = load_scalper_config(
         project_root / "configs" / "strategies" / "order-flow-scalper-v1.toml"
     )
-    smart_money = load_smart_money_scalper_config(
-        project_root / "configs" / "strategies" / "smart-money-scalper-v1.toml"
+    reactive = load_reactive_scalper_config(
+        project_root / "configs" / "strategies" / "smart-money-scalper-v3.toml"
     )
     assert maker.require_calibrated_fill_model
     assert scalper.entry_style is ScalperEntryStyle.TAKER
-    assert smart_money.hard_holding_limit_ns == 300_000_000_000
+    assert reactive.hard_holding_limit_ns == 120_000_000_000
+    assert reactive.forecast_horizons_ns == (
+        30_000_000_000,
+        60_000_000_000,
+        120_000_000_000,
+        180_000_000_000,
+    )
 
     with pytest.raises(ValidationError):
         AvellanedaStoikovConfig.model_validate({"unknown": True})

@@ -44,7 +44,7 @@ the migration record; none of those systems has runtime authority.
 | `domain/` | Versioned market, data, feature, execution, experiment, and governance contracts. |
 | `market_data/` | Raw-first WebSocket capture, integrity, normalization, health, cataloging, Tardis acquisition, and content-addressed host-soak evidence. |
 | `features/` | Incremental microstructure plus causal 1m/5m/15m structure and bounded-memory deterministic Parquet lineage. |
-| `strategies/` | Pure Avellaneda-Stoikov, order-flow, bounded smart-money, and paper-only adaptive scalper kernels. |
+| `strategies/` | Pure Avellaneda-Stoikov and order-flow live kernels plus the paper/shadow-only reactive smart-money v3 kernel. |
 | `execution/` | Nautilus execution gateway, strategy wiring, order journal, reconciliation, and metrics. |
 | `risk/` | Synchronous risk authority and durable operator kill switch. |
 | `sentinel/` | Separately credentialed dead-man renewal and emergency cancel-all. |

@@ -17,7 +17,7 @@ Simply extending the L2 lifetime would be unsafe. A recent BBO proves current
 top-of-book prices and sizes, but it does not prove that deeper levels from an
 older snapshot are unchanged. The live path also needs a bounded processing
 cadence: the observed BBO rate was about 9.2 frames per second, while the
-adaptive forecast and retained paper evidence use one-second samples.
+reactive forecast decisions and retained paper evidence use one-second market states.
 
 ## Decision
 

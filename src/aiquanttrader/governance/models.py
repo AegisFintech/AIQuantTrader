@@ -460,7 +460,7 @@ class ReleaseArtifactSourcePaths(DomainModel):
 class DeploymentModelSelection(DomainModel):
     schema_version: Literal[1] = 1
     selection: Literal["none", "trained"]
-    strategy_id: Literal["avellaneda-stoikov-v1", "order-flow-scalper-v1", "smart-money-scalper-v1"]
+    strategy_id: Literal["avellaneda-stoikov-v1", "order-flow-scalper-v1"]
     feature_schema_sha256: Sha256
     model: ModelArtifactManifest | None = None
 

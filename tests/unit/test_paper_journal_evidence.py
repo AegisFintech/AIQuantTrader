@@ -207,7 +207,7 @@ def test_strategy_evaluation_contract_rejects_corrupt_gate_evidence() -> None:
             sequence=0,
             evaluated_ts_ns=1_000,
             feature_snapshot_sha256="6" * 64,
-            strategy_id="smart-money-scalper-v2",
+            strategy_id="smart-money-scalper-v3",
             feature_ready=True,
             structure_ready=True,
             feed_connected=True,

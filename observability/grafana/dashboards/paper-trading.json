@@ -92,7 +92,7 @@
         },
         {"expr": "aqt_paper_feed_connected", "legendFormat": "feed connected"},
         {"expr": "aqt_paper_feature_ready", "legendFormat": "features ready"},
-        {"expr": "aqt_paper_adaptive_forecast_ready", "legendFormat": "forecast ready"},
+        {"expr": "aqt_paper_reactive_forecast_ready", "legendFormat": "forecast ready"},
         {"expr": "vector(1)", "legendFormat": "execution mode"},
         {"expr": "aqt_paper_operator_kill", "legendFormat": "operator kill"}
       ],
@@ -315,12 +315,13 @@
     },
     {
       "id": 22,
-      "title": "Scalp lifecycle — hard cap 180 seconds",
+      "title": "Scalp lifecycle — hard cap 120 seconds",
+      "description": "V3 protects a stalled scalp after 45 seconds and exits unconditionally by 120 seconds.",
       "type": "timeseries",
       "targets": [
         {"expr": "aqt_paper_position_age_seconds", "legendFormat": "position age"},
-        {"expr": "vector(60)", "legendFormat": "no-progress review"},
-        {"expr": "vector(180)", "legendFormat": "mandatory exit"}
+        {"expr": "vector(45)", "legendFormat": "no-progress review"},
+        {"expr": "vector(120)", "legendFormat": "mandatory exit"}
       ],
       "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
       "gridPos": {"h": 7, "w": 8, "x": 0, "y": 48}
@@ -358,11 +359,12 @@
       "id": 25,
       "title": "Self-learning forecast state",
       "type": "stat",
-      "description": "Paper-only causal learner. Production can consume only a frozen, separately approved artifact.",
+      "description": "Paper-only causal 30/60/120/180-second ensemble. Production can consume only a frozen, separately approved artifact.",
       "targets": [
-        {"expr": "aqt_paper_adaptive_forecast_ready", "legendFormat": "ready"},
-        {"expr": "aqt_paper_adaptive_forecast_training_samples", "legendFormat": "resolved labels"},
-        {"expr": "aqt_paper_adaptive_forecast_bps", "legendFormat": "30s forecast bps"}
+        {"expr": "aqt_paper_reactive_forecast_ready", "legendFormat": "ensemble ready"},
+        {"expr": "aqt_paper_reactive_forecast_training_samples", "legendFormat": "minimum resolved labels"},
+        {"expr": "aqt_paper_reactive_forecast_bps", "legendFormat": "median forecast bps"},
+        {"expr": "aqt_paper_reactive_forecast_horizon_quality_ready", "legendFormat": "{{horizon_seconds}}s quality ready"}
       ],
       "gridPos": {"h": 7, "w": 8, "x": 0, "y": 55}
     },
@@ -370,12 +372,17 @@
       "id": 26,
       "title": "Forecast quality gate",
       "type": "timeseries",
+      "description": "Each fixed causal horizon must reach 1,000 labels, at least 55% recent directional accuracy, and at most 10 bps MAE. At least two horizons must pass.",
       "targets": [
         {
-          "expr": "aqt_paper_adaptive_forecast_directional_accuracy",
-          "legendFormat": "directional accuracy"
+          "expr": "aqt_paper_reactive_forecast_directional_accuracy",
+          "legendFormat": "worst-horizon accuracy"
         },
-        {"expr": "vector(0.54)", "legendFormat": "minimum accuracy"}
+        {
+          "expr": "aqt_paper_reactive_forecast_horizon_directional_accuracy",
+          "legendFormat": "{{horizon_seconds}}s accuracy"
+        },
+        {"expr": "vector(0.55)", "legendFormat": "minimum accuracy"}
       ],
       "fieldConfig": {"defaults": {"unit": "percentunit", "min": 0, "max": 1}, "overrides": []},
       "gridPos": {"h": 7, "w": 8, "x": 8, "y": 55}
@@ -384,9 +391,11 @@
       "id": 27,
       "title": "Forecast error and economic hurdle",
       "type": "timeseries",
+      "description": "Per-horizon forecasts and errors are shown beside the dynamic maker/taker fee, slippage, safety, and net-edge hurdle.",
       "targets": [
-        {"expr": "aqt_paper_adaptive_forecast_mae_bps", "legendFormat": "forecast MAE"},
-        {"expr": "abs(aqt_paper_adaptive_forecast_bps)", "legendFormat": "absolute forecast"},
+        {"expr": "aqt_paper_reactive_forecast_mae_bps", "legendFormat": "worst-horizon MAE"},
+        {"expr": "aqt_paper_reactive_forecast_horizon_mae_bps", "legendFormat": "{{horizon_seconds}}s MAE"},
+        {"expr": "abs(aqt_paper_reactive_forecast_horizon_bps)", "legendFormat": "{{horizon_seconds}}s absolute forecast"},
         {"expr": "aqt_paper_required_edge_bps", "legendFormat": "entry hurdle"}
       ],
       "fieldConfig": {"defaults": {"unit": "bps", "min": 0}, "overrides": []},

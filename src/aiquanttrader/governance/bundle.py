@@ -41,7 +41,6 @@ from aiquanttrader.risk.authority import limits_sha
 from aiquanttrader.shadow.models import ShadowEvidenceReport
 from aiquanttrader.strategies.market_maker import AvellanedaStoikovConfig
 from aiquanttrader.strategies.scalper import OrderFlowScalperConfig
-from aiquanttrader.strategies.smart_money_scalper import SmartMoneyScalperConfig
 
 MAX_RELEASE_ARTIFACT_BYTES = 134_217_728
 
@@ -57,7 +56,7 @@ ARTIFACT_DESTINATIONS: dict[DeploymentArtifactKind, str] = {
     DeploymentArtifactKind.CANARY_EVIDENCE: "canary-evidence.json",
 }
 
-StrategyConfiguration = AvellanedaStoikovConfig | OrderFlowScalperConfig | SmartMoneyScalperConfig
+StrategyConfiguration = AvellanedaStoikovConfig | OrderFlowScalperConfig
 STRATEGY_ADAPTER: TypeAdapter[StrategyConfiguration] = TypeAdapter(StrategyConfiguration)
 
 SHADOW_REQUIRED_GATES = frozenset(
@@ -380,10 +379,7 @@ def _validate_semantics(
         raise ValueError("release strategy and model selection identities do not match")
     if strategy.order_quantity_base > settings.risk.max_order_size_base:
         raise ValueError("release strategy order quantity exceeds the hard order-size limit")
-    if (
-        not isinstance(strategy, SmartMoneyScalperConfig)
-        and strategy.max_abs_inventory_base > settings.risk.max_position_size_base
-    ):
+    if strategy.max_abs_inventory_base > settings.risk.max_position_size_base:
         raise ValueError("release strategy inventory bound exceeds the hard position limit")
     if isinstance(strategy, AvellanedaStoikovConfig) and settings.risk.max_open_orders < 2:
         raise ValueError("release market maker requires one bid and one ask order slot")

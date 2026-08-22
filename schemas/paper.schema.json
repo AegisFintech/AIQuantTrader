@@ -556,11 +556,8 @@
           "type": "string"
         },
         "strategy_id": {
-          "default": "smart-money-scalper-v1",
-          "enum": [
-            "smart-money-scalper-v1",
-            "smart-money-scalper-v2"
-          ],
+          "const": "smart-money-scalper-v3",
+          "default": "smart-money-scalper-v3",
           "title": "Strategy Id",
           "type": "string"
         },
@@ -1904,7 +1901,7 @@
     },
     "PaperForecastDiagnostics": {
       "additionalProperties": false,
-      "description": "Bounded adaptive-model diagnostics captured at one causal decision.",
+      "description": "Bounded reactive-ensemble diagnostics captured at one causal decision.",
       "properties": {
         "directional_accuracy": {
           "anyOf": [
