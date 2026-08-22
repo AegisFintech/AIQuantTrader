@@ -12,7 +12,7 @@ from aiquanttrader.paper.engine import (
 )
 from aiquanttrader.paper.llm_models import LlmConfirmation
 from aiquanttrader.paper.models import PaperFeedBlockReason, PaperFeedFreshness
-from aiquanttrader.strategies.adaptive_scalper import AdaptiveScalperConfig
+from aiquanttrader.strategies.reactive_scalper import ReactiveScalperConfig
 
 
 class PaperMetrics:
@@ -264,28 +264,58 @@ class PaperMetrics:
             registry=registry,
         )
         self.forecast_ready = Gauge(
-            "aqt_paper_adaptive_forecast_ready",
-            "Whether the causal online forecast has enough recent resolved labels",
+            "aqt_paper_reactive_forecast_ready",
+            "Whether enough causal horizons pass the reactive ensemble quality gates",
             registry=registry,
         )
         self.forecast_samples = Gauge(
-            "aqt_paper_adaptive_forecast_training_samples",
-            "Causally resolved labels consumed by the paper-only adaptive forecast",
+            "aqt_paper_reactive_forecast_training_samples",
+            "Minimum causally resolved label count across reactive forecast horizons",
             registry=registry,
         )
         self.forecast_prediction = Gauge(
-            "aqt_paper_adaptive_forecast_bps",
-            "Latest bounded 30-second BTC return forecast",
+            "aqt_paper_reactive_forecast_bps",
+            "Median latest bounded multi-horizon BTC return forecast",
             registry=registry,
         )
         self.forecast_directional_accuracy = Gauge(
-            "aqt_paper_adaptive_forecast_directional_accuracy",
-            "Recent directional accuracy of causally resolved online forecasts",
+            "aqt_paper_reactive_forecast_directional_accuracy",
+            "Worst recent directional accuracy across reactive forecast horizons",
             registry=registry,
         )
         self.forecast_mae = Gauge(
-            "aqt_paper_adaptive_forecast_mae_bps",
-            "Recent mean absolute error of causally resolved online forecasts",
+            "aqt_paper_reactive_forecast_mae_bps",
+            "Worst recent mean absolute error across reactive forecast horizons",
+            registry=registry,
+        )
+        self.forecast_horizon_prediction = Gauge(
+            "aqt_paper_reactive_forecast_horizon_bps",
+            "Latest causal BTC return forecast for one fixed horizon",
+            ("horizon_seconds",),
+            registry=registry,
+        )
+        self.forecast_horizon_samples = Gauge(
+            "aqt_paper_reactive_forecast_horizon_training_samples",
+            "Causally resolved labels consumed by one fixed forecast horizon",
+            ("horizon_seconds",),
+            registry=registry,
+        )
+        self.forecast_horizon_directional_accuracy = Gauge(
+            "aqt_paper_reactive_forecast_horizon_directional_accuracy",
+            "Recent directional accuracy for one fixed forecast horizon",
+            ("horizon_seconds",),
+            registry=registry,
+        )
+        self.forecast_horizon_mae = Gauge(
+            "aqt_paper_reactive_forecast_horizon_mae_bps",
+            "Recent mean absolute error for one fixed forecast horizon",
+            ("horizon_seconds",),
+            registry=registry,
+        )
+        self.forecast_horizon_quality_ready = Gauge(
+            "aqt_paper_reactive_forecast_horizon_quality_ready",
+            "Whether one fixed forecast horizon passes sample, accuracy, and error gates",
+            ("horizon_seconds",),
             registry=registry,
         )
         self.position_age = Gauge(
@@ -414,14 +444,31 @@ class PaperMetrics:
         self.trade_flow_imbalance.set(float(cycle.features.trade_flow_imbalance))
         self.expected_edge.set(float(decision.expected_edge_bps))
         self.required_edge.set(float(decision.required_edge_bps))
-        forecast = engine.adaptive_forecast
+        forecast = engine.reactive_forecast
         config = engine.artifacts.strategy_config
-        if forecast is not None and isinstance(config, AdaptiveScalperConfig):
+        if forecast is not None and isinstance(config, ReactiveScalperConfig):
             self.forecast_ready.set(1 if forecast.ready(config) else 0)
             self.forecast_samples.set(forecast.training_samples)
             self.forecast_prediction.set(float(forecast.latest_prediction_bps))
             self.forecast_directional_accuracy.set(float(forecast.directional_accuracy))
             self.forecast_mae.set(float(forecast.mean_absolute_error_bps))
+            for horizon in forecast.horizons:
+                label = str(horizon.horizon_ns // 1_000_000_000)
+                self.forecast_horizon_prediction.labels(horizon_seconds=label).set(
+                    float(horizon.latest_prediction_bps)
+                )
+                self.forecast_horizon_samples.labels(horizon_seconds=label).set(
+                    horizon.training_samples
+                )
+                self.forecast_horizon_directional_accuracy.labels(horizon_seconds=label).set(
+                    float(horizon.directional_accuracy)
+                )
+                self.forecast_horizon_mae.labels(horizon_seconds=label).set(
+                    float(horizon.mean_absolute_error_bps)
+                )
+                self.forecast_horizon_quality_ready.labels(horizon_seconds=label).set(
+                    1 if horizon.quality_ready(config) else 0
+                )
         else:
             self.forecast_ready.set(0)
             self.forecast_samples.set(0)

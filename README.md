@@ -356,12 +356,16 @@ the same state volume. It durably syncs each raw frame before the live consumer
 and accepts only conservative risk-adverse, zero-synthetic-feed-delay paper
 scenarios. Stale trades and L2 snapshots remain archived but are excluded from
 features; only a fresh accepted book refreshes the paper market watchdog. The
-checked-in paper challenger is `smart-money-scalper-v2`: it uses
-closed 15-minute bias, 5-minute alignment, a 1-minute BOS/CHoCH/sweep trigger,
-L2/tape confirmation, and a causal 30-second online forecast. Entries are
-post-only with a three-second TTL; risk exits are reduce-only, with a 60-second
-no-progress review and an unconditional 180-second position cap. The model is
-paper/replay-only and cannot approve production promotion.
+checked-in paper challenger is `smart-money-scalper-v3`. Closed 15-minute and
+5-minute directions must align; a closed 1-minute BOS/CHoCH/sweep or a
+directional intrabar trigger then needs L2, tape, microprice, confluence, and
+two-sample persistence confirmation. A bounded causal learner forecasts fixed
+30/60/120/180-second returns, and at least two statistically acceptable
+horizons must align and clear the dynamic fee/slippage/safety hurdle. Entries
+are post-only with a 15-second maximum resting lifetime and cancel immediately
+when book plus flow reverse. Stalled positions exit after 45 seconds; every
+position exits by 120 seconds. The model is paper/shadow-only and cannot approve
+production promotion.
 The checked-in scenarios are uncalibrated and therefore cannot pass
 `aqt-paper evidence`. Procedures, drills, sensitivity rules, and rollback are in
 [`PAPER_TRADING_RUNBOOK.md`](docs/operations/PAPER_TRADING_RUNBOOK.md).
@@ -407,8 +411,11 @@ socket alone is never reported as risk-ready.
 An optional OpenAI Responses API observer can produce typed, shadow-only setup
 confirmations. It is disabled by default, reads its key only from
 `/run/secrets/openai_api_key`, and has no path to strategy, risk, or execution.
-The rationale and evidence gates for v2 are in
-[`SCALPER_V2_OVERHAUL.md`](docs/migration/SCALPER_V2_OVERHAUL.md).
+The active design, retirement boundary, and initial retained replay evidence
+are in
+[`SCALPER_V3_REACTIVE.md`](docs/migration/SCALPER_V3_REACTIVE.md). The v2
+document remains immutable historical failure evidence, not an executable
+strategy specification.
 
 ## Shadow deployment
 

@@ -5,9 +5,12 @@ required samples/regimes, operational drills, and observation time pending.
 
 Phase 7 connects the live Hyperliquid public feed to the exact Phase 6 feature
 and strategy kernels and the exact Phase 4 synchronous risk authority. Approved
-intents terminate in a deterministic paper exchange. No exchange account,
-trading wallet, control wallet, private subscription, SDK order method, or
-Nautilus execution client is present in the paper service.
+intents terminate in a deterministic paper exchange. The active v3 strategy
+adds a bounded causal 30/60/120/180-second online ensemble, closed
+multi-timeframe structure, and a maker-first entry/exit lifecycle without
+changing that authority boundary. No exchange account, trading wallet, control
+wallet, private subscription, SDK order method, or Nautilus execution client is
+present in the paper service.
 
 ## Architecture
 
@@ -61,7 +64,7 @@ HftBacktest and actual Nautilus objects in Phase 5/6 parity tests. Exclusions
 are counted in Prometheus; future timestamps or non-monotonic book receipt
 remain fatal. `IncrementalFeatureEngine`,
 `AvellanedaStoikovKernel`, `OrderFlowScalperKernel`, or the bounded
-`SmartMoneyScalperKernel`, `OrderIntent`,
+`ReactiveScalperKernel`, `OrderIntent`,
 `RiskSnapshot`, and `RiskAuthority` are imported directly. Phase 7 does not
 fork or approximate strategy and risk logic.
 
@@ -118,7 +121,7 @@ retained testnet or later shadow observations.
 One SQLite transaction commits each feature, strategy evaluation and exact gate
 reason, risk decisions, order changes, fills, account snapshot, markouts, drift
 report, and strategy checkpoint. Strategy evaluations include warmup and blocked
-outcomes that emit no intent, plus bounded adaptive-forecast diagnostics, so a
+outcomes that emit no intent, plus bounded reactive-forecast diagnostics, so a
 zero-trade replay remains explainable. On restart,
 the service resumes only when code, effective config, feature config, strategy
 config, scenario, and evidence-policy identities match. It restores account,

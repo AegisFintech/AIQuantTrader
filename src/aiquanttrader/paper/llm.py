@@ -171,13 +171,10 @@ def confirmation_request(run_id: str, cycle: PaperEngineCycle) -> LlmConfirmatio
     if not decision.submit:
         raise ValueError("LLM confirmation requires a submitted entry intent")
     submitted_strategy_id = decision.submit[0].strategy_id
-    strategy_id: Literal["smart-money-scalper-v1", "smart-money-scalper-v2"]
-    if submitted_strategy_id == "smart-money-scalper-v1":
-        strategy_id = "smart-money-scalper-v1"
-    elif submitted_strategy_id == "smart-money-scalper-v2":
-        strategy_id = "smart-money-scalper-v2"
-    else:
+    strategy_id: Literal["smart-money-scalper-v3"]
+    if submitted_strategy_id != "smart-money-scalper-v3":
         raise ValueError("LLM confirmation does not support the submitted strategy")
+    strategy_id = "smart-money-scalper-v3"
     side: Literal["long", "short"] = (
         "long" if decision.action is StrategyAction.ENTER_LONG else "short"
     )

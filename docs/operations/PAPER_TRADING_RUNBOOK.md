@@ -90,11 +90,15 @@ operator-kill projection without loading the trading dependency graph on every
 probe. `liveness` is never permission to trade; readiness, strategy, risk, and
 the durable kill remain independent.
 
-`smart-money-scalper-v2` requires causal closed bars on 1m, 5m, and 15m, so a
-fresh run remains in structure warmup for roughly one hour. Its causal forecast
-also needs at least 500 resolved 1 Hz samples with 30-second labels. It allows
-only one position, reviews no-progress exposure at 60 seconds, and must issue a
-reduce-only exit by 180 seconds. A position age above 180 seconds is an incident.
+`smart-money-scalper-v3` requires causal closed bars on 1m, 5m, and 15m, so a
+fresh run remains in structure warmup for roughly one hour. Its causal
+30/60/120/180-second ensemble samples every five seconds and needs at least
+1,000 resolved labels per horizon. The first quality verdict therefore takes
+about 84 minutes after feature readiness, including the longest label horizon.
+It allows one position, exits stalled exposure after 45 seconds, and must issue
+a reduce-only exit by 120 seconds. A position age above 120 seconds is an
+incident. A maker entry can rest for at most 15 seconds and must be cancelled
+earlier when book and trade flow reverse.
 
 ## 3. Monitor
 
@@ -112,8 +116,9 @@ support/resistance, stop/target, order flow, and position age.
 The runtime-status panel explicitly separates a live paper-service heartbeat
 and live public BTC feed from the paper-only mode and durable operator kill. A
 LIVE value never means that real execution is enabled.
-It also shows online forecast readiness, resolved labels, forecast bps,
-directional accuracy, MAE, and the cost hurdle. The feed row shows the exact
+It also shows ensemble and per-horizon forecast readiness, resolved labels,
+30/60/120/180-second forecast bps, directional accuracy, MAE, and the dynamic
+cost hurdle. The feed row shows the exact
 executable blocker, each component's current state, BBO/context/frame ages
 against the hard 1.5-second risk limit, and L2 depth against its independent
 two-second limit. It also states whether the latest engine state used full L2
@@ -146,8 +151,9 @@ docker compose exec paper-trader \
 The summary counts every causal strategy evaluation, including warmup,
 model-quality, spread, cost, volatility, confluence, cooldown, and inventory
 blocks that produced no order intent. It also reports feature/structure/feed
-readiness and the latest bounded adaptive-forecast sample count, accuracy, MAE,
-and prediction. Counts are evidence, not permission to relax a gate.
+readiness and the latest bounded reactive-ensemble sample count, worst-horizon
+accuracy/MAE, and median prediction. Counts are evidence, not permission to
+relax a gate.
 
 Scrape `paper-trader:9112` through Prometheus and provision
 `paper-trading.json`. Alert on:
@@ -161,7 +167,7 @@ Scrape `paper-trader:9112` through Prometheus and provision
 - risk denials, loss/drawdown state, inventory/open-order limits, and leverage;
 - cycle p99, fill rate, maker ratio, PnL, adverse markouts, and drawdown;
 - drift readiness, maximum PSI, and standardized mean shift;
-- position age below 180 seconds, structure and adaptive-forecast readiness
+- position age below 120 seconds, structure and reactive-forecast readiness
   after warmup, forecast accuracy/MAE, and bounded
   LLM observer errors if that optional observer is enabled;
 - journal/state filesystem errors or a funding-gap event.

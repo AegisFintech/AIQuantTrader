@@ -42,11 +42,6 @@ from aiquanttrader.strategies.scalper import (
     OrderFlowScalperKernel,
     ScalperMemory,
 )
-from aiquanttrader.strategies.smart_money_scalper import (
-    SmartMoneyScalperConfig,
-    SmartMoneyScalperKernel,
-    SmartMoneyScalperMemory,
-)
 
 INSTRUMENT_ID = "BTC-USD-PERP.HYPERLIQUID"
 
@@ -124,12 +119,8 @@ class NautilusMarketStateAssembler:
         return tuple(sorted(normalized, key=lambda item: item.price, reverse=reverse))
 
 
-LiveMemory = MarketMakerMemory | ScalperMemory | SmartMoneyScalperMemory
-LiveTransition = (
-    StrategyTransition[MarketMakerMemory]
-    | StrategyTransition[ScalperMemory]
-    | StrategyTransition[SmartMoneyScalperMemory]
-)
+LiveMemory = MarketMakerMemory | ScalperMemory
+LiveTransition = StrategyTransition[MarketMakerMemory] | StrategyTransition[ScalperMemory]
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,16 +141,13 @@ class LiveDecisionPipeline:
         self._features = IncrementalFeatureEngine(artifacts.feature_config)
         self._structure = CausalMarketStructureEngine()
         strategy = artifacts.strategy_config
-        self._kernel: AvellanedaStoikovKernel | OrderFlowScalperKernel | SmartMoneyScalperKernel
+        self._kernel: AvellanedaStoikovKernel | OrderFlowScalperKernel
         if isinstance(strategy, AvellanedaStoikovConfig):
             self._kernel = AvellanedaStoikovKernel(strategy)
             self._memory: LiveMemory = MarketMakerMemory()
         elif isinstance(strategy, OrderFlowScalperConfig):
             self._kernel = OrderFlowScalperKernel(strategy)
             self._memory = ScalperMemory()
-        elif isinstance(strategy, SmartMoneyScalperConfig):
-            self._kernel = SmartMoneyScalperKernel(strategy)
-            self._memory = SmartMoneyScalperMemory()
         else:  # pragma: no cover - guarded by the artifact union
             raise TypeError("unsupported live strategy configuration")
 
@@ -179,14 +167,7 @@ class LiveDecisionPipeline:
         position_average_entry_price: Decimal | None = None,
         position_opened_ts_ns: int | None = None,
     ) -> LiveStrategyCycle:
-        if isinstance(self._memory, SmartMoneyScalperMemory):
-            memory: LiveMemory = self._memory.synchronize_position(
-                position_base,
-                position_average_entry_price,
-                market.observed_ts_ns,
-            )
-        else:
-            memory = self._memory.with_inventory(position_base)
+        memory: LiveMemory = self._memory.with_inventory(position_base)
         features = self._features.update(
             market,
             inventory=InventoryState(
@@ -208,13 +189,7 @@ class LiveDecisionPipeline:
             self._kernel, AvellanedaStoikovKernel
         ):
             transition: LiveTransition = self._kernel.decide(strategy_input, memory)
-        elif isinstance(memory, ScalperMemory) and isinstance(  # noqa: SIM114
-            self._kernel, OrderFlowScalperKernel
-        ):
-            transition = self._kernel.decide(strategy_input, memory)
-        elif isinstance(memory, SmartMoneyScalperMemory) and isinstance(
-            self._kernel, SmartMoneyScalperKernel
-        ):
+        elif isinstance(memory, ScalperMemory) and isinstance(self._kernel, OrderFlowScalperKernel):
             transition = self._kernel.decide(strategy_input, memory)
         else:  # pragma: no cover - constructor fixes the pair
             raise TypeError("live strategy kernel and memory types diverged")
@@ -234,17 +209,6 @@ class LiveDecisionPipeline:
         """Commit only commands durably handed to Nautilus; denied intents remain absent."""
 
         current_memory = self._memory
-        if isinstance(current_memory, SmartMoneyScalperMemory):
-            target = cycle.transition.memory
-            if not isinstance(target, SmartMoneyScalperMemory):
-                raise TypeError("smart-money transition returned incompatible memory")
-            prior_smart = current_memory.synchronize_position(
-                target.inventory_base,
-                target.average_entry_price,
-                cycle.features.receive_ts_ns,
-            )
-            self._memory = target if dispatched_intent_ids else prior_smart
-            return
         prior_classic = current_memory.with_inventory(cycle.transition.memory.inventory_base)
         if isinstance(prior_classic, ScalperMemory):
             target_memory = cycle.transition.memory

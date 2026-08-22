@@ -143,7 +143,7 @@ class PaperDecisionRecord(DomainModel):
 
 
 class PaperForecastDiagnostics(DomainModel):
-    """Bounded adaptive-model diagnostics captured at one causal decision."""
+    """Bounded reactive-ensemble diagnostics captured at one causal decision."""
 
     schema_version: Literal[1] = 1
     training_samples: int = Field(ge=0)

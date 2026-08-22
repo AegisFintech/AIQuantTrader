@@ -36,27 +36,22 @@ from aiquanttrader.paper.simulator import PaperExchangeSimulator, SimulatorUpdat
 from aiquanttrader.research.models import DriftReport
 from aiquanttrader.risk.authority import RiskAuthority
 from aiquanttrader.risk.kill_switch import KillSwitchStore
-from aiquanttrader.strategies.adaptive_scalper import (
-    AdaptiveForecastState,
-    AdaptiveScalperConfig,
-    AdaptiveScalperKernel,
-    AdaptiveScalperMemory,
-)
 from aiquanttrader.strategies.common import StrategyInput
 from aiquanttrader.strategies.market_maker import (
     AvellanedaStoikovConfig,
     AvellanedaStoikovKernel,
     MarketMakerMemory,
 )
+from aiquanttrader.strategies.reactive_scalper import (
+    ReactiveForecastState,
+    ReactiveScalperConfig,
+    ReactiveScalperKernel,
+    ReactiveScalperMemory,
+)
 from aiquanttrader.strategies.scalper import (
     OrderFlowScalperConfig,
     OrderFlowScalperKernel,
     ScalperMemory,
-)
-from aiquanttrader.strategies.smart_money_scalper import (
-    SmartMoneyScalperConfig,
-    SmartMoneyScalperKernel,
-    SmartMoneyScalperMemory,
 )
 
 FUNDING_INTERVAL_NS = 3_600_000_000_000
@@ -187,16 +182,13 @@ class PaperTradingEngine:
 
     @property
     def feature_ready(self) -> bool:
-        if isinstance(
-            self.artifacts.strategy_config,
-            (SmartMoneyScalperConfig, AdaptiveScalperConfig),
-        ):
+        if isinstance(self.artifacts.strategy_config, ReactiveScalperConfig):
             return self._feature_engine.ready and self._structure_engine.ready
         return self._feature_engine.ready
 
     @property
-    def adaptive_forecast(self) -> AdaptiveForecastState | None:
-        if isinstance(self._memory, AdaptiveScalperMemory):
+    def reactive_forecast(self) -> ReactiveForecastState | None:
+        if isinstance(self._memory, ReactiveScalperMemory):
             return self._memory.forecast
         return None
 
@@ -305,10 +297,7 @@ class PaperTradingEngine:
                 position_average_entry_price=simulation.account.average_entry_price,
                 position_opened_ts_ns=(
                     self._memory.position_opened_ts_ns
-                    if isinstance(
-                        self._memory,
-                        (SmartMoneyScalperMemory, AdaptiveScalperMemory),
-                    )
+                    if isinstance(self._memory, ReactiveScalperMemory)
                     else None
                 ),
             ),
@@ -419,9 +408,9 @@ class PaperTradingEngine:
         )
 
     def _forecast_diagnostics(self) -> PaperForecastDiagnostics | None:
-        forecast = self.adaptive_forecast
+        forecast = self.reactive_forecast
         config = self.artifacts.strategy_config
-        if forecast is None or not isinstance(config, AdaptiveScalperConfig):
+        if forecast is None or not isinstance(config, ReactiveScalperConfig):
             return None
         return PaperForecastDiagnostics(
             training_samples=forecast.training_samples,
@@ -545,7 +534,7 @@ class PaperTradingEngine:
         self, checkpoint: PaperEngineCheckpoint | None
     ) -> tuple[
         Any,
-        MarketMakerMemory | ScalperMemory | SmartMoneyScalperMemory | AdaptiveScalperMemory,
+        MarketMakerMemory | ScalperMemory | ReactiveScalperMemory,
     ]:
         config = self.artifacts.strategy_config
         if isinstance(config, AvellanedaStoikovConfig):
@@ -562,20 +551,13 @@ class PaperTradingEngine:
                 else ScalperMemory.model_validate_json(checkpoint.strategy_memory_json)
             )
             return OrderFlowScalperKernel(config), scalper_memory
-        if isinstance(config, SmartMoneyScalperConfig):
-            smart_memory = (
-                SmartMoneyScalperMemory()
+        if isinstance(config, ReactiveScalperConfig):
+            reactive_memory = (
+                ReactiveScalperMemory()
                 if checkpoint is None
-                else SmartMoneyScalperMemory.model_validate_json(checkpoint.strategy_memory_json)
+                else ReactiveScalperMemory.model_validate_json(checkpoint.strategy_memory_json)
             )
-            return SmartMoneyScalperKernel(config), smart_memory
-        if isinstance(config, AdaptiveScalperConfig):
-            adaptive_memory = (
-                AdaptiveScalperMemory()
-                if checkpoint is None
-                else AdaptiveScalperMemory.model_validate_json(checkpoint.strategy_memory_json)
-            )
-            return AdaptiveScalperKernel(config), adaptive_memory
+            return ReactiveScalperKernel(config), reactive_memory
         raise TypeError("unsupported paper strategy configuration")
 
     def _checkpoint(self, ts_ns: int) -> PaperEngineCheckpoint:
@@ -593,7 +575,7 @@ class PaperTradingEngine:
 
     def _synchronize_memory(self, observed_ts_ns: int) -> None:
         account = self.simulator.account
-        if isinstance(self._memory, (SmartMoneyScalperMemory, AdaptiveScalperMemory)):
+        if isinstance(self._memory, ReactiveScalperMemory):
             self._memory = self._memory.synchronize_position(
                 account.position_base,
                 account.average_entry_price,

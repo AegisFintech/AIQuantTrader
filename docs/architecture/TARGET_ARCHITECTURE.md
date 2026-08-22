@@ -222,13 +222,16 @@ safety margin. Exits can be reduce-only.
 
 ### Causal smart-money scalper
 
-The paper challenger builds locally observed candles and uses only completed
-bars: 15-minute directional bias, 5-minute support/resistance and liquidity
-setup, then a 1-minute BOS/CHoCH, sweep, FVG, or momentum trigger. Confirmed
-pivots do not repaint. L2 imbalance and aggressive trade flow qualify execution
-only after modeled entry cost is cleared. It permits one position, never
-averages down, reviews no-progress exposure after 90 seconds, and emits a
-reduce-only exit no later than 300 seconds after confirmed entry.
+The paper/shadow challenger builds locally observed candles. Completed
+15-minute and 5-minute directions must align before a closed 1-minute BOS,
+CHoCH, sweep, or directional intrabar trigger is eligible. Confirmed pivots do
+not repaint. L2 imbalance, aggressive trade flow, microprice, and two consecutive
+causal evaluations qualify execution only after at least two acceptable fixed
+30/60/120/180-second forecasts align and clear modeled fees, expected slippage,
+and a safety/net-edge margin. It permits one position, never averages down,
+uses post-only maker entry and maker-first take-profit, reviews no-progress
+exposure after 45 seconds, and emits a reduce-only exit no later than 120 seconds
+after confirmed entry.
 
 An optional OpenAI Responses API observer receives a bounded numeric snapshot
 only after the deterministic strategy and risk authority approve an entry. Its
