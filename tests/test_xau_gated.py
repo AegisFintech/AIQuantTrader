@@ -8,6 +8,7 @@ from aiquanttrader.backtest import (
     Backtester,
     BacktestConfig,
     FillConfig,
+    Position,
     PositionSizer,
     Signal,
     Strategy,
@@ -154,6 +155,70 @@ def test_xau_gated_macd_alignment_blocks_countermomentum_buy():
     assert signal.comment == "direction_reject"
 
 
+def test_xau_gated_trend_slope_blocks_countertrend_buy():
+    bars = [_m1_bar(idx, close=200.0 - idx) for idx in range(60)]
+    signal = _run_strategy_to_bar(
+        XauGatedStrategy(
+            _SignalAtBar(59, "BUY"),
+            XauGatedParams(
+                enable_pda_gate=False,
+                enable_smc_gate=False,
+                enable_adx_gate=False,
+                enable_trend_slope_alignment=True,
+                min_trend_slope_atr_multiplier=0.0,
+            ),
+        ),
+        bars,
+        59,
+    )
+
+    assert signal.action == "HOLD"
+    assert signal.comment == "direction_reject"
+
+
+def test_xau_gated_higher_timeframe_trend_accepts_aligned_buy():
+    bars = [_m1_bar(idx, close=100.0 + idx * 0.1) for idx in range(900)]
+    signal = _run_strategy_to_bar(
+        XauGatedStrategy(
+            _SignalAtBar(899, "BUY"),
+            XauGatedParams(
+                enable_pda_gate=False,
+                enable_smc_gate=False,
+                enable_adx_gate=False,
+                enable_higher_timeframe_trend_alignment=True,
+                higher_trend_timeframe="M15",
+                higher_trend_ema_period=50,
+            ),
+        ),
+        bars,
+        899,
+    )
+
+    assert signal.action == "BUY"
+
+
+def test_xau_gated_higher_timeframe_trend_blocks_countertrend_buy():
+    bars = [_m1_bar(idx, close=200.0 - idx * 0.1) for idx in range(900)]
+    signal = _run_strategy_to_bar(
+        XauGatedStrategy(
+            _SignalAtBar(899, "BUY"),
+            XauGatedParams(
+                enable_pda_gate=False,
+                enable_smc_gate=False,
+                enable_adx_gate=False,
+                enable_higher_timeframe_trend_alignment=True,
+                higher_trend_timeframe="M15",
+                higher_trend_ema_period=50,
+            ),
+        ),
+        bars,
+        899,
+    )
+
+    assert signal.action == "HOLD"
+    assert signal.comment == "direction_reject"
+
+
 def test_xau_gated_blackout_hook_blocks_signal():
     bars = _long_gate_pass_bars()
     bars[_signal_idx()]["blackout"] = True
@@ -174,6 +239,21 @@ def test_xau_gated_blackout_hook_blocks_signal():
 
     assert signal.action == "HOLD"
     assert signal.comment == "blackout_reject"
+
+
+def test_xau_gated_atr_regime_uses_only_latest_50_valid_values():
+    strategy = XauGatedStrategy(
+        _SignalAtBar(_signal_idx(), "BUY"),
+        XauGatedParams(max_atr_regime_multiplier=2.0),
+    )
+    current = {"atr": 3.0}
+    strategy._features = (
+        [{"atr": 1000.0} for _ in range(10)]
+        + [{"atr": 1.0} for _ in range(50)]
+        + [current]
+    )
+
+    assert strategy._atr_regime_too_hot(current) is True
 
 
 def test_xau_gated_inner_hold_means_outer_hold():
@@ -258,6 +338,41 @@ def test_xau_gated_min_bars_between_signals_blocks_second_signal():
     assert first.action == "BUY"
     assert second.action == "HOLD"
     assert second.comment == "min_interval_reject"
+
+
+def test_xau_gated_enforces_same_direction_position_limit():
+    bar = _m1_bar(0, close=100.0, high=101.0, low=99.0)
+    strategy = XauGatedStrategy(
+        _SignalAtBar(0, "BUY"),
+        XauGatedParams(
+            enable_pda_gate=False,
+            enable_smc_gate=False,
+            enable_adx_gate=False,
+            max_same_direction_positions=1,
+        ),
+    )
+    open_position = Position(
+        symbol="XAUUSD",
+        side="BUY",
+        volume=1.0,
+        entry_price=100.0,
+        entry_time=int(bar["time"]),
+        sl=95.0,
+        tp=110.0,
+        magic=20260522,
+    )
+
+    signal = strategy.on_bar(
+        idx=0,
+        bar=bar,
+        history=[bar],
+        open_positions=[open_position],
+        equity=10000.0,
+        day_closed_pnl=0.0,
+    )
+
+    assert signal.action == "HOLD"
+    assert signal.comment == "same_side_max"
 
 
 def test_backtester_min_seconds_between_trades_rejects_second_open():

@@ -1,6 +1,6 @@
 # AIQuantTrader Repository Map
 
-Last verified: 2026-07-14
+Last verified: 2026-07-29
 
 Use this document as the first navigation aid for repo work. It identifies the
 active runtime, code ownership boundaries, data flows, and known validation
@@ -43,7 +43,7 @@ PM2
 
 AIQuantTraderBridgeEA.ex5
 |- reads optional commands, strategy profile, and blackout CSV files
-|- writes status, positions, deals, and acknowledgement files
+|- writes status, positions, deals, acknowledgements, and paused-entry shadow signals
 `- MT5 Common Files
    |- report/status/dashboard readers
    `- cron ingestion -> data/aiquanttrader.duckdb -> research/metrics/validation
@@ -62,7 +62,7 @@ MQL5 EA. The dashboard is read-only. No PM2 process currently writes
 | `broker/mt5/AIQuantTraderBridgeEA.mq5` | EA inputs, timer lifecycle, runtime profile parser, command execution, auto signals, order placement, status/position/deal exports. |
 | `broker/mt5/SmartMoney.mqh` | Premium/discount range, FVG, order block, liquidity sweep, structure shift, long/short SMC scores. |
 | `broker/mt5/RiskManagement.mqh` | Broker-day closed PnL aggregation, legacy session windows, dynamic break-even. |
-| `broker/mt5/BridgeIO.mqh` | CSV acknowledgement append and string sanitizing helpers. |
+| `broker/mt5/BridgeIO.mqh` | CSV acknowledgement/shadow-signal append and string sanitizing helpers. |
 | `broker/mt5/scripts/ExportM1Bars.mq5` | Manual MT5 M1 history export for offline research. Not part of order execution. |
 
 The EA is timer-driven at one-second intervals. Its lifecycle is:
@@ -83,18 +83,21 @@ global/account trading enabled
 -> XAU enabled
 -> weekday + broker session
 -> recent drawdown / loss streak / blackout recovery controls
--> max positions / cooldown
 -> M1 bars and indicator availability
+-> completed-bar setup latch
+-> max positions / cooldown
 -> spread
 -> signal (ATR impulse plus remaining quick-momentum/momentum paths)
 -> ATR regime
 -> ADX regime
+-> optional MACD / trend-slope / higher-timeframe alignment
 -> same-side position cap
 -> XAU premium/discount gate
 -> SMC score
 -> SL/TP distances
 -> daily-risk volume
--> market order and acknowledgement
+-> when entry-paused: append a qualified shadow setup and return before `CTrade`
+-> otherwise: market order and acknowledgement
 ```
 
 Compiled defaults are M1, SMC score 4+, `1.00%` broker-day snapshot risk per
@@ -114,13 +117,18 @@ risk money = daily equity snapshot * risk fraction
             * high-confluence multiplier when score threshold is met
             capped at 1.00% of the daily equity snapshot
             * bad-day multiplier after realized broker-day PnL turns negative
+            clipped to daily loss budget + closed PnL - reserved open stop risk
 
 risk per lot = (SL distance / broker tick size) * broker tick value
 lots         = min(symbol cap, risk money / risk per lot)
 ```
 
-The daily kill switch currently uses managed closed PnL only. It does not add
-floating PnL or reserved risk from other open positions.
+The daily kill switch uses managed closed PnL plus negative managed floating
+PnL. New-order sizing separately reserves the adverse entry-to-SL risk of all
+open managed positions, preventing two full-risk entries from consuming about
+2% before the first loss is realized. Break-even or better SL placement releases
+that position's reserved adverse risk. New entries also remain fail-closed for
+90 seconds after EA initialization while MT5 account/deal history repopulates.
 
 ### Common Files contract
 
@@ -130,10 +138,11 @@ floating PnL or reserved risk from other open positions.
 | `aiquanttrader_positions.csv` | EA writes | Current magic-number managed positions. | report, healthcheck, dashboard, ingestion |
 | `aiquanttrader_deals.csv` | EA writes | Rolling 14-day magic-number deal history. | report, dashboard, ingestion, parity tooling |
 | `aiquanttrader_acks.csv` | EA appends | Command and automatic fill/rejection events. | report, dashboard, ingestion, parity tooling |
+| `aiquanttrader_shadow_signals.csv` | EA appends | Qualified paused-entry setups with signal time, profile, entry, SL/TP, volume, SMC/PDA, spread, and dynamic-break-even settings. Never a broker fill. | trade report, dashboard, archives |
 | `aiquanttrader_commands.csv` | EA reads/deletes | Optional external `MARKET`, `CLOSE`, and `CLOSE_ALL` requests. | no active writer |
 | `aiquanttrader_strategy_profile.csv` | EA reads | Optional bounded key/value runtime overrides. | strategy lab may write only through gated deployment |
 | `aiquanttrader_blackout.csv` | EA reads | Optional broker-time start/end/reason blackout windows. | operator-managed; only active when profile enables it |
-| `aiquanttrader_entry_pause.flag` | EA reads | Operator-controlled pause for all new automatic and command-file market entries. | `scripts/mt5_entry_pause.py`; close actions and position management remain active |
+| `aiquanttrader_entry_pause.flag` | EA reads | Hard pause for all new automatic and command-file market entries. When enabled, v2.05 may continue gate evaluation and write shadow setups but returns before order submission. | `scripts/mt5_entry_pause.py`; close actions and position management remain active |
 | `aiquanttrader_export_XAUUSD_M1.tsv` | EA writes | Bounded periodic M1 bar export for fresh research. | autonomous review harvest and price loader |
 | `EA_MANIFEST.txt` | EA reads at init | Deployed EA version and git SHA. | generated by release tooling and copied by sync |
 
@@ -150,7 +159,7 @@ Wine prefix, terminal, and Common Files locations. Runtime artifacts under
 | MT5 startup | `scripts/start_mt5.sh`, `scripts/mt5_configure_profile.py`, `scripts/wine_box64.sh` | Rewrites the secret login INI, enforces the startup profile, and starts MT5 through the selected Wine path. |
 | EA sync/release | `scripts/sync_mt5_ea.sh`, `aiquanttrader/release_manifest.py`, `scripts/release_manifest.py` | Sync regenerates release manifests, copies source, and invokes MetaEditor when present. Compile output still requires inspection before restart. |
 | Health/recovery | `scripts/mt5_status.py`, `scripts/healthcheck.py`, `scripts/mt5_watchdog.py`, `scripts/mt5_entry_pause.py` | Healthcheck covers runtime, disk, research freshness, and all PM2 services. Watchdog remains heartbeat-only. The pause CLI manages the persistent no-new-entry flag. |
-| Reporting | `scripts/mt5_trade_report.py`, `dashboard/app.py` | Current Common Files are the input. Strategy attribution comes from deal comments. |
+| Reporting | `scripts/mt5_trade_report.py`, `dashboard/app.py` | Current Common Files are the input. Strategy attribution comes from deal comments; shadow outcomes use later M1 bars, stop-first ambiguous-bar ordering, conservative next-bar dynamic break-even, and calibrated round-trip commission. |
 | Scheduled operations | `scripts/mt5_minute_cycle.py`, `config/aiquanttrader.cron` | Common Files ingestion and bid/ask capture run sequentially; cron serializes all DuckDB jobs with a shared file lock. |
 | Archive/log policy | `scripts/archive_common_files.py`, `config/logrotate-aiquanttrader`, `scripts/install_logrotate.sh` | Archives go under ignored `state/`; combined, cron, and alert logs rotate daily. |
 | Reverse proxy | `config/nginx-trading.aims-sg.com.conf` | Proxies the read-only dashboard. |
@@ -193,6 +202,7 @@ warehouse is also ignored by git even when a working copy exists.
 | `aiquanttrader/backtest/strategies/_xau_state.py` | Rolling M1-to-forming-M5 indicator state used to approximate the EA timer path. |
 | `aiquanttrader/backtest/strategies/xau_gates.py` | Python port of the live XAU indicator/PDA/SMC gates. |
 | `aiquanttrader/backtest/strategies/xau_atr_impulse.py` | Live ATR impulse strategy slice. |
+| `aiquanttrader/backtest/strategies/xau_live_signals.py` | Full enabled live entry chain used by the profile lab: ATR impulse, quick momentum, and three-bar momentum with EA precedence. |
 | `aiquanttrader/backtest/strategies/xau_gated.py` | PDA/SMC/ADX/cooldown/blackout wrapper. |
 | `aiquanttrader/backtest/strategies/xau_quick_momentum.py` | Quick-momentum parity/research slice. |
 
@@ -202,12 +212,15 @@ they do not place live orders.
 
 ### Profile lab and promotion
 
-`aiquanttrader/xau_profiles.py` owns the compiled-equivalent incumbent and four
+`aiquanttrader/xau_profiles.py` owns the compiled-equivalent incumbent and seven
 bounded candidates. `scripts/xau_strategy_lab.py` loads XAU bars from DuckDB,
+runs the full enabled live signal chain rather than an ATR-only approximation,
 runs five purged/embargoed walk-forward evaluations plus a recent window, writes
 experiment records, and ranks candidates.
 
-The lab rejects data older than 72 hours by default. The autonomous loop
+The lab canonicalizes overlapping price sources to one row per timestamp,
+preferring the source with the freshest coverage before applying its bar limit.
+It rejects data older than 72 hours by default. The autonomous loop
 harvests the EA's periodic XAU M1 export before evaluation unless
 `AUTOREVIEW_HARVEST_FIRST=false`.
 
@@ -277,49 +290,58 @@ compile result, restart only `aiquanttrader-mt5`, and verify deployed status/rep
 
 ## Verified Snapshot and Known Gaps
 
-Observed on 2026-07-15; re-run the listed commands before relying on numbers:
+Observed on 2026-07-24; re-run the listed commands before relying on numbers:
 
-- Runtime: all four PM2 services online, v2.00 heartbeat fresh, no open managed
-  positions, compiled defaults active, and autonomous demo entries enabled.
-- Performance: the sliding deal export currently contains 28 closed XAU deals,
-  total PnL `-7,989.96`, win rate `17.86%`, and expectancy `-285.36`.
-- Research data: the corrected local warehouse has 200,000 XAU M1 bars from
-  2026-01-19 through 2026-07-14. The EA exports broker-wall epoch timestamps and
-  the loader preserves the same server-time convention for legacy text bars.
-- Latest 50,000-bar M1 profile lab completed in 363 seconds at low priority.
-  Every candidate failed promotion. Breakout had mean fold PnL `10,023.54` and
-  `0.60` consistency, but recent PnL was `-5,767.87` and its worst fold was
-  `-12,701.68`; no profile was deployed.
-- The targeted `macd_continuation_m1` repair improved mean fold PnL to
-  `16,808.09` and recent PnL to `115,280.72`, but mean PF `1.05` and worst-fold
-  PnL `-37,275.95` failed promotion. The challenger remains undeployed.
-- Release identity: live status reports v2.00 and the current repository HEAD
-  SHA. MetaEditor compiled the deployed artifact with zero errors.
+- Runtime: all four PM2 services online, v2.05 heartbeat fresh, no open managed
+  positions, completed-bar signaling enabled, compiled defaults loaded,
+  operator entry pause active, and paused-entry shadow evaluation active.
+- Performance before the v2.02 restart: 30 closed XAU deals, total PnL
+  `-63,481.34`, win rate `20.00%`, and expectancy `-2,116.04`.
+- Research data contains overlapping retired and current exports. Strategy-lab
+  reads now canonicalize them to one bar per timestamp before evaluation.
+- Profile-lab results generated before 2026-07-20 are invalid for promotion:
+  duplicate timestamps distorted indicators, and the backtester interpreted a
+  10-point XAU break-even offset as 10.00 price units instead of 0.10.
+- The corrected incumbent produced mean fold PnL `-30,828.45`, PF `0.60`,
+  and recent PnL `-70,240.71`. The best guarded MACD candidate was positive
+  but marginal (mean `5,296.46`, PF `1.36`, consistency `0.80`, worst fold
+  `-5,051.63`) and remains undeployed.
+- The cost-stressed full-history `m5_trend_attack_m1` run improved mean PnL to
+  `5,040.50`, but PF was only `1.02`, recent PnL was `-10,740.32`, and the
+  worst fold was `-63,015.01`; it remains research-only.
+- Release identity: live status reports v2.05 and the current repository HEAD
+  SHA with a dirty-worktree manifest. MetaEditor compiled the deployed artifact
+  with zero errors and the two accepted name-shadowing warnings.
 
 Known issues to address before trusting strategy promotion or further increasing risk:
 
-1. The active ATR impulse strategy has negative live expectancy and no current
-   candidate has cleared promotion gates. Demo entries were resumed by explicit
-   owner instruction; do not infer that this is evidence of positive expectancy.
+1. The active ATR impulse incumbent has negative live expectancy and no current
+   candidate has cleared promotion gates. New entries are operator-paused; do
+   not resume or force-deploy a marginal challenger merely to increase activity.
 2. The corrected dataset is current but still covers less than seven months;
    it is insufficient for multi-regime or statistical edge claims.
 3. The EA broker-day equity snapshot is in memory and is reset from current
-   equity when the EA restarts. Daily loss uses realized managed PnL only.
-4. Each position is capped at 1.00% planned stop risk, but two simultaneous
-   positions can expose roughly 2.00% and the daily loss gate does not reserve
-   aggregate open-position risk.
+   equity when the EA restarts.
+4. Planned open-position stop risk is reserved against the 1.00% daily budget,
+   but broker gaps and execution slippage can still make realized loss exceed
+   the planned amount.
 5. Recovery controls exist but compiled defaults leave loss-streak, early
    drawdown, blackout, and ATR-regime pauses disabled.
-6. Signals use the forming M1 bar and are evaluated every timer tick. Cooldown
-   and `lastTradeTimes` are in memory and reset after an EA restart.
+6. Signals use completed M1 bars and each setup is evaluated once per bar.
+   Cooldown, the setup latch, and `lastTradeTimes` are in memory and reset after
+   an EA restart; the startup entry delay remains the restart fail-closed gate.
 7. `EnforceManagedRisk` closes stopless managed-symbol positions only when the
    comment does not start with `AIQuantTrader_`; healthcheck is the main detector for
    an EA-owned position that loses SL/TP protection.
 8. The bridge deal export covers 14 days, acknowledgement IDs can repeat after
     restart, and status telemetry resets daily/restart, so Common Files alone
     are not a durable audit ledger.
-9. Compile success, Python tests, and parity are not enforced in CI.
-10. Several historical documents and package descriptions have become stale;
+9. Shadow signals are independent hypothetical setups, not a simulated
+   position portfolio. The report deduplicates deterministic IDs, resolves
+   later M1 SL/TP touches stop-first, and includes commission, but does not yet
+   model slippage, shadow-position caps, or portfolio-level reserved risk.
+10. Compile success, Python tests, and parity are not enforced in CI.
+11. Several historical documents and package descriptions have become stale;
     use this map's authority order and current command output.
 
 ## Targeted Read Checklist

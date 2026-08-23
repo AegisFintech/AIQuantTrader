@@ -55,6 +55,10 @@ from aiquanttrader.backtest.strategies.xau_gates import (
     smc_short_score,
 )
 from aiquanttrader.backtest.strategies.xau_gated import XauGatedParams, XauGatedStrategy
+from aiquanttrader.backtest.strategies.xau_live_signals import (
+    XauLiveSignalParams,
+    XauLiveSignalStrategy,
+)
 from aiquanttrader.backtest.strategies.xau_quick_momentum import (
     XauQuickMomentumParams,
     XauQuickMomentumStrategy,
@@ -105,6 +109,8 @@ __all__ = [
     "XauGateParams",
     "XauGatedParams",
     "XauGatedStrategy",
+    "XauLiveSignalParams",
+    "XauLiveSignalStrategy",
     "XauQuickMomentumParams",
     "XauQuickMomentumStrategy",
     "XAUUSD_ICMARKETS_DEMO",

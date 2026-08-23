@@ -6,6 +6,7 @@ Each run copies:
   - aiquanttrader_positions.csv
   - aiquanttrader_deals.csv
   - aiquanttrader_acks.csv
+  - aiquanttrader_shadow_signals.csv
 
 from the live Common Files directory into a timestamped sub-directory under
 `state/mt5/archive/`. Files that do not exist (or are empty) are skipped
@@ -32,7 +33,13 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from runtime_paths import common_dir  # noqa: E402
 
 STATE_DIR = ROOT / "state" / "mt5" / "archive"
-FILES = ("aiquanttrader_status.json", "aiquanttrader_positions.csv", "aiquanttrader_deals.csv", "aiquanttrader_acks.csv")
+FILES = (
+    "aiquanttrader_status.json",
+    "aiquanttrader_positions.csv",
+    "aiquanttrader_deals.csv",
+    "aiquanttrader_acks.csv",
+    "aiquanttrader_shadow_signals.csv",
+)
 
 
 def archive_now(common: Path | None = None) -> Path:

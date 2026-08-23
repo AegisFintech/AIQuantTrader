@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import math
 from dataclasses import dataclass, replace
 
 from aiquanttrader.backtest.position import Position
@@ -83,10 +82,10 @@ class XauAtrImpulseStrategy(Strategy):
             return Signal(action="HOLD", strategy=self.name)
 
         params = self.params
-        # Mirrors MQL5: rates[0] is the forming timeframe bar and rates[1]
-        # is the previous fully closed timeframe bar.
+        # Signals are confirmed from completed bars. The live EA evaluates the
+        # same close once, at the beginning of the next timeframe bar.
         long_trigger = _atr_impulse_long_trigger(
-            m1_high=float(bar["high"]),
+            current=current,
             previous_high=float(previous_high),
             previous=previous,
             atr=atr,
@@ -95,7 +94,7 @@ class XauAtrImpulseStrategy(Strategy):
             rsi_ceiling=params.rsi_long_ceiling,
         )
         short_trigger = _atr_impulse_short_trigger(
-            m1_low=float(bar["low"]),
+            current=current,
             previous_low=float(previous_low),
             previous=previous,
             atr=atr,
@@ -163,7 +162,7 @@ class XauAtrImpulseStrategy(Strategy):
 
 def _atr_impulse_long_trigger(
     *,
-    m1_high: float,
+    current: float,
     previous_high: float,
     previous: float,
     atr: float,
@@ -174,14 +173,14 @@ def _atr_impulse_long_trigger(
     if rsi >= rsi_ceiling:
         return None
     threshold = max(previous_high, previous + atr * impulse_atr_mult)
-    if m1_high <= threshold:
+    if current <= threshold:
         return None
-    return math.nextafter(threshold, math.inf)
+    return float(current)
 
 
 def _atr_impulse_short_trigger(
     *,
-    m1_low: float,
+    current: float,
     previous_low: float,
     previous: float,
     atr: float,
@@ -192,6 +191,6 @@ def _atr_impulse_short_trigger(
     if rsi <= rsi_floor:
         return None
     threshold = min(previous_low, previous - atr * impulse_atr_mult)
-    if m1_low >= threshold:
+    if current >= threshold:
         return None
-    return math.nextafter(threshold, -math.inf)
+    return float(current)

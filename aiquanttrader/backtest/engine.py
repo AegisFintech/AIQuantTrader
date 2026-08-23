@@ -18,6 +18,7 @@ class BreakEvenConfig:
     enabled: bool = False
     rr_ratio: float = 1.0
     extra_points: float = 10.0
+    point_size: float = 1.0
 
 
 @dataclass
@@ -154,6 +155,12 @@ class Backtester:
 
             survivors: list[_OpenRecord] = []
             for record in open_records:
+                # Entries are filled at this completed bar's close. Earlier
+                # extremes from the same bar cannot stop or take-profit a
+                # position that did not exist yet.
+                if record.entry_bar_idx == idx:
+                    survivors.append(record)
+                    continue
                 exit_price, exit_reason = self._exit_for_bar(record.position, bar)
                 if exit_price is None:
                     survivors.append(
@@ -413,7 +420,9 @@ class Backtester:
         if profit_points < threshold:
             return record
 
-        new_sl = position.entry_price + direction * float(config.extra_points)
+        new_sl = position.entry_price + direction * (
+            float(config.extra_points) * float(config.point_size)
+        )
         if side == "BUY" and new_sl <= position.sl:
             return record
         if side == "SELL" and new_sl >= position.sl:

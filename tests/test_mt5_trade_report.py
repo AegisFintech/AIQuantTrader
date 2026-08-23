@@ -13,7 +13,10 @@ from mt5_trade_report import (  # noqa: E402
     money,
     read_csv,
     read_json,
+    read_shadow_bars,
+    resolve_shadow_signals,
     retired_strategy_fills,
+    summarize_shadow_signals,
     summarize_deals,
 )
 
@@ -151,3 +154,140 @@ def test_retired_strategy_fills_empty_input():
 def test_retired_set_is_not_empty():
     # Sanity: the retired set should match the AGENTS.md policy
     assert ('XAUUSD', 'RSI_reversion') in RETIRED_AUTO_STRATEGIES
+
+
+def _shadow_signal(
+    signal_id: str,
+    side: str,
+    *,
+    signal_bar_time: int = 1000,
+    entry: float = 100.0,
+    sl: float = 99.0,
+    tp: float = 102.0,
+    spread_points: float = 5.0,
+    dynamic_break_even: bool = False,
+    break_even_rr_ratio: float = 1.0,
+    break_even_extra_points: float = 10.0,
+) -> dict:
+    return {
+        "signal_id": signal_id,
+        "time": "2026.07.24 10:00:01",
+        "ts_server": str(signal_bar_time + 60),
+        "signal_bar_time": str(signal_bar_time),
+        "symbol": "XAUUSD",
+        "profile": "compiled_defaults",
+        "side": side,
+        "strategy": "ATR_impulse",
+        "volume": "1.0",
+        "entry": str(entry),
+        "sl": str(sl),
+        "tp": str(tp),
+        "smc": "4",
+        "pda": "0.2",
+        "spread_points": str(spread_points),
+        "dynamic_break_even": "1" if dynamic_break_even else "0",
+        "break_even_rr_ratio": str(break_even_rr_ratio),
+        "break_even_extra_points": str(break_even_extra_points),
+    }
+
+
+def _bar(timestamp: int, high: float, low: float, close: float = 100.0) -> dict:
+    return {"time": timestamp, "open": 100.0, "high": high, "low": low, "close": close, "volume": 10.0}
+
+
+def test_resolve_shadow_signals_uses_later_bars_and_round_trip_commission():
+    rows = [_shadow_signal("buy-1", "BUY")]
+    bars = [
+        _bar(1000, high=999.0, low=1.0),  # Signal bar must never resolve its own entry.
+        _bar(1060, high=102.1, low=99.5, close=102.0),
+    ]
+
+    outcomes = resolve_shadow_signals(rows, bars)
+
+    assert len(outcomes) == 1
+    assert outcomes[0]["outcome"] == "tp"
+    assert outcomes[0]["exit_time"] == 1060
+    assert outcomes[0]["gross_pnl"] == 200.0
+    assert outcomes[0]["commission"] == 7.0
+    assert outcomes[0]["net_pnl"] == 193.0
+
+
+def test_resolve_shadow_signals_is_conservative_when_sl_and_tp_touch_same_bar():
+    rows = [_shadow_signal("buy-both", "BUY")]
+    bars = [_bar(1060, high=102.5, low=98.5)]
+
+    outcome = resolve_shadow_signals(rows, bars)[0]
+
+    assert outcome["outcome"] == "sl"
+    assert outcome["net_pnl"] == -107.0
+
+
+def test_resolve_shadow_sell_uses_ask_side_spread_for_exit_triggers():
+    rows = [_shadow_signal("sell-1", "SELL", sl=101.0, tp=98.0)]
+    bars = [_bar(1060, high=100.2, low=97.94)]
+
+    outcome = resolve_shadow_signals(rows, bars)[0]
+
+    assert outcome["outcome"] == "tp"
+    assert outcome["net_pnl"] == 193.0
+
+
+def test_resolve_shadow_signals_applies_break_even_from_the_next_bar():
+    rows = [
+        _shadow_signal(
+            "buy-be",
+            "BUY",
+            tp=103.0,
+            dynamic_break_even=True,
+            break_even_rr_ratio=1.0,
+            break_even_extra_points=10.0,
+        )
+    ]
+    bars = [
+        _bar(1060, high=101.1, low=99.5, close=101.0),
+        _bar(1120, high=101.0, low=100.0, close=100.1),
+    ]
+
+    outcome = resolve_shadow_signals(rows, bars)[0]
+
+    assert outcome["outcome"] == "be"
+    assert outcome["exit_price"] == 100.1
+    assert outcome["net_pnl"] == 3.0
+
+
+def test_summarize_shadow_signals_deduplicates_ids_and_keeps_open_signals():
+    closed = _shadow_signal("same-id", "BUY")
+    duplicate = dict(closed)
+    open_signal = _shadow_signal("open-id", "BUY", signal_bar_time=2000)
+    report = summarize_shadow_signals(
+        [closed, duplicate, open_signal],
+        [_bar(1060, high=102.1, low=99.5)],
+    )
+
+    assert report["total"] == {
+        "signals": 2,
+        "resolved": 1,
+        "open": 1,
+        "wins": 1,
+        "losses": 0,
+        "win_rate": 1.0,
+        "net_pnl": 193.0,
+        "profit_factor": "inf",
+        "expectancy": 193.0,
+    }
+    assert report["assumptions"]["both_hit_rule"] == "stop_first"
+    assert report["assumptions"]["dynamic_break_even_ordering"] == "activate_after_surviving_bar"
+
+
+def test_read_shadow_bars_accepts_epoch_and_text_timestamps(tmp_path):
+    path = tmp_path / "bars.tsv"
+    path.write_text(
+        "1000\t100\t101\t99\t100.5\t12\n"
+        "2026-07-24 10:00\t100.5\t102\t100\t101.5\t14\n"
+    )
+
+    bars = read_shadow_bars(path)
+
+    assert len(bars) == 2
+    assert bars[0]["time"] == 1000
+    assert bars[1]["high"] == 102.0

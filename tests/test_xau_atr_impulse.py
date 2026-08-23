@@ -113,6 +113,17 @@ def test_xau_atr_impulse_breakout_filter():
     assert signal.strategy == "XauAtrImpulse"
 
 
+def test_xau_atr_impulse_requires_close_confirmation_not_only_a_wick():
+    bars = _atr_impulse_long_bars()
+    bars[-1] = {**bars[-1], "close": bars[-2]["close"]}
+    strategy = XauAtrImpulseStrategy(timeframe="M1")
+
+    signal = _run_strategy_to_bar(strategy, bars, len(bars) - 1)
+
+    assert bars[-1]["high"] > bars[-2]["high"]
+    assert signal.action == "HOLD"
+
+
 def test_xau_atr_impulse_runs_through_backtester():
     bars = _atr_impulse_long_bars()
     signal_bar = len(bars) - 1

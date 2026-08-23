@@ -101,7 +101,6 @@ def _parse_ea_inputs(mq5_path: Path) -> dict[str, str]:
     if not mq5_path.exists():
         return {}
     inputs: dict[str, str] = {}
-    input_lines = 0
     pattern = re.compile(r"^\s*input\s+.+?\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?);")
     for raw_line in mq5_path.read_text(errors="replace").splitlines():
         line = raw_line.strip()
@@ -109,9 +108,6 @@ def _parse_ea_inputs(mq5_path: Path) -> dict[str, str]:
             continue
         if not line.startswith("input "):
             continue
-        input_lines += 1
-        if input_lines > 30:
-            break
         match = pattern.match(line)
         if not match:
             continue

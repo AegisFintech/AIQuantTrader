@@ -4,12 +4,10 @@ Run these steps **in order** before any change to the MT5 EA source, the
 risk model, or the bridge protocol. The order matters: an early
 `pm2 restart` on broken code breaks the live demo.
 
-Sizing note: M5.1 keeps daily risk sizing as the primary control at 0.10%
-of equity per trade and the daily kill switch at 1.00%, but raises the
-default XAUUSD/global lot ceilings to 5.0 lots and the risk-sizing-disabled
-XAU fallback lot to 0.05. The caps are now emergency ceilings for the 1M+
-demo account instead of small-account sizing controls; smaller accounts
-continue to scale from equity, stop distance, and the same risk fraction.
+Sizing note: v2.05 keeps the hard 1.00% effective stop-risk and daily-loss
+bounds. New volume is clipped to the remaining daily budget after closed PnL
+and reserved open-position stop risk; the 50-lot demo cap remains secondary to
+that calculation.
 
 ```bash
 cd /root/AIQuantTrader
@@ -20,7 +18,7 @@ cd /root/AIQuantTrader
 - [ ] `git status` — confirm you are on the right branch and the working tree is clean of unrelated edits.
 - [ ] `git log --oneline -5` — confirm the commit you intend to ship is the head.
 - [ ] `cat broker/mt5/AIQuantTraderBridgeEA.mq5 | grep '^#property version'` — confirm the version string is bumped.
-- [ ] `.venv/bin/python -m pytest -q -p no:cacheprovider` — all tests pass (target: 26 passing).
+- [ ] `.venv/bin/python -m pytest -q -p no:cacheprovider` — all tests pass.
 
 ## 2. Compile the EA
 
@@ -44,6 +42,7 @@ cd /root/AIQuantTrader
 - [ ] `python3 -c "import json; d=json.load(open('/root/AIQuantTrader/.runtime/wineprefix/drive_c/users/root/AppData/Roaming/MetaQuotes/Terminal/Common/Files/aiquanttrader_status.json')); print(d.get('money_management'))"` — confirm the new `daily_risk_per_trade_fraction` and `daily_loss_limit_fraction` values match what you intend.
 - [ ] `python3 scripts/healthcheck.py` — all checks `OK` after the restart. Exit code 0.
 - [ ] `python3 scripts/mt5_trade_report.py` — re-run and diff against the pre-deploy snapshot. No new orders, no new rejected positions, no change in the symbol's last_signal unless expected.
+- [ ] While the entry-pause flag exists, confirm `entry_pause=1`, `shadow_mode=1`, real `signal_telemetry.filled=0`, and command-file market entries remain rejected. A qualified setup may increase `shadow_qualified` and append `aiquanttrader_shadow_signals.csv` only.
 
 ## 6. Cleanup (optional but recommended)
 

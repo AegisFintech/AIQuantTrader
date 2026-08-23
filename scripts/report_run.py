@@ -195,6 +195,7 @@ def _break_even_from_payload(payload: Any) -> BreakEvenConfig:
         enabled=bool(payload.get("enabled", False)),
         rr_ratio=float(payload.get("rr_ratio", 1.0) or 1.0),
         extra_points=float(payload.get("extra_points", 10.0) or 10.0),
+        point_size=float(payload.get("point_size", 1.0) or 1.0),
     )
 
 

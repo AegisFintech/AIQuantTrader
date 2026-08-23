@@ -22,16 +22,23 @@ def test_strategy_lab_review_uses_bounded_low_priority_defaults(monkeypatch):
     monkeypatch.delenv("AUTOREVIEW_PROFILE_LAB_MAX_BARS", raising=False)
     monkeypatch.delenv("AUTOREVIEW_PROFILE_LAB_TIMEOUT", raising=False)
     monkeypatch.delenv("AUTOREVIEW_PROFILE_LAB_NICE_LEVEL", raising=False)
+    monkeypatch.delenv("AUTOREVIEW_PROFILE_LAB_REGISTRY", raising=False)
     monkeypatch.setenv("AUTOREVIEW_HARVEST_FIRST", "false")
 
     result = review.strategy_lab_review(deploy_profile=False)
 
-    assert captured["cmd"][-2:] == ["--max-bars", "50000"]
+    assert captured["cmd"][-4:] == [
+        "--max-bars",
+        "100000",
+        "--registry",
+        str(review.DEFAULT_PROFILE_LAB_REGISTRY),
+    ]
     assert captured["timeout"] == 1800
     assert captured["nice_level"] == 10
     assert result["returncode"] == 0
     assert result["timed_out"] is False
-    assert result["max_bars"] == 50000
+    assert result["max_bars"] == 100000
+    assert result["registry"] == str(review.DEFAULT_PROFILE_LAB_REGISTRY)
 
 
 def test_strategy_lab_review_records_timeout_instead_of_raising(monkeypatch):
@@ -62,3 +69,17 @@ def test_env_int_clamps_and_falls_back(monkeypatch):
 
     monkeypatch.setenv("VALUE", "99")
     assert review._env_int("VALUE", 7, minimum=3, maximum=9) == 9
+
+
+def test_closed_deal_count_stops_before_shadow_summary():
+    report = """Closed deal summary: {
+  "closed_deals": 16,
+  "total_pnl": -57926.01
+}
+Shadow trade summary: {
+  "total": {"signals": 12}
+}
+Recent acknowledgements:
+"""
+
+    assert review.closed_deal_count(report) == 16

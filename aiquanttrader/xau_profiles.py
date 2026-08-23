@@ -24,6 +24,14 @@ class XauStrategyProfile:
     enable_smart_money_gates: bool = True
     enable_adx_regime_filter: bool = True
     enable_macd_histogram_alignment: bool = False
+    enable_trend_slope_alignment: bool = False
+    min_trend_slope_atr_multiplier: float = 0.04
+    enable_higher_timeframe_trend_alignment: bool = False
+    higher_trend_timeframe: str = "M15"
+    higher_trend_ema_period: int = 50
+    enable_dynamic_break_even: bool = True
+    break_even_rr_ratio: float = 1.0
+    break_even_extra_points: float = 10.0
     min_smc_confluence_score_xauusd: int = 4
     pda_long_ceiling: float = 0.40
     pda_short_floor: float = 0.60
@@ -88,7 +96,7 @@ class XauStrategyProfile:
             daily_loss_limit_fraction=_clamp_float(
                 self.daily_loss_limit_fraction,
                 0.0025,
-                0.0500,
+                0.0100,
             ),
             max_lot_per_trade_xauusd=_clamp_float(
                 self.max_lot_per_trade_xauusd,
@@ -98,12 +106,12 @@ class XauStrategyProfile:
             max_auto_positions_xauusd=_clamp_int(
                 self.max_auto_positions_xauusd,
                 1,
-                4,
+                2,
             ),
             max_same_direction_positions_per_symbol=_clamp_int(
                 self.max_same_direction_positions_per_symbol,
                 1,
-                4,
+                2,
             ),
             min_seconds_between_trades_xauusd=_clamp_int(
                 self.min_seconds_between_trades_xauusd,
@@ -117,6 +125,29 @@ class XauStrategyProfile:
                 6.00,
             ),
             adx_min_threshold=_clamp_float(self.adx_min_threshold, 5.0, 45.0),
+            min_trend_slope_atr_multiplier=_clamp_float(
+                self.min_trend_slope_atr_multiplier,
+                0.0,
+                0.25,
+            ),
+            higher_trend_timeframe=_bounded_higher_timeframe(
+                self.higher_trend_timeframe
+            ),
+            higher_trend_ema_period=_clamp_int(
+                self.higher_trend_ema_period,
+                20,
+                200,
+            ),
+            break_even_rr_ratio=_clamp_float(
+                self.break_even_rr_ratio,
+                0.50,
+                3.00,
+            ),
+            break_even_extra_points=_clamp_float(
+                self.break_even_extra_points,
+                0.0,
+                100.0,
+            ),
             high_confluence_lot_multiplier=_clamp_float(
                 self.high_confluence_lot_multiplier,
                 1.0,
@@ -267,6 +298,52 @@ PROFILE_CANDIDATES: tuple[XauStrategyProfile, ...] = (
         take_profit_atr_multiplier=3.00,
         adx_min_threshold=14.0,
     ),
+    XauStrategyProfile(
+        profile_name="macd_guarded_m1",
+        risk_tier=1,
+        impulse_atr_multiplier=0.28,
+        enable_macd_histogram_alignment=True,
+        daily_risk_per_trade_fraction=0.0015,
+        daily_loss_limit_fraction=0.0100,
+        max_lot_per_trade_xauusd=50.0,
+        max_auto_positions_xauusd=2,
+        max_same_direction_positions_per_symbol=2,
+        min_seconds_between_trades_xauusd=180,
+        stop_atr_multiplier=1.20,
+        take_profit_atr_multiplier=3.00,
+        adx_min_threshold=14.0,
+        max_recent_drawdown_fraction=0.0015,
+        high_confluence_lot_multiplier=1.0,
+    ),
+    XauStrategyProfile(
+        profile_name="m5_trend_attack_m1",
+        risk_tier=2,
+        min_smc_confluence_score_xauusd=3,
+        impulse_atr_multiplier=0.04,
+        enable_macd_histogram_alignment=False,
+        enable_trend_slope_alignment=False,
+        min_trend_slope_atr_multiplier=0.0,
+        enable_higher_timeframe_trend_alignment=True,
+        higher_trend_timeframe="M5",
+        higher_trend_ema_period=20,
+        pda_long_ceiling=0.45,
+        pda_short_floor=0.55,
+        daily_risk_per_trade_fraction=0.0050,
+        daily_loss_limit_fraction=0.0100,
+        max_lot_per_trade_xauusd=50.0,
+        max_auto_positions_xauusd=2,
+        max_same_direction_positions_per_symbol=2,
+        min_seconds_between_trades_xauusd=60,
+        stop_atr_multiplier=1.20,
+        take_profit_atr_multiplier=3.00,
+        adx_min_threshold=5.0,
+        max_recent_drawdown_fraction=0.0050,
+        max_atr_regime_multiplier=0.0,
+        high_confluence_lot_multiplier=2.0,
+        enable_dynamic_break_even=True,
+        break_even_rr_ratio=1.25,
+        break_even_extra_points=10.0,
+    ),
 )
 
 
@@ -326,3 +403,8 @@ def _clamp_int(value: int, lo: int, hi: int) -> int:
 def _bounded_timeframe(value: str) -> str:
     normalized = str(value or "").strip().upper().replace("PERIOD_", "")
     return normalized if normalized in {"M1", "M5", "M15"} else "M1"
+
+
+def _bounded_higher_timeframe(value: str) -> str:
+    normalized = str(value or "").strip().upper().replace("PERIOD_", "")
+    return normalized if normalized in {"M5", "M15"} else "M15"

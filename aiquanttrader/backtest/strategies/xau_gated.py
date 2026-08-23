@@ -22,10 +22,16 @@ class XauGatedParams:
     enable_pda_gate: bool = True
     enable_adx_gate: bool = True
     enable_macd_histogram_alignment: bool = False
+    enable_trend_slope_alignment: bool = False
+    min_trend_slope_atr_multiplier: float = 0.04
+    enable_higher_timeframe_trend_alignment: bool = False
+    higher_trend_timeframe: str = "M15"
+    higher_trend_ema_period: int = 50
     adx_min_threshold: float = 20.0
     gate_params: XauGateParams = field(default_factory=XauGateParams)
     min_bars_between_signals: int = 0
     min_seconds_between_trades: int = 0
+    max_same_direction_positions: int = 2
     blackout_enabled: bool = False
     max_atr_regime_multiplier: float = 0.0
 
@@ -74,6 +80,8 @@ class XauGatedStrategy(Strategy):
         if idx == 0 and self._last_idx >= 0:
             self._reset()
 
+        higher_trend = self._higher_trend.update(bar)
+
         inner_signal = self._inner.on_bar(
             idx=idx,
             bar=bar,
@@ -87,6 +95,13 @@ class XauGatedStrategy(Strategy):
             return Signal(action="HOLD", strategy=self.name)
         if action not in {"BUY", "SELL"}:
             return Signal(action="HOLD", strategy=self.name)
+
+        max_same_direction = max(1, int(self.params.max_same_direction_positions))
+        same_direction = sum(
+            1 for position in open_positions if position.side.upper() == action
+        )
+        if same_direction >= max_same_direction:
+            return Signal(action="HOLD", strategy=self.name, comment="same_side_max")
 
         feature = self._feature_for(idx=idx, history=history)
         if self.params.blackout_enabled and _truthy(bar.get("blackout")):
@@ -125,6 +140,35 @@ class XauGatedStrategy(Strategy):
                 action=action,
                 macd_hist=macd_hist,
                 previous_macd_hist=previous_macd_hist,
+            ):
+                return Signal(action="HOLD", strategy=self.name, comment="direction_reject")
+
+        if self.params.enable_trend_slope_alignment:
+            ema_trend = feature.get("ema_trend")
+            previous_ema_trend = (
+                self._features[-2].get("ema_trend")
+                if len(self._features) >= 2
+                else None
+            )
+            atr_value = feature.get("atr")
+            if not _trend_slope_aligned(
+                action=action,
+                current=feature.get("current"),
+                ema_trend=ema_trend,
+                previous_ema_trend=previous_ema_trend,
+                atr_value=atr_value,
+                min_slope_atr_multiplier=(
+                    self.params.min_trend_slope_atr_multiplier
+                ),
+            ):
+                return Signal(action="HOLD", strategy=self.name, comment="direction_reject")
+
+        if self.params.enable_higher_timeframe_trend_alignment:
+            if not _higher_timeframe_trend_aligned(
+                action=action,
+                current=feature.get("current"),
+                ema_trend=higher_trend.get("ema_trend"),
+                previous_ema_trend=higher_trend.get("previous_ema_trend"),
             ):
                 return Signal(action="HOLD", strategy=self.name, comment="direction_reject")
 
@@ -195,14 +239,19 @@ class XauGatedStrategy(Strategy):
         current_atr = feature.get("atr")
         if current_atr is None:
             return False
-        previous_values = [
-            float(item["atr"])
-            for item in self._features[:-1]
-            if item.get("atr") is not None and float(item["atr"]) > 0.0
-        ]
-        if len(previous_values) < 10:
+        # The regime uses only the latest 50 valid ATR observations. Walking
+        # the entire accumulated feature history on every signal made the
+        # higher-frequency profile lab quadratic without changing the result.
+        window: list[float] = []
+        for item in reversed(self._features[:-1]):
+            value = item.get("atr")
+            if value is None or float(value) <= 0.0:
+                continue
+            window.append(float(value))
+            if len(window) >= 50:
+                break
+        if len(window) < 10:
             return False
-        window = previous_values[-50:]
         average_atr = sum(window) / len(window)
         return average_atr > 0.0 and float(current_atr) > average_atr * multiplier
 
@@ -217,6 +266,10 @@ class XauGatedStrategy(Strategy):
         self._last_idx = -1
         self._last_signal_bar_idx: int | None = None
         self._last_signal_time: int | None = None
+        self._higher_trend = _ClosedTimeframeEmaState(
+            timeframe=self.params.higher_trend_timeframe,
+            period=self.params.higher_trend_ema_period,
+        )
 
 
 def _numeric_epoch(value: Any) -> int | None:
@@ -239,6 +292,80 @@ def _macd_histogram_aligned(
     if action == "BUY":
         return float(macd_hist) > 0.0 and float(macd_hist) > float(previous_macd_hist)
     return float(macd_hist) < 0.0 and float(macd_hist) < float(previous_macd_hist)
+
+
+def _trend_slope_aligned(
+    *,
+    action: str,
+    current: Any,
+    ema_trend: Any,
+    previous_ema_trend: Any,
+    atr_value: Any,
+    min_slope_atr_multiplier: float,
+) -> bool:
+    if None in {current, ema_trend, previous_ema_trend, atr_value}:
+        return False
+    minimum = max(0.0, float(atr_value) * float(min_slope_atr_multiplier))
+    slope = float(ema_trend) - float(previous_ema_trend)
+    if action == "BUY":
+        return float(current) > float(ema_trend) and slope >= minimum
+    return float(current) < float(ema_trend) and -slope >= minimum
+
+
+def _higher_timeframe_trend_aligned(
+    *,
+    action: str,
+    current: Any,
+    ema_trend: Any,
+    previous_ema_trend: Any,
+) -> bool:
+    if None in {current, ema_trend, previous_ema_trend}:
+        return False
+    if action == "BUY":
+        return float(current) > float(ema_trend)
+    return float(current) < float(ema_trend)
+
+
+class _ClosedTimeframeEmaState:
+    def __init__(self, *, timeframe: str, period: int):
+        normalized = str(timeframe).upper().replace("PERIOD_", "")
+        minutes = {"M1": 1, "M5": 5, "M15": 15}.get(normalized)
+        if minutes is None:
+            raise ValueError(f"unsupported higher trend timeframe: {timeframe!r}")
+        self.bucket_seconds = minutes * 60
+        self.period = max(1, int(period))
+        self.alpha = 2.0 / (self.period + 1.0)
+        self.bucket: int | None = None
+        self.forming_close: float | None = None
+        self.seed: list[float] = []
+        self.ema: float | None = None
+        self.previous_ema: float | None = None
+
+    def update(self, bar: dict) -> dict[str, float | None]:
+        epoch = _numeric_epoch(bar.get("time"))
+        if epoch is None:
+            raise ValueError("bar time is required for higher timeframe trend")
+        bucket = epoch - (epoch % self.bucket_seconds)
+        if self.bucket is None:
+            self.bucket = bucket
+        elif bucket != self.bucket:
+            if self.forming_close is not None:
+                self._commit(self.forming_close)
+            self.bucket = bucket
+        self.forming_close = float(bar["close"])
+        return {
+            "ema_trend": self.ema,
+            "previous_ema_trend": self.previous_ema,
+        }
+
+    def _commit(self, close: float) -> None:
+        if self.ema is None:
+            self.seed.append(float(close))
+            if len(self.seed) == self.period:
+                self.ema = sum(self.seed) / self.period
+            return
+        self.previous_ema = self.ema
+        self.ema = self.ema + (float(close) - self.ema) * self.alpha
 
 
 def _truthy(value: Any) -> bool:

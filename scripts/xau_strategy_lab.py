@@ -46,10 +46,10 @@ from aiquanttrader.backtest import (  # noqa: E402
     compute_metrics,
     WalkForwardConfig,
     XAUUSD_ICMARKETS_DEMO,
-    XauAtrImpulseParams,
-    XauAtrImpulseStrategy,
     XauGatedParams,
     XauGatedStrategy,
+    XauLiveSignalParams,
+    XauLiveSignalStrategy,
     run_walkforward,
 )
 from aiquanttrader.data_store import connect  # noqa: E402
@@ -161,6 +161,8 @@ def main(argv: list[str] | None = None) -> int:
                 "min_challenger_pnl_delta": args.min_challenger_pnl_delta,
                 "min_challenger_pf_delta": args.min_challenger_pf_delta,
                 "max_data_age_hours": args.max_data_age_hours,
+                "spread_points": args.spread_points,
+                "slippage_points": args.slippage_points,
             },
             "winner": _json_safe(winner),
             "deployed_profile_path": profile_path,
@@ -203,6 +205,8 @@ def _parser() -> argparse.ArgumentParser:
         help="Reject stale research bars; use 0 only for controlled historical tests",
     )
     parser.add_argument("--initial-equity", type=float, default=1_000_000.0)
+    parser.add_argument("--spread-points", type=float, default=8.0)
+    parser.add_argument("--slippage-points", type=float, default=2.0)
     parser.add_argument("--min-trades", type=float, default=8.0)
     parser.add_argument("--min-consistency", type=float, default=0.60)
     parser.add_argument("--data-source", type=Path, default=ROOT / "data" / "aiquanttrader.duckdb")
@@ -285,7 +289,7 @@ def _evaluate_profile(
         config={
             "profile": bounded.to_dict(),
             "strategy_name": "XauGated",
-            "inner_strategy": "XauAtrImpulse",
+            "inner_strategy": "XauLiveSignals",
         },
         walk_forward_config=_json_safe(wf_config),
         backtest_config=_json_safe(backtest_config),
@@ -321,11 +325,12 @@ def _evaluate_profile(
 
 
 def _strategy(profile: XauStrategyProfile) -> XauGatedStrategy:
-    inner = XauAtrImpulseStrategy(
-        XauAtrImpulseParams(
+    inner = XauLiveSignalStrategy(
+        XauLiveSignalParams(
             impulse_atr_mult=profile.impulse_atr_multiplier,
             stop_atr_mult=profile.stop_atr_multiplier,
             tp_atr_mult=profile.take_profit_atr_multiplier,
+            enable_atr_impulse=profile.enable_xau_atr_impulse,
         ),
         timeframe=profile.auto_timeframe,
     )
@@ -339,8 +344,20 @@ def _strategy(profile: XauStrategyProfile) -> XauGatedStrategy:
             enable_pda_gate=True,
             enable_adx_gate=profile.enable_adx_regime_filter,
             enable_macd_histogram_alignment=profile.enable_macd_histogram_alignment,
+            enable_trend_slope_alignment=profile.enable_trend_slope_alignment,
+            min_trend_slope_atr_multiplier=(
+                profile.min_trend_slope_atr_multiplier
+            ),
+            enable_higher_timeframe_trend_alignment=(
+                profile.enable_higher_timeframe_trend_alignment
+            ),
+            higher_trend_timeframe=profile.higher_trend_timeframe,
+            higher_trend_ema_period=profile.higher_trend_ema_period,
             adx_min_threshold=profile.adx_min_threshold,
             min_seconds_between_trades=profile.min_seconds_between_trades_xauusd,
+            max_same_direction_positions=(
+                profile.max_same_direction_positions_per_symbol
+            ),
             blackout_enabled=profile.blackout_enabled,
             max_atr_regime_multiplier=profile.max_atr_regime_multiplier,
         ),
@@ -364,7 +381,11 @@ def _backtest_config(
 ) -> BacktestConfig:
     return BacktestConfig(
         symbol=args.symbol,
-        fill_config=XAUUSD_ICMARKETS_DEMO.fill_config(),
+        fill_config=replace(
+            XAUUSD_ICMARKETS_DEMO.fill_config(),
+            spread_points=max(0.0, float(args.spread_points)),
+            slippage_points=max(0.0, float(args.slippage_points)),
+        ),
         sizer=DailyRiskSizer(
             risk_per_trade_fraction=profile.daily_risk_per_trade_fraction,
             daily_loss_cap_fraction=profile.daily_loss_limit_fraction,
@@ -374,13 +395,19 @@ def _backtest_config(
             high_confluence_lot_multiplier=profile.high_confluence_lot_multiplier,
             high_confluence_score=profile.high_confluence_score,
             bad_day_downshift_fraction=profile.bad_day_downshift_fraction,
+            price_value_per_lot=XAUUSD_ICMARKETS_DEMO.price_value_per_lot,
         ),
         initial_equity=args.initial_equity,
         point_value=XAUUSD_ICMARKETS_DEMO.price_value_per_lot,
         min_seconds_between_trades=profile.min_seconds_between_trades_xauusd,
         loss_streak_pause_count=profile.loss_streak_pause_count,
         max_recent_drawdown_fraction=profile.max_recent_drawdown_fraction,
-        break_even=BreakEvenConfig(enabled=True),
+        break_even=BreakEvenConfig(
+            enabled=profile.enable_dynamic_break_even,
+            rr_ratio=profile.break_even_rr_ratio,
+            extra_points=profile.break_even_extra_points,
+            point_size=XAUUSD_ICMARKETS_DEMO.point_size,
+        ),
     )
 
 
@@ -408,7 +435,7 @@ def _load_bars(
     to_date: str,
     max_bars: int,
 ) -> list[dict]:
-    where = [
+    base_where = [
         "symbol = ?",
         "open IS NOT NULL",
         "high IS NOT NULL",
@@ -416,22 +443,43 @@ def _load_bars(
         "close IS NOT NULL",
     ]
     params: list[Any] = [symbol]
+    canonical_where: list[str] = []
     if from_date:
-        where.append("ts_server >= ?")
+        canonical_where.append("ts_server >= ?")
         params.append(_date_epoch(from_date))
     if to_date:
-        where.append("ts_server <= ?")
+        canonical_where.append("ts_server <= ?")
         params.append(_date_epoch(to_date, end_of_day=True))
     limit = ""
     if max_bars > 0:
         limit = " LIMIT ?"
         params.append(int(max_bars))
     sql = (
-        "SELECT ts_server, open, high, low, close, volume "
+        "WITH source_ranked AS ("
+        "  SELECT ts_server, open, high, low, close, volume, source, "
+        "         ea_version, git_sha, "
+        "         MAX(ts_server) OVER (PARTITION BY source) AS source_latest "
+        "  FROM prices WHERE "
+        + " AND ".join(base_where)
+        + "), canonical AS ("
+        "  SELECT ts_server, open, high, low, close, volume, "
+        "         ROW_NUMBER() OVER ("
+        "           PARTITION BY ts_server "
+        "           ORDER BY source_latest DESC, "
+        "                    COALESCE(ea_version, '') DESC, "
+        "                    COALESCE(git_sha, '') DESC, source DESC"
+        "         ) AS source_order "
+        "  FROM source_ranked"
+    )
+    if not canonical_where:
+        canonical_where.append("TRUE")
+    sql += (
+        "  QUALIFY source_order = 1"
+        ") SELECT ts_server, open, high, low, close, volume "
         "FROM ("
         "  SELECT ts_server, open, high, low, close, volume "
-        "  FROM prices WHERE "
-        + " AND ".join(where)
+        "  FROM canonical WHERE "
+        + " AND ".join(canonical_where)
         + " ORDER BY ts_server DESC"
         + limit
         + ") ORDER BY ts_server"

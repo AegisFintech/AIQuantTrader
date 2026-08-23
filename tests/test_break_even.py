@@ -46,6 +46,25 @@ def test_break_even_moves_sl_to_entry_minus_extra_on_sell():
     assert trade["break_even_applied"] is True
 
 
+def test_break_even_converts_broker_points_to_price_distance():
+    result = Backtester(
+        _config(
+            break_even=BreakEvenConfig(
+                enabled=True,
+                extra_points=10.0,
+                point_size=0.01,
+            )
+        )
+    ).run(
+        strategy=_OneShot("BUY"),
+        bars=_bars([100.0, 120.0, 130.0]),
+    )
+
+    trade = result.trades[0]
+    assert trade["sl"] == pytest.approx(100.10)
+    assert trade["break_even_applied"] is True
+
+
 def test_break_even_only_moves_once():
     result = Backtester(_config(break_even=BreakEvenConfig(enabled=True))).run(
         strategy=_OneShot("BUY"),

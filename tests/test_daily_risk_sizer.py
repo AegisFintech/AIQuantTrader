@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from aiquanttrader.backtest import DailyRiskSizer
+from aiquanttrader.backtest import DailyRiskSizer, Position
 
 
 def test_daily_risk_sizer_basic():
@@ -170,6 +170,66 @@ def test_daily_risk_sizer_can_pause_after_bad_day():
     )
 
     assert volume == 0.0
+
+
+def test_daily_risk_sizer_reserves_open_position_stop_risk():
+    sizer = DailyRiskSizer(
+        risk_per_trade_fraction=0.01,
+        daily_loss_cap_fraction=0.01,
+        max_lot_per_trade=50.0,
+        max_positions_per_symbol=2,
+        price_value_per_lot=100.0,
+    )
+    position = Position(
+        symbol="XAUUSD",
+        side="BUY",
+        volume=1.0,
+        entry_price=100.0,
+        entry_time=1,
+        sl=90.0,
+        tp=120.0,
+        magic=20260522,
+    )
+
+    volume = sizer.size(
+        symbol="XAUUSD",
+        equity=100_000.0,
+        sl_distance=1_000.0,
+        open_positions=[position],
+        today_closed_pnl=0.0,
+    )
+
+    assert volume == 0.0
+
+
+def test_daily_risk_sizer_releases_risk_after_break_even():
+    sizer = DailyRiskSizer(
+        risk_per_trade_fraction=0.01,
+        daily_loss_cap_fraction=0.01,
+        max_lot_per_trade=50.0,
+        max_positions_per_symbol=2,
+        price_value_per_lot=100.0,
+    )
+    position = Position(
+        symbol="XAUUSD",
+        side="BUY",
+        volume=1.0,
+        entry_price=100.0,
+        entry_time=1,
+        sl=100.1,
+        tp=120.0,
+        magic=20260522,
+    )
+
+    volume = sizer.size(
+        symbol="XAUUSD",
+        equity=100_000.0,
+        sl_distance=1_000.0,
+        open_positions=[position],
+        today_closed_pnl=0.0,
+    )
+
+    assert volume == 1.0
 
 
 def _sizer(

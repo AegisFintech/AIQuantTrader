@@ -26,9 +26,10 @@ except Exception:
     pass
 STATE = ROOT / 'state' / 'mt5'
 MODEL = os.getenv('OPENCODE_REVIEW_MODEL', 'openai/gpt-5.5')
-DEFAULT_PROFILE_LAB_MAX_BARS = 50_000
+DEFAULT_PROFILE_LAB_MAX_BARS = 100_000
 DEFAULT_PROFILE_LAB_TIMEOUT_SECONDS = 1_800
 DEFAULT_PROFILE_LAB_NICE_LEVEL = 10
+DEFAULT_PROFILE_LAB_REGISTRY = ROOT / 'state' / 'research' / 'profile_lab_registry.duckdb'
 
 
 def log(msg: str) -> None:
@@ -124,6 +125,26 @@ def mt5_report_text() -> str:
     return text if len(text) <= 200000 else text[:200000]
 
 
+def closed_deal_count(mt5_report: str) -> int:
+    """Parse the closed-deal count without consuming later report sections."""
+
+    try:
+        marker = 'Closed deal summary:'
+        if marker not in mt5_report:
+            return 0
+        summary_text = mt5_report.split(marker, 1)[1]
+        for next_marker in (
+            '\nShadow trade summary:',
+            '\nRetired strategy fill warnings:',
+            '\nRecent acknowledgements:',
+        ):
+            summary_text = summary_text.split(next_marker, 1)[0]
+        summary = json.loads(summary_text.strip())
+        return int(summary.get('closed_deals') or 0)
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return 0
+
+
 def strategy_lab_review(deploy_profile: bool) -> dict:
     if os.getenv('AUTOREVIEW_ENABLE_PROFILE_LAB', 'true').strip().lower() not in ('1', 'true', 'yes', 'on'):
         return {'enabled': False, 'skipped': True, 'reason': 'profile_lab_disabled'}
@@ -136,6 +157,11 @@ def strategy_lab_review(deploy_profile: bool) -> dict:
         minimum=1_000,
     )
     cmd.extend(['--max-bars', str(max_bars)])
+    registry = os.getenv(
+        'AUTOREVIEW_PROFILE_LAB_REGISTRY',
+        str(DEFAULT_PROFILE_LAB_REGISTRY),
+    ).strip() or str(DEFAULT_PROFILE_LAB_REGISTRY)
+    cmd.extend(['--registry', registry])
     if deploy_profile:
         cmd.append('--write-profile')
         if os.getenv('AUTOREVIEW_FORCE_PROFILE_DEPLOY', '').strip().lower() in ('1', 'true', 'yes', 'on'):
@@ -163,6 +189,7 @@ def strategy_lab_review(deploy_profile: bool) -> dict:
             'timeout_seconds': timeout,
             'duration_seconds': round(time.monotonic() - started, 3),
             'max_bars': max_bars,
+            'registry': registry,
             'nice_level': nice_level,
             'stdout': _tail_text(exc.stdout),
             'stderr': _tail_text(exc.stderr),
@@ -174,6 +201,7 @@ def strategy_lab_review(deploy_profile: bool) -> dict:
         'timed_out': False,
         'duration_seconds': round(time.monotonic() - started, 3),
         'max_bars': max_bars,
+        'registry': registry,
         'nice_level': nice_level,
         'stdout': cp.stdout[-12000:],
         'stderr': cp.stderr[-12000:],
@@ -242,17 +270,7 @@ Task:
 
 def cycle(args: argparse.Namespace) -> dict:
     mt5_report = mt5_report_text()
-    closed = 0
-    try:
-        marker = 'Closed deal summary:'
-        if marker in mt5_report:
-            summary_text = mt5_report.split(marker, 1)[1]
-            for next_marker in ('\nRetired strategy fill warnings:', '\nRecent acknowledgements:'):
-                summary_text = summary_text.split(next_marker, 1)[0]
-            summary = json.loads(summary_text.strip())
-            closed = int(summary.get('closed_deals') or 0)
-    except Exception:
-        closed = 0
+    closed = closed_deal_count(mt5_report)
     n = closed
     memory = ReviewMemory(STATE / 'improver_memory.json')
     log(f"window={args.window_hours}h mt5_closed_deals={closed} min={args.min_trades}")

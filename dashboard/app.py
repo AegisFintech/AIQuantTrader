@@ -20,6 +20,7 @@ SCRIPTS_DIR = ROOT / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
+from mt5_trade_report import read_shadow_bars, summarize_shadow_signals  # noqa: E402
 from runtime_paths import common_dir  # noqa: E402
 
 
@@ -265,6 +266,8 @@ status_path = common / "aiquanttrader_status.json" if common else None
 positions_path = common / "aiquanttrader_positions.csv" if common else None
 deals_path = common / "aiquanttrader_deals.csv" if common else None
 acks_path = common / "aiquanttrader_acks.csv" if common else None
+shadow_path = common / "aiquanttrader_shadow_signals.csv" if common else None
+shadow_bars_path = common / "aiquanttrader_export_XAUUSD_M1.tsv" if common else None
 profile_path = common / "aiquanttrader_strategy_profile.csv" if common else None
 
 status = read_json(status_path)
@@ -272,6 +275,9 @@ status_age = time.time() - status_path.stat().st_mtime if status_path and status
 positions = read_csv_rows(positions_path)
 deals = read_csv_rows(deals_path)
 acks = read_csv_rows(acks_path)
+shadow_rows = read_csv_rows(shadow_path)
+shadow_bars = read_shadow_bars(shadow_bars_path) if shadow_bars_path else []
+shadow_report = summarize_shadow_signals(shadow_rows, shadow_bars)
 profile_rows = read_csv_rows(profile_path)
 deal_summary = summarize_deals(deals)
 label, label_class = status_label(status_path, status_age)
@@ -307,7 +313,7 @@ top[4].metric("Closed PnL", money(total.get("pnl")))
 top[5].metric("Closed Deals", as_int(total.get("deals")))
 top[6].metric("Risk Tier", as_int(strategy_profile.get("risk_tier")))
 
-tabs = st.tabs(["Overview", "Symbols", "Trades", "Runtime"])
+tabs = st.tabs(["Overview", "Symbols", "Trades", "Shadow", "Runtime"])
 
 with tabs[0]:
     left, right = st.columns([1.1, 1])
@@ -321,6 +327,7 @@ with tabs[0]:
             ("Terminal trading", "enabled" if status.get("trade_allowed_terminal") else "disabled"),
             ("EA trading", "enabled" if status.get("trade_allowed_ea") else "disabled"),
             ("Entry trading", "paused" if status.get("entry_pause") else "enabled"),
+            ("Shadow evaluation", "active" if status.get("shadow_mode") else "inactive"),
             ("Last command id", status.get("last_command_id", "-")),
             ("Last signal", status.get("last_auto_signal", "-")),
         ]
@@ -416,6 +423,34 @@ with tabs[2]:
         st.dataframe(deal_frame, hide_index=True, width="stretch")
 
 with tabs[3]:
+    st.subheader("Paused-entry Shadow Performance")
+    st.caption(
+        "Qualified live setups are logged without broker orders. Outcomes use later M1 bars, "
+        "stop-first same-bar ordering, conservative next-bar dynamic break-even, "
+        "and $3.50 commission per side per lot."
+    )
+    shadow_total = shadow_report["total"]
+    shadow_metrics = st.columns(6)
+    shadow_metrics[0].metric("Signals", shadow_total["signals"])
+    shadow_metrics[1].metric("Resolved", shadow_total["resolved"])
+    shadow_metrics[2].metric("Open", shadow_total["open"])
+    shadow_metrics[3].metric("Win Rate", f"{shadow_total['win_rate'] * 100:.1f}%")
+    shadow_metrics[4].metric("Net PnL", money(shadow_total["net_pnl"]))
+    shadow_metrics[5].metric("Profit Factor", str(shadow_total["profit_factor"]))
+
+    by_shadow_strategy = summary_frame(shadow_report["by_strategy"], "strategy")
+    if by_shadow_strategy.empty:
+        st.info("No fully-qualified paused-entry shadow signals yet.")
+    else:
+        st.subheader("By Shadow Strategy")
+        st.dataframe(by_shadow_strategy, hide_index=True, width="stretch")
+
+    recent_shadow = pd.DataFrame(shadow_report["outcomes"][-50:])
+    if not recent_shadow.empty:
+        st.subheader("Recent Shadow Outcomes")
+        st.dataframe(recent_shadow, hide_index=True, width="stretch")
+
+with tabs[4]:
     left, right = st.columns([1, 1])
     with left:
         st.subheader("PM2")

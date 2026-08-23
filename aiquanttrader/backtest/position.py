@@ -156,6 +156,7 @@ class DailyRiskSizer(PositionSizer):
         high_confluence_score: int = 5,
         max_effective_risk_fraction: float = 0.01,
         bad_day_downshift_fraction: float = 1.0,
+        price_value_per_lot: float = 1.0,
         lot_digits: int = 2,
     ):
         super().__init__(
@@ -178,6 +179,7 @@ class DailyRiskSizer(PositionSizer):
             0.0,
             min(1.0, float(bad_day_downshift_fraction)),
         )
+        self.price_value_per_lot = max(0.0, float(price_value_per_lot))
         self.lot_digits = int(lot_digits)
 
     def size(
@@ -216,6 +218,12 @@ class DailyRiskSizer(PositionSizer):
         )
         if float(today_closed_pnl) < 0.0:
             risk_dollars *= self.bad_day_downshift_fraction
+        available_daily_risk = (
+            self.daily_loss_cap_fraction * equity_value
+            + float(today_closed_pnl)
+            - self._reserved_stop_risk(open_positions)
+        )
+        risk_dollars = min(risk_dollars, max(0.0, available_daily_risk))
         if risk_dollars <= 0:
             return 0.0
 
@@ -227,6 +235,24 @@ class DailyRiskSizer(PositionSizer):
         )
         rounded = round(max(0.0, min(float(max_lot), volume)), self.lot_digits)
         return rounded if rounded > 0.0 else 0.0
+
+    def _reserved_stop_risk(self, open_positions: list[Position]) -> float:
+        risk = 0.0
+        for position in open_positions:
+            if position.side.upper() == "BUY":
+                distance = position.entry_price - position.sl
+            elif position.side.upper() == "SELL":
+                distance = position.sl - position.entry_price
+            else:
+                continue
+            if distance <= 0.0:
+                continue
+            risk += (
+                distance
+                * max(0.0, float(position.volume))
+                * self.price_value_per_lot
+            )
+        return risk
 
     def __eq__(self, other: object) -> bool:
         if type(other) is not type(self):
@@ -241,6 +267,7 @@ class DailyRiskSizer(PositionSizer):
             and self.max_effective_risk_fraction
             == other.max_effective_risk_fraction
             and self.bad_day_downshift_fraction == other.bad_day_downshift_fraction
+            and self.price_value_per_lot == other.price_value_per_lot
             and self.lot_digits == other.lot_digits
         )
 
@@ -259,5 +286,6 @@ class DailyRiskSizer(PositionSizer):
             f"max_effective_risk_fraction="
             f"{self.max_effective_risk_fraction!r}, "
             f"bad_day_downshift_fraction={self.bad_day_downshift_fraction!r}, "
+            f"price_value_per_lot={self.price_value_per_lot!r}, "
             f"lot_digits={self.lot_digits!r})"
         )

@@ -277,6 +277,23 @@ def test_both_sl_and_tp_in_bar_exits_at_sl():
     assert result.trades[0]["exit_reason"] == "sl"
 
 
+def test_new_close_entry_ignores_earlier_extremes_from_same_bar():
+    bars = [
+        _bar(0, close=100.0, high=120.0, low=80.0),
+        _bar(1, close=100.0, high=104.0, low=96.0),
+    ]
+
+    result = Backtester(_config()).run(
+        strategy=OneShotSignal(
+            Signal(action="BUY", sl_distance=5.0, tp_distance=10.0, strategy="CloseEntry")
+        ),
+        bars=bars,
+    )
+
+    assert len(result.trades) == 1
+    assert result.trades[0]["exit_reason"] == "end_of_test"
+
+
 class OneShotSignal(Strategy):
     name = "OneShot"
 

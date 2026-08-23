@@ -28,7 +28,12 @@ if path:
         print(json.dumps(data, indent=2))
         print(f"age_seconds={age:.1f}")
         common = path.parent
-        for name in ("aiquanttrader_positions.csv", "aiquanttrader_deals.csv", "aiquanttrader_acks.csv"):
+        for name in (
+            "aiquanttrader_positions.csv",
+            "aiquanttrader_deals.csv",
+            "aiquanttrader_acks.csv",
+            "aiquanttrader_shadow_signals.csv",
+        ):
             file_path = common / name
             if file_path.exists():
                 file_age = time.time() - file_path.stat().st_mtime
